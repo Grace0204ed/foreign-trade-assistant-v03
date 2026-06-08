@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>报价助手 V0.1</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar no-print">
+        <h1>报价助手 V0.1</h1>
+        <p>本地报价系统</p>
+        <nav>
+          <button class="nav-btn active" data-view="home">首页</button>
+          <button class="nav-btn" data-view="quote">新建报价</button>
+          <button class="nav-btn" data-view="history">历史报价</button>
+          <button class="nav-btn" data-view="products">产品库</button>
+          <button class="nav-btn" data-view="settings">设置中心</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <section id="view-home" class="view active no-print">
+          <header class="page-head">
+            <h2>报价助手 V0.1</h2>
+            <p>用于本地创建、管理、导出中英双语报价单。</p>
+          </header>
+          <div class="entry-grid">
+            <button class="entry-card" data-view-target="quote"><b>新建报价</b><span>创建报价单、添加产品、上传图片、预览导出</span></button>
+            <button class="entry-card" data-view-target="history"><b>历史报价</b><span>搜索、编辑、复制、删除、重新导出报价单</span></button>
+            <button class="entry-card" data-view-target="products"><b>产品库</b><span>维护常用产品资料、分类和常用图片</span></button>
+            <button class="entry-card" data-view-target="settings"><b>设置中心</b><span>公司资料、Logo、背景图、报价字段模板</span></button>
+          </div>
+        </section>
+
+        <section id="view-settings" class="view no-print">
+          <header class="page-head">
+            <h2>设置中心</h2>
+            <p>设置会保存在本机浏览器，不需要联网。</p>
+          </header>
+          <div class="panel">
+            <h3>公司与联系人信息</h3>
+            <div class="form-grid">
+              <label><span>英文公司名</span><input data-setting="companyNameEn" /></label>
+              <label><span>中文公司名</span><input data-setting="companyNameZh" /></label>
+              <label><span>联系人</span><input data-setting="contactPerson" /></label>
+              <label><span>联系电话</span><input data-setting="companyPhone" /></label>
+              <label><span>联系邮箱</span><input data-setting="companyEmail" /></label>
+              <label><span>默认货币</span><input data-setting="currency" /></label>
+              <label class="wide"><span>英文地址</span><input data-setting="companyAddressEn" /></label>
+              <label class="wide"><span>中文地址</span><input data-setting="companyAddressZh" /></label>
+              <label class="wide"><span>英文主营业务</span><textarea data-setting="businessLineEn"></textarea></label>
+              <label class="wide"><span>中文主营业务</span><textarea data-setting="businessLineZh"></textarea></label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Logo、背景图与样式</h3>
+            <div class="asset-row">
+              <div>
+                <span class="field-title">公司 Logo</span>
+                <label class="file-btn">上传Logo<input id="logo-input" type="file" accept="image/*" /></label>
+                <button id="remove-logo-btn" type="button">删除Logo</button>
+                <img id="logo-preview" class="logo-preview" alt="" />
+              </div>
+              <div>
+                <span class="field-title">报价单背景图</span>
+                <label class="file-btn">上传背景图<input id="background-input" type="file" accept="image/*" /></label>
+                <button id="reset-background-btn" type="button">使用默认背景</button>
+                <img id="background-preview" class="bg-preview" alt="" />
+              </div>
+              <label>
+                <span>报价单样式</span>
+                <select data-setting="quoteStyle">
+                  <option value="business">商务蓝金</option>
+                  <option value="simple">简洁白色</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>产品分类与报价字段模板</h3>
+            <div class="category-manager">
+              <div class="actions">
+                <button id="add-category-btn" type="button">新增分类</button>
+              </div>
+              <table class="field-table">
+                <thead>
+                  <tr>
+                    <th>排序</th>
+                    <th>产品分类名称</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="category-list"></tbody>
+              </table>
+            </div>
+
+            <div class="form-grid">
+              <label>
+                <span>模板名称</span>
+                <input id="template-name-input" placeholder="二手工程机械" />
+              </label>
+              <label>
+                <span>模板说明</span>
+                <input id="template-desc-input" placeholder="适用于二手设备" />
+              </label>
+            </div>
+            <div class="actions">
+              <button id="save-template-btn" type="button">保存/更新模板</button>
+              <button id="delete-template-btn" type="button">删除当前模板</button>
+              <select id="template-select"></select>
+              <button id="add-field-btn" class="primary" type="button">新增字段</button>
+            </div>
+            <div class="field-manager">
+              <table class="field-table">
+                <thead>
+                  <tr>
+                    <th>排序</th>
+                    <th>中文字段名</th>
+                    <th>英文字段名</th>
+                    <th>fieldKey</th>
+                    <th>字段类型</th>
+                    <th>必填</th>
+                    <th>报价单显示</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="template-field-list"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="actions sticky-actions">
+            <button id="save-settings-btn" class="primary" type="button">保存设置</button>
+          </div>
+        </section>
+
+        <section id="view-products" class="view no-print">
+          <header class="page-head">
+            <h2>产品库</h2>
+            <p>保存常用产品资料和常用图片，新建报价时可直接选择。</p>
+          </header>
+          <div class="panel">
+            <div class="form-grid">
+              <label><span>分类</span><select id="product-category"></select></label>
+              <label><span>品牌</span><input id="product-brand" /></label>
+              <label><span>型号</span><input id="product-model" /></label>
+              <label><span>吨位</span><input id="product-tonnage" /></label>
+              <label><span>年份</span><input id="product-year" /></label>
+              <label><span>工时</span><input id="product-hours" /></label>
+              <label><span>参考价格</span><input id="product-price" type="number" /></label>
+              <label class="wide"><span>参数</span><textarea id="product-params"></textarea></label>
+              <label class="wide"><span>备注</span><textarea id="product-remark"></textarea></label>
+              <div>
+                <span class="field-title">常用图片</span>
+                <label class="file-btn">上传图片<input id="product-image" type="file" accept="image/*" /></label>
+                <img id="product-image-preview" class="product-preview" alt="" />
+              </div>
+            </div>
+            <div class="actions">
+              <button id="save-product-btn" class="primary" type="button">保存产品</button>
+              <button id="clear-product-btn" type="button">清空产品表单</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="search-row">
+              <input id="product-search" placeholder="按分类、品牌、型号搜索" />
+            </div>
+            <div id="product-list" class="list"></div>
+          </div>
+        </section>
+
+        <section id="view-quote" class="view">
+          <div class="no-print page-head row-head">
+            <div>
+              <h2>新建报价</h2>
+              <p>选择报价类型，添加多个产品，自动计算并导出。</p>
+            </div>
+            <div class="actions">
+              <button id="preview-quote-btn" type="button">刷新预览</button>
+              <button id="save-quote-btn" class="primary" type="button">保存到历史</button>
+              <button id="export-pdf-btn" type="button">导出PDF</button>
+              <button id="new-quote-btn" type="button">新建空白报价</button>
+            </div>
+          </div>
+
+          <div class="no-print quote-editor">
+            <div class="panel">
+              <h3>报价基础信息</h3>
+              <div class="form-grid">
+                <label><span>报价类型</span><select id="quote-template"></select></label>
+                <label><span>报价状态</span><select id="quote-status"><option>草稿</option><option>已发送</option><option>跟进中</option><option>已成交</option><option>已失败</option></select></label>
+                <label><span>报价编号</span><input id="quote-number" /></label>
+                <label><span>报价日期</span><input id="quote-date" type="date" /></label>
+                <label><span>报价有效期</span><input id="valid-until" type="date" /></label>
+                <label><span>客户国家</span><input id="buyer-country" /></label>
+                <label><span>客户公司</span><input id="buyer-company" /></label>
+                <label><span>负责人姓名</span><input id="buyer-contact" /></label>
+                <label><span>负责人电话</span><input id="buyer-phone" /></label>
+                <label><span>负责人邮箱</span><input id="buyer-email" /></label>
+                <label class="wide"><span>客户公司地址</span><input id="buyer-address" /></label>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="row-head">
+                <h3>产品明细</h3>
+                <div class="actions">
+                  <select id="library-product-select"></select>
+                  <button id="add-library-product-btn" type="button">从产品库添加</button>
+                  <button id="add-manual-product-btn" type="button">手动新增产品</button>
+                </div>
+              </div>
+              <div id="quote-items" class="quote-items"></div>
+            </div>
+
+            <div class="panel">
+              <h3>报价条款</h3>
+              <div class="form-grid">
+                <label><span>付款方式</span><input id="term-payment" /></label>
+                <label><span>交货时间</span><input id="term-delivery-time" /></label>
+                <label><span>运输方式</span><input id="term-shipping" /></label>
+                <label><span>目的港</span><input id="term-port" /></label>
+                <label class="wide"><span>售后说明</span><textarea id="term-after-sales"></textarea></label>
+                <label class="wide"><span>质保说明</span><textarea id="term-warranty"></textarea></label>
+                <label class="wide"><span>备注</span><textarea id="quote-notes"></textarea></label>
+              </div>
+            </div>
+          </div>
+
+          <article id="quote-preview" class="quote-preview"></article>
+        </section>
+
+        <section id="view-history" class="view no-print">
+          <header class="page-head">
+            <h2>历史报价</h2>
+            <p>保存所有已创建报价单，可搜索、编辑、复制、删除和重新导出。</p>
+          </header>
+          <div class="panel">
+            <div class="filter-grid">
+              <input id="history-keyword" placeholder="客户 / 国家 / 产品" />
+              <input id="history-date" type="date" />
+              <select id="history-status"><option value="">全部状态</option><option>草稿</option><option>已发送</option><option>跟进中</option><option>已成交</option><option>已失败</option></select>
+              <button id="history-search-btn" type="button">搜索筛选</button>
+            </div>
+          </div>
+          <div id="history-list" class="list"></div>
+        </section>
+      </main>
+
+      <div id="toast" class="toast no-print"></div>
+    </div>
+
+    <div id="field-modal" class="modal no-print" hidden>
+      <div class="modal-card">
+        <header>
+          <h3 id="field-modal-title">新增字段</h3>
+          <button id="close-field-modal-btn" type="button">关闭</button>
+        </header>
+        <div class="form-grid">
+          <label><span>中文字段名</span><input id="field-zh-input" /></label>
+          <label><span>英文字段名</span><input id="field-en-input" /></label>
+          <label><span>字段唯一标识 fieldKey</span><input id="field-key-input" /></label>
+          <label>
+            <span>字段类型 fieldType</span>
+            <select id="field-type-input">
+              <option value="text">text 文本</option>
+              <option value="number">number 数字</option>
+              <option value="money">money 金额</option>
+              <option value="date">date 日期</option>
+              <option value="select">select 选择框</option>
+              <option value="textarea">textarea 多行文本</option>
+              <option value="image">image 图片</option>
+              <option value="calculated">calculated 自动计算</option>
+            </select>
+          </label>
+          <label><span>是否必填</span><select id="field-required-input"><option value="true">是</option><option value="false">否</option></select></label>
+          <label><span>是否显示在报价单</span><select id="field-visible-input"><option value="true">是</option><option value="false">否</option></select></label>
+          <label><span>排序 sortOrder</span><input id="field-sort-input" type="number" /></label>
+        </div>
+        <footer class="actions">
+          <button id="save-field-btn" class="primary" type="button">保存字段</button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="category-modal" class="modal no-print" hidden>
+      <div class="modal-card small-modal">
+        <header>
+          <h3 id="category-modal-title">新增分类</h3>
+          <button id="close-category-modal-btn" type="button">关闭</button>
+        </header>
+        <label>
+          <span>产品分类名称</span>
+          <input id="category-name-input" />
+        </label>
+        <footer class="actions">
+          <button id="save-category-btn" class="primary" type="button">保存分类</button>
+        </footer>
+      </div>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>
