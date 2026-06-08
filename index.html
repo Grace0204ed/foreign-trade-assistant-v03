@@ -131,6 +131,27 @@
                 <tbody id="template-field-list"></tbody>
               </table>
             </div>
+            <div class="field-manager">
+              <div class="row-head">
+                <h3>报价条款字段</h3>
+                <button id="add-term-field-btn" class="primary" type="button">新增条款字段</button>
+              </div>
+              <table class="field-table">
+                <thead>
+                  <tr>
+                    <th>排序</th>
+                    <th>中文字段名</th>
+                    <th>英文字段名</th>
+                    <th>fieldKey</th>
+                    <th>字段类型</th>
+                    <th>必填</th>
+                    <th>报价单显示</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="template-term-field-list"></tbody>
+              </table>
+            </div>
           </div>
           <div class="actions sticky-actions">
             <button id="save-settings-btn" class="primary" type="button">保存设置</button>
@@ -218,15 +239,7 @@
 
             <div class="panel">
               <h3>报价条款</h3>
-              <div class="form-grid">
-                <label><span>付款方式</span><input id="term-payment" /></label>
-                <label><span>交货时间</span><input id="term-delivery-time" /></label>
-                <label><span>运输方式</span><input id="term-shipping" /></label>
-                <label><span>目的港</span><input id="term-port" /></label>
-                <label class="wide"><span>售后说明</span><textarea id="term-after-sales"></textarea></label>
-                <label class="wide"><span>质保说明</span><textarea id="term-warranty"></textarea></label>
-                <label class="wide"><span>备注</span><textarea id="quote-notes"></textarea></label>
-              </div>
+              <div id="quote-terms" class="form-grid"></div>
             </div>
           </div>
 

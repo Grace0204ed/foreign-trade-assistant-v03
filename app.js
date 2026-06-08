@@ -5,6 +5,15 @@
     quotes: "quote_assistant_v01_quotes"
   };
   const defaultBg = "./assets/company-background.png";
+  const defaultTermFields = [
+    f("付款方式", "Payment", "payment", "text", false, true, 10),
+    f("交货时间", "Delivery Time", "deliveryTime", "text", false, true, 20),
+    f("运输方式", "Shipping", "shipping", "text", false, true, 30),
+    f("目的港", "Destination Port", "port", "text", false, true, 40),
+    f("售后说明", "After-sales", "afterSales", "textarea", false, true, 50),
+    f("质保说明", "Warranty", "warranty", "textarea", false, true, 60),
+    f("备注", "Notes", "notes", "textarea", false, true, 70)
+  ];
 
   const defaultTemplates = [
     {
@@ -22,7 +31,8 @@
         f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 90),
         f("备注", "Remark", "remark", "textarea", false, true, 100),
         f("产品图片", "Product Image", "productImage", "image", false, true, 110)
-      ]
+      ],
+      termFields: defaultTermFields
     },
     {
       name: "新车报价",
@@ -38,7 +48,8 @@
         f("货币单位", "Currency", "currency", "select", true, true, 80),
         f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 90),
         f("产品图片", "Product Image", "productImage", "image", false, true, 100)
-      ]
+      ],
+      termFields: defaultTermFields
     }
   ];
 
@@ -66,6 +77,7 @@
   let currentQuote = null;
   let editingProductId = "";
   let editingFieldIndex = -1;
+  let editingFieldTarget = "product";
   let editingCategoryIndex = -1;
 
   const $ = (id) => document.getElementById(id);
@@ -162,7 +174,8 @@
     return {
       name: tpl.name,
       desc: tpl.desc || "",
-      fields: (tpl.fields || []).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder)
+      fields: (tpl.fields || []).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder),
+      termFields: (tpl.termFields || defaultTermFields).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder)
     };
   }
 
@@ -252,6 +265,7 @@
     $("template-desc-input").value = tpl.desc || "";
     renderTemplateSelect(tpl.name);
     renderFieldList(tpl);
+    renderTermFieldList(tpl);
   }
 
   function currentTemplate() {
@@ -362,9 +376,8 @@
     renderAllSelectors();
   }
 
-  function renderFieldList(tpl = currentTemplate()) {
-    const fields = (tpl?.fields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
-    $("template-field-list").innerHTML = fields.map((field, index) => `
+  function renderFieldRows(fields, target) {
+    return fields.map((field, index) => `
       <tr draggable="true" data-field-index="${index}">
         <td>
           <span class="drag-handle">☰</span>
@@ -377,33 +390,49 @@
         <td><input class="field-required-toggle" type="checkbox" ${field.required ? "checked" : ""} /></td>
         <td><input class="field-visible-toggle" type="checkbox" ${field.visible ? "checked" : ""} /></td>
         <td class="field-actions">
-          <button type="button" data-field-action="edit">编辑</button>
+          <button type="button" data-field-action="edit" data-field-target="${target}">编辑</button>
           <button type="button" data-field-action="delete">删除</button>
           <button type="button" data-field-action="up">上移</button>
           <button type="button" data-field-action="down">下移</button>
         </td>
       </tr>
-    `).join("") || `<tr><td colspan="8" class="empty">暂无字段，请点击“新增字段”。</td></tr>`;
+    `).join("");
   }
 
-  function resequenceFields(tpl) {
-    tpl.fields.forEach((field, index) => {
+  function renderFieldList(tpl = currentTemplate()) {
+    const fields = (tpl?.fields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
+    $("template-field-list").innerHTML = renderFieldRows(fields, "product") || `<tr><td colspan="8" class="empty">暂无字段，请点击“新增字段”。</td></tr>`;
+  }
+
+  function renderTermFieldList(tpl = currentTemplate()) {
+    const fields = (tpl?.termFields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
+    $("template-term-field-list").innerHTML = renderFieldRows(fields, "terms") || `<tr><td colspan="8" class="empty">暂无条款字段，请点击“新增条款字段”。</td></tr>`;
+  }
+
+  function activeFields(tpl = currentTemplate()) {
+    return editingFieldTarget === "terms" ? tpl.termFields : tpl.fields;
+  }
+
+  function resequenceFields(fields) {
+    fields.forEach((field, index) => {
       field.sortOrder = (index + 1) * 10;
     });
   }
 
-  function openFieldModal(index = -1) {
+  function openFieldModal(index = -1, target = "product") {
     const tpl = currentTemplate();
+    editingFieldTarget = target;
+    const fields = activeFields(tpl);
     editingFieldIndex = index;
-    const field = index >= 0 ? tpl.fields[index] : f("", "", "", "text", false, true, (tpl.fields.length + 1) * 10);
-    $("field-modal-title").textContent = index >= 0 ? "编辑字段" : "新增字段";
+    const field = index >= 0 ? fields[index] : f("", "", "", "text", false, true, (fields.length + 1) * 10);
+    $("field-modal-title").textContent = `${index >= 0 ? "编辑" : "新增"}${target === "terms" ? "条款字段" : "字段"}`;
     $("field-zh-input").value = field.zh || "";
     $("field-en-input").value = field.en || "";
     $("field-key-input").value = field.fieldKey || "";
     $("field-type-input").value = field.fieldType || "text";
     $("field-required-input").value = field.required ? "true" : "false";
     $("field-visible-input").value = field.visible ? "true" : "false";
-    $("field-sort-input").value = field.sortOrder || (tpl.fields.length + 1) * 10;
+    $("field-sort-input").value = field.sortOrder || (fields.length + 1) * 10;
     $("field-modal").hidden = false;
   }
 
@@ -413,6 +442,7 @@
 
   function saveFieldFromModal() {
     const tpl = currentTemplate();
+    const fields = activeFields(tpl);
     const zh = $("field-zh-input").value.trim();
     const en = $("field-en-input").value.trim();
     if (!zh || !en) return toast("请填写中文字段名和英文字段名。");
@@ -425,32 +455,39 @@
       visible: $("field-visible-input").value === "true",
       sortOrder: Number($("field-sort-input").value || 0)
     };
-    if (editingFieldIndex >= 0) tpl.fields[editingFieldIndex] = field;
-    else tpl.fields.push(field);
-    tpl.fields.sort((a, b) => a.sortOrder - b.sortOrder);
-    resequenceFields(tpl);
+    if (editingFieldIndex >= 0) fields[editingFieldIndex] = field;
+    else fields.push(field);
+    fields.sort((a, b) => a.sortOrder - b.sortOrder);
+    resequenceFields(fields);
     renderFieldList(tpl);
+    renderTermFieldList(tpl);
     closeFieldModal();
   }
 
-  function moveField(index, delta) {
+  function moveField(index, delta, target = "product") {
     const tpl = currentTemplate();
-    const target = index + delta;
-    if (target < 0 || target >= tpl.fields.length) return;
-    const [field] = tpl.fields.splice(index, 1);
-    tpl.fields.splice(target, 0, field);
-    resequenceFields(tpl);
+    editingFieldTarget = target;
+    const fields = activeFields(tpl);
+    const targetIndex = index + delta;
+    if (targetIndex < 0 || targetIndex >= fields.length) return;
+    const [field] = fields.splice(index, 1);
+    fields.splice(targetIndex, 0, field);
+    resequenceFields(fields);
     renderFieldList(tpl);
+    renderTermFieldList(tpl);
   }
 
-  function deleteField(index) {
+  function deleteField(index, target = "product") {
     const tpl = currentTemplate();
-    const field = tpl.fields[index];
+    editingFieldTarget = target;
+    const fields = activeFields(tpl);
+    const field = fields[index];
     if (!field) return;
     if (!confirm(`确定删除字段“${field.zh} / ${field.en}”吗？`)) return;
-    tpl.fields.splice(index, 1);
-    resequenceFields(tpl);
+    fields.splice(index, 1);
+    resequenceFields(fields);
     renderFieldList(tpl);
+    renderTermFieldList(tpl);
   }
 
   function handleFieldListClick(event) {
@@ -458,19 +495,21 @@
     if (!row) return;
     const index = Number(row.dataset.fieldIndex);
     const tpl = currentTemplate();
+    editingFieldTarget = event.currentTarget.id === "template-term-field-list" ? "terms" : "product";
+    const fields = activeFields(tpl);
     if (event.target.matches(".field-required-toggle")) {
-      tpl.fields[index].required = event.target.checked;
+      fields[index].required = event.target.checked;
       return;
     }
     if (event.target.matches(".field-visible-toggle")) {
-      tpl.fields[index].visible = event.target.checked;
+      fields[index].visible = event.target.checked;
       return;
     }
     const action = event.target.dataset.fieldAction;
-    if (action === "edit") openFieldModal(index);
-    if (action === "delete") deleteField(index);
-    if (action === "up") moveField(index, -1);
-    if (action === "down") moveField(index, 1);
+    if (action === "edit") openFieldModal(index, editingFieldTarget);
+    if (action === "delete") deleteField(index, editingFieldTarget);
+    if (action === "up") moveField(index, -1, editingFieldTarget);
+    if (action === "down") moveField(index, 1, editingFieldTarget);
   }
 
   function handleFieldDragStart(event) {
@@ -483,14 +522,17 @@
     const row = event.target.closest("tr[data-field-index]");
     if (!row) return;
     event.preventDefault();
+    editingFieldTarget = event.currentTarget.id === "template-term-field-list" ? "terms" : "product";
     const from = Number(event.dataTransfer.getData("text/plain"));
     const to = Number(row.dataset.fieldIndex);
     if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
     const tpl = currentTemplate();
-    const [field] = tpl.fields.splice(from, 1);
-    tpl.fields.splice(to, 0, field);
-    resequenceFields(tpl);
+    const fields = activeFields(tpl);
+    const [field] = fields.splice(from, 1);
+    fields.splice(to, 0, field);
+    resequenceFields(fields);
     renderFieldList(tpl);
+    renderTermFieldList(tpl);
   }
 
   function saveSettings() {
@@ -509,7 +551,12 @@
     const name = $("template-name-input").value.trim();
     if (!name) return toast("请输入模板名称。");
     const old = currentTemplate();
-    const tpl = { name, desc: $("template-desc-input").value.trim(), fields: (old?.fields || []).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder) };
+    const tpl = {
+      name,
+      desc: $("template-desc-input").value.trim(),
+      fields: (old?.fields || []).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder),
+      termFields: (old?.termFields || defaultTermFields).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder)
+    };
     const idx = settings.templates.findIndex((t) => t.name === name);
     if (idx >= 0) settings.templates[idx] = tpl;
     else settings.templates.push(tpl);
@@ -611,6 +658,16 @@
     `).join("") || `<p class="empty">暂无产品。</p>`;
   }
 
+  function renderQuoteEditor() {
+    if (!currentQuote) {
+      newQuote();
+      return;
+    }
+    bindQuoteToForm();
+    renderQuoteItems();
+    renderPreview();
+  }
+
   function newQuote() {
     const d = today();
     currentQuote = {
@@ -656,13 +713,22 @@
     $("buyer-phone").value = currentQuote.buyer.phone || "";
     $("buyer-email").value = currentQuote.buyer.email || "";
     $("buyer-address").value = currentQuote.buyer.address || "";
-    $("term-payment").value = currentQuote.terms.payment || "";
-    $("term-delivery-time").value = currentQuote.terms.deliveryTime || "";
-    $("term-shipping").value = currentQuote.terms.shipping || "";
-    $("term-port").value = currentQuote.terms.port || "";
-    $("term-after-sales").value = currentQuote.terms.afterSales || "";
-    $("term-warranty").value = currentQuote.terms.warranty || "";
-    $("quote-notes").value = currentQuote.terms.notes || "";
+    renderQuoteTerms();
+  }
+
+  function renderQuoteTerms() {
+    const tpl = template();
+    const values = currentQuote.terms || {};
+    const fields = (tpl.termFields || defaultTermFields)
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
+    $("quote-terms").innerHTML = fields.map((field) => `
+      <label class="${field.fieldType === "textarea" ? "wide" : ""}">
+        <span>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}${field.required ? " *" : ""}</span>
+        ${renderTermInput(field, values[field.fieldKey] || "")}
+      </label>
+    `).join("") || `<p class="empty wide">当前报价类型没有需要填写的条款字段。</p>`;
   }
 
   function collectQuoteFromForm() {
@@ -679,19 +745,12 @@
       email: $("buyer-email").value,
       address: $("buyer-address").value
     };
-    currentQuote.terms = {
-      payment: $("term-payment").value,
-      deliveryTime: $("term-delivery-time").value,
-      shipping: $("term-shipping").value,
-      port: $("term-port").value,
-      afterSales: $("term-after-sales").value,
-      warranty: $("term-warranty").value,
-      notes: $("quote-notes").value
-    };
+    currentQuote.terms = {};
+    document.querySelectorAll("[data-termfield]").forEach((input) => currentQuote.terms[input.dataset.termfield] = input.value);
     currentQuote.items = Array.from(document.querySelectorAll(".quote-item")).map((card) => {
       const values = {};
       card.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
-      return { id: card.dataset.id, values, imageDataUrl: card.querySelector("[data-image]").dataset.image || "" };
+      return { id: card.dataset.id, values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "" };
     });
     currentQuote.updatedAt = new Date().toISOString();
   }
@@ -700,7 +759,8 @@
     const tpl = template();
     const id = item.id || uid("item");
     const vals = item.values || {};
-    const fields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.fieldType !== "calculated" && field.fieldType !== "image");
+    const fields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
+    const showImage = tpl.fields.some((field) => field.visible && field.fieldType === "image");
     return `
       <article class="quote-item panel" data-id="${id}">
         <div class="quote-item-grid">
@@ -710,11 +770,13 @@
               ${renderFieldInput(field, vals[field.fieldKey] || "")}
             </label>
           `).join("")}
+          ${showImage ? `
           <div>
             <span class="field-title">产品图片</span>
             <label class="file-btn">上传图片<input class="quote-image-input" type="file" accept="image/*" /></label>
             <img class="product-preview" data-image src="${item.imageDataUrl || ""}" alt="" />
           </div>
+          ` : ""}
         </div>
         <div class="actions"><button class="remove-quote-item" type="button">删除本产品</button></div>
       </article>
@@ -738,6 +800,16 @@
       return `<select data-qfield="${key}">${options.map((option) => `<option value="${option}"${option === value ? " selected" : ""}>${option}</option>`).join("")}</select>`;
     }
     return `<input data-qfield="${key}" type="text" value="${val}" />`;
+  }
+
+  function renderTermInput(field, value) {
+    const key = escapeHtml(field.fieldKey);
+    const val = escapeHtml(value);
+    if (field.fieldType === "textarea") return `<textarea data-termfield="${key}">${val}</textarea>`;
+    if (field.fieldType === "date") return `<input data-termfield="${key}" type="date" value="${val}" />`;
+    if (field.fieldType === "number" || field.fieldType === "money") return `<input data-termfield="${key}" type="number" value="${val}" />`;
+    if (field.fieldType === "select") return `<select data-termfield="${key}"><option value="${val}" selected>${val || "请选择"}</option></select>`;
+    return `<input data-termfield="${key}" type="text" value="${val}" />`;
   }
 
   function addManualProduct() {
@@ -786,6 +858,8 @@
     collectQuoteFromForm();
     const tpl = template();
     const visibleFields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
+    const visibleTermFields = (tpl.termFields || defaultTermFields).slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
+    const showProductPhotos = visibleFields.some((field) => field.fieldType === "image");
     const bg = settings.backgroundDataUrl || defaultBg;
     $("quote-preview").innerHTML = `
       <section class="preview-banner" style="background-image:linear-gradient(90deg,rgba(8,25,48,.78),rgba(8,25,48,.42)),url('${bg}')">
@@ -798,8 +872,8 @@
       </section>
       <section class="preview-panel"><h3>Customer Information / 客户信息</h3><div class="preview-fields"><p>Company / 公司：${escapeHtml(currentQuote.buyer.company)}</p><p>Country / 国家：${escapeHtml(currentQuote.buyer.country)}</p><p>Contact / 负责人：${escapeHtml(currentQuote.buyer.contact)}</p><p>Phone / 电话：${escapeHtml(currentQuote.buyer.phone)}</p><p>Email / 邮箱：${escapeHtml(currentQuote.buyer.email)}</p><p>Address / 地址：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
       <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr>${visibleFields.map(x => `<th>${escapeHtml(x.en)}<small>${escapeHtml(x.zh)}</small></th>`).join("")}</tr></thead><tbody>${currentQuote.items.map(item => `<tr>${visibleFields.map(x => `<td>${escapeHtml(displayFieldValue(item, x))}</td>`).join("")}</tr>`).join("")}</tbody></table><div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div></section>
-      ${currentQuote.items.some(i => i.imageDataUrl) ? `<section class="preview-panel"><h3>Product Photos / 产品图片</h3><div class="photo-grid">${currentQuote.items.filter(i => i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
-      <section class="preview-panel"><h3>Terms / 条款</h3><p>Payment / 付款：${escapeHtml(currentQuote.terms.payment)}</p><p>Delivery Time / 交货时间：${escapeHtml(currentQuote.terms.deliveryTime)}</p><p>Shipping / 运输方式：${escapeHtml(currentQuote.terms.shipping)}</p><p>Destination Port / 目的港：${escapeHtml(currentQuote.terms.port)}</p><p>After-sales / 售后：${escapeHtml(currentQuote.terms.afterSales)}</p><p>Warranty / 质保：${escapeHtml(currentQuote.terms.warranty)}</p><p>Notes / 备注：${escapeHtml(currentQuote.terms.notes)}</p></section>
+      ${showProductPhotos && currentQuote.items.some(i => i.imageDataUrl) ? `<section class="preview-panel"><h3>Product Photos / 产品图片</h3><div class="photo-grid">${currentQuote.items.filter(i => i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
+      ${visibleTermFields.length ? `<section class="preview-panel"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(currentQuote.terms[field.fieldKey] || "")}</p>`).join("")}</section>` : ""}
     `;
   }
 
@@ -865,12 +939,17 @@
     $("category-list").addEventListener("dragover", (e) => e.preventDefault());
     $("category-list").addEventListener("drop", handleCategoryDrop);
     $("add-field-btn").addEventListener("click", () => openFieldModal(-1));
+    $("add-term-field-btn").addEventListener("click", () => openFieldModal(-1, "terms"));
     $("close-field-modal-btn").addEventListener("click", closeFieldModal);
     $("save-field-btn").addEventListener("click", saveFieldFromModal);
     $("template-field-list").addEventListener("click", handleFieldListClick);
     $("template-field-list").addEventListener("dragstart", handleFieldDragStart);
     $("template-field-list").addEventListener("dragover", (e) => e.preventDefault());
     $("template-field-list").addEventListener("drop", handleFieldDrop);
+    $("template-term-field-list").addEventListener("click", handleFieldListClick);
+    $("template-term-field-list").addEventListener("dragstart", handleFieldDragStart);
+    $("template-term-field-list").addEventListener("dragover", (e) => e.preventDefault());
+    $("template-term-field-list").addEventListener("drop", handleFieldDrop);
     $("save-settings-btn").addEventListener("click", saveSettings);
     $("logo-input").addEventListener("change", async e => { settings.logoDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
     $("background-input").addEventListener("change", async e => { settings.backgroundDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
@@ -882,9 +961,9 @@
     $("product-search").addEventListener("input", renderProducts);
     $("add-manual-product-btn").addEventListener("click", addManualProduct);
     $("add-library-product-btn").addEventListener("click", addProductFromLibrary);
-    $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteItems(); });
+    $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
     $("quote-items").addEventListener("input", renderPreview);
-    $("quote-items").addEventListener("change", async e => { if (e.target.matches(".quote-image-input")) { const img = await normalizeImage(e.target.files[0]); const prev = e.target.closest(".quote-item").querySelector("[data-image]"); prev.src = img; prev.dataset.image = img; renderPreview(); } });
+    $("quote-items").addEventListener("change", async e => { if (e.target.matches(".quote-image-input")) { const img = await normalizeImage(e.target.files[0]); const prev = e.target.closest(".quote-item").querySelector("[data-image]"); if (prev) { prev.src = img; prev.dataset.image = img; } renderPreview(); } });
     $("quote-items").addEventListener("click", e => { if (e.target.matches(".remove-quote-item")) { e.target.closest(".quote-item").remove(); renderPreview(); } });
     $("preview-quote-btn").addEventListener("click", renderPreview);
     $("save-quote-btn").addEventListener("click", saveQuote);
