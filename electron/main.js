@@ -1,18 +1,62 @@
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
+const { spawn } = require("child_process");
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 
-let server;
+let serverProcess;
+const desktopPort = 18765;
 
 function dataDir() {
   return app.getPath("userData");
 }
 
+function waitForServer(url, timeoutMs = 20000) {
+  const startedAt = Date.now();
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      const req = http.get(url, (res) => {
+        res.resume();
+        resolve();
+      });
+
+      req.on("error", () => {
+        if (Date.now() - startedAt > timeoutMs) {
+          reject(new Error("Local server start timeout."));
+          return;
+        }
+        setTimeout(tick, 300);
+      });
+
+      req.setTimeout(1000, () => {
+        req.destroy();
+      });
+    };
+
+    tick();
+  });
+}
+
+function startLocalServer() {
+  if (serverProcess && !serverProcess.killed) return;
+
+  const projectRoot = path.join(__dirname, "..");
+  const serverEntry = path.join(projectRoot, "server", "index.js");
+  serverProcess = spawn(process.env.QUOTE_NODE_EXE || "node", [serverEntry], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      PORT: String(desktopPort),
+      QUOTE_DATA_DIR: dataDir()
+    },
+    windowsHide: true,
+    stdio: "ignore"
+  });
+}
+
 async function createWindow() {
-  process.env.QUOTE_DATA_DIR = dataDir();
-  const { startServer } = require("../server/index");
-  server = await startServer(0);
-  const port = server.address().port;
+  startLocalServer();
+  await waitForServer(`http://127.0.0.1:${desktopPort}/index.html`);
 
   const win = new BrowserWindow({
     width: 1360,
@@ -27,13 +71,13 @@ async function createWindow() {
     }
   });
 
-  await win.loadURL(`http://127.0.0.1:${port}/index.html`);
+  await win.loadURL(`http://127.0.0.1:${desktopPort}/index.html`);
 }
 
 app.whenReady().then(createWindow);
 
 app.on("window-all-closed", () => {
-  if (server) server.close();
+  if (serverProcess && !serverProcess.killed) serverProcess.kill();
   if (process.platform !== "darwin") app.quit();
 });
 

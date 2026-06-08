@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
@@ -7,9 +8,10 @@ if not exist "node_modules" (
   npm install
 )
 
-echo Preparing SQLite for browser/server mode / 正在准备浏览器版 SQLite...
-npm run rebuild:node
+echo Checking SQLite / 正在检查 SQLite...
+npm run ensure:sqlite
 
+echo Starting local server / 正在启动本地服务...
 start "Quotation System Server" /min cmd /c "npm run server"
 timeout /t 2 >nul
 start http://127.0.0.1:8765/index.html

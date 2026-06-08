@@ -34,10 +34,10 @@ node node_modules/electron/install.js
 
 如果打包时提示 `better-sqlite3` 被占用，请先关闭正在运行的报价系统窗口和本地 Node 服务，再重新执行 `npm run rebuild:electron` 和 `npm run build:win`。
 
-注意：SQLite 使用原生模块，浏览器后端版和 Electron 桌面版需要不同运行时构建。启动脚本已自动处理：
+注意：启动脚本会先检查 SQLite 原生模块是否可用，只有不可用时才自动修复，避免后台服务占用文件导致打不开。
 
-- `启动报价系统.cmd` 会执行 `npm run rebuild:node`
-- `启动桌面版.cmd` 会执行 `npm run rebuild:electron`
+- `启动报价系统.cmd` 会执行 `npm run ensure:sqlite`
+- `启动桌面版.cmd` 会执行 `npm run ensure:sqlite`
 
 首页包含主要功能：
 - 新建报价

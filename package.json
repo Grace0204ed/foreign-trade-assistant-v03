@@ -8,10 +8,11 @@
     "server": "node server/index.js",
     "electron": "electron .",
     "dev": "node server/index.js",
+    "ensure:sqlite": "node scripts/ensure-node-sqlite.js",
     "rebuild:node": "npm rebuild better-sqlite3",
     "rebuild:electron": "electron-builder install-app-deps",
     "build:win": "electron-builder --win nsis",
-    "check": "node --check server/index.js && node --check electron/main.js && node --check app.js"
+    "check": "node --check server/index.js && node --check electron/main.js && node --check app.js && node --check scripts/ensure-node-sqlite.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -36,6 +37,7 @@
       "assets/**/*",
       "server/**/*",
       "electron/**/*",
+      "scripts/**/*",
       "package.json"
     ],
     "extraResources": [
