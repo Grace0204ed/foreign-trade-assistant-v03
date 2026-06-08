@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const session = require("express-session");
@@ -34,7 +34,7 @@ function requireLogin(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.session.user?.role === "admin") return next();
+  if (["owner", "admin"].includes(req.session.user?.role)) return next();
   return fail(res, 403, "Admin permission required.", "需要管理员权限。");
 }
 
@@ -162,6 +162,26 @@ function freightAmount(cbm, rate, quantity) {
   return Number(amount.toFixed(2));
 }
 
+function rowToUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    role: row.role,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function validUsername(username) {
+  const value = String(username || "").trim();
+  if (!value) return false;
+  if (value.includes("@")) {
+    return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value);
+  }
+  return /^[A-Za-z0-9._-]{3,50}$/.test(value);
+}
+
 function referenced(table, column, value) {
   if (table === "products") {
     const rows = db.prepare("SELECT product_snapshot_json FROM quotation_items").all();
@@ -199,6 +219,54 @@ app.post("/api/auth/logout", (req, res) => {
 
 app.get("/api/auth/me", (req, res) => ok(res, { user: req.session.user || null }));
 
+app.get("/api/users", requireLogin, requireAdmin, (req, res) => {
+  const users = db.prepare("SELECT * FROM users ORDER BY created_at DESC").all().map(rowToUser);
+  ok(res, { users });
+});
+
+app.post("/api/users", requireLogin, requireAdmin, (req, res) => {
+  const payload = req.body || {};
+  const username = String(payload.username || "").trim();
+  const password = String(payload.password || "");
+  const role = payload.role === "owner" ? "owner" : "user";
+  if (!username || !password) return fail(res, 400, "Username and password are required.", "用户名和密码不能为空。");
+  if (!validUsername(username)) {
+    return fail(res, 400, "Username must use English letters/numbers or a valid email address.", "用户名必须使用英文、数字，或填写有效邮箱。");
+  }
+  if (db.prepare("SELECT id FROM users WHERE username=?").get(username)) {
+    return fail(res, 409, "Username already exists.", "用户名已存在。");
+  }
+  const userId = id("user");
+  db.prepare("INSERT INTO users (id, username, password_hash, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'Active', ?, ?)")
+    .run(userId, username, bcrypt.hashSync(password, 10), role, now(), now());
+  ok(res, { user: rowToUser(db.prepare("SELECT * FROM users WHERE id=?").get(userId)), message: "Saved successfully.", zh: "保存成功。" });
+});
+
+app.put("/api/users/:id", requireLogin, requireAdmin, (req, res) => {
+  const existing = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
+  if (!existing) return fail(res, 404, "User not found.", "用户不存在。");
+  const payload = req.body || {};
+  const role = payload.role === "owner" ? "owner" : "user";
+  const status = payload.status === "Inactive" ? "Inactive" : "Active";
+  if (existing.username === "admin" && (role !== "owner" || status !== "Active")) {
+    return fail(res, 400, "The owner account cannot be disabled or downgraded.", "所有者账号不能停用或降级。");
+  }
+  db.prepare("UPDATE users SET role=?, status=?, updated_at=? WHERE id=?").run(role, status, now(), req.params.id);
+  if (payload.password) {
+    db.prepare("UPDATE users SET password_hash=?, updated_at=? WHERE id=?").run(bcrypt.hashSync(String(payload.password), 10), now(), req.params.id);
+  }
+  ok(res, { user: rowToUser(db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id)), message: "Saved successfully.", zh: "保存成功。" });
+});
+
+app.delete("/api/users/:id", requireLogin, requireAdmin, (req, res) => {
+  const existing = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
+  if (!existing) return fail(res, 404, "User not found.", "用户不存在。");
+  if (existing.username === "admin" || existing.id === req.session.user.id) {
+    return fail(res, 400, "This account cannot be deleted.", "该账号不能删除。");
+  }
+  db.prepare("UPDATE users SET status='Inactive', updated_at=? WHERE id=?").run(now(), req.params.id);
+  ok(res, { mode: "inactive", message: "Marked as inactive successfully.", zh: "已成功标记为停用。" });
+});
 app.get("/api/products", requireLogin, (req, res) => {
   const q = normalize(req.query.keyword || "");
   const includeInactive = req.query.includeInactive === "true";
@@ -605,3 +673,4 @@ if (require.main === module) {
 }
 
 module.exports = { app, startServer };
+

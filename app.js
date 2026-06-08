@@ -86,6 +86,7 @@
   let editingFieldTarget = "product";
   let editingCategoryIndex = -1;
   let currentUser = null;
+  let users = [];
   let serverProducts = [];
   let ports = [];
   let freightRates = [];
@@ -150,6 +151,25 @@
     return data;
   }
 
+  function isAdmin() {
+    return ["owner", "admin"].includes(currentUser?.role);
+  }
+
+  function ensureLoginView() {
+    if ($("view-login")) return;
+    const section = document.createElement("section");
+    section.id = "view-login";
+    section.className = "view active no-print";
+    section.innerHTML = `
+      <div class="login-required-card">
+        <h2>Login Required / 请先登录</h2>
+        <p>Only authorized users can use this quotation system. / 只有授权账号才可以使用报价系统。</p>
+        <p>Accounts must be created by the owner in Settings. / 账号必须由所有者在设置中添加。</p>
+      </div>
+    `;
+    document.querySelector(".main")?.prepend(section);
+  }
+
   function toLegacyProduct(product) {
     return {
       id: product.id,
@@ -173,6 +193,7 @@
     const data = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
     currentUser = data.user;
     renderLogin();
+    applyAuthLock();
     await loadServerData();
     toast("Logged in successfully. / 登录成功。");
   }
@@ -181,6 +202,7 @@
     await api("/api/auth/logout", { method: "POST" });
     currentUser = null;
     renderLogin();
+    applyAuthLock();
   }
 
   function renderLogin() {
@@ -189,14 +211,30 @@
     $("logout-btn").hidden = !currentUser;
   }
 
+  function applyAuthLock() {
+    ensureLoginView();
+    document.body.classList.toggle("auth-locked", !currentUser);
+    document.body.classList.toggle("is-admin", isAdmin());
+    updateAdminControls();
+    document.querySelectorAll(".nav-btn, .entry-card").forEach((button) => {
+      button.disabled = !currentUser;
+    });
+    if (!currentUser) {
+      $("login-status").textContent = "Not logged in / 未登录";
+      switchView("login");
+    }
+  }
+
   async function checkLogin() {
     try {
       const data = await api("/api/auth/me");
       currentUser = data.user;
       renderLogin();
+      applyAuthLock();
       if (currentUser) await loadServerData();
     } catch {
       renderLogin();
+      applyAuthLock();
     }
   }
 
@@ -324,6 +362,10 @@
   }
 
   function switchView(name) {
+    if (!currentUser && name !== "login") {
+      ensureLoginView();
+      name = "login";
+    }
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
     if (name === "history") renderHistory();
@@ -338,6 +380,7 @@
   }
 
   function renderSettings() {
+    ensureUserManagerPanel();
     normalizeTemplates();
     normalizeCategories();
     document.querySelectorAll("[data-setting]").forEach((input) => {
@@ -351,6 +394,142 @@
     $("background-preview").src = settings.backgroundDataUrl || defaultBg;
     $("stamp-preview").src = settings.stampDataUrl || "";
     $("stamp-preview").hidden = !settings.stampDataUrl;
+    renderUsers();
+  }
+
+  function ensureUserManagerPanel() {
+    if ($("user-manager-panel")) return;
+    const section = document.createElement("div");
+    section.id = "user-manager-panel";
+    section.className = "panel admin-only";
+    section.innerHTML = `
+      <div class="row-head">
+        <div>
+          <h3>User Management / 用户管理</h3>
+          <p class="hint">Username supports English letters, numbers, or email. New accounts are normal users by default. / 用户名支持英文、数字或邮箱，新账号默认是普通用户。</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label><span>Username or Email / 用户名或邮箱</span><input id="user-username" autocomplete="off" placeholder="ethan01 or name@example.com" /></label>
+        <label><span>Password / 密码</span><input id="user-password" type="password" autocomplete="new-password" /></label>
+        <label>
+          <span>Role / 角色</span>
+          <select id="user-role">
+            <option value="user">Normal User / 普通用户</option>
+            <option value="owner">Owner / 所有者</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button id="save-user-btn" class="primary" type="button">Add User / 新增用户</button>
+        <button id="clear-user-btn" type="button">Cancel / 取消</button>
+      </div>
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>Username / 用户名</th>
+            <th>Role / 角色</th>
+            <th>Status / 状态</th>
+            <th>Actions / 操作</th>
+          </tr>
+        </thead>
+        <tbody id="user-list"></tbody>
+      </table>
+    `;
+    const sticky = document.querySelector(".sticky-actions");
+    sticky?.before(section);
+  }
+
+  function updateAdminControls() {
+    document.querySelectorAll(".admin-only").forEach((el) => {
+      el.hidden = !isAdmin();
+    });
+    ["save-settings-btn", "backup-db-btn", "restore-db-btn", "export-data-btn", "import-data-btn"].forEach((id) => {
+      const button = $(id);
+      if (button) button.hidden = !isAdmin();
+    });
+  }
+
+  function renderUsers() {
+    updateAdminControls();
+    if (!$("user-list")) return;
+    if (!isAdmin()) {
+      $("user-list").innerHTML = "";
+      return;
+    }
+    $("user-list").innerHTML = users.map((user) => `
+      <tr data-user-id="${escapeHtml(user.id)}">
+        <td>${escapeHtml(user.username)}</td>
+        <td>${escapeHtml(user.role === "owner" || user.role === "admin" ? "Owner / 所有者" : "Normal User / 普通用户")}</td>
+        <td>${escapeHtml(user.status === "Inactive" ? "Inactive / 已停用" : "Active / 启用")}</td>
+        <td class="actions">
+          <button class="reset-user-password" type="button">Change Password / 改密码</button>
+          <button class="toggle-user-status" type="button" ${user.username === "admin" ? "disabled" : ""}>${user.status === "Inactive" ? "Activate / 启用" : "Disable / 停用"}</button>
+          <button class="delete-user" type="button" ${user.username === "admin" ? "disabled" : ""}>Delete / 删除</button>
+        </td>
+      </tr>
+    `).join("") || `<tr><td colspan="4">No users / 暂无用户</td></tr>`;
+  }
+
+  async function refreshUsers() {
+    if (!isAdmin()) return;
+    const data = await api("/api/users");
+    users = data.users || [];
+    renderUsers();
+  }
+
+  function clearUserForm() {
+    if (!$("user-username")) return;
+    $("user-username").value = "";
+    $("user-password").value = "";
+    $("user-role").value = "user";
+  }
+
+  function validUsernameInput(username) {
+    const value = String(username || "").trim();
+    if (value.includes("@")) return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value);
+    return /^[A-Za-z0-9._-]{3,50}$/.test(value);
+  }
+
+  async function saveUser() {
+    const username = $("user-username").value.trim();
+    const password = $("user-password").value;
+    const role = $("user-role").value;
+    if (!username || !password) return toast("Username and password are required. / 用户名和密码不能为空。");
+    if (!validUsernameInput(username)) return toast("Use English letters/numbers or email. / 请使用英文、数字或邮箱。");
+    await api("/api/users", { method: "POST", body: JSON.stringify({ username, password, role }) });
+    clearUserForm();
+    await refreshUsers();
+    toast("Saved successfully. / 保存成功。");
+  }
+
+  async function handleUserAction(event) {
+    const row = event.target.closest("tr[data-user-id]");
+    if (!row) return;
+    const user = users.find((x) => x.id === row.dataset.userId);
+    if (!user) return;
+
+    if (event.target.matches(".reset-user-password")) {
+      const password = prompt("New Password / 新密码");
+      if (!password) return;
+      await api(`/api/users/${user.id}`, { method: "PUT", body: JSON.stringify({ role: user.role, status: user.status, password }) });
+      await refreshUsers();
+      toast("Saved successfully. / 保存成功。");
+    }
+
+    if (event.target.matches(".toggle-user-status")) {
+      const status = user.status === "Inactive" ? "Active" : "Inactive";
+      await api(`/api/users/${user.id}`, { method: "PUT", body: JSON.stringify({ role: user.role, status }) });
+      await refreshUsers();
+      toast(status === "Inactive" ? "Marked as inactive successfully. / 已成功标记为停用。" : "Saved successfully. / 保存成功。");
+    }
+
+    if (event.target.matches(".delete-user")) {
+      if (!confirm("Are you sure you want to delete this user? / 确认删除这个用户吗？")) return;
+      await api(`/api/users/${user.id}`, { method: "DELETE" });
+      await refreshUsers();
+      toast("Marked as inactive successfully. / 已成功标记为停用。");
+    }
   }
 
   function renderTemplateSelect(selected) {
@@ -698,6 +877,11 @@
       products = serverProducts.map(toLegacyProduct);
       ports = portData.ports || [];
       freightRates = freightData.freightRates || [];
+      if (isAdmin()) {
+        const userData = await api("/api/users");
+        users = userData.users || [];
+        renderUsers();
+      }
       renderAllSelectors();
       renderProducts();
       renderPorts();
@@ -1626,9 +1810,16 @@
     $("auto-calc-freight-btn").addEventListener("click", autoCalculateFreight);
     $("copy-freight-amount-btn").addEventListener("click", copyFreightAmount);
     $("use-freight-in-quote-btn").addEventListener("click", useFreightInQuotation);
+    document.addEventListener("click", (event) => {
+      if (event.target.id === "save-user-btn") saveUser();
+      if (event.target.id === "clear-user-btn") clearUserForm();
+      if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
+    });
   }
 
   async function init() {
+    $("login-username").value = "";
+    $("login-password").value = "";
     bindEvents();
     migrateDefaultCostFields();
     renderAllSelectors();
@@ -1636,13 +1827,7 @@
     renderProducts();
     newQuote();
     await checkLogin();
-    if (!currentUser) {
-      try {
-        await login("admin", "admin123");
-      } catch {
-        renderLogin();
-      }
-    }
+    applyAuthLock();
   }
 
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote };

@@ -85,6 +85,25 @@ button:hover, .file-btn:hover { border-color: var(--primary); color: var(--prima
 
 .view { display: none; }
 .view.active { display: block; }
+.auth-locked .main .view:not(#view-login) { display: none !important; }
+.auth-locked #view-login { display: block !important; }
+.auth-locked .nav-btn, .auth-locked .entry-card {
+  opacity: .45;
+  cursor: not-allowed;
+}
+body:not(.is-admin) .admin-only { display: none !important; }
+
+.login-required-card {
+  max-width: 560px;
+  margin: 12vh auto 0;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+}
+.login-required-card h2 { margin: 0 0 10px; font-size: 30px; }
+.login-required-card p { margin: 8px 0; color: var(--muted); }
 
 .page-head {
   margin-bottom: 14px;
