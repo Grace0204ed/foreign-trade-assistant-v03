@@ -197,6 +197,22 @@
             </div>
             <div id="product-list" class="list"></div>
           </div>
+          <div class="panel">
+            <h3>文本导入价格表</h3>
+            <p class="hint">支持从 Excel、微信、备忘录复制文本。第一行可以写表头，例如：分类 品牌 型号 年份 工时 底价 备注。</p>
+            <textarea id="price-import-text" class="import-textarea" placeholder="示例：
+挖掘机 SANY 215C 2021 3200 20000 底价
+装载机 LIUGONG 856H 2020 2800 23500 两台常用报价
+
+也支持带表头：
+分类	品牌	型号	年份	工时	底价	备注"></textarea>
+            <div class="actions">
+              <label class="file-btn">上传TXT/CSV<input id="price-import-file" type="file" accept=".txt,.csv,text/plain,text/csv" /></label>
+              <button id="import-price-btn" class="primary" type="button">导入价格表</button>
+              <button id="clear-import-text-btn" type="button">清空导入文本</button>
+            </div>
+            <div id="price-import-result" class="import-result"></div>
+          </div>
         </section>
 
         <section id="view-quote" class="view">

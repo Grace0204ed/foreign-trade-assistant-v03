@@ -673,6 +673,145 @@
     renderAllSelectors();
   }
 
+  function splitImportLine(line) {
+    const normalized = line.trim();
+    const separator = /[\t,，]/.test(normalized) ? /[\t,，]+/ : /\s+/;
+    return normalized.split(separator).map((cell) => cell.trim()).filter(Boolean);
+  }
+
+  function normalizeHeaderKey(text) {
+    const value = normalize(text);
+    const map = [
+      [["category", "type", "产品类型", "分类", "种类"], "category"],
+      [["brand", "品牌", "厂家"], "brand"],
+      [["model", "型号", "机型"], "model"],
+      [["tonnage", "吨位", "吨"], "tonnage"],
+      [["year", "年份", "年限"], "year"],
+      [["hours", "工时", "小时", "工作小时"], "hours"],
+      [["price", "底价", "参考价格", "售价", "单价", "价格", "成本"], "referencePrice"],
+      [["params", "参数", "配置"], "params"],
+      [["remark", "备注", "说明"], "remark"]
+    ];
+    return map.find(([aliases]) => aliases.some((alias) => value.includes(normalize(alias))))?.[1] || "";
+  }
+
+  function looksLikeHeader(cells) {
+    return cells.filter((cell) => normalizeHeaderKey(cell)).length >= 2;
+  }
+
+  function parsePriceNumber(text) {
+    const match = String(text || "").replace(/[,，]/g, "").match(/\d+(?:\.\d+)?/);
+    return match ? match[0] : "";
+  }
+
+  function productKey(product) {
+    return normalize(`${product.category}|${product.brand}|${product.model}|${product.year}`);
+  }
+
+  function productFromImportObject(row) {
+    const category = row.category || settings.categories[0] || "未分类";
+    return {
+      id: uid("product"),
+      category,
+      brand: row.brand || "",
+      model: row.model || "",
+      tonnage: row.tonnage || "",
+      year: row.year || "",
+      hours: row.hours || "",
+      referencePrice: parsePriceNumber(row.referencePrice),
+      params: row.params || "",
+      remark: row.remark || "",
+      imageDataUrl: ""
+    };
+  }
+
+  function parseProductWithoutHeader(cells) {
+    const categoryNames = settings.categories || [];
+    const categoryIndex = cells.findIndex((cell) => categoryNames.some((name) => normalize(name) === normalize(cell)));
+    const category = categoryIndex >= 0 ? cells.splice(categoryIndex, 1)[0] : (settings.categories[0] || "未分类");
+    let priceIndex = -1;
+    for (let index = cells.length - 1; index >= 0; index -= 1) {
+      if (parsePriceNumber(cells[index])) {
+        priceIndex = index;
+        break;
+      }
+    }
+    const referencePrice = priceIndex >= 0 ? parsePriceNumber(cells.splice(priceIndex, 1)[0]) : "";
+    const yearIndex = cells.findIndex((cell) => /^(19|20)\d{2}$/.test(cell));
+    const year = yearIndex >= 0 ? cells.splice(yearIndex, 1)[0] : "";
+    const brand = cells.shift() || "";
+    const model = cells.shift() || "";
+    const hoursIndex = cells.findIndex((cell) => /\d/.test(cell) && (/小时|工时|h$/i.test(cell) || /^\d+(?:\.\d+)?$/.test(cell)));
+    const hours = hoursIndex >= 0 ? parsePriceNumber(cells.splice(hoursIndex, 1)[0]) : "";
+    return {
+      id: uid("product"),
+      category,
+      brand,
+      model,
+      tonnage: "",
+      year,
+      hours,
+      referencePrice,
+      params: "",
+      remark: cells.join(" "),
+      imageDataUrl: ""
+    };
+  }
+
+  function importPriceList() {
+    normalizeCategories();
+    const raw = $("price-import-text").value.trim();
+    if (!raw) return toast("请先粘贴价格表文本。");
+    const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return toast("没有可导入的内容。");
+    const firstCells = splitImportLine(lines[0]);
+    const hasHeader = looksLikeHeader(firstCells);
+    const headers = hasHeader ? firstCells.map(normalizeHeaderKey) : [];
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    dataLines.forEach((line) => {
+      const cells = splitImportLine(line);
+      if (!cells.length) return;
+      let product;
+      if (hasHeader) {
+        const row = {};
+        headers.forEach((key, index) => {
+          if (key) row[key] = cells[index] || "";
+        });
+        product = productFromImportObject(row);
+      } else {
+        product = parseProductWithoutHeader([...cells]);
+      }
+      if (!product.brand && !product.model) {
+        skipped += 1;
+        return;
+      }
+      const key = productKey(product);
+      const existingIndex = products.findIndex((item) => productKey(item) === key);
+      if (existingIndex >= 0) {
+        products[existingIndex] = { ...products[existingIndex], ...product, id: products[existingIndex].id, imageDataUrl: products[existingIndex].imageDataUrl || "" };
+        updated += 1;
+      } else {
+        products.unshift(product);
+        added += 1;
+      }
+    });
+    save(keys.products, products);
+    renderProducts();
+    renderAllSelectors();
+    $("price-import-result").textContent = `导入完成：新增 ${added} 条，更新 ${updated} 条，跳过 ${skipped} 条。`;
+    toast("价格表导入完成。");
+  }
+
+  async function loadPriceImportFile(file) {
+    if (!file) return;
+    const text = await file.text();
+    $("price-import-text").value = text;
+    $("price-import-result").textContent = `已读取文件：${file.name}。确认内容无误后点击“导入价格表”。`;
+  }
+
   function renderProducts() {
     const kw = normalize($("product-search").value);
     const list = products.filter((p) => !kw || normalize(`${p.category}${p.brand}${p.model}`).includes(kw));
@@ -870,8 +1009,17 @@
   }
 
   function total() {
-    const tpl = template();
-    return (currentQuote.items || []).reduce((sum, item) => sum + itemSubtotal(item, tpl), 0);
+    return quoteTotal(currentQuote);
+  }
+
+  function quoteTemplate(quote) {
+    normalizeTemplates();
+    return settings.templates.find((tpl) => tpl.name === quote?.templateName) || settings.templates[0];
+  }
+
+  function quoteTotal(quote) {
+    const tpl = quoteTemplate(quote);
+    return (quote?.items || []).reduce((sum, item) => sum + itemSubtotal(item, tpl), 0);
   }
 
   function extraMoneyFields(tpl = template()) {
@@ -962,7 +1110,7 @@
       const hay = normalize(`${q.buyer.company} ${q.buyer.country} ${productsText}`);
       return (!kw || hay.includes(kw)) && (!date || q.quoteDate === date) && (!status || q.status === status);
     });
-    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)}</b><p>${escapeHtml(q.buyer.company)} | ${escapeHtml(q.buyer.country)} | ${escapeHtml(q.quoteDate)} | ${escapeHtml(q.status)}</p><p>${q.items.length} products | ${money(q.items.reduce((s,i)=>s+Number(i.values.qty||0)*Number(i.values.unitPrice||0),0), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
+    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)}</b><p>${escapeHtml(q.buyer.company)} | ${escapeHtml(q.buyer.country)} | ${escapeHtml(q.quoteDate)} | ${escapeHtml(q.status)}</p><p>${q.items.length} products | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
   }
 
   function bindEvents() {
@@ -1000,6 +1148,9 @@
     $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; });
     $("save-product-btn").addEventListener("click", saveProduct);
     $("clear-product-btn").addEventListener("click", clearProductForm);
+    $("price-import-file").addEventListener("change", async e => loadPriceImportFile(e.target.files[0]));
+    $("import-price-btn").addEventListener("click", importPriceList);
+    $("clear-import-text-btn").addEventListener("click", () => { $("price-import-text").value = ""; $("price-import-result").textContent = ""; });
     $("product-search").addEventListener("input", renderProducts);
     $("add-manual-product-btn").addEventListener("click", addManualProduct);
     $("add-library-product-btn").addEventListener("click", addProductFromLibrary);
