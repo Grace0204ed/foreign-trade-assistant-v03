@@ -27,10 +27,12 @@
         f("工时", "Working Hours", "hours", "text", false, true, 50),
         f("数量", "Quantity", "qty", "number", true, true, 60),
         f("单价", "Unit Price", "unitPrice", "money", true, true, 70),
-        f("货币单位", "Currency", "currency", "select", true, true, 80),
-        f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 90),
-        f("备注", "Remark", "remark", "textarea", false, true, 100),
-        f("产品图片", "Product Image", "productImage", "image", false, true, 110)
+        f("运费", "Freight", "freight", "money", false, true, 80),
+        f("拖车到港费", "Trucking to Port", "truckingToPort", "money", false, true, 90),
+        f("货币单位", "Currency", "currency", "select", true, true, 100),
+        f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 110),
+        f("备注", "Remark", "remark", "textarea", false, true, 120),
+        f("产品图片", "Product Image", "productImage", "image", false, true, 130)
       ],
       termFields: defaultTermFields
     },
@@ -45,9 +47,11 @@
         f("质保时间", "Warranty", "warranty", "text", false, true, 50),
         f("数量", "Quantity", "qty", "number", true, true, 60),
         f("单价", "Unit Price", "unitPrice", "money", true, true, 70),
-        f("货币单位", "Currency", "currency", "select", true, true, 80),
-        f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 90),
-        f("产品图片", "Product Image", "productImage", "image", false, true, 100)
+        f("运费", "Freight", "freight", "money", false, true, 80),
+        f("拖车到港费", "Trucking to Port", "truckingToPort", "money", false, true, 90),
+        f("货币单位", "Currency", "currency", "select", true, true, 100),
+        f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 110),
+        f("产品图片", "Product Image", "productImage", "image", false, true, 120)
       ],
       termFields: defaultTermFields
     }
@@ -68,6 +72,7 @@
     logoDataUrl: "",
     backgroundDataUrl: "",
     stampDataUrl: "",
+    costFieldsMigratedV1: false,
     categories: ["挖掘机", "装载机", "推土机", "压路机", "平地机", "自卸车", "叉车", "TLB"],
     templates: defaultTemplates
   };
@@ -182,6 +187,25 @@
 
   function normalizeTemplates() {
     settings.templates = (settings.templates || defaultTemplates).map(normalizeTemplate);
+  }
+
+  function migrateDefaultCostFields() {
+    if (settings.costFieldsMigratedV1) return;
+    normalizeTemplates();
+    settings.templates.forEach((tpl) => {
+      const hasFreight = tpl.fields.some((field) => field.fieldKey === "freight");
+      const hasTrucking = tpl.fields.some((field) => field.fieldKey === "truckingToPort");
+      const additions = [];
+      if (!hasFreight) additions.push(f("运费", "Freight", "freight", "money", false, true, 0));
+      if (!hasTrucking) additions.push(f("拖车到港费", "Trucking to Port", "truckingToPort", "money", false, true, 0));
+      if (additions.length) {
+        const unitPriceIndex = tpl.fields.findIndex((field) => field.fieldKey === "unitPrice");
+        tpl.fields.splice(unitPriceIndex >= 0 ? unitPriceIndex + 1 : tpl.fields.length, 0, ...additions);
+        resequenceFields(tpl.fields);
+      }
+    });
+    settings.costFieldsMigratedV1 = true;
+    save(keys.settings, settings);
   }
 
   function normalizeCategories() {
@@ -834,6 +858,8 @@
         year: p.year,
         hours: p.hours,
         unitPrice: p.referencePrice,
+        freight: "",
+        truckingToPort: "",
         currency: settings.currency,
         qty: "1",
         params: p.params,
@@ -844,16 +870,27 @@
   }
 
   function total() {
-    return (currentQuote.items || []).reduce((sum, item) => sum + Number(item.values.qty || 0) * Number(item.values.unitPrice || 0), 0);
+    const tpl = template();
+    return (currentQuote.items || []).reduce((sum, item) => sum + itemSubtotal(item, tpl), 0);
   }
 
-  function itemSubtotal(item) {
-    return Number(item.values.qty || 0) * Number(item.values.unitPrice || 0);
+  function extraMoneyFields(tpl = template()) {
+    return (tpl.fields || [])
+      .filter((field) => field.fieldType === "money" && field.fieldKey !== "unitPrice")
+      .map((field) => field.fieldKey);
+  }
+
+  function itemSubtotal(item, tpl = template()) {
+    const values = item.values || {};
+    const machineAmount = Number(values.qty || 0) * Number(values.unitPrice || 0);
+    const extraAmount = extraMoneyFields(tpl).reduce((sum, key) => sum + Number(values[key] || 0), 0);
+    return machineAmount + extraAmount;
   }
 
   function displayFieldValue(item, field) {
     if (field.fieldType === "calculated") return money(itemSubtotal(item), item.values.currency || settings.currency);
     if (field.fieldType === "image") return item.imageDataUrl ? "Image attached / 已上传图片" : "";
+    if (field.fieldType === "money") return item.values[field.fieldKey] === "" || item.values[field.fieldKey] === undefined ? "" : money(item.values[field.fieldKey], item.values.currency || settings.currency);
     return item.values[field.fieldKey] || "";
   }
 
@@ -979,6 +1016,7 @@
 
   function init() {
     bindEvents();
+    migrateDefaultCostFields();
     renderAllSelectors();
     renderSettings();
     renderProducts();
