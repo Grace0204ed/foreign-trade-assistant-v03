@@ -85,6 +85,13 @@
   let editingFieldIndex = -1;
   let editingFieldTarget = "product";
   let editingCategoryIndex = -1;
+  let currentUser = null;
+  let serverProducts = [];
+  let ports = [];
+  let freightRates = [];
+  let editingPortId = "";
+  let editingFreightId = "";
+  let lastFreightCalculation = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -130,6 +137,67 @@
     el.textContent = text;
     el.classList.add("show");
     setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.message || data.zh || "API request failed");
+    return data;
+  }
+
+  function toLegacyProduct(product) {
+    return {
+      id: product.id,
+      category: product.category,
+      brand: product.brand,
+      model: product.model,
+      tonnage: product.weight || "",
+      year: "",
+      hours: "",
+      referencePrice: product.referencePrice || "",
+      params: product.params || "",
+      remark: product.remark || "",
+      imageDataUrl: product.imagePath || "",
+      aliases: product.aliases || "",
+      transportCbm: product.transportCbm || "",
+      transportMethod: product.transportMethod || "Bulk Cargo"
+    };
+  }
+
+  async function login(username, password) {
+    const data = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+    currentUser = data.user;
+    renderLogin();
+    await loadServerData();
+    toast("Logged in successfully. / 登录成功。");
+  }
+
+  async function logout() {
+    await api("/api/auth/logout", { method: "POST" });
+    currentUser = null;
+    renderLogin();
+  }
+
+  function renderLogin() {
+    $("login-status").textContent = currentUser ? `${currentUser.username} / ${currentUser.role}` : "Not logged in / 未登录";
+    $("login-btn").hidden = !!currentUser;
+    $("logout-btn").hidden = !currentUser;
+  }
+
+  async function checkLogin() {
+    try {
+      const data = await api("/api/auth/me");
+      currentUser = data.user;
+      renderLogin();
+      if (currentUser) await loadServerData();
+    } catch {
+      renderLogin();
+    }
   }
 
   function today() {
@@ -262,6 +330,11 @@
     if (name === "products") renderProducts();
     if (name === "settings") renderSettings();
     if (name === "quote") renderQuoteEditor();
+    if (name === "freight") {
+      renderPorts();
+      renderFreightRates();
+      renderFreightSelectors();
+    }
   }
 
   function renderSettings() {
@@ -610,6 +683,328 @@
     $("product-category").innerHTML = catOptions;
     $("quote-template").innerHTML = settings.templates.map((t) => `<option>${escapeHtml(t.name)}</option>`).join("");
     $("library-product-select").innerHTML = `<option value="">选择产品库产品</option>` + products.map((p) => `<option value="${p.id}">${escapeHtml(p.brand)} ${escapeHtml(p.model)}</option>`).join("");
+    renderFreightSelectors();
+  }
+
+  async function loadServerData() {
+    if (!currentUser) return;
+    try {
+      const [productData, portData, freightData] = await Promise.all([
+        api("/api/products"),
+        api("/api/ports"),
+        api("/api/freight-rates")
+      ]);
+      serverProducts = productData.products || [];
+      products = serverProducts.map(toLegacyProduct);
+      ports = portData.ports || [];
+      freightRates = freightData.freightRates || [];
+      renderAllSelectors();
+      renderProducts();
+      renderPorts();
+      renderFreightRates();
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  function renderFreightSelectors() {
+    const portOptions = `<option value="">Select Port / 选择港口</option>` + ports.map((p) => `<option value="${p.id}">${escapeHtml(p.displayName)}</option>`).join("");
+    ["freight-origin", "freight-destination", "calc-origin", "calc-destination"].forEach((id) => {
+      const el = $(id);
+      if (el) el.innerHTML = portOptions;
+    });
+    const productOptions = `<option value="">Select Product / 选择产品</option>` + products.map((p) => `<option value="${p.id}">${escapeHtml(p.brand)} ${escapeHtml(p.model)}</option>`).join("");
+    if ($("calc-product")) $("calc-product").innerHTML = productOptions;
+  }
+
+  function displayPort(port) {
+    return port ? `${port.portName}, ${port.countryName}` : "";
+  }
+
+  function renderPorts() {
+    const q = normalize($("port-search")?.value || "");
+    const list = ports.filter((p) => !q || normalize(`${p.displayName}${p.portChineseName}${p.aliases}${p.unLocode}${p.countryChineseName}`).includes(q));
+    $("port-list").innerHTML = list.map((p) => `
+      <article class="list-item">
+        <div><b>${escapeHtml(p.displayName)}</b><p>${escapeHtml(p.portChineseName)} | ${escapeHtml(p.unLocode)} | ${escapeHtml(p.status)}</p><p>${escapeHtml(p.aliases)}</p></div>
+        <div class="actions">
+          <button type="button" data-port-action="copy" data-id="${p.id}">Copy / 复制</button>
+          <button type="button" data-port-action="edit" data-id="${p.id}">Edit / 编辑</button>
+          <button type="button" data-port-action="delete" data-id="${p.id}">Delete / 删除</button>
+        </div>
+      </article>
+    `).join("") || `<p class="empty">No port found. / 未找到港口。</p>`;
+  }
+
+  function clearPortForm() {
+    editingPortId = "";
+    ["port-country", "port-country-zh", "port-country-code", "port-name", "port-name-zh", "port-locode", "port-aliases"].forEach((id) => $(id).value = "");
+  }
+
+  async function savePort() {
+    const payload = {
+      countryName: $("port-country").value.trim(),
+      countryChineseName: $("port-country-zh").value.trim(),
+      countryCode: $("port-country-code").value.trim(),
+      portName: $("port-name").value.trim(),
+      portChineseName: $("port-name-zh").value.trim(),
+      unLocode: $("port-locode").value.trim(),
+      aliases: $("port-aliases").value.trim(),
+      isOriginPort: true,
+      isDestinationPort: true,
+      status: "Active"
+    };
+    if (!payload.countryName || !payload.portName) return toast("Please enter country and port. / 请填写国家和港口。");
+    await api(editingPortId ? `/api/ports/${editingPortId}` : "/api/ports", { method: editingPortId ? "PUT" : "POST", body: JSON.stringify(payload) });
+    clearPortForm();
+    await loadServerData();
+    toast("Saved successfully. / 保存成功。");
+  }
+
+  async function handlePortAction(event) {
+    const button = event.target.closest("[data-port-action]");
+    if (!button) return;
+    const port = ports.find((p) => p.id === button.dataset.id);
+    if (!port) return;
+    if (button.dataset.portAction === "copy") {
+      await navigator.clipboard.writeText(port.displayName);
+      return toast("Copied successfully. / 复制成功。");
+    }
+    if (button.dataset.portAction === "edit") {
+      editingPortId = port.id;
+      $("port-country").value = port.countryName;
+      $("port-country-zh").value = port.countryChineseName;
+      $("port-country-code").value = port.countryCode;
+      $("port-name").value = port.portName;
+      $("port-name-zh").value = port.portChineseName;
+      $("port-locode").value = port.unLocode;
+      $("port-aliases").value = port.aliases;
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this port?\n确认删除这个港口吗？")) return;
+    const result = await api(`/api/ports/${port.id}`, { method: "DELETE" });
+    await loadServerData();
+    toast(`${result.message} / ${result.zh}`);
+  }
+
+  function renderFreightRates() {
+    const q = normalize($("freight-search")?.value || "");
+    const list = freightRates.filter((r) => !q || normalize(`${r.originDisplayName}${r.destinationDisplayName}${r.destinationCountry}${r.shippingMethod}${r.effectiveMonth}${r.remark}`).includes(q));
+    $("freight-list").innerHTML = list.map((r) => `
+      <article class="list-item">
+        <div><b>${escapeHtml(r.originDisplayName)} → ${escapeHtml(r.destinationDisplayName)}</b><p>${escapeHtml(r.shippingMethod)} | ${Number(r.rate).toLocaleString("en-US")} ${escapeHtml(r.rateUnit)} | ${escapeHtml(r.effectiveMonth)} | ${escapeHtml(r.status)}</p><p>${escapeHtml(r.remark)}</p></div>
+        <div class="actions">
+          <button type="button" data-freight-action="copy-rate" data-id="${r.id}">Copy Rate / 复制运费</button>
+          <button type="button" data-freight-action="copy-route" data-id="${r.id}">Copy Route / 复制路线</button>
+          <button type="button" data-freight-action="use" data-id="${r.id}">Use in Quotation / 导入报价单</button>
+          <button type="button" data-freight-action="edit" data-id="${r.id}">Edit / 编辑</button>
+          <button type="button" data-freight-action="delete" data-id="${r.id}">Delete / 删除</button>
+        </div>
+      </article>
+    `).join("") || `<p class="empty">No freight rate found. / 未找到运费。</p>`;
+  }
+
+  function clearFreightForm() {
+    editingFreightId = "";
+    ["freight-origin", "freight-destination", "freight-rate", "freight-agent", "freight-remark"].forEach((id) => $(id).value = "");
+    $("freight-method").value = "Bulk Cargo";
+    $("freight-month").value = new Date().toISOString().slice(0, 7);
+  }
+
+  async function saveFreightRate() {
+    const payload = {
+      originPortId: $("freight-origin").value,
+      destinationPortId: $("freight-destination").value,
+      shippingMethod: $("freight-method").value,
+      rate: $("freight-rate").value,
+      effectiveMonth: $("freight-month").value || new Date().toISOString().slice(0, 7),
+      freightForwarder: $("freight-agent").value.trim(),
+      remark: $("freight-remark").value.trim()
+    };
+    if (!payload.originPortId || !payload.destinationPortId || !payload.rate) return toast("Please enter route and freight rate. / 请填写路线和运费。");
+    await api(editingFreightId ? `/api/freight-rates/${editingFreightId}` : "/api/freight-rates", { method: editingFreightId ? "PUT" : "POST", body: JSON.stringify(payload) });
+    clearFreightForm();
+    await loadServerData();
+    toast("Freight rate saved successfully. / 运费保存成功。");
+  }
+
+  async function handleFreightAction(event) {
+    const button = event.target.closest("[data-freight-action]");
+    if (!button) return;
+    const rate = freightRates.find((r) => r.id === button.dataset.id);
+    if (!rate) return;
+    const action = button.dataset.freightAction;
+    if (action === "copy-rate") {
+      await navigator.clipboard.writeText(`${rate.rate} ${rate.rateUnit}`);
+      return toast("Copied successfully. / 复制成功。");
+    }
+    if (action === "copy-route") {
+      await navigator.clipboard.writeText(`${rate.originDisplayName} → ${rate.destinationDisplayName}: ${rate.rate} ${rate.rateUnit}`);
+      return toast("Copied successfully. / 复制成功。");
+    }
+    if (action === "use") {
+      $("calc-origin").value = rate.originPortId;
+      $("calc-destination").value = rate.destinationPortId;
+      $("calc-method").value = rate.shippingMethod;
+      $("calc-rate").value = rate.rate;
+      switchView("freight");
+      return toast("Imported to quotation successfully. / 已成功导入报价单。");
+    }
+    if (action === "edit") {
+      editingFreightId = rate.id;
+      $("freight-origin").value = rate.originPortId;
+      $("freight-destination").value = rate.destinationPortId;
+      $("freight-method").value = rate.shippingMethod;
+      $("freight-rate").value = rate.rate;
+      $("freight-month").value = rate.effectiveMonth;
+      $("freight-agent").value = rate.freightForwarder;
+      $("freight-remark").value = rate.remark;
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this freight rate?\n确认删除这条运费吗？")) return;
+    const result = await api(`/api/freight-rates/${rate.id}`, { method: "DELETE" });
+    await loadServerData();
+    toast(`${result.message} / ${result.zh}`);
+  }
+
+  async function autoCalculateFreight() {
+    const product = products.find((p) => p.id === $("calc-product").value);
+    if (product && !$("calc-cbm").value) {
+      $("calc-cbm").value = product.transportCbm || "";
+      if (!product.transportCbm) toast("No transport CBM found. Please enter CBM manually. / 未找到运输立方，请手动输入。");
+    }
+    const originPortId = $("calc-origin").value;
+    const destinationPortId = $("calc-destination").value;
+    const shippingMethod = $("calc-method").value;
+    let rate = $("calc-rate").value;
+    let rateInfo = null;
+    if (originPortId && destinationPortId && !rate) {
+      const data = await api(`/api/freight-rates/search?originPortId=${encodeURIComponent(originPortId)}&destinationPortId=${encodeURIComponent(destinationPortId)}&shippingMethod=${encodeURIComponent(shippingMethod)}&effectiveMonth=${new Date().toISOString().slice(0, 7)}`);
+      if (data.found) {
+        rateInfo = data.freightRate;
+        rate = rateInfo.rate;
+        $("calc-rate").value = rate;
+        if (data.fallback) toast(`${data.message} / ${data.zh}`);
+      } else {
+        toast("No freight rate found. Please enter freight manually or add a new freight rate. / 未找到运费，请手动输入或新增运费。");
+      }
+    }
+    const cbm = $("calc-cbm").value;
+    const qty = $("calc-qty").value || 1;
+    const data = await api("/api/freight/calculate", { method: "POST", body: JSON.stringify({ transportCbm: cbm, freightRate: rate, quantity: qty }) });
+    $("calc-amount").value = data.freightAmount;
+    lastFreightCalculation = {
+      productId: product?.id || "",
+      productName: product ? `${product.brand} ${product.model}` : "",
+      transportCbm: Number(cbm || 0),
+      freightRate: Number(rate || 0),
+      quantity: Number(qty || 1),
+      freightAmount: data.freightAmount,
+      calculationFormula: data.calculationFormula,
+      originPortId,
+      destinationPortId,
+      originDisplayName: ports.find((p) => p.id === originPortId)?.displayName || "",
+      destinationDisplayName: ports.find((p) => p.id === destinationPortId)?.displayName || "",
+      shippingMethod,
+      freightRateId: rateInfo?.id || "",
+      freightEffectiveMonth: rateInfo?.effectiveMonth || ""
+    };
+    $("calc-result").textContent = `${lastFreightCalculation.calculationFormula} / Sea Freight 海运费: ${money(data.freightAmount, "USD")}`;
+  }
+
+  async function copyFreightAmount() {
+    const amount = $("calc-amount").value;
+    if (!amount) return toast("Please calculate freight first. / 请先计算运费。");
+    await navigator.clipboard.writeText(money(amount, "USD"));
+    toast("Copied successfully. / 复制成功。");
+  }
+
+  function useFreightInQuotation() {
+    if (!currentQuote) return toast("Please create a quotation first. / 请先新建报价。");
+    if (!lastFreightCalculation) return toast("Please calculate freight first. / 请先计算运费。");
+    collectQuoteFromForm();
+    currentQuote.items.push({
+      id: uid("item"),
+      values: {
+        productType: "Sea Freight",
+        brand: lastFreightCalculation.originDisplayName,
+        model: lastFreightCalculation.destinationDisplayName,
+        qty: "1",
+        unitPrice: lastFreightCalculation.freightAmount,
+        freight: "",
+        truckingToPort: "",
+        currency: "USD",
+        remark: lastFreightCalculation.calculationFormula
+      },
+      imageDataUrl: "",
+      freightSnapshot: structuredClone(lastFreightCalculation)
+    });
+    renderQuoteItems();
+    renderPreview();
+    switchView("quote");
+    toast("Imported to quotation successfully. / 已成功导入报价单。");
+  }
+
+  async function backupDatabase() {
+    const data = await api("/api/system/backup-db");
+    toast(`${data.message} / ${data.zh}: ${data.path}`);
+  }
+
+  function exportAllData() {
+    window.open("/api/system/export", "_blank");
+  }
+
+  async function restoreDatabase() {
+    try {
+      let filePath = "";
+      if (window.quotationDesktop?.selectRestoreDb) {
+        filePath = await window.quotationDesktop.selectRestoreDb();
+      } else {
+        filePath = prompt("Backup file path / 备份文件路径");
+      }
+      if (!filePath) return;
+      const data = await api("/api/system/restore-db", { method: "POST", body: JSON.stringify({ path: filePath }) });
+      toast(`${data.message} / ${data.zh}`);
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  async function importData() {
+    try {
+      let filePath = "";
+      if (window.quotationDesktop?.selectImportJson) {
+        filePath = await window.quotationDesktop.selectImportJson();
+      } else {
+        filePath = prompt("Import JSON file path / 导入 JSON 文件路径");
+      }
+      if (!filePath) return;
+      const data = await api("/api/system/import", { method: "POST", body: JSON.stringify({ path: filePath }) });
+      await loadServerData();
+      toast(`${data.message} / ${data.zh}`);
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  async function exportPdf() {
+    renderPreview();
+    if (window.quotationDesktop?.exportCurrentPdf) {
+      const filePath = await window.quotationDesktop.exportCurrentPdf();
+      if (filePath) toast(`PDF exported. / PDF 已导出：${filePath}`);
+      return;
+    }
+    window.print();
+  }
+
+  async function openDataFolder() {
+    if (window.quotationDesktop?.openDataDir) {
+      const dir = await window.quotationDesktop.openDataDir();
+      toast(`Data folder / 数据目录: ${dir}`);
+    } else {
+      const data = await api("/api/system/paths");
+      toast(`Data folder / 数据目录: ${data.dataDir}`);
+    }
   }
 
   function clearProductForm() {
@@ -916,7 +1311,9 @@
     currentQuote.items = Array.from(document.querySelectorAll(".quote-item")).map((card) => {
       const values = {};
       card.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
-      return { id: card.dataset.id, values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "" };
+      let freightSnapshot = null;
+      try { freightSnapshot = card.dataset.freightSnapshot ? JSON.parse(decodeURIComponent(card.dataset.freightSnapshot)) : null; } catch { freightSnapshot = null; }
+      return { id: card.dataset.id, values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
     });
     currentQuote.updatedAt = new Date().toISOString();
   }
@@ -928,7 +1325,7 @@
     const fields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
     const showImage = tpl.fields.some((field) => field.visible && field.fieldType === "image");
     return `
-      <article class="quote-item panel" data-id="${id}">
+      <article class="quote-item panel" data-id="${id}" data-freight-snapshot="${item.freightSnapshot ? encodeURIComponent(JSON.stringify(item.freightSnapshot)) : ""}">
         <div class="quote-item-grid">
           ${fields.map((field) => `
             <label class="${field.fieldType === "textarea" ? "wide" : ""}">
@@ -1065,12 +1462,55 @@
     `;
   }
 
-  function saveQuote() {
+  async function saveQuote() {
     renderPreview();
     const idx = quotes.findIndex((q) => q.id === currentQuote.id);
     if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
     else quotes.unshift(structuredClone(currentQuote));
     save(keys.quotes, quotes);
+    if (currentUser) {
+      const apiItems = (currentQuote.items || []).map((item) => {
+        const qty = Number(item.values.qty || 0);
+        const unitPrice = Number(item.values.unitPrice || 0);
+        const freightSnapshot = item.freightSnapshot || null;
+        return {
+          id: item.id,
+          productId: item.values.productId || "",
+          productSnapshot: {
+            productId: item.values.productId || "",
+            productName: `${item.values.brand || ""} ${item.values.model || ""}`.trim(),
+            machineCategory: item.values.productType || "",
+            brand: item.values.brand || "",
+            model: item.values.model || "",
+            transportCbm: freightSnapshot?.transportCbm || item.values.transportCbm || ""
+          },
+          priceSnapshot: {
+            quantity: qty,
+            unitPrice,
+            currency: item.values.currency || settings.currency,
+            values: item.values
+          },
+          machineAmount: qty * unitPrice,
+          freightSnapshot,
+          includeFreightInTotal: true
+        };
+      });
+      await api("/api/quotations", {
+        method: "POST",
+        body: JSON.stringify({
+          id: currentQuote.id,
+          quoteNumber: currentQuote.quoteNumber,
+          status: currentQuote.status,
+          buyer: currentQuote.buyer,
+          terms: currentQuote.terms,
+          quoteDate: currentQuote.quoteDate,
+          validUntil: currentQuote.validUntil,
+          settingsSnapshot: settings,
+          showFreightDetailInPdf: !!currentQuote.showFreightDetailInPdf,
+          items: apiItems
+        })
+      });
+    }
     toast("报价已保存到历史报价。");
     renderHistory();
   }
@@ -1116,6 +1556,8 @@
   function bindEvents() {
     document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
     document.querySelectorAll("[data-view-target]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.viewTarget)));
+    $("login-btn").addEventListener("click", () => login($("login-username").value.trim(), $("login-password").value));
+    $("logout-btn").addEventListener("click", logout);
     $("template-select").addEventListener("change", () => fillTemplateForm());
     $("save-template-btn").addEventListener("click", saveTemplate);
     $("delete-template-btn").addEventListener("click", deleteTemplate);
@@ -1139,6 +1581,11 @@
     $("template-term-field-list").addEventListener("dragover", (e) => e.preventDefault());
     $("template-term-field-list").addEventListener("drop", handleFieldDrop);
     $("save-settings-btn").addEventListener("click", saveSettings);
+    $("backup-db-btn").addEventListener("click", backupDatabase);
+    $("restore-db-btn").addEventListener("click", restoreDatabase);
+    $("export-data-btn").addEventListener("click", exportAllData);
+    $("import-data-btn").addEventListener("click", importData);
+    $("open-data-dir-btn").addEventListener("click", openDataFolder);
     $("logo-input").addEventListener("change", async e => { settings.logoDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
     $("background-input").addEventListener("change", async e => { settings.backgroundDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
     $("stamp-input").addEventListener("change", async e => { settings.stampDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
@@ -1160,18 +1607,42 @@
     $("quote-items").addEventListener("click", e => { if (e.target.matches(".remove-quote-item")) { e.target.closest(".quote-item").remove(); renderPreview(); } });
     $("preview-quote-btn").addEventListener("click", renderPreview);
     $("save-quote-btn").addEventListener("click", saveQuote);
-    $("export-pdf-btn").addEventListener("click", () => { renderPreview(); window.print(); });
+    $("export-pdf-btn").addEventListener("click", exportPdf);
     $("new-quote-btn").addEventListener("click", newQuote);
     $("history-search-btn").addEventListener("click", renderHistory);
+    $("refresh-ports-btn").addEventListener("click", renderPorts);
+    $("save-port-btn").addEventListener("click", savePort);
+    $("clear-port-btn").addEventListener("click", clearPortForm);
+    $("port-list").addEventListener("click", handlePortAction);
+    $("refresh-freight-btn").addEventListener("click", renderFreightRates);
+    $("save-freight-btn").addEventListener("click", saveFreightRate);
+    $("clear-freight-btn").addEventListener("click", clearFreightForm);
+    $("freight-list").addEventListener("click", handleFreightAction);
+    $("calc-product").addEventListener("change", () => {
+      const product = products.find((p) => p.id === $("calc-product").value);
+      $("calc-cbm").value = product?.transportCbm || "";
+      $("calc-method").value = product?.transportMethod || "Bulk Cargo";
+    });
+    $("auto-calc-freight-btn").addEventListener("click", autoCalculateFreight);
+    $("copy-freight-amount-btn").addEventListener("click", copyFreightAmount);
+    $("use-freight-in-quote-btn").addEventListener("click", useFreightInQuotation);
   }
 
-  function init() {
+  async function init() {
     bindEvents();
     migrateDefaultCostFields();
     renderAllSelectors();
     renderSettings();
     renderProducts();
     newQuote();
+    await checkLogin();
+    if (!currentUser) {
+      try {
+        await login("admin", "admin123");
+      } catch {
+        renderLogin();
+      }
+    }
   }
 
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote };

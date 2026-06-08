@@ -56,6 +56,20 @@ button:hover, .file-btn:hover { border-color: var(--primary); color: var(--prima
 .sidebar h1 { margin: 0; font-size: 24px; }
 .sidebar p { margin: 6px 0 18px; color: #9fb5d0; }
 .sidebar nav { display: grid; gap: 6px; }
+.login-box {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0;
+}
+.login-box input {
+  min-height: 34px;
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.18);
+  color: #fff;
+}
+.login-box input::placeholder { color: #aebfd5; }
+.login-box button { min-height: 32px; }
+.login-box small { color: #b8c7db; line-height: 1.35; }
 .nav-btn {
   justify-content: flex-start;
   border: 0;
@@ -282,6 +296,9 @@ textarea { min-height: 86px; resize: vertical; }
 .product-preview { width: 160px; height: 106px; object-fit: cover; }
 
 .list { display: grid; gap: 10px; }
+.compact-list {
+  margin-top: 12px;
+}
 .list-item {
   display: grid;
   grid-template-columns: 92px 1fr auto;
@@ -291,6 +308,20 @@ textarea { min-height: 86px; resize: vertical; }
   border-radius: 8px;
   background: #fff;
   padding: 10px;
+}
+.compact-list .list-item {
+  grid-template-columns: 1fr auto;
+}
+.manual-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 900;
 }
 .list-item img, .thumb-empty {
   width: 92px;
@@ -448,7 +479,7 @@ textarea { min-height: 86px; resize: vertical; }
 
 @media (max-width: 1100px) {
   .app-shell { grid-template-columns: 1fr; }
-  .sidebar nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .sidebar nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .form-grid, .filter-grid, .quote-item-grid, .entry-grid, .asset-row, .preview-top, .preview-fields { grid-template-columns: 1fr; }
   .wide, .quote-item-grid .wide { grid-column: auto; }
   .row-head, .list-item { grid-template-columns: 1fr; display: grid; }

@@ -11,12 +11,20 @@
       <aside class="sidebar no-print">
         <h1>报价助手 V0.1</h1>
         <p>本地报价系统</p>
+        <div id="login-box" class="login-box">
+          <input id="login-username" placeholder="Username / 用户名" value="admin" />
+          <input id="login-password" placeholder="Password / 密码" type="password" value="admin123" />
+          <button id="login-btn" class="primary" type="button">Login / 登录</button>
+          <button id="logout-btn" type="button" hidden>Logout / 退出</button>
+          <small id="login-status">Not logged in / 未登录</small>
+        </div>
         <nav>
-          <button class="nav-btn active" data-view="home">首页</button>
-          <button class="nav-btn" data-view="quote">新建报价</button>
-          <button class="nav-btn" data-view="history">历史报价</button>
-          <button class="nav-btn" data-view="products">产品库</button>
-          <button class="nav-btn" data-view="settings">设置中心</button>
+          <button class="nav-btn active" data-view="home">Home / 首页</button>
+          <button class="nav-btn" data-view="quote">Quotation / 新建报价</button>
+          <button class="nav-btn" data-view="history">History / 历史报价</button>
+          <button class="nav-btn" data-view="products">Products / 产品库</button>
+          <button class="nav-btn" data-view="freight">Freight Center / 运费中心</button>
+          <button class="nav-btn" data-view="settings">Settings / 设置中心</button>
         </nav>
       </aside>
 
@@ -30,6 +38,7 @@
             <button class="entry-card" data-view-target="quote"><b>新建报价</b><span>创建报价单、添加产品、上传图片、预览导出</span></button>
             <button class="entry-card" data-view-target="history"><b>历史报价</b><span>搜索、编辑、复制、删除、重新导出报价单</span></button>
             <button class="entry-card" data-view-target="products"><b>产品库</b><span>维护常用产品资料、分类和常用图片</span></button>
+            <button class="entry-card" data-view-target="freight"><b>运费中心</b><span>港口库、运费库、运费查询、导入报价</span></button>
             <button class="entry-card" data-view-target="settings"><b>设置中心</b><span>公司资料、Logo、背景图、报价字段模板</span></button>
           </div>
         </section>
@@ -161,6 +170,11 @@
           </div>
           <div class="actions sticky-actions">
             <button id="save-settings-btn" class="primary" type="button">保存设置</button>
+            <button id="backup-db-btn" type="button">Backup Database / 备份数据库</button>
+            <button id="restore-db-btn" type="button">Restore Database / 恢复数据库</button>
+            <button id="export-data-btn" type="button">Export All Data / 导出全部数据</button>
+            <button id="import-data-btn" type="button">Import Data / 导入数据</button>
+            <button id="open-data-dir-btn" type="button">Open Data Folder / 打开数据目录</button>
           </div>
         </section>
 
@@ -282,6 +296,81 @@
             </div>
           </div>
           <div id="history-list" class="list"></div>
+        </section>
+
+        <section id="view-freight" class="view no-print">
+          <header class="page-head">
+            <h2>Freight Center / 运费中心</h2>
+            <p>Port Library / 港口库、Freight Rate Library / 运费库、Freight Calculator / 运费查询。</p>
+          </header>
+
+          <div class="panel">
+            <div class="row-head">
+              <h3>Port Library / 港口库</h3>
+              <div class="actions">
+                <input id="port-search" placeholder="Search port / 搜索港口" />
+                <button id="refresh-ports-btn" type="button">Search / 搜索</button>
+              </div>
+            </div>
+            <div class="form-grid">
+              <input id="port-country" placeholder="Country / 国家" />
+              <input id="port-country-zh" placeholder="Country Chinese Name / 国家中文名" />
+              <input id="port-country-code" placeholder="Country Code / 国家代码" />
+              <input id="port-name" placeholder="Port Name / 港口名称" />
+              <input id="port-name-zh" placeholder="Port Chinese Name / 港口中文名" />
+              <input id="port-locode" placeholder="UN/LOCODE / 港口代码" />
+              <input id="port-aliases" class="wide" placeholder="Port Alias / 港口别名" />
+            </div>
+            <div class="actions">
+              <button id="save-port-btn" class="primary" type="button">Save / 保存</button>
+              <button id="clear-port-btn" type="button">Cancel / 取消</button>
+            </div>
+            <div id="port-list" class="list compact-list"></div>
+          </div>
+
+          <div class="panel">
+            <div class="row-head">
+              <h3>Freight Rate Library / 运费库</h3>
+              <div class="actions">
+                <input id="freight-search" placeholder="Search freight / 搜索运费" />
+                <button id="refresh-freight-btn" type="button">Search / 搜索</button>
+              </div>
+            </div>
+            <div class="form-grid">
+              <select id="freight-origin"></select>
+              <select id="freight-destination"></select>
+              <select id="freight-method"><option>Bulk Cargo</option><option>RORO</option><option>Container</option><option>Flat Rack</option><option>Other</option></select>
+              <input id="freight-rate" type="number" placeholder="Freight Rate / 运费单价" />
+              <input id="freight-month" type="month" />
+              <input id="freight-agent" placeholder="Freight Forwarder / 货代" />
+              <input id="freight-remark" class="wide" placeholder="Remark / 备注" />
+            </div>
+            <div class="actions">
+              <button id="save-freight-btn" class="primary" type="button">Save / 保存</button>
+              <button id="clear-freight-btn" type="button">Cancel / 取消</button>
+            </div>
+            <div id="freight-list" class="list compact-list"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Freight Calculator / 运费查询</h3>
+            <div class="form-grid">
+              <select id="calc-product"></select>
+              <select id="calc-origin"></select>
+              <select id="calc-destination"></select>
+              <select id="calc-method"><option>Bulk Cargo</option><option>RORO</option><option>Container</option><option>Flat Rack</option><option>Other</option></select>
+              <input id="calc-qty" type="number" value="1" placeholder="Quantity / 数量" />
+              <input id="calc-cbm" type="number" placeholder="Transport CBM / 运输立方" />
+              <input id="calc-rate" type="number" placeholder="Freight Rate / 运费单价" />
+              <input id="calc-amount" type="number" placeholder="Sea Freight / 海运费" />
+            </div>
+            <div class="actions">
+              <button id="auto-calc-freight-btn" class="primary" type="button">Auto Calculate / 自动计算</button>
+              <button id="copy-freight-amount-btn" type="button">Copy / 复制</button>
+              <button id="use-freight-in-quote-btn" type="button">Use in Quotation / 导入报价单</button>
+            </div>
+            <div id="calc-result" class="import-result"></div>
+          </div>
         </section>
       </main>
 

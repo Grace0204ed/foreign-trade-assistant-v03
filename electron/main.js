@@ -1,0 +1,91 @@
+const fs = require("fs");
+const path = require("path");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+
+let server;
+
+function dataDir() {
+  return app.getPath("userData");
+}
+
+async function createWindow() {
+  process.env.QUOTE_DATA_DIR = dataDir();
+  const { startServer } = require("../server/index");
+  server = await startServer(0);
+  const port = server.address().port;
+
+  const win = new BrowserWindow({
+    width: 1360,
+    height: 900,
+    minWidth: 1120,
+    minHeight: 720,
+    title: "Quotation System / 报价系统",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  await win.loadURL(`http://127.0.0.1:${port}/index.html`);
+}
+
+app.whenReady().then(createWindow);
+
+app.on("window-all-closed", () => {
+  if (server) server.close();
+  if (process.platform !== "darwin") app.quit();
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+
+ipcMain.handle("select-pdf-path", async () => {
+  const result = await dialog.showSaveDialog({
+    title: "Export PDF / 导出 PDF",
+    defaultPath: path.join(app.getPath("documents"), "quotation.pdf"),
+    filters: [{ name: "PDF", extensions: ["pdf"] }]
+  });
+  return result.canceled ? null : result.filePath;
+});
+
+ipcMain.handle("export-current-pdf", async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showSaveDialog(win, {
+    title: "Export PDF / 导出 PDF",
+    defaultPath: path.join(app.getPath("documents"), "quotation.pdf"),
+    filters: [{ name: "PDF", extensions: ["pdf"] }]
+  });
+  if (result.canceled || !result.filePath) return null;
+  const pdf = await win.webContents.printToPDF({
+    printBackground: true,
+    marginsType: 0,
+    pageSize: "A4"
+  });
+  fs.writeFileSync(result.filePath, pdf);
+  return result.filePath;
+});
+
+ipcMain.handle("open-data-dir", async () => {
+  await shell.openPath(dataDir());
+  return dataDir();
+});
+
+ipcMain.handle("select-restore-db", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Restore Database / 恢复数据库",
+    filters: [{ name: "SQLite Database", extensions: ["sqlite", "db"] }],
+    properties: ["openFile"]
+  });
+  return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle("select-import-json", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Import Data / 导入数据",
+    filters: [{ name: "JSON", extensions: ["json"] }],
+    properties: ["openFile"]
+  });
+  return result.canceled ? null : result.filePaths[0];
+});

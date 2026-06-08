@@ -1,0 +1,57 @@
+{
+  "name": "quote-assistant-v01",
+  "version": "0.1.0",
+  "description": "Quotation System / 报价系统 desktop and local server app",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "server": "node server/index.js",
+    "electron": "electron .",
+    "dev": "node server/index.js",
+    "rebuild:node": "npm rebuild better-sqlite3",
+    "rebuild:electron": "electron-builder install-app-deps",
+    "build:win": "electron-builder --win nsis",
+    "check": "node --check server/index.js && node --check electron/main.js && node --check app.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.10.0",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0"
+  },
+  "devDependencies": {
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.jinwanwa.quotation",
+    "productName": "Quotation System 报价系统",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "app.js",
+      "styles.css",
+      "assets/**/*",
+      "server/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

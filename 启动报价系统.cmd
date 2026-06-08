@@ -1,18 +1,17 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 
-set "HTML=%~dp0index.html"
+if not exist "node_modules" (
+  echo Installing dependencies / 正在安装依赖...
+  npm install
+)
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$html = (Resolve-Path '%HTML%').Path; " ^
-  "$url = (New-Object System.Uri($html)).AbsoluteUri; " ^
-  "$browsers = @(" ^
-  "  \"$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe\", " ^
-  "  \"$env:ProgramFiles(x86)\Microsoft\Edge\Application\msedge.exe\", " ^
-  "  \"$env:ProgramFiles\Google\Chrome\Application\chrome.exe\", " ^
-  "  \"$env:ProgramFiles(x86)\Google\Chrome\Application\chrome.exe\"" ^
-  "); " ^
-  "$browser = $browsers | Where-Object { Test-Path $_ } | Select-Object -First 1; " ^
-  "if ($browser) { Start-Process -FilePath $browser -ArgumentList @('--app=' + $url) } else { Start-Process $url }"
+echo Preparing SQLite for browser/server mode / 正在准备浏览器版 SQLite...
+npm run rebuild:node
+
+start "Quotation System Server" /min cmd /c "npm run server"
+timeout /t 2 >nul
+start http://127.0.0.1:8765/index.html
 
 endlocal
