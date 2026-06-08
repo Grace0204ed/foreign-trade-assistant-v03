@@ -67,6 +67,7 @@
     quoteStyle: "business",
     logoDataUrl: "",
     backgroundDataUrl: "",
+    stampDataUrl: "",
     categories: ["挖掘机", "装载机", "推土机", "压路机", "平地机", "自卸车", "叉车", "TLB"],
     templates: defaultTemplates
   };
@@ -251,6 +252,8 @@
     $("logo-preview").src = settings.logoDataUrl || "";
     $("logo-preview").hidden = !settings.logoDataUrl;
     $("background-preview").src = settings.backgroundDataUrl || defaultBg;
+    $("stamp-preview").src = settings.stampDataUrl || "";
+    $("stamp-preview").hidden = !settings.stampDataUrl;
   }
 
   function renderTemplateSelect(selected) {
@@ -873,7 +876,7 @@
       <section class="preview-panel"><h3>Customer Information / 客户信息</h3><div class="preview-fields"><p>Company / 公司：${escapeHtml(currentQuote.buyer.company)}</p><p>Country / 国家：${escapeHtml(currentQuote.buyer.country)}</p><p>Contact / 负责人：${escapeHtml(currentQuote.buyer.contact)}</p><p>Phone / 电话：${escapeHtml(currentQuote.buyer.phone)}</p><p>Email / 邮箱：${escapeHtml(currentQuote.buyer.email)}</p><p>Address / 地址：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
       <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr>${visibleFields.map(x => `<th>${escapeHtml(x.en)}<small>${escapeHtml(x.zh)}</small></th>`).join("")}</tr></thead><tbody>${currentQuote.items.map(item => `<tr>${visibleFields.map(x => `<td>${escapeHtml(displayFieldValue(item, x))}</td>`).join("")}</tr>`).join("")}</tbody></table><div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div></section>
       ${showProductPhotos && currentQuote.items.some(i => i.imageDataUrl) ? `<section class="preview-panel"><h3>Product Photos / 产品图片</h3><div class="photo-grid">${currentQuote.items.filter(i => i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
-      ${visibleTermFields.length ? `<section class="preview-panel"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(currentQuote.terms[field.fieldKey] || "")}</p>`).join("")}</section>` : ""}
+      ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(currentQuote.terms[field.fieldKey] || "")}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>Company Stamp / 公司公章</span></div>` : ""}</section>` : ""}
     `;
   }
 
@@ -953,8 +956,10 @@
     $("save-settings-btn").addEventListener("click", saveSettings);
     $("logo-input").addEventListener("change", async e => { settings.logoDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
     $("background-input").addEventListener("change", async e => { settings.backgroundDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
+    $("stamp-input").addEventListener("change", async e => { settings.stampDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
     $("remove-logo-btn").addEventListener("click", () => { settings.logoDataUrl = ""; renderSettings(); });
     $("reset-background-btn").addEventListener("click", () => { settings.backgroundDataUrl = ""; renderSettings(); });
+    $("remove-stamp-btn").addEventListener("click", () => { settings.stampDataUrl = ""; renderSettings(); });
     $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; });
     $("save-product-btn").addEventListener("click", saveProduct);
     $("clear-product-btn").addEventListener("click", clearProductForm);

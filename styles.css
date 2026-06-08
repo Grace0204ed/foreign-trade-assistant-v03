@@ -154,7 +154,7 @@ textarea { min-height: 86px; resize: vertical; }
 }
 .asset-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 220px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -253,7 +253,7 @@ textarea { min-height: 86px; resize: vertical; }
 .modal-card h3 {
   margin: 0;
 }
-.logo-preview, .bg-preview, .product-preview {
+.logo-preview, .bg-preview, .stamp-preview, .product-preview {
   display: block;
   margin-top: 8px;
   border: 1px solid var(--line);
@@ -263,6 +263,7 @@ textarea { min-height: 86px; resize: vertical; }
 }
 .logo-preview { width: 120px; height: 80px; }
 .bg-preview { width: 100%; height: 120px; object-fit: cover; }
+.stamp-preview { width: 150px; height: 110px; object-fit: contain; background: #fff; }
 .product-preview { width: 160px; height: 106px; object-fit: cover; }
 
 .list { display: grid; gap: 10px; }
@@ -344,6 +345,30 @@ textarea { min-height: 86px; resize: vertical; }
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
+}
+.terms-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 18px;
+  align-items: end;
+}
+.terms-content p {
+  margin: 6px 0;
+}
+.stamp-box {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.stamp-box img {
+  width: 160px;
+  height: 120px;
+  object-fit: contain;
+  display: block;
 }
 .preview-fields {
   display: grid;
