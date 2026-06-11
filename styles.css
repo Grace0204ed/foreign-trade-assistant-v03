@@ -117,6 +117,8 @@ button:hover, .file-btn:hover { border-color: var(--primary); color: var(--prima
 .login-box input::placeholder { color: #aebfd5; }
 .login-box button { min-height: 32px; }
 .login-box small { color: #b8c7db; line-height: 1.35; }
+.auth-ready .login-box { display: none !important; }
+.auth-ready .user-info-box { display: grid !important; }
 .nav-btn {
   justify-content: flex-start;
   border: 0;

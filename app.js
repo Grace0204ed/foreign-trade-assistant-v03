@@ -229,6 +229,7 @@
   function applyAuthLock() {
     ensureLoginView();
     document.body.classList.toggle("auth-locked", !currentUser);
+    document.body.classList.toggle("auth-ready", !!currentUser);
     document.body.classList.toggle("is-admin", isAdmin());
     updateAdminControls();
     document.querySelectorAll(".nav-btn, .entry-card").forEach((button) => {
@@ -500,8 +501,8 @@
     panel.innerHTML = `
       <div class="row-head">
         <div>
-          <h3>Contact Fields / 联系方式字段</h3>
-          <p class="hint">Add WhatsApp, WeChat QR code, platform account or other contact fields. / 可新增 WhatsApp、微信二维码、平台账号等联系方式。</p>
+          <h3>Quotation Contact Fields / 报价负责人联系方式</h3>
+          <p class="hint">These fields belong to the company quotation contact person. Add WhatsApp, WeChat QR code, platform account or other contact fields. / 这里是公司负责该报价的对接人联系方式，可新增 WhatsApp、微信二维码、平台账号等。</p>
         </div>
         <button id="add-contact-field-btn" type="button">Add / 新增</button>
       </div>
@@ -2023,10 +2024,10 @@
     normalizeContactFields();
     const fields = settings.contactFields.filter((field) => field.visible && field.value);
     if (!fields.length) {
-      return `<p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Contact: ${escapeHtml(settings.contactPerson)} | ${escapeHtml(settings.companyPhone)} | ${escapeHtml(settings.companyEmail)}</p>`;
+      return `<p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Quotation Contact / 报价负责人: ${escapeHtml(settings.contactPerson)}</p>`;
     }
     return `<div class="preview-contact-list">
-      <p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Contact: ${escapeHtml(settings.contactPerson)}</p>
+      <p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Quotation Contact / 报价负责人: ${escapeHtml(settings.contactPerson)}</p>
       <div>${fields.map((field) => field.type === "image"
         ? `<span class="preview-contact-image"><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}</b><img src="${field.value}" alt=""></span>`
         : `<span><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}:</b> ${escapeHtml(field.value)}</span>`).join("")}</div>
