@@ -82,6 +82,7 @@
       { id: "bank-note", labelEn: "Payment Note", labelZh: "付款备注", value: "Please include buyer name, invoice number and product name in the payment note.", visible: true, sortOrder: 60 }
     ],
     quoteStyle: "business",
+    currencies: ["USD", "EUR", "GBP", "CNY", "RUB", "AED", "SAR", "JPY", "AUD", "CAD"],
     logoDataUrl: "",
     backgroundDataUrl: "",
     stampDataUrl: "",
@@ -184,6 +185,19 @@
     Australia: "Oceania / 大洋洲",
     "New Zealand": "Oceania / 大洋洲"
   };
+  const countryOptions = [
+    ["Tanzania", "坦桑尼亚"], ["Zimbabwe", "津巴布韦"], ["Zambia", "赞比亚"], ["Nigeria", "尼日利亚"], ["Kenya", "肯尼亚"],
+    ["Ghana", "加纳"], ["Mozambique", "莫桑比克"], ["South Africa", "南非"], ["Angola", "安哥拉"], ["Egypt", "埃及"],
+    ["Ethiopia", "埃塞俄比亚"], ["Uganda", "乌干达"], ["Rwanda", "卢旺达"], ["Burundi", "布隆迪"], ["Malawi", "马拉维"],
+    ["Congo", "刚果"], ["DR Congo", "刚果（金）"], ["Cameroon", "喀麦隆"], ["Senegal", "塞内加尔"], ["Cote d'Ivoire", "科特迪瓦"],
+    ["Brazil", "巴西"], ["Argentina", "阿根廷"], ["Chile", "智利"], ["Peru", "秘鲁"], ["Colombia", "哥伦比亚"],
+    ["United States", "美国"], ["Canada", "加拿大"], ["Mexico", "墨西哥"], ["United Kingdom", "英国"], ["Germany", "德国"],
+    ["France", "法国"], ["Netherlands", "荷兰"], ["Belgium", "比利时"], ["Spain", "西班牙"], ["Italy", "意大利"],
+    ["United Arab Emirates", "阿联酋"], ["Saudi Arabia", "沙特阿拉伯"], ["Qatar", "卡塔尔"], ["Oman", "阿曼"], ["Kuwait", "科威特"],
+    ["India", "印度"], ["Pakistan", "巴基斯坦"], ["Bangladesh", "孟加拉国"], ["Vietnam", "越南"], ["Thailand", "泰国"],
+    ["Malaysia", "马来西亚"], ["Singapore", "新加坡"], ["Indonesia", "印度尼西亚"], ["Philippines", "菲律宾"], ["Australia", "澳大利亚"],
+    ["New Zealand", "新西兰"], ["China", "中国"]
+  ];
 
   const $ = (id) => document.getElementById(id);
 
@@ -222,6 +236,29 @@
 
   function bi(en, zh) {
     return `<span>${escapeHtml(en)}</span><small>${escapeHtml(zh)}</small>`;
+  }
+
+  function displayMode() {
+    return currentQuote?.pdfLanguage || $("pdf-language")?.value || "bilingual";
+  }
+
+  function labelText(en, zh, mode = displayMode()) {
+    if (mode === "en") return en;
+    if (mode === "zh") return zh;
+    return `${en} / ${zh}`;
+  }
+
+  function labelHtml(en, zh, mode = displayMode()) {
+    if (mode === "en") return escapeHtml(en);
+    if (mode === "zh") return escapeHtml(zh);
+    return `${escapeHtml(en)}<small>${escapeHtml(zh)}</small>`;
+  }
+
+  function localizedText(en, zh, separator = " | ") {
+    const mode = displayMode();
+    if (mode === "en") return en || "";
+    if (mode === "zh") return zh || "";
+    return [en, zh].filter(Boolean).join(separator);
   }
 
   function toast(text) {
@@ -599,6 +636,7 @@
     ensureTermsSettingsPanel();
     normalizeContactFields();
     normalizeBankFields();
+    normalizeCurrencies();
     normalizeTemplates();
     normalizeCategories();
     document.querySelectorAll("[data-setting]").forEach((input) => {
@@ -606,6 +644,7 @@
     });
     renderCategoryList();
     renderBankFields();
+    renderCurrencies();
     renderTemplateSelect();
     fillTemplateForm(settings.templates[0]?.name);
     $("logo-preview").src = settings.logoDataUrl || "";
@@ -663,6 +702,17 @@
       visible: field.visible !== false,
       sortOrder: Number(field.sortOrder || (index + 1) * 10)
     })).sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  function normalizeCurrencies() {
+    const fallback = defaultSettings.currencies || ["USD"];
+    const list = Array.isArray(settings.currencies) && settings.currencies.length ? settings.currencies : fallback;
+    settings.currencies = [...new Set(list.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean))];
+    if (!settings.currencies.length) settings.currencies = [...fallback];
+    if (!settings.currencies.includes(String(settings.currency || "USD").toUpperCase())) {
+      settings.currencies.unshift(String(settings.currency || "USD").toUpperCase());
+    }
+    settings.currency = String(settings.currency || settings.currencies[0] || "USD").toUpperCase();
   }
 
   function ensureContactFieldsPanel() {
@@ -947,7 +997,17 @@
         <button id="add-term-field-proxy-btn" class="primary" type="button">新增条款字段</button>
       </div>
       <div class="form-grid">
-        <label><span>Default Currency / 默认货币</span><input data-setting="currency" placeholder="USD" /></label>
+        <label><span>Default Currency / 默认货币</span><select id="default-currency-select" data-setting="currency"></select></label>
+      </div>
+      <div class="currency-manager">
+        <div class="row-head">
+          <h4>Currency Options / 货币选项</h4>
+          <div class="actions">
+            <input id="currency-input" placeholder="GBP" maxlength="10" />
+            <button id="add-currency-btn" type="button">Add / 新增</button>
+          </div>
+        </div>
+        <table class="field-table"><tbody id="currency-list"></tbody></table>
       </div>
       <div id="terms-field-host"></div>
     `;
@@ -955,6 +1015,60 @@
     sticky?.before(panel);
     const termManager = $("template-term-field-list")?.closest(".field-manager");
     if (termManager) $("terms-field-host").appendChild(termManager);
+  }
+
+  function renderCurrencies() {
+    if (!$("currency-list")) return;
+    normalizeCurrencies();
+    if ($("default-currency-select")) {
+      $("default-currency-select").innerHTML = settings.currencies.map((currency) => `<option value="${escapeHtml(currency)}"${currency === settings.currency ? " selected" : ""}>${escapeHtml(currency)}</option>`).join("");
+    }
+    $("currency-list").innerHTML = settings.currencies.map((currency, index) => `
+      <tr data-currency-index="${index}">
+        <td>${index + 1}</td>
+        <td><b>${escapeHtml(currency)}</b></td>
+        <td class="field-actions">
+          <button data-currency-action="up" type="button">Up / 上移</button>
+          <button data-currency-action="down" type="button">Down / 下移</button>
+          <button data-currency-action="delete" type="button"${settings.currencies.length <= 1 ? " disabled" : ""}>Delete / 删除</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function addCurrency() {
+    normalizeCurrencies();
+    const value = $("currency-input").value.trim().toUpperCase();
+    if (!value) return toast("Please enter currency code. / 请输入货币代码。");
+    if (settings.currencies.includes(value)) return toast("Currency already exists. / 货币已存在。");
+    settings.currencies.push(value);
+    $("currency-input").value = "";
+    save(keys.settings, settings);
+    renderCurrencies();
+    renderAllSelectors();
+  }
+
+  function handleCurrencyAction(event) {
+    const row = event.target.closest("tr[data-currency-index]");
+    if (!row) return;
+    normalizeCurrencies();
+    const index = Number(row.dataset.currencyIndex);
+    const action = event.target.dataset.currencyAction;
+    if (action === "delete") {
+      if (settings.currencies.length <= 1) return;
+      if (!confirm("Delete this currency? / 确认删除这个货币吗？")) return;
+      const [removed] = settings.currencies.splice(index, 1);
+      if (settings.currency === removed) settings.currency = settings.currencies[0] || "USD";
+    }
+    if (action === "up" && index > 0) {
+      [settings.currencies[index - 1], settings.currencies[index]] = [settings.currencies[index], settings.currencies[index - 1]];
+    }
+    if (action === "down" && index < settings.currencies.length - 1) {
+      [settings.currencies[index + 1], settings.currencies[index]] = [settings.currencies[index], settings.currencies[index + 1]];
+    }
+    save(keys.settings, settings);
+    renderCurrencies();
+    renderAllSelectors();
   }
 
   function updateAdminControls() {
@@ -1356,6 +1470,7 @@
   function saveSettings() {
     normalizeTemplates();
     normalizeCategories();
+    normalizeCurrencies();
     collectSettingsDraft();
     const phone = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("phone") || field.labelZh.includes("电话"));
     const email = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("email") || field.labelZh.includes("邮箱"));
@@ -1426,6 +1541,7 @@
   function renderAllSelectors() {
     normalizeTemplates();
     normalizeCategories();
+    normalizeCurrencies();
     const catOptions = settings.categories
       .filter((c) => c.visible !== false)
       .map((c) => `<option value="${escapeHtml(categoryLabel(c))}">${escapeHtml(categoryFullLabel(c))}</option>`)
@@ -1478,6 +1594,23 @@
     });
     const productOptions = `<option value="">Select Product / 选择产品</option>` + products.map((p) => `<option value="${p.id}">${escapeHtml(p.brand)} ${escapeHtml(p.model)}</option>`).join("");
     if ($("calc-product")) $("calc-product").innerHTML = productOptions;
+    renderCountryOptions();
+  }
+
+  function renderCountryOptions() {
+    const fromPorts = ports.map((port) => [port.countryName, port.countryChineseName]).filter((item) => item[0] || item[1]);
+    const map = new Map();
+    [...countryOptions, ...fromPorts].forEach(([en, zh]) => {
+      const key = normalize(`${en}${zh}`);
+      if (!key) return;
+      map.set(key, [en || zh, zh || en]);
+    });
+    if ($("country-options")) {
+      $("country-options").innerHTML = Array.from(map.values())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([en, zh]) => `<option value="${escapeHtml(en)} / ${escapeHtml(zh)}"></option><option value="${escapeHtml(zh)}"></option><option value="${escapeHtml(en)}"></option>`)
+        .join("");
+    }
   }
 
   function displayPort(port) {
@@ -2023,6 +2156,7 @@
       quoteNumber: `QA-${d.replaceAll("-", "")}-${String(quotes.length + 1).padStart(3, "0")}`,
       quoteDate: d,
       validUntil: addDays(7),
+      pdfLanguage: "bilingual",
       buyer: {},
       templateName: settings.templates[0]?.name || "",
       items: [],
@@ -2055,6 +2189,7 @@
     $("quote-number").value = currentQuote.quoteNumber || "";
     $("quote-date").value = currentQuote.quoteDate || today();
     $("valid-until").value = currentQuote.validUntil || addDays(7);
+    $("pdf-language").value = currentQuote.pdfLanguage || "bilingual";
     $("buyer-country").value = currentQuote.buyer.country || "";
     $("buyer-company").value = currentQuote.buyer.company || "";
     $("buyer-contact").value = currentQuote.buyer.contact || "";
@@ -2085,6 +2220,7 @@
     currentQuote.quoteNumber = $("quote-number").value;
     currentQuote.quoteDate = $("quote-date").value;
     currentQuote.validUntil = $("valid-until").value;
+    currentQuote.pdfLanguage = $("pdf-language").value || "bilingual";
     currentQuote.buyer = {
       country: $("buyer-country").value,
       company: $("buyer-company").value,
@@ -2133,7 +2269,7 @@
             <label class="wide"><span>Route / 路线说明</span><input data-qfield="description" value="${escapeHtml(vals.description || "")}" placeholder="例如：Shanghai Port to Dar es Salaam Port / 上海港到达累斯萨拉姆港" /></label>
             <label><span>Quantity / 数量</span><input data-qfield="qty" type="number" value="${escapeHtml(vals.qty || "1")}" /></label>
             <label><span>Unit Price / 单价</span><input data-qfield="unitPrice" type="number" value="${escapeHtml(vals.unitPrice || "")}" /></label>
-            <label><span>Currency / 货币</span><select data-qfield="currency">${["USD", "CNY", "EUR", "AED"].map((option) => `<option value="${option}"${option === (vals.currency || settings.currency) ? " selected" : ""}>${option}</option>`).join("")}</select></label>
+            <label><span>Currency / 货币</span>${renderCurrencySelect("currency", vals.currency || settings.currency)}</label>
             <label class="wide"><span>Remark / 备注</span><textarea data-qfield="remark">${escapeHtml(vals.remark || "")}</textarea></label>
           </div>
           <div class="actions"><button class="remove-quote-item" type="button">Delete / 删除本项</button></div>
@@ -2180,11 +2316,17 @@
     if (field.fieldType === "number" || field.fieldType === "money") return `<input data-qfield="${key}" type="number" value="${val}" />`;
     if (field.fieldType === "select") {
       const options = field.fieldKey === "currency"
-        ? ["USD", "CNY", "EUR", "AED"]
+        ? settings.currencies
         : ["Option 1", "Option 2"];
       return `<select data-qfield="${key}">${options.map((option) => `<option value="${option}"${option === value ? " selected" : ""}>${option}</option>`).join("")}</select>`;
     }
     return `<input data-qfield="${key}" type="text" value="${val}" />`;
+  }
+
+  function renderCurrencySelect(fieldKey, value) {
+    normalizeCurrencies();
+    const selected = String(value || settings.currency || settings.currencies[0] || "USD").toUpperCase();
+    return `<select data-qfield="${escapeHtml(fieldKey)}">${settings.currencies.map((option) => `<option value="${escapeHtml(option)}"${option === selected ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`;
   }
 
   function defaultCostCategory(kind) {
@@ -2214,15 +2356,11 @@
       const listId = `${key}-options`;
       const sourcePorts = ports.filter((port) => originOnly ? port.isOriginPort : port.isDestinationPort);
       const datalistOptions = sourcePorts.map((port) => `<option value="${escapeHtml(portOptionLabel(port))}"></option>`).join("");
-      const selectOptions = originOnly
-        ? `<option value="">Select Origin Port / 选择起运港</option>` + sourcePorts.map((port) => `<option value="${escapeHtml(portOptionLabel(port))}">${escapeHtml(portOptionLabel(port))}</option>`).join("")
-        : `<option value="">Select Region and Port / 按地区选择目的港</option>` + groupedPortTextOptions(sourcePorts);
-      const placeholder = originOnly ? "Shanghai Port / 上海港" : "Lagos Port / 拉各斯港";
+      const placeholder = originOnly ? "Shanghai Port / 上海港" : "Dar es Salaam Port / 达累斯萨拉姆港";
       return `
-        <select data-port-picker="${key}">${selectOptions}</select>
-        <input data-termfield="${key}" list="${listId}" value="${val}" placeholder="${placeholder}" />
+        <input class="combo-input" data-termfield="${key}" list="${listId}" value="${val}" placeholder="${placeholder}" />
         <datalist id="${listId}">${datalistOptions}</datalist>
-        <p class="term-desc">${originOnly ? "默认使用中国起运港，也可手动输入。" : "目的港按地区分组，也可手动输入港口、国家或中文别名。"}</p>
+        <p class="term-desc">${originOnly ? "可直接输入，也可点击下拉选择中国起运港。" : "可直接输入港口，也可点击下拉选择全球目的港。"}</p>
       `;
     }
     if (field.fieldKey === "payment") {
@@ -2238,25 +2376,6 @@
     if (field.fieldType === "number" || field.fieldType === "money") return `<input data-termfield="${key}" type="number" value="${val}" />`;
     if (field.fieldType === "select") return `<select data-termfield="${key}"><option value="${val}" selected>${val || "请选择"}</option></select>`;
     return `<input data-termfield="${key}" type="text" value="${val}" />`;
-  }
-
-  function groupedPortTextOptions(list) {
-    const groups = new Map();
-    list.forEach((port) => {
-      const region = portRegion(port);
-      if (!groups.has(region)) groups.set(region, []);
-      groups.get(region).push(port);
-    });
-    return portRegionOrder
-      .filter((region) => groups.has(region))
-      .map((region) => `
-        <optgroup label="${escapeHtml(region)}">
-          ${groups.get(region).sort((a, b) => portOptionLabel(a).localeCompare(portOptionLabel(b))).map((port) => {
-            const label = portOptionLabel(port);
-            return `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`;
-          }).join("")}
-        </optgroup>
-      `).join("");
   }
 
   function addManualProduct() {
@@ -2406,7 +2525,7 @@
   }
 
   function renderQuotePreviewHead() {
-    return quotePreviewColumns().map((column) => `<th>${escapeHtml(column.en)}<small>${escapeHtml(column.zh)}</small></th>`).join("");
+    return quotePreviewColumns().map((column) => `<th>${labelHtml(column.en, column.zh)}</th>`).join("");
   }
 
   function quotePreviewCell(item, column) {
@@ -2442,14 +2561,15 @@
   function renderCompanyContactPreview() {
     normalizeContactFields();
     const fields = settings.contactFields.filter((field) => field.visible && field.value);
+    const address = localizedText(settings.companyAddressEn, settings.companyAddressZh);
     if (!fields.length) {
-      return `<p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Quotation Contact / 报价负责人: ${escapeHtml(settings.contactPerson)}</p>`;
+      return `<p>${escapeHtml(address)} | ${labelText("Quotation Contact", "报价负责人")}: ${escapeHtml(settings.contactPerson)}</p>`;
     }
     return `<div class="preview-contact-list">
-      <p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Quotation Contact / 报价负责人: ${escapeHtml(settings.contactPerson)}</p>
+      <p>${escapeHtml(address)} | ${labelText("Quotation Contact", "报价负责人")}: ${escapeHtml(settings.contactPerson)}</p>
       <div>${fields.map((field) => field.type === "image"
-        ? `<span class="preview-contact-image"><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}</b><img src="${field.value}" alt=""></span>`
-        : `<span><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}:</b> ${escapeHtml(field.value)}</span>`).join("")}</div>
+        ? `<span class="preview-contact-image"><b>${labelText(field.labelEn, field.labelZh)}</b><img src="${field.value}" alt=""></span>`
+        : `<span><b>${labelText(field.labelEn, field.labelZh)}:</b> ${escapeHtml(field.value)}</span>`).join("")}</div>
     </div>`;
   }
 
@@ -2458,9 +2578,9 @@
     const fields = settings.bankFields.filter((field) => field.visible && field.value);
     if (!fields.length) return "";
     return `<section class="preview-panel bank-panel">
-      <h3>Bank Payment Information / 银行收款信息</h3>
+      <h3>${labelText("Bank Payment Information", "银行收款信息")}</h3>
       <div class="bank-grid">
-        ${fields.map((field) => `<p><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}:</b> ${escapeHtml(field.value)}</p>`).join("")}
+        ${fields.map((field) => `<p><b>${labelText(field.labelEn, field.labelZh)}:</b> ${escapeHtml(field.value)}</p>`).join("")}
       </div>
     </section>`;
   }
@@ -2472,19 +2592,23 @@
     const visibleTermFields = (tpl.termFields || defaultTermFields).slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
     const showProductPhotos = visibleFields.some((field) => field.fieldType === "image");
     const bg = settings.backgroundDataUrl || defaultBg;
+    const title = labelText("Quotation", "报价单");
+    const companySub = localizedText("", settings.companyNameZh);
+    const businessLine = localizedText(settings.businessLineEn, settings.businessLineZh, "<br>");
     $("quote-preview").innerHTML = `
-      <section class="preview-banner" style="background-image:linear-gradient(90deg,rgba(8,25,48,.78),rgba(8,25,48,.42)),url('${bg}')">
-        <div class="preview-company">${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}">` : ""}<div><h2>${escapeHtml(settings.companyNameEn)}</h2><p>${escapeHtml(settings.companyNameZh)}</p></div></div>
+      <section class="preview-banner">
+        <img class="preview-banner-bg" src="${bg}" alt="">
+        <div class="preview-company">${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}">` : ""}<div><h2>${escapeHtml(displayMode() === "zh" ? settings.companyNameZh : settings.companyNameEn)}</h2>${companySub && displayMode() !== "en" ? `<p>${escapeHtml(companySub)}</p>` : ""}</div></div>
         ${renderCompanyContactPreview()}
       </section>
       <section class="preview-top">
-        <div><h2>Quotation<br><small>报价单</small></h2><p>${escapeHtml(settings.businessLineEn)}<br>${escapeHtml(settings.businessLineZh)}</p></div>
-        <div class="preview-meta"><p>Quotation No. / 报价编号：${escapeHtml(currentQuote.quoteNumber)}</p><p>Date / 日期：${escapeHtml(currentQuote.quoteDate)}</p><p>Valid Until / 有效期：${escapeHtml(currentQuote.validUntil)}</p></div>
+        <div class="preview-title"><h2>${escapeHtml(title)}</h2><p>${businessLine.split("<br>").map(escapeHtml).join("<br>")}</p></div>
+        <div class="preview-meta"><p>${labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}</p><p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p><p>${labelText("Valid Until", "有效期")}：${escapeHtml(currentQuote.validUntil)}</p></div>
       </section>
-      <section class="preview-panel"><h3>Customer Information / 客户信息</h3><div class="preview-fields"><p>Company / 公司：${escapeHtml(currentQuote.buyer.company)}</p><p>Country / 国家：${escapeHtml(currentQuote.buyer.country)}</p><p>Contact / 负责人：${escapeHtml(currentQuote.buyer.contact)}</p><p>Phone / 电话：${escapeHtml(currentQuote.buyer.phone)}</p><p>Email / 邮箱：${escapeHtml(currentQuote.buyer.email)}</p><p>Address / 地址：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
-      <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${visibleQuoteField("totalAmount") ? `<div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div>` : ""}</section>
-      ${showProductPhotos && currentQuote.items.some(i => i.imageDataUrl) ? `<section class="preview-panel"><h3>Product Photos / 产品图片</h3><div class="photo-grid">${currentQuote.items.filter(i => i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
-      ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>Company Stamp / 公司公章</span></div>` : ""}</section>` : ""}
+      <section class="preview-panel"><h3>${labelText("Customer Information", "客户信息")}</h3><div class="preview-fields"><p>${labelText("Company", "公司")}：${escapeHtml(currentQuote.buyer.company)}</p><p>${labelText("Country", "国家")}：${escapeHtml(currentQuote.buyer.country)}</p><p>${labelText("Contact", "负责人")}：${escapeHtml(currentQuote.buyer.contact)}</p><p>${labelText("Phone", "电话")}：${escapeHtml(currentQuote.buyer.phone)}</p><p>${labelText("Email", "邮箱")}：${escapeHtml(currentQuote.buyer.email)}</p><p>${labelText("Address", "地址")}：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
+      <section class="preview-panel"><h3>${labelText("Quotation Items", "报价明细")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${money(total(), settings.currency)}</div>` : ""}</section>
+      ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && i.imageDataUrl) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product" && i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
+      ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${labelText("Terms", "条款")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
     `;
   }
@@ -2631,6 +2755,7 @@
     $("clear-import-text-btn").addEventListener("click", () => { $("price-import-text").value = ""; $("price-import-result").textContent = ""; });
     $("product-search").addEventListener("input", renderProducts);
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
+    $("pdf-language").addEventListener("change", renderPreview);
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
     $("quote-items").addEventListener("input", renderPreview);
     $("quote-items").addEventListener("change", async e => { if (e.target.matches(".quote-image-input")) { const img = await normalizeImage(e.target.files[0]); const prev = e.target.closest(".quote-item").querySelector("[data-image]"); if (prev) { prev.src = img; prev.dataset.image = img; } renderPreview(); } });
@@ -2673,8 +2798,10 @@
       if (event.target.id === "add-term-field-proxy-btn") openFieldModal(-1, "terms");
       if (event.target.id === "add-contact-field-btn") addContactField();
       if (event.target.id === "add-bank-field-btn") addBankField();
+      if (event.target.id === "add-currency-btn") addCurrency();
       if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
       if (event.target.matches("[data-bank-action], [data-bank-visible]")) handleBankFieldAction(event);
+      if (event.target.matches("[data-currency-action]")) handleCurrencyAction(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
     });
     document.addEventListener("change", (event) => {
