@@ -388,6 +388,7 @@
   }
 
   function fileToDataUrl(file) {
+    if (!file) return Promise.resolve("");
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
@@ -465,6 +466,7 @@
     $("background-preview").src = settings.backgroundDataUrl || defaultBg;
     $("stamp-preview").src = settings.stampDataUrl || "";
     $("stamp-preview").hidden = !settings.stampDataUrl;
+    $("stamp-preview").title = settings.stampDataUrl ? "Electronic seal uploaded / 电子公章已上传" : "No electronic seal / 未上传电子公章";
     renderContactFields();
     renderUsers();
     showSettingsSection(activeSettingsSection);
@@ -1074,6 +1076,23 @@
     document.querySelectorAll("[data-setting]").forEach((input) => {
       settings[input.dataset.setting] = input.value.trim();
     });
+  }
+
+  async function updateSettingsAsset(input, key, message) {
+    const file = input.files?.[0];
+    if (!file) return;
+    collectSettingsDraft();
+    settings[key] = await fileToDataUrl(file);
+    input.value = "";
+    renderSettings();
+    toast(message);
+  }
+
+  function clearSettingsAsset(key, message) {
+    collectSettingsDraft();
+    settings[key] = "";
+    renderSettings();
+    toast(message);
   }
 
   function saveTemplate() {
@@ -2190,12 +2209,12 @@
     $("export-data-btn").addEventListener("click", exportAllData);
     $("import-data-btn").addEventListener("click", importData);
     $("open-data-dir-btn").addEventListener("click", openDataFolder);
-    $("logo-input").addEventListener("change", async e => { collectSettingsDraft(); settings.logoDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
-    $("background-input").addEventListener("change", async e => { collectSettingsDraft(); settings.backgroundDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
-    $("stamp-input").addEventListener("change", async e => { collectSettingsDraft(); settings.stampDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
-    $("remove-logo-btn").addEventListener("click", () => { collectSettingsDraft(); settings.logoDataUrl = ""; renderSettings(); });
-    $("reset-background-btn").addEventListener("click", () => { collectSettingsDraft(); settings.backgroundDataUrl = ""; renderSettings(); });
-    $("remove-stamp-btn").addEventListener("click", () => { collectSettingsDraft(); settings.stampDataUrl = ""; renderSettings(); });
+    $("logo-input").addEventListener("change", e => updateSettingsAsset(e.target, "logoDataUrl", "Logo uploaded. / Logo 已上传。"));
+    $("background-input").addEventListener("change", e => updateSettingsAsset(e.target, "backgroundDataUrl", "Background uploaded. / 背景图已上传。"));
+    $("stamp-input").addEventListener("change", e => updateSettingsAsset(e.target, "stampDataUrl", "Electronic seal uploaded. / 电子公章已上传。"));
+    $("remove-logo-btn").addEventListener("click", () => clearSettingsAsset("logoDataUrl", "Logo removed. / Logo 已删除。"));
+    $("reset-background-btn").addEventListener("click", () => clearSettingsAsset("backgroundDataUrl", "Default background restored. / 已恢复默认背景。"));
+    $("remove-stamp-btn").addEventListener("click", () => clearSettingsAsset("stampDataUrl", "Electronic seal removed. / 电子公章已删除。"));
     $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; });
     $("save-product-btn").addEventListener("click", saveProduct);
     $("clear-product-btn").addEventListener("click", clearProductForm);
