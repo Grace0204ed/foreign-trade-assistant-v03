@@ -31,6 +31,8 @@
           <button class="nav-btn" data-view="history">History / 历史报价</button>
           <button class="nav-btn" data-view="products">Products / 产品库</button>
           <button class="nav-btn" data-view="freight">Freight Center / 运费中心</button>
+          <button class="nav-btn admin-only" data-view="users">Users / 用户管理</button>
+          <button class="nav-btn admin-only" data-view="data">Data / 数据管理</button>
           <button class="nav-btn" data-view="settings">Settings / 设置</button>
         </nav>
       </aside>
@@ -46,7 +48,34 @@
             <button class="entry-card" data-view-target="history"><b>历史报价</b><span>搜索、编辑、复制、删除、重新导出报价单</span></button>
             <button class="entry-card" data-view-target="products"><b>产品库</b><span>维护常用产品资料、分类和常用图片</span></button>
             <button class="entry-card" data-view-target="freight"><b>运费中心</b><span>港口库、运费库、运费查询、导入报价</span></button>
-            <button class="entry-card" data-view-target="settings"><b>设置</b><span>公司资料、Logo、背景图、报价字段模板</span></button>
+            <button class="entry-card admin-only" data-view-target="users"><b>用户管理</b><span>新增账号、停用账号、修改密码和权限</span></button>
+            <button class="entry-card admin-only" data-view-target="data"><b>数据管理</b><span>备份、恢复、导入导出和打开数据目录</span></button>
+            <button class="entry-card" data-view-target="settings"><b>设置</b><span>公司信息、报价分类、报价条款</span></button>
+          </div>
+        </section>
+
+        <section id="view-users" class="view no-print admin-only">
+          <header class="page-head">
+            <h2>用户管理</h2>
+            <p>管理可登录本系统的账号、密码和权限。</p>
+          </header>
+          <div id="user-management-host"></div>
+        </section>
+
+        <section id="view-data" class="view no-print admin-only">
+          <header class="page-head">
+            <h2>数据管理</h2>
+            <p>管理本地数据库备份、恢复、导入导出和数据目录。</p>
+          </header>
+          <div class="panel">
+            <h3>数据库与文件</h3>
+            <div class="actions">
+              <button id="backup-db-btn" type="button">Backup Database / 备份数据库</button>
+              <button id="restore-db-btn" type="button">Restore Database / 恢复数据库</button>
+              <button id="export-data-btn" type="button">Export All Data / 导出全部数据</button>
+              <button id="import-data-btn" type="button">Import Data / 导入数据</button>
+              <button id="open-data-dir-btn" type="button">Open Data Folder / 打开数据目录</button>
+            </div>
           </div>
         </section>
 
@@ -182,11 +211,6 @@
           </div>
           <div class="actions sticky-actions">
             <button id="save-settings-btn" class="primary" type="button">保存设置</button>
-            <button id="backup-db-btn" type="button">Backup Database / 备份数据库</button>
-            <button id="restore-db-btn" type="button">Restore Database / 恢复数据库</button>
-            <button id="export-data-btn" type="button">Export All Data / 导出全部数据</button>
-            <button id="import-data-btn" type="button">Import Data / 导入数据</button>
-            <button id="open-data-dir-btn" type="button">Open Data Folder / 打开数据目录</button>
           </div>
         </section>
 

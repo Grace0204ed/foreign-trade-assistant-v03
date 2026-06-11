@@ -425,11 +425,19 @@
       ensureLoginView();
       name = "login";
     }
+    if (["users", "data"].includes(name) && !isAdmin()) {
+      toast("Admin permission required. / 需要管理员权限。");
+      name = "home";
+    }
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
     if (name === "history") renderHistory();
     if (name === "products") renderProducts();
     if (name === "settings") renderSettings();
+    if (name === "users") {
+      ensureUserManagerPanel();
+      renderUsers();
+    }
     if (name === "quote") renderQuoteEditor();
     if (name === "freight") {
       renderPorts();
@@ -611,7 +619,6 @@
     const section = document.createElement("div");
     section.id = "user-manager-panel";
     section.className = "panel admin-only";
-    section.dataset.settingsPanel = "company";
     section.innerHTML = `
       <div class="row-head">
         <div>
@@ -646,8 +653,8 @@
         <tbody id="user-list"></tbody>
       </table>
     `;
-    const sticky = document.querySelector(".sticky-actions");
-    sticky?.before(section);
+    const host = $("user-management-host") || document.querySelector(".sticky-actions");
+    host?.appendChild(section);
   }
 
   function ensureTermsSettingsPanel() {
@@ -1961,18 +1968,43 @@
     return item.values?.remark || "";
   }
 
+  function visibleQuoteField(key) {
+    const tpl = quoteTemplate(currentQuote);
+    const field = (tpl.fields || []).find((item) => item.fieldKey === key);
+    return field ? field.visible !== false : true;
+  }
+
+  function quotePreviewColumns() {
+    return [
+      { key: "type", en: "Type", zh: "费用类型", visible: true },
+      { key: "description", en: "Description", zh: "说明", visible: true },
+      { key: "qty", en: "Qty", zh: "数量", visible: visibleQuoteField("qty") },
+      { key: "unitPrice", en: "Unit Price", zh: "单价", visible: visibleQuoteField("unitPrice") },
+      { key: "amount", en: "Amount", zh: "金额", visible: visibleQuoteField("totalAmount") },
+      { key: "remark", en: "Remark", zh: "备注", visible: visibleQuoteField("remark") }
+    ].filter((column) => column.visible);
+  }
+
+  function renderQuotePreviewHead() {
+    return quotePreviewColumns().map((column) => `<th>${escapeHtml(column.en)}<small>${escapeHtml(column.zh)}</small></th>`).join("");
+  }
+
+  function quotePreviewCell(item, column) {
+    const values = item.values || {};
+    const currency = values.currency || settings.currency;
+    if (column.key === "type") return itemKindLabel(item.kind || "product");
+    if (column.key === "description") return previewDescription(item);
+    if (column.key === "qty") return values.qty || "1";
+    if (column.key === "unitPrice") return values.unitPrice ? money(values.unitPrice, currency) : "";
+    if (column.key === "amount") return money(itemSubtotal(item), currency);
+    if (column.key === "remark") return previewRemark(item);
+    return "";
+  }
+
   function renderQuotePreviewRows() {
+    const columns = quotePreviewColumns();
     return (currentQuote.items || []).map((item) => {
-      const values = item.values || {};
-      const currency = values.currency || settings.currency;
-      return `<tr>
-        <td>${escapeHtml(itemKindLabel(item.kind || "product"))}</td>
-        <td>${escapeHtml(previewDescription(item))}</td>
-        <td>${escapeHtml(values.qty || "1")}</td>
-        <td>${values.unitPrice ? escapeHtml(money(values.unitPrice, currency)) : ""}</td>
-        <td>${escapeHtml(money(itemSubtotal(item), currency))}</td>
-        <td>${escapeHtml(previewRemark(item))}</td>
-      </tr>`;
+      return `<tr>${columns.map((column) => `<td>${escapeHtml(quotePreviewCell(item, column))}</td>`).join("")}</tr>`;
     }).join("");
   }
 
@@ -2018,7 +2050,7 @@
         <div class="preview-meta"><p>Quotation No. / 报价编号：${escapeHtml(currentQuote.quoteNumber)}</p><p>Date / 日期：${escapeHtml(currentQuote.quoteDate)}</p><p>Valid Until / 有效期：${escapeHtml(currentQuote.validUntil)}</p></div>
       </section>
       <section class="preview-panel"><h3>Customer Information / 客户信息</h3><div class="preview-fields"><p>Company / 公司：${escapeHtml(currentQuote.buyer.company)}</p><p>Country / 国家：${escapeHtml(currentQuote.buyer.country)}</p><p>Contact / 负责人：${escapeHtml(currentQuote.buyer.contact)}</p><p>Phone / 电话：${escapeHtml(currentQuote.buyer.phone)}</p><p>Email / 邮箱：${escapeHtml(currentQuote.buyer.email)}</p><p>Address / 地址：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
-      <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr><th>Type<small>费用类型</small></th><th>Description<small>说明</small></th><th>Qty<small>数量</small></th><th>Unit Price<small>单价</small></th><th>Amount<small>金额</small></th><th>Remark<small>备注</small></th></tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table><div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div></section>
+      <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${visibleQuoteField("totalAmount") ? `<div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div>` : ""}</section>
       ${showProductPhotos && currentQuote.items.some(i => i.imageDataUrl) ? `<section class="preview-panel"><h3>Product Photos / 产品图片</h3><div class="photo-grid">${currentQuote.items.filter(i => i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>Company Stamp / 公司公章</span></div>` : ""}</section>` : ""}
     `;
