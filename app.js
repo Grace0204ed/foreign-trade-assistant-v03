@@ -470,11 +470,15 @@
     renderContactFields();
     renderUsers();
     showSettingsSection(activeSettingsSection);
+    document.querySelectorAll("[data-setting]").forEach((input) => {
+      input.value = settings[input.dataset.setting] || "";
+    });
   }
 
   function normalizeContactFields() {
     const existing = Array.isArray(settings.contactFields) ? settings.contactFields : [];
     const legacy = [
+      { id: "contact-person", labelEn: "Quotation Contact", labelZh: "报价负责人", type: "text", value: settings.contactPerson || "", visible: true, sortOrder: 5 },
       { id: "contact-phone", labelEn: "Phone", labelZh: "电话", type: "text", value: settings.companyPhone || "", visible: true, sortOrder: 10 },
       { id: "contact-email", labelEn: "Email", labelZh: "邮箱", type: "text", value: settings.companyEmail || "", visible: true, sortOrder: 30 }
     ];
@@ -490,6 +494,12 @@
     })).sort((a, b) => a.sortOrder - b.sortOrder);
     const phoneField = settings.contactFields.find((field) => field.id === "contact-phone");
     const emailField = settings.contactFields.find((field) => field.id === "contact-email");
+    const contactPersonField = settings.contactFields.find((field) => field.id === "contact-person" || field.labelZh.includes("负责人") || normalize(field.labelEn).includes("quotationcontact"));
+    if (!settings.contactFields.some((field) => field.id === "contact-person")) {
+      settings.contactFields.unshift({ id: "contact-person", labelEn: "Quotation Contact", labelZh: "报价负责人", type: "text", value: settings.contactPerson || "", visible: true, sortOrder: 5 });
+      settings.contactFields.forEach((field, index) => field.sortOrder = (index + 1) * 10);
+    }
+    if (contactPersonField && !contactPersonField.value && settings.contactPerson) contactPersonField.value = settings.contactPerson;
     if (phoneField && !phoneField.value && settings.companyPhone) phoneField.value = settings.companyPhone;
     if (emailField && !emailField.value && settings.companyEmail) emailField.value = settings.companyEmail;
   }
@@ -674,6 +684,9 @@
           <p class="hint">维护付款方式、贸易方式、交货时间、售后、质保等条款字段。</p>
         </div>
         <button id="add-term-field-proxy-btn" class="primary" type="button">新增条款字段</button>
+      </div>
+      <div class="form-grid">
+        <label><span>Default Currency / 默认货币</span><input data-setting="currency" placeholder="USD" /></label>
       </div>
       <div id="terms-field-host"></div>
     `;
@@ -1063,6 +1076,8 @@
     collectSettingsDraft();
     const phone = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("phone") || field.labelZh.includes("电话"));
     const email = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("email") || field.labelZh.includes("邮箱"));
+    const contactPerson = settings.contactFields.find((field) => field.id === "contact-person" || field.labelZh.includes("负责人") || normalize(field.labelEn).includes("quotationcontact"));
+    if (contactPerson?.type === "text") settings.contactPerson = contactPerson.value || settings.contactPerson || "";
     if (phone?.type === "text") settings.companyPhone = phone.value || settings.companyPhone || "";
     if (email?.type === "text") settings.companyEmail = email.value || settings.companyEmail || "";
     save(keys.settings, settings);
