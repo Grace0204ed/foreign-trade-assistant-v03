@@ -87,6 +87,40 @@ button:hover, .file-btn:hover { border-color: var(--primary); color: var(--prima
 .view.active { display: block; }
 .auth-locked .main .view:not(#view-login) { display: none !important; }
 .auth-locked #view-login { display: block !important; }
+.auth-locked .app-shell { display: block; }
+.auth-locked .sidebar {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: linear-gradient(135deg, #0f2240, #155b9f);
+}
+.auth-locked .sidebar > h1,
+.auth-locked .sidebar > p,
+.auth-locked .sidebar nav { display: none; }
+.auth-locked .login-box {
+  width: min(420px, calc(100vw - 36px));
+  padding: 24px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(0,0,0,.26);
+}
+.auth-locked .login-box::before {
+  content: "Quotation System / 报价系统";
+  display: block;
+  margin-bottom: 14px;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 900;
+}
+.auth-locked .login-box input {
+  background: #fbfdff;
+  border-color: var(--line);
+  color: var(--ink);
+}
+.auth-locked .login-box small { color: var(--muted); }
 .auth-locked .nav-btn, .auth-locked .entry-card {
   opacity: .45;
   cursor: not-allowed;
@@ -151,11 +185,20 @@ body:not(.is-admin) .admin-only { display: none !important; }
 }
 .quote-item-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 .wide { grid-column: span 3; }
-.quote-item-grid .wide { grid-column: span 2; }
+.quote-item-grid .wide { grid-column: auto; }
+.quote-item-grid label {
+  grid-template-columns: 190px minmax(0, 1fr);
+  align-items: center;
+}
+.quote-item-grid label span,
+.quote-item-grid .field-title {
+  align-self: center;
+}
+.quote-item-grid textarea { min-height: 54px; }
 
 label { display: grid; gap: 5px; }
 label span, .field-title {
@@ -360,6 +403,54 @@ textarea { min-height: 86px; resize: vertical; }
 
 .quote-editor { display: grid; gap: 0; }
 .quote-item { margin-bottom: 10px; }
+.cost-item {
+  border-left: 4px solid var(--accent);
+}
+
+.term-desc {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.contact-table input,
+.contact-table select {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+.contact-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+.preview-contact-list {
+  display: grid;
+  gap: 8px;
+}
+.preview-contact-list > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+}
+.preview-contact-image {
+  display: inline-grid;
+  justify-items: center;
+  gap: 4px;
+}
+.preview-contact-image img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px;
+}
 
 .quote-preview {
   background: #fff;

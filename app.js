@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const keys = {
     settings: "quote_assistant_v01_settings",
     products: "quote_assistant_v01_products",
@@ -6,9 +6,9 @@
   };
   const defaultBg = "./assets/company-background.png";
   const defaultTermFields = [
-    f("付款方式", "Payment", "payment", "text", false, true, 10),
+    f("付款方式", "Payment Ratio", "payment", "select", false, true, 10),
     f("交货时间", "Delivery Time", "deliveryTime", "text", false, true, 20),
-    f("运输方式", "Shipping", "shipping", "text", false, true, 30),
+    f("贸易方式", "Trade Term", "shipping", "select", false, true, 30),
     f("目的港", "Destination Port", "port", "text", false, true, 40),
     f("售后说明", "After-sales", "afterSales", "textarea", false, true, 50),
     f("质保说明", "Warranty", "warranty", "textarea", false, true, 60),
@@ -68,6 +68,12 @@
     currency: "USD",
     businessLineEn: "Used construction machinery and vehicles.",
     businessLineZh: "二手工程机械及车辆供应。",
+    contactFields: [
+      { id: "contact-phone", labelEn: "Phone", labelZh: "电话", type: "text", value: "", visible: true, sortOrder: 10 },
+      { id: "contact-whatsapp", labelEn: "WhatsApp", labelZh: "WhatsApp", type: "text", value: "", visible: true, sortOrder: 20 },
+      { id: "contact-email", labelEn: "Email", labelZh: "邮箱", type: "text", value: "", visible: true, sortOrder: 30 },
+      { id: "contact-wechat", labelEn: "WeChat", labelZh: "微信", type: "text", value: "", visible: true, sortOrder: 40 }
+    ],
     quoteStyle: "business",
     logoDataUrl: "",
     backgroundDataUrl: "",
@@ -209,6 +215,7 @@
     $("login-status").textContent = currentUser ? `${currentUser.username} / ${currentUser.role}` : "Not logged in / 未登录";
     $("login-btn").hidden = !!currentUser;
     $("logout-btn").hidden = !currentUser;
+    $("login-box").hidden = !!currentUser;
   }
 
   function applyAuthLock() {
@@ -221,7 +228,10 @@
     });
     if (!currentUser) {
       $("login-status").textContent = "Not logged in / 未登录";
+      $("login-box").hidden = false;
       switchView("login");
+    } else if ($("view-login")?.classList.contains("active")) {
+      switchView("home");
     }
   }
 
@@ -250,6 +260,22 @@
 
   function money(amount, currency) {
     return `${currency || settings.currency || "USD"} ${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  const paymentOptions = [
+    { value: "30/70", label: "30/70 - 30% deposit, 70% before shipment / 3/7付款" },
+    { value: "40/60", label: "40/60 - 40% deposit, 60% before shipment / 4/6付款" },
+    { value: "100%", label: "100% before shipment / 百分百付款" }
+  ];
+
+  const tradeTermOptions = [
+    { value: "EXW", label: "EXW - Ex Works / 工厂交货价", desc: "EXW: Seller provides goods at factory; buyer handles pickup, export, freight and insurance. / 工厂交货，买方负责提货、出口、运输和保险。" },
+    { value: "FOB", label: "FOB - Free On Board / 装运港船上交货", desc: "FOB: Seller delivers goods to the departure port and loads on board; buyer pays sea freight and insurance. / 我们负责把货运到装运港并装船，买方负责海运和保险。" },
+    { value: "CIF", label: "CIF - Cost Insurance Freight / 成本保险加运费", desc: "CIF: Seller pays cost, insurance and sea freight to buyer's destination port. / 我们负责货值、保险和海运到客户指定目的港。" }
+  ];
+
+  function tradeDescription(value) {
+    return tradeTermOptions.find((option) => option.value === value)?.desc || "";
   }
 
   function normalize(text) {
@@ -381,6 +407,8 @@
 
   function renderSettings() {
     ensureUserManagerPanel();
+    ensureContactFieldsPanel();
+    normalizeContactFields();
     normalizeTemplates();
     normalizeCategories();
     document.querySelectorAll("[data-setting]").forEach((input) => {
@@ -394,7 +422,152 @@
     $("background-preview").src = settings.backgroundDataUrl || defaultBg;
     $("stamp-preview").src = settings.stampDataUrl || "";
     $("stamp-preview").hidden = !settings.stampDataUrl;
+    renderContactFields();
     renderUsers();
+  }
+
+  function normalizeContactFields() {
+    const existing = Array.isArray(settings.contactFields) ? settings.contactFields : [];
+    const legacy = [
+      { id: "contact-phone", labelEn: "Phone", labelZh: "电话", type: "text", value: settings.companyPhone || "", visible: true, sortOrder: 10 },
+      { id: "contact-email", labelEn: "Email", labelZh: "邮箱", type: "text", value: settings.companyEmail || "", visible: true, sortOrder: 30 }
+    ];
+    const merged = existing.length ? existing : legacy;
+    settings.contactFields = merged.map((field, index) => ({
+      id: field.id || uid("contact"),
+      labelEn: field.labelEn || "Contact",
+      labelZh: field.labelZh || "联系方式",
+      type: field.type || "text",
+      value: field.value || "",
+      visible: field.visible !== false,
+      sortOrder: Number(field.sortOrder || (index + 1) * 10)
+    })).sort((a, b) => a.sortOrder - b.sortOrder);
+    const phoneField = settings.contactFields.find((field) => field.id === "contact-phone");
+    const emailField = settings.contactFields.find((field) => field.id === "contact-email");
+    if (phoneField && !phoneField.value && settings.companyPhone) phoneField.value = settings.companyPhone;
+    if (emailField && !emailField.value && settings.companyEmail) emailField.value = settings.companyEmail;
+  }
+
+  function ensureContactFieldsPanel() {
+    if ($("contact-fields-panel")) return;
+    const panel = document.createElement("div");
+    panel.id = "contact-fields-panel";
+    panel.className = "panel";
+    panel.innerHTML = `
+      <div class="row-head">
+        <div>
+          <h3>Contact Fields / 联系方式字段</h3>
+          <p class="hint">Add WhatsApp, WeChat QR code, platform account or other contact fields. / 可新增 WhatsApp、微信二维码、平台账号等联系方式。</p>
+        </div>
+        <button id="add-contact-field-btn" type="button">Add / 新增</button>
+      </div>
+      <table class="field-table contact-table">
+        <thead>
+          <tr>
+            <th>Sort / 排序</th>
+            <th>English / 英文</th>
+            <th>中文</th>
+            <th>Type / 类型</th>
+            <th>Value / 内容</th>
+            <th>Show / 显示</th>
+            <th>Actions / 操作</th>
+          </tr>
+        </thead>
+        <tbody id="contact-field-list"></tbody>
+      </table>
+    `;
+    const companyPanel = document.querySelector("#view-settings .panel");
+    companyPanel?.after(panel);
+  }
+
+  function renderContactFields() {
+    if (!$("contact-field-list")) return;
+    normalizeContactFields();
+    $("contact-field-list").innerHTML = settings.contactFields.map((field, index) => `
+      <tr data-contact-index="${index}">
+        <td><span class="drag-handle">::</span>${index + 1}</td>
+        <td><input data-contact-prop="labelEn" value="${escapeHtml(field.labelEn)}" /></td>
+        <td><input data-contact-prop="labelZh" value="${escapeHtml(field.labelZh)}" /></td>
+        <td>
+          <select data-contact-prop="type">
+            <option value="text"${field.type === "text" ? " selected" : ""}>Text / 文本</option>
+            <option value="image"${field.type === "image" ? " selected" : ""}>Image / 图片二维码</option>
+          </select>
+        </td>
+        <td>
+          ${field.type === "image"
+            ? `<label class="file-btn">Upload / 上传<input data-contact-image="${index}" type="file" accept="image/*" /></label>${field.value ? `<img class="contact-thumb" src="${field.value}" alt="">` : ""}`
+            : `<input data-contact-prop="value" value="${escapeHtml(field.value)}" />`}
+        </td>
+        <td><input data-contact-visible type="checkbox"${field.visible ? " checked" : ""} /></td>
+        <td class="field-actions">
+          <button data-contact-action="up" type="button">Up / 上移</button>
+          <button data-contact-action="down" type="button">Down / 下移</button>
+          <button data-contact-action="delete" type="button">Delete / 删除</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function collectContactFields() {
+    if (!$("contact-field-list")) return;
+    const rows = Array.from(document.querySelectorAll("#contact-field-list tr[data-contact-index]"));
+    rows.forEach((row, rowIndex) => {
+      const field = settings.contactFields[Number(row.dataset.contactIndex)];
+      row.querySelectorAll("[data-contact-prop]").forEach((input) => {
+        field[input.dataset.contactProp] = input.value;
+      });
+      field.visible = !!row.querySelector("[data-contact-visible]")?.checked;
+      field.sortOrder = (rowIndex + 1) * 10;
+    });
+  }
+
+  function addContactField() {
+    collectContactFields();
+    settings.contactFields.push({
+      id: uid("contact"),
+      labelEn: "WhatsApp",
+      labelZh: "WhatsApp",
+      type: "text",
+      value: "",
+      visible: true,
+      sortOrder: (settings.contactFields.length + 1) * 10
+    });
+    renderContactFields();
+  }
+
+  function handleContactFieldAction(event) {
+    const row = event.target.closest("tr[data-contact-index]");
+    if (!row) return;
+    collectContactFields();
+    const index = Number(row.dataset.contactIndex);
+    const action = event.target.dataset.contactAction;
+    if (event.target.matches("[data-contact-visible]")) {
+      settings.contactFields[index].visible = event.target.checked;
+      return;
+    }
+    if (event.target.matches("[data-contact-image]")) return;
+    if (action === "delete") {
+      if (!confirm("Delete this contact field? / 确认删除这个联系方式字段吗？")) return;
+      settings.contactFields.splice(index, 1);
+    }
+    if (action === "up" && index > 0) {
+      [settings.contactFields[index - 1], settings.contactFields[index]] = [settings.contactFields[index], settings.contactFields[index - 1]];
+    }
+    if (action === "down" && index < settings.contactFields.length - 1) {
+      [settings.contactFields[index + 1], settings.contactFields[index]] = [settings.contactFields[index], settings.contactFields[index + 1]];
+    }
+    settings.contactFields.forEach((field, i) => field.sortOrder = (i + 1) * 10);
+    renderContactFields();
+  }
+
+  async function handleContactImageChange(event) {
+    const input = event.target.closest("[data-contact-image]");
+    if (!input) return;
+    const index = Number(input.dataset.contactImage);
+    settings.contactFields[index].value = await fileToDataUrl(input.files[0]);
+    settings.contactFields[index].type = "image";
+    renderContactFields();
   }
 
   function ensureUserManagerPanel() {
@@ -817,9 +990,14 @@
   function saveSettings() {
     normalizeTemplates();
     normalizeCategories();
+    collectContactFields();
     document.querySelectorAll("[data-setting]").forEach((input) => {
       settings[input.dataset.setting] = input.value.trim();
     });
+    const phone = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("phone") || field.labelZh.includes("电话"));
+    const email = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("email") || field.labelZh.includes("邮箱"));
+    if (phone?.type === "text") settings.companyPhone = phone.value || settings.companyPhone || "";
+    if (email?.type === "text") settings.companyEmail = email.value || settings.companyEmail || "";
     save(keys.settings, settings);
     renderAllSelectors();
     renderCategoryList();
@@ -1425,9 +1603,9 @@
       templateName: settings.templates[0]?.name || "",
       items: [],
       terms: {
-        payment: "30% deposit, 70% balance before shipment",
+        payment: "30/70",
         deliveryTime: "",
-        shipping: "",
+        shipping: "FOB",
         port: "",
         afterSales: "",
         warranty: "",
@@ -1497,19 +1675,52 @@
       card.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
       let freightSnapshot = null;
       try { freightSnapshot = card.dataset.freightSnapshot ? JSON.parse(decodeURIComponent(card.dataset.freightSnapshot)) : null; } catch { freightSnapshot = null; }
-      return { id: card.dataset.id, values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
+      return { id: card.dataset.id, kind: card.dataset.kind || "product", values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
     });
     currentQuote.updatedAt = new Date().toISOString();
+  }
+
+  function itemKindLabel(kind) {
+    const map = {
+      product: "Product Price / 产品价格",
+      freight: "Sea Freight / 海运费",
+      trucking: "Inland Trucking / 陆路运输费",
+      custom: "Custom Item / 自定义费用"
+    };
+    return map[kind || "product"] || map.product;
   }
 
   function itemCard(item = {}) {
     const tpl = template();
     const id = item.id || uid("item");
+    const kind = item.kind || "product";
     const vals = item.values || {};
-    const fields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
+    if (kind !== "product") {
+      return `
+        <article class="quote-item panel cost-item" data-id="${id}" data-kind="${kind}">
+          <div class="row-head">
+            <h3>${itemKindLabel(kind)}</h3>
+            <span class="manual-badge">Auto Calculate / 自动计价</span>
+          </div>
+          <div class="quote-item-grid">
+            <label><span>Item Name / 项目名称</span><input data-qfield="itemName" value="${escapeHtml(vals.itemName || itemKindLabel(kind))}" /></label>
+            <label><span>Quantity / 数量</span><input data-qfield="qty" type="number" value="${escapeHtml(vals.qty || "1")}" /></label>
+            <label><span>Unit Price / 单价</span><input data-qfield="unitPrice" type="number" value="${escapeHtml(vals.unitPrice || "")}" /></label>
+            <label><span>Currency / 货币</span><select data-qfield="currency">${["USD", "CNY", "EUR", "AED"].map((option) => `<option value="${option}"${option === (vals.currency || settings.currency) ? " selected" : ""}>${option}</option>`).join("")}</select></label>
+            <label class="wide"><span>Description / 说明</span><input data-qfield="description" value="${escapeHtml(vals.description || "")}" /></label>
+            <label class="wide"><span>Remark / 备注</span><textarea data-qfield="remark">${escapeHtml(vals.remark || "")}</textarea></label>
+          </div>
+          <div class="actions"><button class="remove-quote-item" type="button">Delete / 删除本项</button></div>
+        </article>
+      `;
+    }
+    const fields = tpl.fields
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image" && !["freight", "truckingToPort"].includes(field.fieldKey));
     const showImage = tpl.fields.some((field) => field.visible && field.fieldType === "image");
     return `
-      <article class="quote-item panel" data-id="${id}" data-freight-snapshot="${item.freightSnapshot ? encodeURIComponent(JSON.stringify(item.freightSnapshot)) : ""}">
+      <article class="quote-item panel" data-id="${id}" data-kind="product" data-freight-snapshot="${item.freightSnapshot ? encodeURIComponent(JSON.stringify(item.freightSnapshot)) : ""}">
         <div class="quote-item-grid">
           ${fields.map((field) => `
             <label class="${field.fieldType === "textarea" ? "wide" : ""}">
@@ -1552,6 +1763,14 @@
   function renderTermInput(field, value) {
     const key = escapeHtml(field.fieldKey);
     const val = escapeHtml(value);
+    if (field.fieldKey === "payment") {
+      const selected = value || "30/70";
+      return `<select data-termfield="${key}">${paymentOptions.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>`;
+    }
+    if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
+      const selected = value || "FOB";
+      return `<select data-termfield="${key}" data-trade-term>${tradeTermOptions.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select><p class="term-desc">${escapeHtml(tradeDescription(selected))}</p>`;
+    }
     if (field.fieldType === "textarea") return `<textarea data-termfield="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-termfield="${key}" type="date" value="${val}" />`;
     if (field.fieldType === "number" || field.fieldType === "money") return `<input data-termfield="${key}" type="number" value="${val}" />`;
@@ -1561,8 +1780,37 @@
 
   function addManualProduct() {
     collectQuoteFromForm();
-    currentQuote.items.push({ id: uid("item"), values: { currency: settings.currency, qty: "1" }, imageDataUrl: "" });
+    currentQuote.items.push({ id: uid("item"), kind: "product", values: { currency: settings.currency, qty: "1" }, imageDataUrl: "" });
     renderQuoteItems();
+  }
+
+  function addCostItem(kind) {
+    collectQuoteFromForm();
+    currentQuote.items.push({
+      id: uid("item"),
+      kind,
+      values: {
+        itemName: itemKindLabel(kind),
+        qty: "1",
+        unitPrice: "",
+        currency: settings.currency,
+        description: "",
+        remark: ""
+      },
+      imageDataUrl: ""
+    });
+    renderQuoteItems();
+    renderPreview();
+  }
+
+  function addQuoteItemByType() {
+    const type = $("add-item-type").value;
+    if (type === "product") {
+      if ($("library-product-select").value) addProductFromLibrary();
+      else addManualProduct();
+      return;
+    }
+    addCostItem(type);
   }
 
   function addProductFromLibrary() {
@@ -1571,6 +1819,7 @@
     collectQuoteFromForm();
     currentQuote.items.push({
       id: uid("item"),
+      kind: "product",
       imageDataUrl: p.imageDataUrl || "",
       values: {
         brand: p.brand,
@@ -1605,22 +1854,84 @@
 
   function extraMoneyFields(tpl = template()) {
     return (tpl.fields || [])
-      .filter((field) => field.fieldType === "money" && field.fieldKey !== "unitPrice")
+      .filter((field) => field.fieldType === "money" && field.fieldKey !== "unitPrice" && !["freight", "truckingToPort"].includes(field.fieldKey))
       .map((field) => field.fieldKey);
   }
 
   function itemSubtotal(item, tpl = template()) {
     const values = item.values || {};
+    if ((item.kind || "product") !== "product") {
+      return Number(values.qty || 0) * Number(values.unitPrice || 0);
+    }
     const machineAmount = Number(values.qty || 0) * Number(values.unitPrice || 0);
     const extraAmount = extraMoneyFields(tpl).reduce((sum, key) => sum + Number(values[key] || 0), 0);
     return machineAmount + extraAmount;
   }
 
   function displayFieldValue(item, field) {
+    if ((item.kind || "product") !== "product") {
+      if (field.fieldKey === "productType") return itemKindLabel(item.kind);
+      if (field.fieldKey === "brand") return item.values.itemName || itemKindLabel(item.kind);
+      if (field.fieldKey === "model") return item.values.description || "";
+      if (field.fieldKey === "qty") return item.values.qty || "";
+      if (field.fieldKey === "unitPrice") return item.values.unitPrice ? money(item.values.unitPrice, item.values.currency || settings.currency) : "";
+      if (field.fieldKey === "currency") return item.values.currency || settings.currency;
+      if (field.fieldKey === "remark") return item.values.remark || "";
+    }
     if (field.fieldType === "calculated") return money(itemSubtotal(item), item.values.currency || settings.currency);
     if (field.fieldType === "image") return item.imageDataUrl ? "Image attached / 已上传图片" : "";
     if (field.fieldType === "money") return item.values[field.fieldKey] === "" || item.values[field.fieldKey] === undefined ? "" : money(item.values[field.fieldKey], item.values.currency || settings.currency);
     return item.values[field.fieldKey] || "";
+  }
+
+  function previewDescription(item) {
+    const values = item.values || {};
+    if ((item.kind || "product") !== "product") return values.description || values.itemName || itemKindLabel(item.kind);
+    return [values.productType, values.brand, values.model, values.year].filter(Boolean).join(" ");
+  }
+
+  function previewRemark(item) {
+    return item.values?.remark || "";
+  }
+
+  function renderQuotePreviewRows() {
+    return (currentQuote.items || []).map((item) => {
+      const values = item.values || {};
+      const currency = values.currency || settings.currency;
+      return `<tr>
+        <td>${escapeHtml(itemKindLabel(item.kind || "product"))}</td>
+        <td>${escapeHtml(previewDescription(item))}</td>
+        <td>${escapeHtml(values.qty || "1")}</td>
+        <td>${values.unitPrice ? escapeHtml(money(values.unitPrice, currency)) : ""}</td>
+        <td>${escapeHtml(money(itemSubtotal(item), currency))}</td>
+        <td>${escapeHtml(previewRemark(item))}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function displayTermValue(field) {
+    const value = currentQuote.terms[field.fieldKey] || "";
+    if (field.fieldKey === "payment") {
+      return paymentOptions.find((option) => option.value === value)?.label || value;
+    }
+    if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
+      return `${value || "FOB"} - ${tradeDescription(value || "FOB")}`;
+    }
+    return value;
+  }
+
+  function renderCompanyContactPreview() {
+    normalizeContactFields();
+    const fields = settings.contactFields.filter((field) => field.visible && field.value);
+    if (!fields.length) {
+      return `<p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Contact: ${escapeHtml(settings.contactPerson)} | ${escapeHtml(settings.companyPhone)} | ${escapeHtml(settings.companyEmail)}</p>`;
+    }
+    return `<div class="preview-contact-list">
+      <p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Contact: ${escapeHtml(settings.contactPerson)}</p>
+      <div>${fields.map((field) => field.type === "image"
+        ? `<span class="preview-contact-image"><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}</b><img src="${field.value}" alt=""></span>`
+        : `<span><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}:</b> ${escapeHtml(field.value)}</span>`).join("")}</div>
+    </div>`;
   }
 
   function renderPreview() {
@@ -1633,16 +1944,16 @@
     $("quote-preview").innerHTML = `
       <section class="preview-banner" style="background-image:linear-gradient(90deg,rgba(8,25,48,.78),rgba(8,25,48,.42)),url('${bg}')">
         <div class="preview-company">${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}">` : ""}<div><h2>${escapeHtml(settings.companyNameEn)}</h2><p>${escapeHtml(settings.companyNameZh)}</p></div></div>
-        <p>${escapeHtml(settings.companyAddressEn)} | ${escapeHtml(settings.companyAddressZh)} | Contact: ${escapeHtml(settings.contactPerson)} | ${escapeHtml(settings.companyPhone)} | ${escapeHtml(settings.companyEmail)}</p>
+        ${renderCompanyContactPreview()}
       </section>
       <section class="preview-top">
         <div><h2>Quotation<br><small>报价单</small></h2><p>${escapeHtml(settings.businessLineEn)}<br>${escapeHtml(settings.businessLineZh)}</p></div>
         <div class="preview-meta"><p>Quotation No. / 报价编号：${escapeHtml(currentQuote.quoteNumber)}</p><p>Date / 日期：${escapeHtml(currentQuote.quoteDate)}</p><p>Valid Until / 有效期：${escapeHtml(currentQuote.validUntil)}</p></div>
       </section>
       <section class="preview-panel"><h3>Customer Information / 客户信息</h3><div class="preview-fields"><p>Company / 公司：${escapeHtml(currentQuote.buyer.company)}</p><p>Country / 国家：${escapeHtml(currentQuote.buyer.country)}</p><p>Contact / 负责人：${escapeHtml(currentQuote.buyer.contact)}</p><p>Phone / 电话：${escapeHtml(currentQuote.buyer.phone)}</p><p>Email / 邮箱：${escapeHtml(currentQuote.buyer.email)}</p><p>Address / 地址：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
-      <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr>${visibleFields.map(x => `<th>${escapeHtml(x.en)}<small>${escapeHtml(x.zh)}</small></th>`).join("")}</tr></thead><tbody>${currentQuote.items.map(item => `<tr>${visibleFields.map(x => `<td>${escapeHtml(displayFieldValue(item, x))}</td>`).join("")}</tr>`).join("")}</tbody></table><div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div></section>
+      <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr><th>Type<small>费用类型</small></th><th>Description<small>说明</small></th><th>Qty<small>数量</small></th><th>Unit Price<small>单价</small></th><th>Amount<small>金额</small></th><th>Remark<small>备注</small></th></tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table><div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div></section>
       ${showProductPhotos && currentQuote.items.some(i => i.imageDataUrl) ? `<section class="preview-panel"><h3>Product Photos / 产品图片</h3><div class="photo-grid">${currentQuote.items.filter(i => i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
-      ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(currentQuote.terms[field.fieldKey] || "")}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>Company Stamp / 公司公章</span></div>` : ""}</section>` : ""}
+      ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>Company Stamp / 公司公章</span></div>` : ""}</section>` : ""}
     `;
   }
 
@@ -1783,13 +2094,19 @@
     $("import-price-btn").addEventListener("click", importPriceList);
     $("clear-import-text-btn").addEventListener("click", () => { $("price-import-text").value = ""; $("price-import-result").textContent = ""; });
     $("product-search").addEventListener("input", renderProducts);
-    $("add-manual-product-btn").addEventListener("click", addManualProduct);
-    $("add-library-product-btn").addEventListener("click", addProductFromLibrary);
+    $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
     $("quote-items").addEventListener("input", renderPreview);
     $("quote-items").addEventListener("change", async e => { if (e.target.matches(".quote-image-input")) { const img = await normalizeImage(e.target.files[0]); const prev = e.target.closest(".quote-item").querySelector("[data-image]"); if (prev) { prev.src = img; prev.dataset.image = img; } renderPreview(); } });
     $("quote-items").addEventListener("click", e => { if (e.target.matches(".remove-quote-item")) { e.target.closest(".quote-item").remove(); renderPreview(); } });
     $("preview-quote-btn").addEventListener("click", renderPreview);
+    $("quote-terms").addEventListener("change", (event) => {
+      if (event.target.matches("[data-trade-term]")) {
+        const desc = event.target.closest("label")?.querySelector(".term-desc");
+        if (desc) desc.textContent = tradeDescription(event.target.value);
+      }
+      renderPreview();
+    });
     $("save-quote-btn").addEventListener("click", saveQuote);
     $("export-pdf-btn").addEventListener("click", exportPdf);
     $("new-quote-btn").addEventListener("click", newQuote);
@@ -1813,7 +2130,13 @@
     document.addEventListener("click", (event) => {
       if (event.target.id === "save-user-btn") saveUser();
       if (event.target.id === "clear-user-btn") clearUserForm();
+      if (event.target.id === "add-contact-field-btn") addContactField();
+      if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
+    });
+    document.addEventListener("change", (event) => {
+      if (event.target.matches("[data-contact-image]")) handleContactImageChange(event);
+      if (event.target.matches("#contact-field-list input, #contact-field-list select")) collectContactFields();
     });
   }
 
@@ -1833,3 +2156,4 @@
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote };
   init();
 })();
+
