@@ -29,8 +29,6 @@
         f("工时", "Working Hours", "hours", "text", false, true, 50),
         f("数量", "Quantity", "qty", "number", true, true, 60),
         f("单价", "Unit Price", "unitPrice", "money", true, true, 70),
-        f("运费", "Freight", "freight", "money", false, true, 80),
-        f("拖车到港费", "Trucking to Port", "truckingToPort", "money", false, true, 90),
         f("货币单位", "Currency", "currency", "select", true, true, 100),
         f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 110),
         f("备注", "Remark", "remark", "textarea", false, true, 120),
@@ -49,8 +47,6 @@
         f("质保时间", "Warranty", "warranty", "text", false, true, 50),
         f("数量", "Quantity", "qty", "number", true, true, 60),
         f("单价", "Unit Price", "unitPrice", "money", true, true, 70),
-        f("运费", "Freight", "freight", "money", false, true, 80),
-        f("拖车到港费", "Trucking to Port", "truckingToPort", "money", false, true, 90),
         f("货币单位", "Currency", "currency", "select", true, true, 100),
         f("总金额", "Total Amount", "totalAmount", "calculated", true, true, 110),
         f("产品图片", "Product Image", "productImage", "image", false, true, 120)
@@ -81,7 +77,7 @@
     backgroundDataUrl: "",
     stampDataUrl: "",
     costFieldsMigratedV1: false,
-    categories: ["挖掘机", "装载机", "推土机", "压路机", "平地机", "自卸车", "叉车", "TLB"],
+    categories: ["挖掘机", "装载机", "推土机", "压路机", "平地机", "自卸车", "叉车", "TLB", "海运费", "陆路运输费", "自定义费用"],
     templates: defaultTemplates
   };
 
@@ -346,7 +342,10 @@
     return {
       name: tpl.name,
       desc: tpl.desc || "",
-      fields: (tpl.fields || []).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder),
+      fields: (tpl.fields || [])
+        .map(normalizeField)
+        .filter((field) => !["freight", "truckingToPort"].includes(field.fieldKey))
+        .sort((a, b) => a.sortOrder - b.sortOrder),
       termFields: (tpl.termFields || defaultTermFields).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder)
     };
   }
@@ -355,22 +354,15 @@
     settings.templates = (settings.templates || defaultTemplates).map(normalizeTemplate);
   }
 
-  function migrateDefaultCostFields() {
-    if (settings.costFieldsMigratedV1) return;
+  function removeLegacyCostFields() {
     normalizeTemplates();
     settings.templates.forEach((tpl) => {
-      const hasFreight = tpl.fields.some((field) => field.fieldKey === "freight");
-      const hasTrucking = tpl.fields.some((field) => field.fieldKey === "truckingToPort");
-      const additions = [];
-      if (!hasFreight) additions.push(f("运费", "Freight", "freight", "money", false, true, 0));
-      if (!hasTrucking) additions.push(f("拖车到港费", "Trucking to Port", "truckingToPort", "money", false, true, 0));
-      if (additions.length) {
-        const unitPriceIndex = tpl.fields.findIndex((field) => field.fieldKey === "unitPrice");
-        tpl.fields.splice(unitPriceIndex >= 0 ? unitPriceIndex + 1 : tpl.fields.length, 0, ...additions);
-        resequenceFields(tpl.fields);
-      }
+      tpl.fields = (tpl.fields || []).filter((field) => !["freight", "truckingToPort"].includes(field.fieldKey));
+      resequenceFields(tpl.fields);
     });
-    settings.costFieldsMigratedV1 = true;
+    ["海运费", "陆路运输费", "自定义费用"].forEach((name) => {
+      if (!settings.categories.includes(name)) settings.categories.push(name);
+    });
     save(keys.settings, settings);
   }
 
@@ -1393,14 +1385,13 @@
     collectQuoteFromForm();
     currentQuote.items.push({
       id: uid("item"),
+      kind: "freight",
       values: {
-        productType: "Sea Freight",
-        brand: lastFreightCalculation.originDisplayName,
-        model: lastFreightCalculation.destinationDisplayName,
+        productType: "海运费",
+        itemName: "Sea Freight / 海运费",
+        description: `${lastFreightCalculation.originDisplayName} to ${lastFreightCalculation.destinationDisplayName}`,
         qty: "1",
         unitPrice: lastFreightCalculation.freightAmount,
-        freight: "",
-        truckingToPort: "",
         currency: "USD",
         remark: lastFreightCalculation.calculationFormula
       },
@@ -1805,15 +1796,16 @@
       return `
         <article class="quote-item panel cost-item" data-id="${id}" data-kind="${kind}">
           <div class="row-head">
-            <h3>${itemKindLabel(kind)}</h3>
+            <h3>${escapeHtml(vals.productType || itemKindLabel(kind))}</h3>
             <span class="manual-badge">Auto Calculate / 自动计价</span>
           </div>
           <div class="quote-item-grid">
-            <label><span>Item Name / 项目名称</span><input data-qfield="itemName" value="${escapeHtml(vals.itemName || itemKindLabel(kind))}" /></label>
+            <label><span>Product Type / 产品分类</span><input data-qfield="productType" value="${escapeHtml(vals.productType || itemKindLabel(kind))}" /></label>
+            <label><span>Item Name / 项目名称</span><input data-qfield="itemName" value="${escapeHtml(vals.itemName || "")}" placeholder="例如：SANY 215C Sea Freight / 三一215C海运费" /></label>
+            <label class="wide"><span>Route / 路线说明</span><input data-qfield="description" value="${escapeHtml(vals.description || "")}" placeholder="例如：Shanghai Port to Dar es Salaam Port / 上海港到达累斯萨拉姆港" /></label>
             <label><span>Quantity / 数量</span><input data-qfield="qty" type="number" value="${escapeHtml(vals.qty || "1")}" /></label>
             <label><span>Unit Price / 单价</span><input data-qfield="unitPrice" type="number" value="${escapeHtml(vals.unitPrice || "")}" /></label>
             <label><span>Currency / 货币</span><select data-qfield="currency">${["USD", "CNY", "EUR", "AED"].map((option) => `<option value="${option}"${option === (vals.currency || settings.currency) ? " selected" : ""}>${option}</option>`).join("")}</select></label>
-            <label class="wide"><span>Description / 说明</span><input data-qfield="description" value="${escapeHtml(vals.description || "")}" /></label>
             <label class="wide"><span>Remark / 备注</span><textarea data-qfield="remark">${escapeHtml(vals.remark || "")}</textarea></label>
           </div>
           <div class="actions"><button class="remove-quote-item" type="button">Delete / 删除本项</button></div>
@@ -1892,15 +1884,22 @@
 
   function addCostItem(kind) {
     collectQuoteFromForm();
+    const defaults = {
+      freight: { productType: "海运费", itemName: "Sea Freight / 海运费", description: "Shanghai Port to Destination Port / 上海港到目的港" },
+      trucking: { productType: "陆路运输费", itemName: "Inland Trucking / 陆路运输费", description: "Warehouse to Shanghai Port / 仓库到上海港" },
+      custom: { productType: "自定义费用", itemName: "Custom Item / 自定义费用", description: "" }
+    };
+    const preset = defaults[kind] || defaults.custom;
     currentQuote.items.push({
       id: uid("item"),
       kind,
       values: {
-        itemName: itemKindLabel(kind),
+        productType: preset.productType,
+        itemName: preset.itemName,
         qty: "1",
         unitPrice: "",
         currency: settings.currency,
-        description: "",
+        description: preset.description,
         remark: ""
       },
       imageDataUrl: ""
@@ -1933,8 +1932,6 @@
         year: p.year,
         hours: p.hours,
         unitPrice: p.referencePrice,
-        freight: "",
-        truckingToPort: "",
         currency: settings.currency,
         qty: "1",
         params: p.params,
@@ -1992,7 +1989,7 @@
 
   function previewDescription(item) {
     const values = item.values || {};
-    if ((item.kind || "product") !== "product") return values.description || values.itemName || itemKindLabel(item.kind);
+    if ((item.kind || "product") !== "product") return [values.itemName, values.description].filter(Boolean).join(" | ") || itemKindLabel(item.kind);
     const tpl = quoteTemplate(currentQuote);
     const skip = new Set(["qty", "unitPrice", "currency", "totalAmount", "productImage", "freight", "truckingToPort", "remark"]);
     const parts = (tpl.fields || [])
@@ -2032,7 +2029,7 @@
   function quotePreviewCell(item, column) {
     const values = item.values || {};
     const currency = values.currency || settings.currency;
-    if (column.key === "type") return itemKindLabel(item.kind || "product");
+    if (column.key === "type") return values.productType || itemKindLabel(item.kind || "product");
     if (column.key === "description") return previewDescription(item);
     if (column.key === "qty") return values.qty || "1";
     if (column.key === "unitPrice") return values.unitPrice ? money(values.unitPrice, currency) : "";
@@ -2289,7 +2286,7 @@
     $("login-password").value = "";
     bindEvents();
     applySidebarState();
-    migrateDefaultCostFields();
+    removeLegacyCostFields();
     renderAllSelectors();
     renderSettings();
     renderProducts();
