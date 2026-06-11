@@ -11,7 +11,8 @@
     f("付款方式", "Payment Ratio", "payment", "select", false, true, 10),
     f("交货时间", "Delivery Time", "deliveryTime", "text", false, true, 20),
     f("贸易方式", "Trade Term", "shipping", "select", false, true, 30),
-    f("目的港", "Destination Port", "port", "text", false, true, 40),
+    f("起运港", "Origin Port", "originPort", "select", false, true, 35),
+    f("目的港", "Destination Port", "port", "select", false, true, 40),
     f("售后说明", "After-sales", "afterSales", "textarea", false, true, 50),
     f("质保说明", "Warranty", "warranty", "textarea", false, true, 60),
     f("备注", "Notes", "notes", "textarea", false, true, 70)
@@ -98,6 +99,73 @@
   let editingFreightId = "";
   let lastFreightCalculation = null;
   let activeSettingsSection = localStorage.getItem(keys.settingsSection) || "company";
+  const portRegionOrder = [
+    "China / 中国",
+    "Africa / 非洲",
+    "Europe / 欧洲",
+    "South America / 南美洲",
+    "North America / 北美洲",
+    "Middle East / 中东",
+    "Asia / 亚洲",
+    "Oceania / 大洋洲",
+    "Other / 其他"
+  ];
+  const portRegionByCountry = {
+    China: "China / 中国",
+    "Hong Kong": "China / 中国",
+    Nigeria: "Africa / 非洲",
+    Ghana: "Africa / 非洲",
+    "Cote d'Ivoire": "Africa / 非洲",
+    Senegal: "Africa / 非洲",
+    Togo: "Africa / 非洲",
+    Benin: "Africa / 非洲",
+    Guinea: "Africa / 非洲",
+    "Sierra Leone": "Africa / 非洲",
+    Liberia: "Africa / 非洲",
+    Tanzania: "Africa / 非洲",
+    Kenya: "Africa / 非洲",
+    Djibouti: "Africa / 非洲",
+    Somaliland: "Africa / 非洲",
+    Somalia: "Africa / 非洲",
+    Mozambique: "Africa / 非洲",
+    "South Africa": "Africa / 非洲",
+    Namibia: "Africa / 非洲",
+    Angola: "Africa / 非洲",
+    Egypt: "Africa / 非洲",
+    Morocco: "Africa / 非洲",
+    Algeria: "Africa / 非洲",
+    Tunisia: "Africa / 非洲",
+    Sudan: "Africa / 非洲",
+    Netherlands: "Europe / 欧洲",
+    Germany: "Europe / 欧洲",
+    Belgium: "Europe / 欧洲",
+    "United Kingdom": "Europe / 欧洲",
+    Italy: "Europe / 欧洲",
+    Greece: "Europe / 欧洲",
+    Spain: "Europe / 欧洲",
+    Brazil: "South America / 南美洲",
+    Argentina: "South America / 南美洲",
+    Peru: "South America / 南美洲",
+    Chile: "South America / 南美洲",
+    Colombia: "South America / 南美洲",
+    "United States": "North America / 北美洲",
+    Canada: "North America / 北美洲",
+    Mexico: "North America / 北美洲",
+    "United Arab Emirates": "Middle East / 中东",
+    "Saudi Arabia": "Middle East / 中东",
+    Qatar: "Middle East / 中东",
+    Singapore: "Asia / 亚洲",
+    Malaysia: "Asia / 亚洲",
+    Thailand: "Asia / 亚洲",
+    Indonesia: "Asia / 亚洲",
+    Philippines: "Asia / 亚洲",
+    Vietnam: "Asia / 亚洲",
+    Bangladesh: "Asia / 亚洲",
+    India: "Asia / 亚洲",
+    Pakistan: "Asia / 亚洲",
+    Australia: "Oceania / 大洋洲",
+    "New Zealand": "Oceania / 大洋洲"
+  };
 
   const $ = (id) => document.getElementById(id);
 
@@ -339,6 +407,18 @@
   }
 
   function normalizeTemplate(tpl) {
+    const termFields = (tpl.termFields || defaultTermFields).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder);
+    if (!termFields.some((field) => field.fieldKey === "originPort")) {
+      termFields.splice(Math.max(0, termFields.findIndex((field) => field.fieldKey === "port")), 0, f("起运港", "Origin Port", "originPort", "select", false, true, 35));
+    }
+    termFields.forEach((field) => {
+      if (field.fieldKey === "port") {
+        field.zh = field.zh || "目的港";
+        field.en = field.en || "Destination Port";
+        field.fieldType = "select";
+      }
+      if (field.fieldKey === "originPort") field.fieldType = "select";
+    });
     return {
       name: tpl.name,
       desc: tpl.desc || "",
@@ -346,7 +426,7 @@
         .map(normalizeField)
         .filter((field) => !["freight", "truckingToPort"].includes(field.fieldKey))
         .sort((a, b) => a.sortOrder - b.sortOrder),
-      termFields: (tpl.termFields || defaultTermFields).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder)
+      termFields: termFields.sort((a, b) => a.sortOrder - b.sortOrder)
     };
   }
 
@@ -1168,17 +1248,49 @@
   }
 
   function renderFreightSelectors() {
-    const portOptions = `<option value="">Select Port / 选择港口</option>` + ports.map((p) => `<option value="${p.id}">${escapeHtml(p.displayName)}</option>`).join("");
-    ["freight-origin", "freight-destination", "calc-origin", "calc-destination"].forEach((id) => {
+    const originOptions = `<option value="">Origin Port / 起运港</option>` + ports
+      .filter((p) => p.isOriginPort)
+      .map((p) => `<option value="${p.id}">${escapeHtml(portOptionLabel(p))}</option>`)
+      .join("");
+    const destinationOptions = `<option value="">Destination Port / 目的港</option>` + groupedPortOptions(ports.filter((p) => p.isDestinationPort));
+    ["freight-origin", "calc-origin"].forEach((id) => {
       const el = $(id);
-      if (el) el.innerHTML = portOptions;
+      if (el) el.innerHTML = originOptions;
+    });
+    ["freight-destination", "calc-destination"].forEach((id) => {
+      const el = $(id);
+      if (el) el.innerHTML = destinationOptions;
     });
     const productOptions = `<option value="">Select Product / 选择产品</option>` + products.map((p) => `<option value="${p.id}">${escapeHtml(p.brand)} ${escapeHtml(p.model)}</option>`).join("");
     if ($("calc-product")) $("calc-product").innerHTML = productOptions;
   }
 
   function displayPort(port) {
-    return port ? `${port.portName}, ${port.countryName}` : "";
+    return port ? portOptionLabel(port) : "";
+  }
+
+  function portOptionLabel(port) {
+    return `${port.portName}${port.portChineseName ? ` / ${port.portChineseName}` : ""}, ${port.countryName}${port.countryChineseName ? ` / ${port.countryChineseName}` : ""}`;
+  }
+
+  function portRegion(port) {
+    return portRegionByCountry[port.countryName] || "Other / 其他";
+  }
+
+  function groupedPortOptions(list) {
+    const groups = new Map();
+    list.forEach((port) => {
+      const region = portRegion(port);
+      if (!groups.has(region)) groups.set(region, []);
+      groups.get(region).push(port);
+    });
+    return portRegionOrder
+      .filter((region) => groups.has(region))
+      .map((region) => `
+        <optgroup label="${escapeHtml(region)}">
+          ${groups.get(region).sort((a, b) => portOptionLabel(a).localeCompare(portOptionLabel(b))).map((port) => `<option value="${port.id}">${escapeHtml(portOptionLabel(port))}</option>`).join("")}
+        </optgroup>
+      `).join("");
   }
 
   function renderPorts() {
@@ -1186,7 +1298,7 @@
     const list = ports.filter((p) => !q || normalize(`${p.displayName}${p.portChineseName}${p.aliases}${p.unLocode}${p.countryChineseName}`).includes(q));
     $("port-list").innerHTML = list.map((p) => `
       <article class="list-item">
-        <div><b>${escapeHtml(p.displayName)}</b><p>${escapeHtml(p.portChineseName)} | ${escapeHtml(p.unLocode)} | ${escapeHtml(p.status)}</p><p>${escapeHtml(p.aliases)}</p></div>
+        <div><b>${escapeHtml(portOptionLabel(p))}</b><p>${escapeHtml(portRegion(p))} | ${escapeHtml(p.unLocode)} | ${escapeHtml(p.status)}</p><p>${escapeHtml(p.aliases)}</p></div>
         <div class="actions">
           <button type="button" data-port-action="copy" data-id="${p.id}">Copy / 复制</button>
           <button type="button" data-port-action="edit" data-id="${p.id}">Edit / 编辑</button>
@@ -1703,6 +1815,7 @@
         payment: "30/70",
         deliveryTime: "",
         shipping: "FOB",
+        originPort: "Shanghai Port / 上海港, China / 中国",
         port: "",
         afterSales: "",
         warranty: "",
@@ -1861,6 +1974,22 @@
   function renderTermInput(field, value) {
     const key = escapeHtml(field.fieldKey);
     const val = escapeHtml(value);
+    if (["originPort", "port", "destinationPort"].includes(field.fieldKey)) {
+      const originOnly = field.fieldKey === "originPort";
+      const listId = `${key}-options`;
+      const sourcePorts = ports.filter((port) => originOnly ? port.isOriginPort : port.isDestinationPort);
+      const datalistOptions = sourcePorts.map((port) => `<option value="${escapeHtml(portOptionLabel(port))}"></option>`).join("");
+      const selectOptions = originOnly
+        ? `<option value="">Select Origin Port / 选择起运港</option>` + sourcePorts.map((port) => `<option value="${escapeHtml(portOptionLabel(port))}">${escapeHtml(portOptionLabel(port))}</option>`).join("")
+        : `<option value="">Select Region and Port / 按地区选择目的港</option>` + groupedPortTextOptions(sourcePorts);
+      const placeholder = originOnly ? "Shanghai Port / 上海港" : "Lagos Port / 拉各斯港";
+      return `
+        <select data-port-picker="${key}">${selectOptions}</select>
+        <input data-termfield="${key}" list="${listId}" value="${val}" placeholder="${placeholder}" />
+        <datalist id="${listId}">${datalistOptions}</datalist>
+        <p class="term-desc">${originOnly ? "默认使用中国起运港，也可手动输入。" : "目的港按地区分组，也可手动输入港口、国家或中文别名。"}</p>
+      `;
+    }
     if (field.fieldKey === "payment") {
       const selected = value || "30/70";
       return `<select data-termfield="${key}">${paymentOptions.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>`;
@@ -1874,6 +2003,25 @@
     if (field.fieldType === "number" || field.fieldType === "money") return `<input data-termfield="${key}" type="number" value="${val}" />`;
     if (field.fieldType === "select") return `<select data-termfield="${key}"><option value="${val}" selected>${val || "请选择"}</option></select>`;
     return `<input data-termfield="${key}" type="text" value="${val}" />`;
+  }
+
+  function groupedPortTextOptions(list) {
+    const groups = new Map();
+    list.forEach((port) => {
+      const region = portRegion(port);
+      if (!groups.has(region)) groups.set(region, []);
+      groups.get(region).push(port);
+    });
+    return portRegionOrder
+      .filter((region) => groups.has(region))
+      .map((region) => `
+        <optgroup label="${escapeHtml(region)}">
+          ${groups.get(region).sort((a, b) => portOptionLabel(a).localeCompare(portOptionLabel(b))).map((port) => {
+            const label = portOptionLabel(port);
+            return `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`;
+          }).join("")}
+        </optgroup>
+      `).join("");
   }
 
   function addManualProduct() {
@@ -2241,6 +2389,10 @@
     $("quote-items").addEventListener("click", e => { if (e.target.matches(".remove-quote-item")) { e.target.closest(".quote-item").remove(); renderPreview(); } });
     $("preview-quote-btn").addEventListener("click", renderPreview);
     $("quote-terms").addEventListener("change", (event) => {
+      if (event.target.matches("[data-port-picker]")) {
+        const target = event.target.closest("label")?.querySelector(`[data-termfield="${event.target.dataset.portPicker}"]`);
+        if (target && event.target.value) target.value = event.target.value;
+      }
       if (event.target.matches("[data-trade-term]")) {
         const desc = event.target.closest("label")?.querySelector(".term-desc");
         if (desc) desc.textContent = tradeDescription(event.target.value);

@@ -154,6 +154,113 @@ function upgradeDefaultAdminPassword() {
   }
 }
 
+function seedDefaultPorts() {
+  const rows = [
+    ["port-shanghai", "China", "中国", "CN", "Shanghai Port", "上海港", "CNSHA", "上海, 上海港, Shanghai, CNSHA, 华东, China origin", 1, 1, "Active", "China origin port"],
+    ["port-ningbo", "China", "中国", "CN", "Ningbo-Zhoushan Port", "宁波舟山港", "CNNGB", "宁波, 舟山, 宁波港, 宁波舟山, Ningbo, Zhoushan, China origin", 1, 1, "Active", "China origin port"],
+    ["port-tianjin", "China", "中国", "CN", "Tianjin Port", "天津港", "CNTXG", "天津, 天津新港, Xingang, Tianjin Xingang, China origin", 1, 1, "Active", "China origin port"],
+    ["port-qingdao", "China", "中国", "CN", "Qingdao Port", "青岛港", "CNQDG", "青岛, 青岛港, Qingdao, China origin", 1, 1, "Active", "China origin port"],
+    ["port-lianyungang", "China", "中国", "CN", "Lianyungang Port", "连云港港", "CNLYG", "连云港, 连云港港, Lianyungang, China origin", 1, 1, "Active", "China origin port"],
+    ["port-shenzhen", "China", "中国", "CN", "Shenzhen Port", "深圳港", "CNSZX", "深圳, 盐田, 蛇口, Yantian, Shekou, Shenzhen, China origin", 1, 1, "Active", "China origin port"],
+    ["port-guangzhou-nansha", "China", "中国", "CN", "Guangzhou Nansha Port", "广州南沙港", "CNNNS", "广州, 南沙, 广州港, Nansha, Guangzhou, China origin", 1, 1, "Active", "China origin port"],
+    ["port-xiamen", "China", "中国", "CN", "Xiamen Port", "厦门港", "CNXMN", "厦门, 厦门港, Xiamen, China origin", 1, 1, "Active", "China origin port"],
+    ["port-dalian", "China", "中国", "CN", "Dalian Port", "大连港", "CNDLC", "大连, 大连港, Dalian, China origin", 1, 1, "Active", "China origin port"],
+    ["port-yantai", "China", "中国", "CN", "Yantai Port", "烟台港", "CNYNT", "烟台, 烟台港, Yantai, China origin", 1, 1, "Active", "China origin port"],
+    ["port-hongkong", "Hong Kong", "中国香港", "HK", "Hong Kong Port", "香港港", "HKHKG", "香港, Hong Kong, HKG", 1, 1, "Active", "China area port"],
+
+    ["port-lagos-apapa", "Nigeria", "尼日利亚", "NG", "Lagos Apapa Port", "拉各斯阿帕帕港", "NGAPP", "Lagos, Apapa, 拉各斯, 拉克丝, 莱各斯, 阿帕帕, 尼日利亚, Nigeria", 0, 1, "Active", "West Africa"],
+    ["port-tincan", "Nigeria", "尼日利亚", "NG", "Tin Can Island Port", "廷坎岛港", "NGTIN", "Tin Can, Tincan, Lagos, 廷坎, 拉各斯, 拉克丝, 尼日利亚", 0, 1, "Active", "West Africa"],
+    ["port-onne", "Nigeria", "尼日利亚", "NG", "Onne Port", "奥内港", "NGONN", "Onne, 奥内, Port Harcourt, 哈科特港, Nigeria, 尼日利亚", 0, 1, "Active", "West Africa"],
+    ["port-tema", "Ghana", "加纳", "GH", "Tema Port", "特马港", "GHTEM", "Tema, 特马, Ghana, 加纳", 0, 1, "Active", "West Africa"],
+    ["port-takoradi", "Ghana", "加纳", "GH", "Takoradi Port", "塔科拉迪港", "GHTKD", "Takoradi, 塔科拉迪, Ghana, 加纳", 0, 1, "Active", "West Africa"],
+    ["port-abidjan", "Cote d'Ivoire", "科特迪瓦", "CI", "Abidjan Port", "阿比让港", "CIABJ", "Abidjan, 阿比让, Cote d'Ivoire, Ivory Coast, 科特迪瓦", 0, 1, "Active", "West Africa"],
+    ["port-dakar", "Senegal", "塞内加尔", "SN", "Dakar Port", "达喀尔港", "SNDKR", "Dakar, 达喀尔, Senegal, 塞内加尔", 0, 1, "Active", "West Africa"],
+    ["port-lome", "Togo", "多哥", "TG", "Lome Port", "洛美港", "TGLFW", "Lome, Lomé, 洛美, Togo, 多哥", 0, 1, "Active", "West Africa"],
+    ["port-cotonou", "Benin", "贝宁", "BJ", "Cotonou Port", "科托努港", "BJCOO", "Cotonou, 科托努, Benin, 贝宁, Niger, 尼日尔", 0, 1, "Active", "West Africa"],
+    ["port-conakry", "Guinea", "几内亚", "GN", "Conakry Port", "科纳克里港", "GNCKY", "Conakry, 科纳克里, Guinea, 几内亚", 0, 1, "Active", "West Africa"],
+    ["port-freetown", "Sierra Leone", "塞拉利昂", "SL", "Freetown Port", "弗里敦港", "SLFNA", "Freetown, 弗里敦, Sierra Leone, 塞拉利昂", 0, 1, "Active", "West Africa"],
+    ["port-monrovia", "Liberia", "利比里亚", "LR", "Monrovia Port", "蒙罗维亚港", "LRMLW", "Monrovia, 蒙罗维亚, Liberia, 利比里亚", 0, 1, "Active", "West Africa"],
+
+    ["port-dar", "Tanzania", "坦桑尼亚", "TZ", "Dar es Salaam Port", "达累斯萨拉姆港", "TZDAR", "Dar, Dar es Salaam, 达累斯萨拉姆, 达累斯, 坦桑尼亚, Tanzania, Uganda, Rwanda, Burundi, Zambia", 0, 1, "Active", "East Africa"],
+    ["port-tanga", "Tanzania", "坦桑尼亚", "TZ", "Tanga Port", "坦噶港", "TZTGT", "Tanga, 坦噶, 坦桑尼亚, Tanzania", 0, 1, "Active", "East Africa"],
+    ["port-mombasa", "Kenya", "肯尼亚", "KE", "Mombasa Port", "蒙巴萨港", "KEMBA", "Mombasa, 蒙巴萨, Kenya, 肯尼亚, Uganda, Rwanda, Burundi", 0, 1, "Active", "East Africa"],
+    ["port-djibouti", "Djibouti", "吉布提", "DJ", "Djibouti Port", "吉布提港", "DJJIB", "Djibouti, 吉布提, Ethiopia, 埃塞俄比亚", 0, 1, "Active", "East Africa"],
+    ["port-berbera", "Somaliland", "索马里兰", "SO", "Berbera Port", "柏培拉港", "SOBBO", "Berbera, 柏培拉, Somalia, Somaliland, 索马里, 索马里兰", 0, 1, "Active", "East Africa"],
+    ["port-mogadishu", "Somalia", "索马里", "SO", "Mogadishu Port", "摩加迪沙港", "SOMGQ", "Mogadishu, 摩加迪沙, Somalia, 索马里", 0, 1, "Active", "East Africa"],
+
+    ["port-beira", "Mozambique", "莫桑比克", "MZ", "Beira Port", "贝拉港", "MZBEW", "Beira, 贝拉, 莫桑比克, Mozambique, Zimbabwe, 津巴布韦, Zambia, Malawi, 马拉维", 0, 1, "Active", "Southern Africa corridor"],
+    ["port-maputo", "Mozambique", "莫桑比克", "MZ", "Maputo Port", "马普托港", "MZMPM", "Maputo, 马普托, 莫桑比克, Mozambique, South Africa, 南非", 0, 1, "Active", "Southern Africa"],
+    ["port-nacala", "Mozambique", "莫桑比克", "MZ", "Nacala Port", "纳卡拉港", "MZMNC", "Nacala, 纳卡拉, Mozambique, 莫桑比克, Malawi, 马拉维", 0, 1, "Active", "Southern Africa"],
+    ["port-durban", "South Africa", "南非", "ZA", "Durban Port", "德班港", "ZADUR", "Durban, 德班, South Africa, 南非, Zimbabwe, 津巴布韦, Zambia, Botswana, 博茨瓦纳", 0, 1, "Active", "Southern Africa"],
+    ["port-cape-town", "South Africa", "南非", "ZA", "Cape Town Port", "开普敦港", "ZACPT", "Cape Town, 开普敦, South Africa, 南非", 0, 1, "Active", "Southern Africa"],
+    ["port-ngqura", "South Africa", "南非", "ZA", "Ngqura Port", "恩古拉港", "ZANGQ", "Ngqura, Coega, 恩古拉, 库哈, South Africa, 南非", 0, 1, "Active", "Southern Africa"],
+    ["port-walvis-bay", "Namibia", "纳米比亚", "NA", "Walvis Bay Port", "鲸湾港", "NAWVB", "Walvis Bay, 鲸湾, Namibia, 纳米比亚", 0, 1, "Active", "Southern Africa"],
+    ["port-luanda", "Angola", "安哥拉", "AO", "Luanda Port", "罗安达港", "AOLAD", "Luanda, 罗安达, Angola, 安哥拉", 0, 1, "Active", "Southern Africa"],
+    ["port-lobito", "Angola", "安哥拉", "AO", "Lobito Port", "洛比托港", "AOLOB", "Lobito, 洛比托, Angola, 安哥拉", 0, 1, "Active", "Southern Africa"],
+
+    ["port-alexandria", "Egypt", "埃及", "EG", "Alexandria Port", "亚历山大港", "EGALY", "Alexandria, 亚历山大, Egypt, 埃及", 0, 1, "Active", "North Africa"],
+    ["port-port-said", "Egypt", "埃及", "EG", "Port Said Port", "塞得港", "EGPSD", "Port Said, 塞得港, Egypt, 埃及", 0, 1, "Active", "North Africa"],
+    ["port-sokhna", "Egypt", "埃及", "EG", "Ain Sokhna Port", "苏赫纳港", "EGSOK", "Sokhna, Ain Sokhna, 苏赫纳, 埃及, Egypt", 0, 1, "Active", "North Africa"],
+    ["port-casablanca", "Morocco", "摩洛哥", "MA", "Casablanca Port", "卡萨布兰卡港", "MACAS", "Casablanca, 卡萨布兰卡, Morocco, 摩洛哥", 0, 1, "Active", "North Africa"],
+    ["port-tanger-med", "Morocco", "摩洛哥", "MA", "Tanger Med Port", "丹吉尔地中海港", "MAPTM", "Tanger Med, Tangier, 丹吉尔, 摩洛哥, Morocco", 0, 1, "Active", "North Africa"],
+    ["port-algiers", "Algeria", "阿尔及利亚", "DZ", "Algiers Port", "阿尔及尔港", "DZALG", "Algiers, 阿尔及尔, Algeria, 阿尔及利亚", 0, 1, "Active", "North Africa"],
+    ["port-rades", "Tunisia", "突尼斯", "TN", "Rades Port", "拉德斯港", "TNRDS", "Rades, 拉德斯, Tunisia, 突尼斯", 0, 1, "Active", "North Africa"],
+    ["port-port-sudan", "Sudan", "苏丹", "SD", "Port Sudan", "苏丹港", "SDPZU", "Port Sudan, 苏丹港, Sudan, 苏丹, South Sudan, 南苏丹", 0, 1, "Active", "North Africa"],
+
+    ["port-rotterdam", "Netherlands", "荷兰", "NL", "Rotterdam Port", "鹿特丹港", "NLRTM", "Rotterdam, 鹿特丹, Netherlands, 荷兰, Europe, 欧洲", 0, 1, "Active", "Europe"],
+    ["port-hamburg", "Germany", "德国", "DE", "Hamburg Port", "汉堡港", "DEHAM", "Hamburg, 汉堡, Germany, 德国, Europe, 欧洲", 0, 1, "Active", "Europe"],
+    ["port-antwerp", "Belgium", "比利时", "BE", "Antwerp-Bruges Port", "安特卫普布鲁日港", "BEANR", "Antwerp, Bruges, 安特卫普, 布鲁日, Belgium, 比利时, Europe, 欧洲", 0, 1, "Active", "Europe"],
+    ["port-felixstowe", "United Kingdom", "英国", "GB", "Felixstowe Port", "费利克斯托港", "GBFXT", "Felixstowe, 费利克斯托, UK, United Kingdom, 英国, Europe, 欧洲", 0, 1, "Active", "Europe"],
+    ["port-genoa", "Italy", "意大利", "IT", "Genoa Port", "热那亚港", "ITGOA", "Genoa, Genova, 热那亚, Italy, 意大利, Europe, 欧洲", 0, 1, "Active", "Europe"],
+    ["port-piraeus", "Greece", "希腊", "GR", "Piraeus Port", "比雷埃夫斯港", "GRPIR", "Piraeus, 比雷埃夫斯, Greece, 希腊, Europe, 欧洲", 0, 1, "Active", "Europe"],
+    ["port-valencia", "Spain", "西班牙", "ES", "Valencia Port", "瓦伦西亚港", "ESVLC", "Valencia, 瓦伦西亚, Spain, 西班牙, Europe, 欧洲", 0, 1, "Active", "Europe"],
+
+    ["port-santos", "Brazil", "巴西", "BR", "Santos Port", "桑托斯港", "BRSSZ", "Santos, 桑托斯, Brazil, 巴西, South America, 南美洲", 0, 1, "Active", "South America"],
+    ["port-rio", "Brazil", "巴西", "BR", "Rio de Janeiro Port", "里约热内卢港", "BRRIO", "Rio, Rio de Janeiro, 里约, 里约热内卢, Brazil, 巴西, 南美洲", 0, 1, "Active", "South America"],
+    ["port-buenos-aires", "Argentina", "阿根廷", "AR", "Buenos Aires Port", "布宜诺斯艾利斯港", "ARBUE", "Buenos Aires, 布宜诺斯艾利斯, Argentina, 阿根廷, 南美洲", 0, 1, "Active", "South America"],
+    ["port-callao", "Peru", "秘鲁", "PE", "Callao Port", "卡亚俄港", "PECLL", "Callao, 卡亚俄, Peru, 秘鲁, South America, 南美洲", 0, 1, "Active", "South America"],
+    ["port-san-antonio", "Chile", "智利", "CL", "San Antonio Port", "圣安东尼奥港", "CLSAI", "San Antonio, 圣安东尼奥, Chile, 智利, South America, 南美洲", 0, 1, "Active", "South America"],
+    ["port-cartagena-colombia", "Colombia", "哥伦比亚", "CO", "Cartagena Port", "卡塔赫纳港", "COCTG", "Cartagena, 卡塔赫纳, Colombia, 哥伦比亚, South America, 南美洲", 0, 1, "Active", "South America"],
+
+    ["port-jebel-ali", "United Arab Emirates", "阿联酋", "AE", "Jebel Ali Port", "杰贝阿里港", "AEJEA", "Jebel Ali, Dubai, 杰贝阿里, 迪拜, UAE, 阿联酋, Middle East, 中东", 0, 1, "Active", "Middle East"],
+    ["port-dammam", "Saudi Arabia", "沙特阿拉伯", "SA", "Dammam Port", "达曼港", "SADMM", "Dammam, 达曼, Saudi Arabia, 沙特, Middle East, 中东", 0, 1, "Active", "Middle East"],
+    ["port-jeddah", "Saudi Arabia", "沙特阿拉伯", "SA", "Jeddah Islamic Port", "吉达伊斯兰港", "SAJED", "Jeddah, 吉达, Saudi Arabia, 沙特, Middle East, 中东", 0, 1, "Active", "Middle East"],
+    ["port-hamad", "Qatar", "卡塔尔", "QA", "Hamad Port", "哈马德港", "QAHMD", "Hamad, Doha, 哈马德, 多哈, Qatar, 卡塔尔, Middle East, 中东", 0, 1, "Active", "Middle East"],
+
+    ["port-singapore", "Singapore", "新加坡", "SG", "Singapore Port", "新加坡港", "SGSIN", "Singapore, 新加坡, Southeast Asia, 东南亚", 0, 1, "Active", "Asia"],
+    ["port-port-klang", "Malaysia", "马来西亚", "MY", "Port Klang", "巴生港", "MYPKG", "Klang, Port Klang, 巴生港, Malaysia, 马来西亚, Southeast Asia, 东南亚", 0, 1, "Active", "Asia"],
+    ["port-laem-chabang", "Thailand", "泰国", "TH", "Laem Chabang Port", "林查班港", "THLCH", "Laem Chabang, 林查班, Thailand, 泰国, Southeast Asia, 东南亚", 0, 1, "Active", "Asia"],
+    ["port-jakarta", "Indonesia", "印度尼西亚", "ID", "Jakarta Tanjung Priok Port", "雅加达丹戎不碌港", "IDJKT", "Jakarta, Tanjung Priok, 雅加达, 丹戎不碌, Indonesia, 印尼", 0, 1, "Active", "Asia"],
+    ["port-manila", "Philippines", "菲律宾", "PH", "Manila Port", "马尼拉港", "PHMNL", "Manila, 马尼拉, Philippines, 菲律宾", 0, 1, "Active", "Asia"],
+    ["port-ho-chi-minh", "Vietnam", "越南", "VN", "Ho Chi Minh Port", "胡志明港", "VNSGN", "Ho Chi Minh, Saigon, 胡志明, 西贡, Vietnam, 越南", 0, 1, "Active", "Asia"],
+    ["port-chittagong", "Bangladesh", "孟加拉国", "BD", "Chittagong Port", "吉大港", "BDCGP", "Chittagong, Chattogram, 吉大港, Bangladesh, 孟加拉", 0, 1, "Active", "Asia"],
+    ["port-mumbai", "India", "印度", "IN", "Mumbai Port", "孟买港", "INBOM", "Mumbai, Nhava Sheva, 孟买, 那瓦舍瓦, India, 印度", 0, 1, "Active", "Asia"],
+    ["port-karachi", "Pakistan", "巴基斯坦", "PK", "Karachi Port", "卡拉奇港", "PKKHI", "Karachi, 卡拉奇, Pakistan, 巴基斯坦", 0, 1, "Active", "Asia"],
+
+    ["port-los-angeles", "United States", "美国", "US", "Los Angeles Port", "洛杉矶港", "USLAX", "Los Angeles, LA, 洛杉矶, USA, 美国, North America, 北美洲", 0, 1, "Active", "North America"],
+    ["port-long-beach", "United States", "美国", "US", "Long Beach Port", "长滩港", "USLGB", "Long Beach, 长滩, USA, 美国, North America, 北美洲", 0, 1, "Active", "North America"],
+    ["port-new-york", "United States", "美国", "US", "New York/New Jersey Port", "纽约新泽西港", "USNYC", "New York, New Jersey, 纽约, 新泽西, USA, 美国, North America, 北美洲", 0, 1, "Active", "North America"],
+    ["port-vancouver", "Canada", "加拿大", "CA", "Vancouver Port", "温哥华港", "CAVAN", "Vancouver, 温哥华, Canada, 加拿大, North America, 北美洲", 0, 1, "Active", "North America"],
+    ["port-manzanillo-mx", "Mexico", "墨西哥", "MX", "Manzanillo Port", "曼萨尼约港", "MXZLO", "Manzanillo, 曼萨尼约, Mexico, 墨西哥, North America, 北美洲", 0, 1, "Active", "North America"],
+
+    ["port-melbourne", "Australia", "澳大利亚", "AU", "Melbourne Port", "墨尔本港", "AUMEL", "Melbourne, 墨尔本, Australia, 澳大利亚, Oceania, 大洋洲", 0, 1, "Active", "Oceania"],
+    ["port-sydney", "Australia", "澳大利亚", "AU", "Sydney Port Botany", "悉尼博塔尼港", "AUSYD", "Sydney, Port Botany, 悉尼, 博塔尼, Australia, 澳大利亚, Oceania, 大洋洲", 0, 1, "Active", "Oceania"],
+    ["port-auckland", "New Zealand", "新西兰", "NZ", "Auckland Port", "奥克兰港", "NZAKL", "Auckland, 奥克兰, New Zealand, 新西兰, Oceania, 大洋洲", 0, 1, "Active", "Oceania"]
+  ];
+
+  const insert = db.prepare(`INSERT OR IGNORE INTO ports
+    (id, country_name, country_chinese_name, country_code, port_name, port_chinese_name, un_locode, aliases, is_origin_port, is_destination_port, status, remark, search_text, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const update = db.prepare(`UPDATE ports SET
+    country_name=?, country_chinese_name=?, country_code=?, port_name=?, port_chinese_name=?, un_locode=?, aliases=?,
+    is_origin_port=?, is_destination_port=?, status=?, remark=?, search_text=?, updated_at=? WHERE id=?`);
+  rows.forEach((row) => {
+    const searchText = normalize(row.join(" "));
+    insert.run(...row, searchText, now(), now());
+    update.run(row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], searchText, now(), row[0]);
+  });
+}
+
 function seed() {
   const userCount = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
   if (!userCount) {
@@ -197,6 +304,7 @@ function seed() {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     ports.forEach((p) => stmt.run(...p, normalize(p.join(" ")), now(), now()));
   }
+  seedDefaultPorts();
 
   if (!db.prepare("SELECT COUNT(*) AS count FROM products").get().count) {
     const products = [
