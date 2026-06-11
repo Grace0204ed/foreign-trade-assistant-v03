@@ -135,7 +135,10 @@
                 <thead>
                   <tr>
                     <th>排序</th>
-                    <th>产品分类名称</th>
+                    <th>一级分类</th>
+                    <th>英文分类</th>
+                    <th>中文分类</th>
+                    <th>显示</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -447,8 +450,23 @@
           <button id="close-category-modal-btn" type="button">关闭</button>
         </header>
         <label>
-          <span>产品分类名称</span>
-          <input id="category-name-input" />
+          <span>一级分类 / Parent Category</span>
+          <select id="category-parent-input"></select>
+        </label>
+        <label>
+          <span>英文分类名 / English Name</span>
+          <input id="category-en-input" placeholder="Used Excavator" />
+        </label>
+        <label>
+          <span>中文分类名 / 中文名称</span>
+          <input id="category-zh-input" placeholder="二手挖掘机" />
+        </label>
+        <label>
+          <span>是否显示 / Show</span>
+          <select id="category-visible-input">
+            <option value="true">Show / 显示</option>
+            <option value="false">Hide / 隐藏</option>
+          </select>
         </label>
         <footer class="actions">
           <button id="save-category-btn" class="primary" type="button">保存分类</button>

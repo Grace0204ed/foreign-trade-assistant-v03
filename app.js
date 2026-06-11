@@ -73,12 +73,30 @@
       { id: "contact-email", labelEn: "Email", labelZh: "邮箱", type: "text", value: "", visible: true, sortOrder: 30 },
       { id: "contact-wechat", labelEn: "WeChat", labelZh: "微信", type: "text", value: "", visible: true, sortOrder: 40 }
     ],
+    bankFields: [
+      { id: "bank-beneficiary", labelEn: "Beneficiary Name", labelZh: "收款人名称", value: "Hefei Jinwanwa International Trade Co., Ltd.", visible: true, sortOrder: 10 },
+      { id: "bank-name", labelEn: "Bank Name", labelZh: "银行名称", value: "", visible: true, sortOrder: 20 },
+      { id: "bank-account", labelEn: "Account Number", labelZh: "银行账号", value: "", visible: true, sortOrder: 30 },
+      { id: "bank-swift", labelEn: "SWIFT/BIC Code", labelZh: "SWIFT/BIC 代码", value: "", visible: true, sortOrder: 40 },
+      { id: "bank-address", labelEn: "Bank Address", labelZh: "银行地址", value: "", visible: true, sortOrder: 50 },
+      { id: "bank-note", labelEn: "Payment Note", labelZh: "付款备注", value: "Please include buyer name, invoice number and product name in the payment note.", visible: true, sortOrder: 60 }
+    ],
     quoteStyle: "business",
     logoDataUrl: "",
     backgroundDataUrl: "",
     stampDataUrl: "",
     costFieldsMigratedV1: false,
-    categories: ["挖掘机", "装载机", "推土机", "压路机", "平地机", "自卸车", "叉车", "TLB", "海运费", "陆路运输费", "自定义费用"],
+    categories: [
+      { id: "cat-used-excavator", labelEn: "Used Excavator", labelZh: "二手挖掘机", parentId: "", visible: true, sortOrder: 10 },
+      { id: "cat-used-loader", labelEn: "Used Loader", labelZh: "二手装载机", parentId: "", visible: true, sortOrder: 20 },
+      { id: "cat-used-dozer", labelEn: "Used Bulldozer", labelZh: "二手推土机", parentId: "", visible: true, sortOrder: 30 },
+      { id: "cat-freight", labelEn: "Freight", labelZh: "运费", parentId: "", visible: true, sortOrder: 100 },
+      { id: "cat-sea-freight", labelEn: "Sea Freight by Machine", labelZh: "单机海运费", parentId: "cat-freight", visible: true, sortOrder: 110 },
+      { id: "cat-combined-freight", labelEn: "Combined Sea Freight", labelZh: "合并海运费", parentId: "cat-freight", visible: true, sortOrder: 120 },
+      { id: "cat-trucking", labelEn: "Inland Trucking", labelZh: "陆路运输费", parentId: "", visible: true, sortOrder: 200 },
+      { id: "cat-yard-to-port", labelEn: "Yard to Port Trucking", labelZh: "场地到港口拖车费", parentId: "cat-trucking", visible: true, sortOrder: 210 },
+      { id: "cat-custom", labelEn: "Custom Charge", labelZh: "自定义费用", parentId: "", visible: true, sortOrder: 300 }
+    ],
     templates: defaultTemplates
   };
 
@@ -440,20 +458,74 @@
       tpl.fields = (tpl.fields || []).filter((field) => !["freight", "truckingToPort"].includes(field.fieldKey));
       resequenceFields(tpl.fields);
     });
-    ["海运费", "陆路运输费", "自定义费用"].forEach((name) => {
-      if (!settings.categories.includes(name)) settings.categories.push(name);
-    });
+    ensureDefaultCategory("cat-freight", "Freight", "运费", "");
+    ensureDefaultCategory("cat-sea-freight", "Sea Freight by Machine", "单机海运费", "cat-freight");
+    ensureDefaultCategory("cat-combined-freight", "Combined Sea Freight", "合并海运费", "cat-freight");
+    ensureDefaultCategory("cat-trucking", "Inland Trucking", "陆路运输费", "");
+    ensureDefaultCategory("cat-yard-to-port", "Yard to Port Trucking", "场地到港口拖车费", "cat-trucking");
+    ensureDefaultCategory("cat-custom", "Custom Charge", "自定义费用", "");
     save(keys.settings, settings);
+  }
+
+  function categoryObject(item, index = 0) {
+    if (typeof item === "string") {
+      const name = item.trim();
+      const map = {
+        "挖掘机": ["Used Excavator", "二手挖掘机"],
+        "装载机": ["Used Loader", "二手装载机"],
+        "推土机": ["Used Bulldozer", "二手推土机"],
+        "压路机": ["Used Road Roller", "二手压路机"],
+        "平地机": ["Used Motor Grader", "二手平地机"],
+        "自卸车": ["Used Dump Truck", "二手自卸车"],
+        "叉车": ["Used Forklift", "二手叉车"],
+        "TLB": ["Used TLB", "二手 TLB"],
+        "海运费": ["Sea Freight by Machine", "单机海运费"],
+        "陆路运输费": ["Yard to Port Trucking", "场地到港口拖车费"],
+        "自定义费用": ["Custom Charge", "自定义费用"]
+      };
+      const mapped = map[name] || [name, name];
+      const parentId = ["海运费"].includes(name) ? "cat-freight" : (["陆路运输费"].includes(name) ? "cat-trucking" : "");
+      return { id: uid("cat"), labelEn: mapped[0], labelZh: mapped[1], parentId, visible: true, sortOrder: (index + 1) * 10 };
+    }
+    return {
+      id: item?.id || uid("cat"),
+      labelEn: item?.labelEn || item?.en || item?.name || item?.labelZh || "Category",
+      labelZh: item?.labelZh || item?.zh || item?.name || item?.labelEn || "分类",
+      parentId: item?.parentId || "",
+      visible: item?.visible !== false,
+      sortOrder: Number(item?.sortOrder || (index + 1) * 10)
+    };
+  }
+
+  function categoryLabel(category) {
+    const item = typeof category === "string" ? categoryObject(category) : category;
+    return `${item.labelEn} / ${item.labelZh}`;
+  }
+
+  function categoryFullLabel(category) {
+    const item = typeof category === "string" ? categoryObject(category) : category;
+    const parent = settings.categories?.find((cat) => cat.id === item.parentId);
+    return parent ? `${categoryLabel(parent)} > ${categoryLabel(item)}` : categoryLabel(item);
+  }
+
+  function ensureDefaultCategory(id, labelEn, labelZh, parentId = "") {
+    normalizeCategories();
+    const existing = settings.categories.find((cat) => cat.id === id || cat.labelZh === labelZh || cat.labelEn === labelEn);
+    if (existing) {
+      existing.id = id;
+      existing.labelEn = labelEn;
+      existing.labelZh = labelZh;
+      existing.parentId = parentId;
+      return;
+    }
+    settings.categories.push({ id, labelEn, labelZh, parentId, visible: true, sortOrder: (settings.categories.length + 1) * 10 });
   }
 
   function normalizeCategories() {
     const source = Array.isArray(settings.categories) && settings.categories.length
       ? settings.categories
       : defaultSettings.categories;
-    settings.categories = source
-      .map((item) => typeof item === "string" ? item : item?.name)
-      .map((name) => String(name || "").trim())
-      .filter(Boolean);
+    settings.categories = source.map(categoryObject).filter((item) => item.labelEn || item.labelZh).sort((a, b) => a.sortOrder - b.sortOrder);
     if (!settings.categories.length) {
       settings.categories = structuredClone(defaultSettings.categories);
     }
@@ -523,14 +595,17 @@
   function renderSettings() {
     ensureUserManagerPanel();
     ensureContactFieldsPanel();
+    ensureBankFieldsPanel();
     ensureTermsSettingsPanel();
     normalizeContactFields();
+    normalizeBankFields();
     normalizeTemplates();
     normalizeCategories();
     document.querySelectorAll("[data-setting]").forEach((input) => {
       input.value = settings[input.dataset.setting] || "";
     });
     renderCategoryList();
+    renderBankFields();
     renderTemplateSelect();
     fillTemplateForm(settings.templates[0]?.name);
     $("logo-preview").src = settings.logoDataUrl || "";
@@ -576,6 +651,20 @@
     if (emailField && !emailField.value && settings.companyEmail) emailField.value = settings.companyEmail;
   }
 
+  function normalizeBankFields() {
+    const existing = Array.isArray(settings.bankFields) ? settings.bankFields : [];
+    const fallback = defaultSettings.bankFields || [];
+    const merged = existing.length ? existing : fallback;
+    settings.bankFields = merged.map((field, index) => ({
+      id: field.id || uid("bank"),
+      labelEn: field.labelEn || "Bank Field",
+      labelZh: field.labelZh || "银行字段",
+      value: field.value || "",
+      visible: field.visible !== false,
+      sortOrder: Number(field.sortOrder || (index + 1) * 10)
+    })).sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
   function ensureContactFieldsPanel() {
     if ($("contact-fields-panel")) return;
     const panel = document.createElement("div");
@@ -607,6 +696,106 @@
     `;
     const companyPanel = document.querySelector("#view-settings .panel");
     companyPanel?.after(panel);
+  }
+
+  function ensureBankFieldsPanel() {
+    if ($("bank-fields-panel")) return;
+    const panel = document.createElement("div");
+    panel.id = "bank-fields-panel";
+    panel.className = "panel";
+    panel.dataset.settingsPanel = "company";
+    panel.innerHTML = `
+      <div class="row-head">
+        <div>
+          <h3>Bank Payment Information / 银行收款信息</h3>
+          <p class="hint">Editable for different companies. Only visible rows will appear in PDF. / 适合不同公司自行维护，只有勾选显示的内容会出现在 PDF。</p>
+        </div>
+        <button id="add-bank-field-btn" type="button">Add / 新增</button>
+      </div>
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>Sort / 排序</th>
+            <th>English / 英文</th>
+            <th>中文</th>
+            <th>Value / 内容</th>
+            <th>Show / 显示</th>
+            <th>Actions / 操作</th>
+          </tr>
+        </thead>
+        <tbody id="bank-field-list"></tbody>
+      </table>
+    `;
+    $("contact-fields-panel")?.after(panel);
+  }
+
+  function renderBankFields() {
+    if (!$("bank-field-list")) return;
+    normalizeBankFields();
+    $("bank-field-list").innerHTML = settings.bankFields.map((field, index) => `
+      <tr data-bank-index="${index}">
+        <td><span class="drag-handle">::</span>${index + 1}</td>
+        <td><input data-bank-prop="labelEn" value="${escapeHtml(field.labelEn)}" /></td>
+        <td><input data-bank-prop="labelZh" value="${escapeHtml(field.labelZh)}" /></td>
+        <td><textarea data-bank-prop="value">${escapeHtml(field.value)}</textarea></td>
+        <td><input data-bank-visible type="checkbox"${field.visible ? " checked" : ""} /></td>
+        <td class="field-actions">
+          <button data-bank-action="up" type="button">Up / 上移</button>
+          <button data-bank-action="down" type="button">Down / 下移</button>
+          <button data-bank-action="delete" type="button">Delete / 删除</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function collectBankFields() {
+    if (!$("bank-field-list")) return;
+    const rows = Array.from(document.querySelectorAll("#bank-field-list tr[data-bank-index]"));
+    rows.forEach((row, rowIndex) => {
+      const field = settings.bankFields[Number(row.dataset.bankIndex)];
+      row.querySelectorAll("[data-bank-prop]").forEach((input) => {
+        field[input.dataset.bankProp] = input.value;
+      });
+      field.visible = !!row.querySelector("[data-bank-visible]")?.checked;
+      field.sortOrder = (rowIndex + 1) * 10;
+    });
+  }
+
+  function addBankField() {
+    collectBankFields();
+    settings.bankFields.push({
+      id: uid("bank"),
+      labelEn: "Bank Field",
+      labelZh: "银行字段",
+      value: "",
+      visible: true,
+      sortOrder: (settings.bankFields.length + 1) * 10
+    });
+    renderBankFields();
+  }
+
+  function handleBankFieldAction(event) {
+    const row = event.target.closest("tr[data-bank-index]");
+    if (!row) return;
+    collectBankFields();
+    const index = Number(row.dataset.bankIndex);
+    const action = event.target.dataset.bankAction;
+    if (event.target.matches("[data-bank-visible]")) {
+      settings.bankFields[index].visible = event.target.checked;
+      return;
+    }
+    if (action === "delete") {
+      if (!confirm("Delete this bank field? / 确认删除这个银行字段吗？")) return;
+      settings.bankFields.splice(index, 1);
+    }
+    if (action === "up" && index > 0) {
+      [settings.bankFields[index - 1], settings.bankFields[index]] = [settings.bankFields[index], settings.bankFields[index - 1]];
+    }
+    if (action === "down" && index < settings.bankFields.length - 1) {
+      [settings.bankFields[index + 1], settings.bankFields[index]] = [settings.bankFields[index], settings.bankFields[index + 1]];
+    }
+    settings.bankFields.forEach((field, i) => field.sortOrder = (i + 1) * 10);
+    renderBankFields();
   }
 
   function renderContactFields() {
@@ -882,13 +1071,18 @@
 
   function renderCategoryList() {
     normalizeCategories();
-    $("category-list").innerHTML = settings.categories.map((name, index) => `
+    $("category-list").innerHTML = settings.categories.map((category, index) => {
+      const parent = settings.categories.find((item) => item.id === category.parentId);
+      return `
       <tr draggable="true" data-category-index="${index}">
         <td>
           <span class="drag-handle">☰</span>
           ${(index + 1) * 10}
         </td>
-        <td>${escapeHtml(name)}</td>
+        <td>${parent ? escapeHtml(categoryLabel(parent)) : "Level 1 / 一级"}</td>
+        <td>${escapeHtml(category.labelEn)}</td>
+        <td>${escapeHtml(category.labelZh)}</td>
+        <td>${category.visible ? "Show / 显示" : "Hide / 隐藏"}</td>
         <td class="field-actions">
           <button type="button" data-category-action="edit">编辑</button>
           <button type="button" data-category-action="delete">删除</button>
@@ -896,16 +1090,24 @@
           <button type="button" data-category-action="down">下移</button>
         </td>
       </tr>
-    `).join("") || `<tr><td colspan="3" class="empty">暂无分类，请点击“新增分类”。</td></tr>`;
+    `;
+    }).join("") || `<tr><td colspan="6" class="empty">暂无分类，请点击“新增分类”。</td></tr>`;
   }
 
   function openCategoryModal(index = -1) {
     normalizeCategories();
     editingCategoryIndex = index;
+    const current = index >= 0 ? settings.categories[index] : null;
     $("category-modal-title").textContent = index >= 0 ? "编辑分类" : "新增分类";
-    $("category-name-input").value = index >= 0 ? settings.categories[index] || "" : "";
+    $("category-parent-input").innerHTML = `<option value="">Level 1 / 一级分类</option>` + settings.categories
+      .filter((item, itemIndex) => itemIndex !== index && !item.parentId)
+      .map((item) => `<option value="${escapeHtml(item.id)}"${item.id === current?.parentId ? " selected" : ""}>${escapeHtml(categoryLabel(item))}</option>`)
+      .join("");
+    $("category-en-input").value = current?.labelEn || "";
+    $("category-zh-input").value = current?.labelZh || "";
+    $("category-visible-input").value = current?.visible === false ? "false" : "true";
     $("category-modal").hidden = false;
-    $("category-name-input").focus();
+    $("category-en-input").focus();
   }
 
   function closeCategoryModal() {
@@ -914,12 +1116,18 @@
 
   function saveCategoryFromModal() {
     normalizeCategories();
-    const name = $("category-name-input").value.trim();
-    if (!name) return toast("请填写产品分类名称。");
-    const exists = settings.categories.some((item, index) => item === name && index !== editingCategoryIndex);
+    const labelEn = $("category-en-input").value.trim();
+    const labelZh = $("category-zh-input").value.trim();
+    if (!labelEn || !labelZh) return toast("Please enter English and Chinese category names. / 请填写中英文分类名称。");
+    const parentId = $("category-parent-input").value;
+    const visible = $("category-visible-input").value !== "false";
+    const exists = settings.categories.some((item, index) => normalize(item.labelEn) === normalize(labelEn) && normalize(item.labelZh) === normalize(labelZh) && index !== editingCategoryIndex);
     if (exists) return toast("分类名称已存在。");
-    if (editingCategoryIndex >= 0) settings.categories[editingCategoryIndex] = name;
-    else settings.categories.push(name);
+    if (editingCategoryIndex >= 0) {
+      settings.categories[editingCategoryIndex] = { ...settings.categories[editingCategoryIndex], labelEn, labelZh, parentId, visible };
+    } else {
+      settings.categories.push({ id: uid("cat"), labelEn, labelZh, parentId, visible, sortOrder: (settings.categories.length + 1) * 10 });
+    }
     save(keys.settings, settings);
     renderCategoryList();
     renderAllSelectors();
@@ -931,8 +1139,9 @@
     normalizeCategories();
     const target = index + delta;
     if (target < 0 || target >= settings.categories.length) return;
-    const [name] = settings.categories.splice(index, 1);
-    settings.categories.splice(target, 0, name);
+    const [category] = settings.categories.splice(index, 1);
+    settings.categories.splice(target, 0, category);
+    settings.categories.forEach((item, itemIndex) => item.sortOrder = (itemIndex + 1) * 10);
     save(keys.settings, settings);
     renderCategoryList();
     renderAllSelectors();
@@ -940,10 +1149,11 @@
 
   function deleteCategory(index) {
     normalizeCategories();
-    const name = settings.categories[index];
-    if (!name) return;
+    const category = settings.categories[index];
+    if (!category) return;
     if (settings.categories.length <= 1) return toast("至少保留一个产品分类。");
-    if (!confirm(`确定删除分类“${name}”吗？`)) return;
+    if (settings.categories.some((item) => item.parentId === category.id)) return toast("请先删除这个一级分类下面的二级分类。");
+    if (!confirm(`Are you sure you want to delete this category?\n确认删除分类“${categoryLabel(category)}”吗？`)) return;
     settings.categories.splice(index, 1);
     save(keys.settings, settings);
     renderCategoryList();
@@ -976,8 +1186,9 @@
     const from = Number(event.dataTransfer.getData("text/plain"));
     const to = Number(row.dataset.categoryIndex);
     if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
-    const [name] = settings.categories.splice(from, 1);
-    settings.categories.splice(to, 0, name);
+    const [category] = settings.categories.splice(from, 1);
+    settings.categories.splice(to, 0, category);
+    settings.categories.forEach((item, index) => item.sortOrder = (index + 1) * 10);
     save(keys.settings, settings);
     renderCategoryList();
     renderAllSelectors();
@@ -1160,6 +1371,7 @@
 
   function collectSettingsDraft() {
     collectContactFields();
+    collectBankFields();
     document.querySelectorAll("[data-setting]").forEach((input) => {
       settings[input.dataset.setting] = input.value.trim();
     });
@@ -1214,7 +1426,10 @@
   function renderAllSelectors() {
     normalizeTemplates();
     normalizeCategories();
-    const catOptions = settings.categories.map((c) => `<option>${escapeHtml(c)}</option>`).join("");
+    const catOptions = settings.categories
+      .filter((c) => c.visible !== false)
+      .map((c) => `<option value="${escapeHtml(categoryLabel(c))}">${escapeHtml(categoryFullLabel(c))}</option>`)
+      .join("");
     $("product-category").innerHTML = catOptions;
     $("quote-template").innerHTML = settings.templates.map((t) => `<option>${escapeHtml(t.name)}</option>`).join("");
     $("library-product-select").innerHTML = `<option value="">选择产品库产品</option>` + products.map((p) => `<option value="${p.id}">${escapeHtml(p.brand)} ${escapeHtml(p.model)}</option>`).join("");
@@ -1619,7 +1834,7 @@
     if (!p) return;
     normalizeCategories();
     editingProductId = p.id;
-    $("product-category").value = p.category || settings.categories[0];
+    $("product-category").value = p.category || categoryLabel(settings.categories[0]);
     $("product-brand").value = p.brand || "";
     $("product-model").value = p.model || "";
     $("product-tonnage").value = p.tonnage || "";
@@ -1675,7 +1890,7 @@
   }
 
   function productFromImportObject(row) {
-    const category = row.category || settings.categories[0] || "未分类";
+    const category = row.category || categoryLabel(settings.categories[0]) || "Uncategorized / 未分类";
     return {
       id: uid("product"),
       category,
@@ -1693,8 +1908,8 @@
 
   function parseProductWithoutHeader(cells) {
     const categoryNames = settings.categories || [];
-    const categoryIndex = cells.findIndex((cell) => categoryNames.some((name) => normalize(name) === normalize(cell)));
-    const category = categoryIndex >= 0 ? cells.splice(categoryIndex, 1)[0] : (settings.categories[0] || "未分类");
+    const categoryIndex = cells.findIndex((cell) => categoryNames.some((cat) => [cat.labelEn, cat.labelZh, categoryLabel(cat), categoryFullLabel(cat)].some((name) => normalize(name) === normalize(cell))));
+    const category = categoryIndex >= 0 ? cells.splice(categoryIndex, 1)[0] : (categoryLabel(settings.categories[0]) || "Uncategorized / 未分类");
     let priceIndex = -1;
     for (let index = cells.length - 1; index >= 0; index -= 1) {
       if (parsePriceNumber(cells[index])) {
@@ -1913,7 +2128,7 @@
             <span class="manual-badge">Auto Calculate / 自动计价</span>
           </div>
           <div class="quote-item-grid">
-            <label><span>Product Type / 产品分类</span><input data-qfield="productType" value="${escapeHtml(vals.productType || itemKindLabel(kind))}" /></label>
+            <label><span>Product Type / 产品分类</span>${renderCategorySelect("productType", vals.productType || defaultCostCategory(kind))}</label>
             <label><span>Item Name / 项目名称</span><input data-qfield="itemName" value="${escapeHtml(vals.itemName || "")}" placeholder="例如：SANY 215C Sea Freight / 三一215C海运费" /></label>
             <label class="wide"><span>Route / 路线说明</span><input data-qfield="description" value="${escapeHtml(vals.description || "")}" placeholder="例如：Shanghai Port to Dar es Salaam Port / 上海港到达累斯萨拉姆港" /></label>
             <label><span>Quantity / 数量</span><input data-qfield="qty" type="number" value="${escapeHtml(vals.qty || "1")}" /></label>
@@ -1959,6 +2174,7 @@
   function renderFieldInput(field, value) {
     const key = escapeHtml(field.fieldKey);
     const val = escapeHtml(value);
+    if (field.fieldKey === "productType") return renderCategorySelect(field.fieldKey, value);
     if (field.fieldType === "textarea") return `<textarea data-qfield="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-qfield="${key}" type="date" value="${val}" />`;
     if (field.fieldType === "number" || field.fieldType === "money") return `<input data-qfield="${key}" type="number" value="${val}" />`;
@@ -1969,6 +2185,25 @@
       return `<select data-qfield="${key}">${options.map((option) => `<option value="${option}"${option === value ? " selected" : ""}>${option}</option>`).join("")}</select>`;
     }
     return `<input data-qfield="${key}" type="text" value="${val}" />`;
+  }
+
+  function defaultCostCategory(kind) {
+    if (kind === "freight") return categoryLabel(settings.categories.find((cat) => cat.id === "cat-sea-freight")) || itemKindLabel(kind);
+    if (kind === "trucking") return categoryLabel(settings.categories.find((cat) => cat.id === "cat-yard-to-port")) || itemKindLabel(kind);
+    return categoryLabel(settings.categories.find((cat) => cat.id === "cat-custom")) || itemKindLabel(kind);
+  }
+
+  function renderCategorySelect(fieldKey, value) {
+    normalizeCategories();
+    const key = escapeHtml(fieldKey);
+    const selected = value || categoryLabel(settings.categories.find((cat) => cat.visible !== false) || settings.categories[0]);
+    const options = settings.categories
+      .filter((cat) => cat.visible !== false)
+      .map((cat) => {
+        const val = categoryLabel(cat);
+        return `<option value="${escapeHtml(val)}"${val === selected ? " selected" : ""}>${escapeHtml(categoryFullLabel(cat))}</option>`;
+      }).join("");
+    return `<select data-qfield="${key}">${options}</select>`;
   }
 
   function renderTermInput(field, value) {
@@ -2218,6 +2453,18 @@
     </div>`;
   }
 
+  function renderBankPreview() {
+    normalizeBankFields();
+    const fields = settings.bankFields.filter((field) => field.visible && field.value);
+    if (!fields.length) return "";
+    return `<section class="preview-panel bank-panel">
+      <h3>Bank Payment Information / 银行收款信息</h3>
+      <div class="bank-grid">
+        ${fields.map((field) => `<p><b>${escapeHtml(field.labelEn)} / ${escapeHtml(field.labelZh)}:</b> ${escapeHtml(field.value)}</p>`).join("")}
+      </div>
+    </section>`;
+  }
+
   function renderPreview() {
     collectQuoteFromForm();
     const tpl = template();
@@ -2238,6 +2485,7 @@
       <section class="preview-panel"><h3>Quotation Items / 报价明细</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${visibleQuoteField("totalAmount") ? `<div class="preview-total">Total / 总金额：${money(total(), settings.currency)}</div>` : ""}</section>
       ${showProductPhotos && currentQuote.items.some(i => i.imageDataUrl) ? `<section class="preview-panel"><h3>Product Photos / 产品图片</h3><div class="photo-grid">${currentQuote.items.filter(i => i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>Terms / 条款</h3>${visibleTermFields.map((field) => `<p>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>Company Stamp / 公司公章</span></div>` : ""}</section>` : ""}
+      ${renderBankPreview()}
     `;
   }
 
@@ -2424,12 +2672,15 @@
       if (event.target.id === "clear-user-btn") clearUserForm();
       if (event.target.id === "add-term-field-proxy-btn") openFieldModal(-1, "terms");
       if (event.target.id === "add-contact-field-btn") addContactField();
+      if (event.target.id === "add-bank-field-btn") addBankField();
       if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
+      if (event.target.matches("[data-bank-action], [data-bank-visible]")) handleBankFieldAction(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
     });
     document.addEventListener("change", (event) => {
       if (event.target.matches("[data-contact-image]")) handleContactImageChange(event);
       if (event.target.matches("#contact-field-list input, #contact-field-list select")) collectContactFields();
+      if (event.target.matches("#bank-field-list input, #bank-field-list textarea")) collectBankFields();
     });
   }
 
