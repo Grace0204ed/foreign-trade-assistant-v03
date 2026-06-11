@@ -11,12 +11,19 @@
       <aside class="sidebar no-print">
         <h1>报价助手 V0.1</h1>
         <p>本地报价系统</p>
+        <button id="sidebar-toggle-btn" class="sidebar-toggle" type="button">隐藏侧边栏</button>
         <div id="login-box" class="login-box">
           <input id="login-username" placeholder="Username / 用户名" />
           <input id="login-password" placeholder="Password / 密码" type="password" />
           <button id="login-btn" class="primary" type="button">Login / 登录</button>
-          <button id="logout-btn" type="button" hidden>Logout / 退出</button>
           <small id="login-status">Not logged in / 未登录</small>
+        </div>
+        <div id="user-info-box" class="user-info-box" hidden>
+          <small>Current User / 当前用户</small>
+          <b id="user-info-name">-</b>
+          <span id="user-info-id">ID: -</span>
+          <span id="user-info-role">Role / 权限编号: -</span>
+          <button id="logout-btn" type="button">Logout / 退出</button>
         </div>
         <nav>
           <button class="nav-btn active" data-view="home">Home / 首页</button>
@@ -24,7 +31,7 @@
           <button class="nav-btn" data-view="history">History / 历史报价</button>
           <button class="nav-btn" data-view="products">Products / 产品库</button>
           <button class="nav-btn" data-view="freight">Freight Center / 运费中心</button>
-          <button class="nav-btn" data-view="settings">Settings / 设置中心</button>
+          <button class="nav-btn" data-view="settings">Settings / 设置</button>
         </nav>
       </aside>
 
@@ -39,16 +46,21 @@
             <button class="entry-card" data-view-target="history"><b>历史报价</b><span>搜索、编辑、复制、删除、重新导出报价单</span></button>
             <button class="entry-card" data-view-target="products"><b>产品库</b><span>维护常用产品资料、分类和常用图片</span></button>
             <button class="entry-card" data-view-target="freight"><b>运费中心</b><span>港口库、运费库、运费查询、导入报价</span></button>
-            <button class="entry-card" data-view-target="settings"><b>设置中心</b><span>公司资料、Logo、背景图、报价字段模板</span></button>
+            <button class="entry-card" data-view-target="settings"><b>设置</b><span>公司资料、Logo、背景图、报价字段模板</span></button>
           </div>
         </section>
 
         <section id="view-settings" class="view no-print">
           <header class="page-head">
-            <h2>设置中心</h2>
+            <h2>设置</h2>
             <p>设置会保存在本机浏览器，不需要联网。</p>
           </header>
-          <div class="panel">
+          <div class="settings-tabs">
+            <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
+            <button class="settings-tab" data-settings-section="quote-fields" type="button">报价分类设置</button>
+            <button class="settings-tab" data-settings-section="terms" type="button">报价条款设置</button>
+          </div>
+          <div class="panel" data-settings-panel="company">
             <h3>公司与联系人信息</h3>
             <div class="form-grid">
               <label><span>英文公司名</span><input data-setting="companyNameEn" /></label>
@@ -64,7 +76,7 @@
             </div>
           </div>
 
-          <div class="panel">
+          <div class="panel" data-settings-panel="company">
             <h3>Logo、背景图与样式</h3>
             <div class="asset-row">
               <div>
@@ -95,7 +107,7 @@
             </div>
           </div>
 
-          <div class="panel">
+          <div class="panel" data-settings-panel="quote-fields">
             <h3>产品分类与报价字段模板</h3>
             <div class="category-manager">
               <div class="actions">

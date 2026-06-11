@@ -11,6 +11,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -46,11 +47,44 @@ button:hover, .file-btn:hover { border-color: var(--primary); color: var(--prima
   display: grid;
   grid-template-columns: 250px 1fr;
 }
+.sidebar-collapsed .app-shell {
+  grid-template-columns: 0 1fr;
+}
 
 .sidebar {
   padding: 18px 14px;
   background: #0f2240;
   color: #dce8f7;
+  overflow: hidden;
+}
+.sidebar-collapsed .sidebar {
+  width: 0;
+  padding: 0;
+}
+.sidebar-toggle {
+  width: 100%;
+  margin: 12px 0 4px;
+  min-height: 32px;
+  border-color: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  color: #dce8f7;
+}
+.sidebar-collapsed .sidebar-toggle {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 70;
+  width: auto;
+  padding: 0 12px;
+  background: #0f2240;
+  border-color: #0f2240;
+  color: #fff;
+}
+.sidebar-collapsed .sidebar > :not(.sidebar-toggle) {
+  display: none !important;
+}
+.sidebar-collapsed .main {
+  padding-left: 58px;
 }
 
 .sidebar h1 { margin: 0; font-size: 24px; }
@@ -61,6 +95,19 @@ button:hover, .file-btn:hover { border-color: var(--primary); color: var(--prima
   gap: 6px;
   margin: 14px 0;
 }
+.user-info-box {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 18px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 8px;
+  background: rgba(255,255,255,.08);
+}
+.user-info-box small { color: #b8c7db; }
+.user-info-box b { color: #fff; font-size: 16px; }
+.user-info-box span { color: #dce8f7; font-size: 12px; line-height: 1.35; word-break: break-all; }
+.user-info-box button { width: 100%; min-height: 32px; }
 .login-box input {
   min-height: 34px;
   background: rgba(255,255,255,.08);
@@ -177,6 +224,23 @@ body:not(.is-admin) .admin-only { display: none !important; }
   margin-bottom: 12px;
 }
 .panel h3 { margin: 0 0 12px; font-size: 18px; }
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+.settings-tab {
+  min-height: 36px;
+  background: #fff;
+}
+.settings-tab.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
 
 .form-grid, .filter-grid {
   display: grid;

@@ -2,7 +2,9 @@
   const keys = {
     settings: "quote_assistant_v01_settings",
     products: "quote_assistant_v01_products",
-    quotes: "quote_assistant_v01_quotes"
+    quotes: "quote_assistant_v01_quotes",
+    sidebarCollapsed: "quote_assistant_sidebar_collapsed",
+    settingsSection: "quote_assistant_settings_section"
   };
   const defaultBg = "./assets/company-background.png";
   const defaultTermFields = [
@@ -99,6 +101,7 @@
   let editingPortId = "";
   let editingFreightId = "";
   let lastFreightCalculation = null;
+  let activeSettingsSection = localStorage.getItem(keys.settingsSection) || "company";
 
   const $ = (id) => document.getElementById(id);
 
@@ -214,8 +217,13 @@
   function renderLogin() {
     $("login-status").textContent = currentUser ? `${currentUser.username} / ${currentUser.role}` : "Not logged in / 未登录";
     $("login-btn").hidden = !!currentUser;
-    $("logout-btn").hidden = !currentUser;
     $("login-box").hidden = !!currentUser;
+    $("user-info-box").hidden = !currentUser;
+    if (currentUser) {
+      $("user-info-name").textContent = currentUser.username || "-";
+      $("user-info-id").textContent = `ID: ${currentUser.id || "-"}`;
+      $("user-info-role").textContent = `Role / 权限编号: ${currentUser.role || "user"}`;
+    }
   }
 
   function applyAuthLock() {
@@ -276,6 +284,31 @@
 
   function tradeDescription(value) {
     return tradeTermOptions.find((option) => option.value === value)?.desc || "";
+  }
+
+  function applySidebarState() {
+    const collapsed = localStorage.getItem(keys.sidebarCollapsed) === "true";
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    if ($("sidebar-toggle-btn")) {
+      $("sidebar-toggle-btn").textContent = collapsed ? "显示侧边栏" : "隐藏侧边栏";
+    }
+  }
+
+  function toggleSidebar() {
+    const collapsed = !document.body.classList.contains("sidebar-collapsed");
+    localStorage.setItem(keys.sidebarCollapsed, collapsed ? "true" : "false");
+    applySidebarState();
+  }
+
+  function showSettingsSection(section) {
+    activeSettingsSection = section || "company";
+    localStorage.setItem(keys.settingsSection, activeSettingsSection);
+    document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.settingsPanel !== activeSettingsSection;
+    });
+    document.querySelectorAll(".settings-tab").forEach((tab) => {
+      tab.classList.toggle("active", tab.dataset.settingsSection === activeSettingsSection);
+    });
   }
 
   function normalize(text) {
@@ -408,6 +441,7 @@
   function renderSettings() {
     ensureUserManagerPanel();
     ensureContactFieldsPanel();
+    ensureTermsSettingsPanel();
     normalizeContactFields();
     normalizeTemplates();
     normalizeCategories();
@@ -424,6 +458,7 @@
     $("stamp-preview").hidden = !settings.stampDataUrl;
     renderContactFields();
     renderUsers();
+    showSettingsSection(activeSettingsSection);
   }
 
   function normalizeContactFields() {
@@ -453,6 +488,7 @@
     const panel = document.createElement("div");
     panel.id = "contact-fields-panel";
     panel.className = "panel";
+    panel.dataset.settingsPanel = "company";
     panel.innerHTML = `
       <div class="row-head">
         <div>
@@ -575,6 +611,7 @@
     const section = document.createElement("div");
     section.id = "user-manager-panel";
     section.className = "panel admin-only";
+    section.dataset.settingsPanel = "company";
     section.innerHTML = `
       <div class="row-head">
         <div>
@@ -611,6 +648,28 @@
     `;
     const sticky = document.querySelector(".sticky-actions");
     sticky?.before(section);
+  }
+
+  function ensureTermsSettingsPanel() {
+    if ($("terms-settings-panel")) return;
+    const panel = document.createElement("div");
+    panel.id = "terms-settings-panel";
+    panel.className = "panel";
+    panel.dataset.settingsPanel = "terms";
+    panel.innerHTML = `
+      <div class="row-head">
+        <div>
+          <h3>报价条款设置</h3>
+          <p class="hint">维护付款方式、贸易方式、交货时间、售后、质保等条款字段。</p>
+        </div>
+        <button id="add-term-field-proxy-btn" class="primary" type="button">新增条款字段</button>
+      </div>
+      <div id="terms-field-host"></div>
+    `;
+    const sticky = document.querySelector(".sticky-actions");
+    sticky?.before(panel);
+    const termManager = $("template-term-field-list")?.closest(".field-manager");
+    if (termManager) $("terms-field-host").appendChild(termManager);
   }
 
   function updateAdminControls() {
@@ -1887,7 +1946,15 @@
   function previewDescription(item) {
     const values = item.values || {};
     if ((item.kind || "product") !== "product") return values.description || values.itemName || itemKindLabel(item.kind);
-    return [values.productType, values.brand, values.model, values.year].filter(Boolean).join(" ");
+    const tpl = quoteTemplate(currentQuote);
+    const skip = new Set(["qty", "unitPrice", "currency", "totalAmount", "productImage", "freight", "truckingToPort", "remark"]);
+    const parts = (tpl.fields || [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .filter((field) => field.visible && !skip.has(field.fieldKey) && field.fieldType !== "image" && field.fieldType !== "calculated")
+      .map((field) => values[field.fieldKey] ? `${field.en || field.zh}: ${values[field.fieldKey]}` : "")
+      .filter(Boolean);
+    return parts.length ? parts.join(" | ") : [values.productType, values.brand, values.model, values.year].filter(Boolean).join(" ");
   }
 
   function previewRemark(item) {
@@ -2053,6 +2120,10 @@
     document.querySelectorAll("[data-view-target]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.viewTarget)));
     $("login-btn").addEventListener("click", () => login($("login-username").value.trim(), $("login-password").value));
     $("logout-btn").addEventListener("click", logout);
+    $("sidebar-toggle-btn").addEventListener("click", toggleSidebar);
+    document.querySelectorAll(".settings-tab").forEach((button) => {
+      button.addEventListener("click", () => showSettingsSection(button.dataset.settingsSection));
+    });
     $("template-select").addEventListener("change", () => fillTemplateForm());
     $("save-template-btn").addEventListener("click", saveTemplate);
     $("delete-template-btn").addEventListener("click", deleteTemplate);
@@ -2130,6 +2201,7 @@
     document.addEventListener("click", (event) => {
       if (event.target.id === "save-user-btn") saveUser();
       if (event.target.id === "clear-user-btn") clearUserForm();
+      if (event.target.id === "add-term-field-proxy-btn") openFieldModal(-1, "terms");
       if (event.target.id === "add-contact-field-btn") addContactField();
       if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
@@ -2144,6 +2216,7 @@
     $("login-username").value = "";
     $("login-password").value = "";
     bindEvents();
+    applySidebarState();
     migrateDefaultCostFields();
     renderAllSelectors();
     renderSettings();
