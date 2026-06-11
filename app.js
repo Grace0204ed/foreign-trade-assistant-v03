@@ -74,12 +74,22 @@
       { id: "contact-wechat", labelEn: "WeChat", labelZh: "微信", type: "text", value: "", visible: true, sortOrder: 40 }
     ],
     bankFields: [
-      { id: "bank-beneficiary", labelEn: "Beneficiary Name", labelZh: "收款人名称", value: "Hefei Jinwanwa International Trade Co., Ltd.", visible: true, sortOrder: 10 },
-      { id: "bank-name", labelEn: "Bank Name", labelZh: "银行名称", value: "", visible: true, sortOrder: 20 },
-      { id: "bank-account", labelEn: "Account Number", labelZh: "银行账号", value: "", visible: true, sortOrder: 30 },
-      { id: "bank-swift", labelEn: "SWIFT/BIC Code", labelZh: "SWIFT/BIC 代码", value: "", visible: true, sortOrder: 40 },
-      { id: "bank-address", labelEn: "Bank Address", labelZh: "银行地址", value: "", visible: true, sortOrder: 50 },
-      { id: "bank-note", labelEn: "Payment Note", labelZh: "付款备注", value: "Please include buyer name, invoice number and product name in the payment note.", visible: true, sortOrder: 60 }
+      { id: "bank-transfer-title", labelEn: "Payment Terms", labelZh: "付款条款", value: "T/T 100%", visible: true, sortOrder: 10 },
+      { id: "bank-pay-to", labelEn: "Please make a SWIFT(T/T) Payment of", labelZh: "请通过 SWIFT(T/T) 付款至", value: "", visible: true, sortOrder: 20 },
+      { id: "bank-account-number", labelEn: "Account Number", labelZh: "银行账号", value: "79969931082731", visible: true, sortOrder: 30 },
+      { id: "bank-account-name", labelEn: "Account Name", labelZh: "账户名称", value: "Hefei Jinwanwa International Trade Co., Ltd.", visible: true, sortOrder: 40 },
+      { id: "bank-name", labelEn: "Bank Name", labelZh: "银行名称", value: "DBS Bank (Hong Kong) Limited", visible: true, sortOrder: 50 },
+      { id: "bank-swift", labelEn: "SWIFT/BIC Code", labelZh: "SWIFT/BIC 代码", value: "DHBKHKHH (DHBKHKHHXXX for 11-character requirement)", visible: true, sortOrder: 60 },
+      { id: "bank-branch", labelEn: "Branch Code", labelZh: "分行代码", value: "478", visible: true, sortOrder: 70 },
+      { id: "bank-address", labelEn: "Bank Address", labelZh: "银行地址", value: "11th Floor, The Center, 99 Queen's Road Central, Central, Hong Kong", visible: true, sortOrder: 80 },
+      { id: "bank-country", labelEn: "Country/Region", labelZh: "国家/地区", value: "Hong Kong (China)", visible: true, sortOrder: 90 },
+      { id: "bank-account-type", labelEn: "Account Type", labelZh: "账户类型", value: "Business Account", visible: true, sortOrder: 100 },
+      { id: "bank-payment-method", labelEn: "Payment Method Notes", labelZh: "付款方式备注", value: "For the payment of goods, please make a SWIFT(T/T) or CHATS(HK Local Payment) payment.", visible: true, sortOrder: 110 },
+      { id: "bank-note", labelEn: "Notes", labelZh: "备注", value: "Please include [Buyer's Name, Invoice/Contract Number, and Product Name] in the memo or note section when making the payment. The deposit is non-refundable.", visible: true, sortOrder: 120 }
+    ],
+    paymentQrFields: [
+      { id: "qr-wechat-pay", labelEn: "WeChat Pay QR Code", labelZh: "微信收款码", value: "", visible: true, sortOrder: 10 },
+      { id: "qr-alipay", labelEn: "Alipay QR Code", labelZh: "支付宝收款码", value: "", visible: true, sortOrder: 20 }
     ],
     quoteStyle: "business",
     currencies: ["USD", "EUR", "GBP", "CNY", "RUB", "AED", "SAR", "JPY", "AUD", "CAD"],
@@ -636,6 +646,7 @@
     ensureTermsSettingsPanel();
     normalizeContactFields();
     normalizeBankFields();
+    normalizePaymentQrFields();
     normalizeCurrencies();
     normalizeTemplates();
     normalizeCategories();
@@ -644,6 +655,7 @@
     });
     renderCategoryList();
     renderBankFields();
+    renderPaymentQrFields();
     renderCurrencies();
     renderTemplateSelect();
     fillTemplateForm(settings.templates[0]?.name);
@@ -693,11 +705,26 @@
   function normalizeBankFields() {
     const existing = Array.isArray(settings.bankFields) ? settings.bankFields : [];
     const fallback = defaultSettings.bankFields || [];
-    const merged = existing.length ? existing : fallback;
+    const looksLikeOldDefault = existing.length && existing.some((field) => field.id === "bank-beneficiary") && !existing.some((field) => field.id === "bank-account-number");
+    const merged = existing.length && !looksLikeOldDefault ? existing : fallback;
     settings.bankFields = merged.map((field, index) => ({
       id: field.id || uid("bank"),
       labelEn: field.labelEn || "Bank Field",
       labelZh: field.labelZh || "银行字段",
+      value: field.value || "",
+      visible: field.visible !== false,
+      sortOrder: Number(field.sortOrder || (index + 1) * 10)
+    })).sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  function normalizePaymentQrFields() {
+    const existing = Array.isArray(settings.paymentQrFields) ? settings.paymentQrFields : [];
+    const fallback = defaultSettings.paymentQrFields || [];
+    const merged = existing.length ? existing : fallback;
+    settings.paymentQrFields = merged.map((field, index) => ({
+      id: field.id || uid("qr"),
+      labelEn: field.labelEn || "Payment QR Code",
+      labelZh: field.labelZh || "收款码",
       value: field.value || "",
       visible: field.visible !== false,
       sortOrder: Number(field.sortOrder || (index + 1) * 10)
@@ -775,8 +802,94 @@
         </thead>
         <tbody id="bank-field-list"></tbody>
       </table>
+      <div class="row-head sub-row-head">
+        <div>
+          <h4>Payment QR Codes / 收款码</h4>
+          <p class="hint">Upload, replace or delete WeChat Pay and Alipay QR codes. / 可上传、替换或删除微信、支付宝收款码。</p>
+        </div>
+      </div>
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>Sort / 排序</th>
+            <th>English / 英文</th>
+            <th>中文</th>
+            <th>QR Code / 收款码</th>
+            <th>Show / 显示</th>
+            <th>Actions / 操作</th>
+          </tr>
+        </thead>
+        <tbody id="payment-qr-list"></tbody>
+      </table>
     `;
     $("contact-fields-panel")?.after(panel);
+  }
+
+  function renderPaymentQrFields() {
+    if (!$("payment-qr-list")) return;
+    normalizePaymentQrFields();
+    $("payment-qr-list").innerHTML = settings.paymentQrFields.map((field, index) => `
+      <tr data-qr-index="${index}">
+        <td><span class="drag-handle">::</span>${index + 1}</td>
+        <td><input data-qr-prop="labelEn" value="${escapeHtml(field.labelEn)}" /></td>
+        <td><input data-qr-prop="labelZh" value="${escapeHtml(field.labelZh)}" /></td>
+        <td>
+          <label class="file-btn">Upload / 上传<input data-qr-image="${index}" type="file" accept="image/*" /></label>
+          ${field.value ? `<button data-qr-action="clear" type="button">Delete Image / 删除图片</button><img class="contact-thumb" src="${field.value}" alt="">` : ""}
+        </td>
+        <td><input data-qr-visible type="checkbox"${field.visible ? " checked" : ""} /></td>
+        <td class="field-actions">
+          <button data-qr-action="up" type="button">Up / 上移</button>
+          <button data-qr-action="down" type="button">Down / 下移</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function collectPaymentQrFields() {
+    if (!$("payment-qr-list")) return;
+    const rows = Array.from(document.querySelectorAll("#payment-qr-list tr[data-qr-index]"));
+    rows.forEach((row, rowIndex) => {
+      const field = settings.paymentQrFields[Number(row.dataset.qrIndex)];
+      row.querySelectorAll("[data-qr-prop]").forEach((input) => {
+        field[input.dataset.qrProp] = input.value;
+      });
+      field.visible = !!row.querySelector("[data-qr-visible]")?.checked;
+      field.sortOrder = (rowIndex + 1) * 10;
+    });
+  }
+
+  async function handlePaymentQrImageChange(event) {
+    const input = event.target.closest("[data-qr-image]");
+    if (!input) return;
+    const index = Number(input.dataset.qrImage);
+    collectSettingsDraft();
+    settings.paymentQrFields[index].value = await fileToDataUrl(input.files[0]);
+    input.value = "";
+    renderPaymentQrFields();
+  }
+
+  function handlePaymentQrAction(event) {
+    const row = event.target.closest("tr[data-qr-index]");
+    if (!row) return;
+    collectPaymentQrFields();
+    const index = Number(row.dataset.qrIndex);
+    const action = event.target.dataset.qrAction;
+    if (event.target.matches("[data-qr-visible]")) {
+      settings.paymentQrFields[index].visible = event.target.checked;
+      return;
+    }
+    if (action === "clear") {
+      settings.paymentQrFields[index].value = "";
+    }
+    if (action === "up" && index > 0) {
+      [settings.paymentQrFields[index - 1], settings.paymentQrFields[index]] = [settings.paymentQrFields[index], settings.paymentQrFields[index - 1]];
+    }
+    if (action === "down" && index < settings.paymentQrFields.length - 1) {
+      [settings.paymentQrFields[index + 1], settings.paymentQrFields[index]] = [settings.paymentQrFields[index], settings.paymentQrFields[index + 1]];
+    }
+    settings.paymentQrFields.forEach((field, i) => field.sortOrder = (i + 1) * 10);
+    renderPaymentQrFields();
   }
 
   function renderBankFields() {
@@ -864,7 +977,7 @@
         </td>
         <td>
           ${field.type === "image"
-            ? `<label class="file-btn">Upload / 上传<input data-contact-image="${index}" type="file" accept="image/*" /></label>${field.value ? `<img class="contact-thumb" src="${field.value}" alt="">` : ""}`
+            ? `<label class="file-btn">Upload / 上传<input data-contact-image="${index}" type="file" accept="image/*" /></label>${field.value ? `<button data-contact-action="clear-image" type="button">Delete Image / 删除图片</button><img class="contact-thumb" src="${field.value}" alt="">` : ""}`
             : `<input data-contact-prop="value" value="${escapeHtml(field.value)}" />`}
         </td>
         <td><input data-contact-visible type="checkbox"${field.visible ? " checked" : ""} /></td>
@@ -915,6 +1028,11 @@
       return;
     }
     if (event.target.matches("[data-contact-image]")) return;
+    if (action === "clear-image") {
+      settings.contactFields[index].value = "";
+      renderContactFields();
+      return;
+    }
     if (action === "delete") {
       if (!confirm("Delete this contact field? / 确认删除这个联系方式字段吗？")) return;
       settings.contactFields.splice(index, 1);
@@ -1487,6 +1605,7 @@
   function collectSettingsDraft() {
     collectContactFields();
     collectBankFields();
+    collectPaymentQrFields();
     document.querySelectorAll("[data-setting]").forEach((input) => {
       settings[input.dataset.setting] = input.value.trim();
     });
@@ -1580,10 +1699,10 @@
 
   function renderFreightSelectors() {
     const originOptions = `<option value="">Origin Port / 起运港</option>` + ports
-      .filter((p) => p.isOriginPort)
+      .filter(isChinaOriginPort)
       .map((p) => `<option value="${p.id}">${escapeHtml(portOptionLabel(p))}</option>`)
       .join("");
-    const destinationOptions = `<option value="">Destination Port / 目的港</option>` + groupedPortOptions(ports.filter((p) => p.isDestinationPort));
+    const destinationOptions = `<option value="">Destination Port / 目的港</option>` + groupedPortOptions(ports.filter(isWorldDestinationPort));
     ["freight-origin", "calc-origin"].forEach((id) => {
       const el = $(id);
       if (el) el.innerHTML = originOptions;
@@ -1615,6 +1734,14 @@
 
   function displayPort(port) {
     return port ? portOptionLabel(port) : "";
+  }
+
+  function isChinaOriginPort(port) {
+    return port?.isOriginPort && ["China", "Hong Kong", "Macau", "Taiwan"].includes(port.countryName);
+  }
+
+  function isWorldDestinationPort(port) {
+    return port?.isDestinationPort && !["China", "Hong Kong", "Macau", "Taiwan"].includes(port.countryName);
   }
 
   function portOptionLabel(port) {
@@ -2354,7 +2481,7 @@
     if (["originPort", "port", "destinationPort"].includes(field.fieldKey)) {
       const originOnly = field.fieldKey === "originPort";
       const listId = `${key}-options`;
-      const sourcePorts = ports.filter((port) => originOnly ? port.isOriginPort : port.isDestinationPort);
+      const sourcePorts = ports.filter((port) => originOnly ? isChinaOriginPort(port) : isWorldDestinationPort(port));
       const datalistOptions = sourcePorts.map((port) => `<option value="${escapeHtml(portOptionLabel(port))}"></option>`).join("");
       const placeholder = originOnly ? "Shanghai Port / 上海港" : "Dar es Salaam Port / 达累斯萨拉姆港";
       return `
@@ -2575,13 +2702,16 @@
 
   function renderBankPreview() {
     normalizeBankFields();
+    normalizePaymentQrFields();
     const fields = settings.bankFields.filter((field) => field.visible && field.value);
-    if (!fields.length) return "";
+    const qrFields = settings.paymentQrFields.filter((field) => field.visible && field.value);
+    if (!fields.length && !qrFields.length) return "";
     return `<section class="preview-panel bank-panel">
       <h3>${labelText("Bank Payment Information", "银行收款信息")}</h3>
-      <div class="bank-grid">
+      ${fields.length ? `<div class="bank-grid">
         ${fields.map((field) => `<p><b>${labelText(field.labelEn, field.labelZh)}:</b> ${escapeHtml(field.value)}</p>`).join("")}
-      </div>
+      </div>` : ""}
+      ${qrFields.length ? `<div class="payment-qr-grid">${qrFields.map((field) => `<figure><img src="${field.value}" alt=""><figcaption>${labelText(field.labelEn, field.labelZh)}</figcaption></figure>`).join("")}</div>` : ""}
     </section>`;
   }
 
@@ -2801,13 +2931,19 @@
       if (event.target.id === "add-currency-btn") addCurrency();
       if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
       if (event.target.matches("[data-bank-action], [data-bank-visible]")) handleBankFieldAction(event);
+      if (event.target.matches("[data-qr-action], [data-qr-visible]")) handlePaymentQrAction(event);
       if (event.target.matches("[data-currency-action]")) handleCurrencyAction(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
     });
     document.addEventListener("change", (event) => {
       if (event.target.matches("[data-contact-image]")) handleContactImageChange(event);
-      if (event.target.matches("#contact-field-list input, #contact-field-list select")) collectContactFields();
+      if (event.target.matches("[data-qr-image]")) handlePaymentQrImageChange(event);
+      if (event.target.matches("#contact-field-list input, #contact-field-list select")) {
+        collectContactFields();
+        if (event.target.matches("[data-contact-prop='type']")) renderContactFields();
+      }
       if (event.target.matches("#bank-field-list input, #bank-field-list textarea")) collectBankFields();
+      if (event.target.matches("#payment-qr-list input")) collectPaymentQrFields();
     });
   }
 
