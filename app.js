@@ -610,6 +610,7 @@
     const input = event.target.closest("[data-contact-image]");
     if (!input) return;
     const index = Number(input.dataset.contactImage);
+    collectSettingsDraft();
     settings.contactFields[index].value = await fileToDataUrl(input.files[0]);
     settings.contactFields[index].type = "image";
     renderContactFields();
@@ -1057,10 +1058,7 @@
   function saveSettings() {
     normalizeTemplates();
     normalizeCategories();
-    collectContactFields();
-    document.querySelectorAll("[data-setting]").forEach((input) => {
-      settings[input.dataset.setting] = input.value.trim();
-    });
+    collectSettingsDraft();
     const phone = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("phone") || field.labelZh.includes("电话"));
     const email = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("email") || field.labelZh.includes("邮箱"));
     if (phone?.type === "text") settings.companyPhone = phone.value || settings.companyPhone || "";
@@ -1069,6 +1067,13 @@
     renderAllSelectors();
     renderCategoryList();
     toast("设置已保存。");
+  }
+
+  function collectSettingsDraft() {
+    collectContactFields();
+    document.querySelectorAll("[data-setting]").forEach((input) => {
+      settings[input.dataset.setting] = input.value.trim();
+    });
   }
 
   function saveTemplate() {
@@ -2185,12 +2190,12 @@
     $("export-data-btn").addEventListener("click", exportAllData);
     $("import-data-btn").addEventListener("click", importData);
     $("open-data-dir-btn").addEventListener("click", openDataFolder);
-    $("logo-input").addEventListener("change", async e => { settings.logoDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
-    $("background-input").addEventListener("change", async e => { settings.backgroundDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
-    $("stamp-input").addEventListener("change", async e => { settings.stampDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
-    $("remove-logo-btn").addEventListener("click", () => { settings.logoDataUrl = ""; renderSettings(); });
-    $("reset-background-btn").addEventListener("click", () => { settings.backgroundDataUrl = ""; renderSettings(); });
-    $("remove-stamp-btn").addEventListener("click", () => { settings.stampDataUrl = ""; renderSettings(); });
+    $("logo-input").addEventListener("change", async e => { collectSettingsDraft(); settings.logoDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
+    $("background-input").addEventListener("change", async e => { collectSettingsDraft(); settings.backgroundDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
+    $("stamp-input").addEventListener("change", async e => { collectSettingsDraft(); settings.stampDataUrl = await fileToDataUrl(e.target.files[0]); renderSettings(); });
+    $("remove-logo-btn").addEventListener("click", () => { collectSettingsDraft(); settings.logoDataUrl = ""; renderSettings(); });
+    $("reset-background-btn").addEventListener("click", () => { collectSettingsDraft(); settings.backgroundDataUrl = ""; renderSettings(); });
+    $("remove-stamp-btn").addEventListener("click", () => { collectSettingsDraft(); settings.stampDataUrl = ""; renderSettings(); });
     $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; });
     $("save-product-btn").addEventListener("click", saveProduct);
     $("clear-product-btn").addEventListener("click", clearProductForm);
