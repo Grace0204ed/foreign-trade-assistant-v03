@@ -276,7 +276,6 @@
               <h3>报价基础信息</h3>
               <div class="form-grid">
                 <label><span>报价类型</span><select id="quote-template"></select></label>
-                <label><span>报价状态</span><select id="quote-status"><option>草稿</option><option>已发送</option><option>跟进中</option><option>已成交</option><option>已失败</option></select></label>
                 <label><span>报价编号</span><input id="quote-number" /></label>
                 <label><span>报价日期</span><input id="quote-date" type="date" /></label>
                 <label><span>报价有效期</span><input id="valid-until" type="date" /></label>
@@ -299,7 +298,7 @@
                     <option value="product">新增产品</option>
                     <option value="freight">新增海运费</option>
                     <option value="trucking">新增陆路运输费</option>
-                    <option value="custom">新增空白列</option>
+                    <option value="custom">新增自定义行</option>
                   </select>
                   <button id="add-quote-item-btn" type="button">新增</button>
                 </div>
@@ -325,7 +324,6 @@
             <div class="filter-grid">
               <input id="history-keyword" placeholder="客户 / 国家 / 产品" />
               <input id="history-date" type="date" />
-              <select id="history-status"><option value="">全部状态</option><option>草稿</option><option>已发送</option><option>跟进中</option><option>已成交</option><option>已失败</option></select>
               <button id="history-search-btn" type="button">搜索筛选</button>
             </div>
           </div>

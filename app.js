@@ -208,6 +208,40 @@
     ["Malaysia", "马来西亚"], ["Singapore", "新加坡"], ["Indonesia", "印度尼西亚"], ["Philippines", "菲律宾"], ["Australia", "澳大利亚"],
     ["New Zealand", "新西兰"], ["China", "中国"]
   ];
+  const countryDialCodes = {
+    zambia: "+260",
+    赞比亚: "+260",
+    tanzania: "+255",
+    坦桑尼亚: "+255",
+    zimbabwe: "+263",
+    津巴布韦: "+263",
+    kenya: "+254",
+    肯尼亚: "+254",
+    nigeria: "+234",
+    尼日利亚: "+234",
+    ghana: "+233",
+    加纳: "+233",
+    mozambique: "+258",
+    莫桑比克: "+258",
+    "southafrica": "+27",
+    南非: "+27",
+    uganda: "+256",
+    乌干达: "+256",
+    rwanda: "+250",
+    卢旺达: "+250",
+    burundi: "+257",
+    布隆迪: "+257",
+    malawi: "+265",
+    马拉维: "+265",
+    ethiopia: "+251",
+    埃塞俄比亚: "+251",
+    cameroon: "+237",
+    喀麦隆: "+237",
+    senegal: "+221",
+    塞内加尔: "+221",
+    angola: "+244",
+    安哥拉: "+244"
+  };
 
   const $ = (id) => document.getElementById(id);
 
@@ -1732,6 +1766,34 @@
     }
   }
 
+  function dialCodeForCountry(value) {
+    const normalized = normalize(value);
+    if (!normalized) return "";
+    const direct = countryDialCodes[normalized] || countryDialCodes[String(value || "").trim().toLowerCase()];
+    if (direct) return direct;
+    const option = countryOptions.find(([en, zh]) => normalized.includes(normalize(en)) || normalized.includes(normalize(zh)));
+    if (!option) return "";
+    return countryDialCodes[normalize(option[0])] || countryDialCodes[normalize(option[1])] || "";
+  }
+
+  function applyBuyerCountryDialCode() {
+    const phone = $("buyer-phone");
+    if (!phone || phone.value.trim()) return;
+    const code = dialCodeForCountry($("buyer-country")?.value || "");
+    if (code) phone.value = `${code} `;
+  }
+
+  function pastePlainTextIntoInput(event) {
+    const input = event.target;
+    const text = event.clipboardData?.getData("text/plain");
+    if (!text) return;
+    event.preventDefault();
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.setRangeText(text, start, end, "end");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
   function displayPort(port) {
     return port ? portOptionLabel(port) : "";
   }
@@ -2312,7 +2374,7 @@
 
   function bindQuoteToForm() {
     $("quote-template").value = currentQuote.templateName || settings.templates[0]?.name || "";
-    $("quote-status").value = currentQuote.status || "草稿";
+    if ($("quote-status")) $("quote-status").value = currentQuote.status || "普通报价";
     $("quote-number").value = currentQuote.quoteNumber || "";
     $("quote-date").value = currentQuote.quoteDate || today();
     $("valid-until").value = currentQuote.validUntil || addDays(7);
@@ -2343,7 +2405,7 @@
 
   function collectQuoteFromForm() {
     currentQuote.templateName = $("quote-template").value;
-    currentQuote.status = $("quote-status").value;
+    currentQuote.status = $("quote-status")?.value || "普通报价";
     currentQuote.quoteNumber = $("quote-number").value;
     currentQuote.quoteDate = $("quote-date").value;
     currentQuote.validUntil = $("valid-until").value;
@@ -2373,7 +2435,7 @@
       product: "Product Price / 产品价格",
       freight: "Sea Freight / 海运费",
       trucking: "Inland Trucking / 陆路运输费",
-      custom: "Custom Item / 自定义费用"
+      custom: "Custom Row / 自定义行"
     };
     return map[kind || "product"] || map.product;
   }
@@ -2383,6 +2445,28 @@
     const id = item.id || uid("item");
     const kind = item.kind || "product";
     const vals = item.values || {};
+    if (kind === "custom") {
+      return `
+        <article class="quote-item panel cost-item" data-id="${id}" data-kind="custom">
+          <div class="row-head">
+            <h3>${escapeHtml(vals.productType || "Custom Item / 自定义行")}</h3>
+            <span class="manual-badge">Manual Input / 手动输入</span>
+          </div>
+          <div class="quote-item-grid">
+            <label><span>Product Type / 产品类型</span><input data-qfield="productType" value="${escapeHtml(vals.productType || "")}" placeholder="例如：Brand New TLB / 全新未使用TLB" /></label>
+            <label><span>Brand / 品牌</span><input data-qfield="brand" value="${escapeHtml(vals.brand || "")}" /></label>
+            <label><span>Model / 型号</span><input data-qfield="model" value="${escapeHtml(vals.model || "")}" /></label>
+            <label><span>Year / 年份</span><input data-qfield="year" value="${escapeHtml(vals.year || "")}" /></label>
+            <label><span>Working Hours / 工时</span><input data-qfield="hours" value="${escapeHtml(vals.hours || "")}" /></label>
+            <label><span>Quantity / 数量</span><input data-qfield="qty" type="number" value="${escapeHtml(vals.qty || "1")}" /></label>
+            <label><span>Unit Price / 单价</span><input data-qfield="unitPrice" type="number" value="${escapeHtml(vals.unitPrice || "")}" /></label>
+            <label><span>Currency / 货币</span>${renderCurrencySelect("currency", vals.currency || settings.currency)}</label>
+            <label class="wide"><span>Remark / 备注</span><textarea data-qfield="remark">${escapeHtml(vals.remark || "")}</textarea></label>
+          </div>
+          <div class="actions"><button class="remove-quote-item" type="button">Delete / 删除本项</button></div>
+        </article>
+      `;
+    }
     if (kind !== "product") {
       return `
         <article class="quote-item panel cost-item" data-id="${id}" data-kind="${kind}">
@@ -2516,7 +2600,7 @@
     const defaults = {
       freight: { productType: "海运费", itemName: "Sea Freight / 海运费", description: "Shanghai Port to Destination Port / 上海港到目的港" },
       trucking: { productType: "陆路运输费", itemName: "Inland Trucking / 陆路运输费", description: "Warehouse to Shanghai Port / 仓库到上海港" },
-      custom: { productType: "自定义费用", itemName: "Custom Item / 自定义费用", description: "" }
+      custom: { productType: "", itemName: "", description: "" }
     };
     const preset = defaults[kind] || defaults.custom;
     currentQuote.items.push({
@@ -2525,6 +2609,10 @@
       values: {
         productType: preset.productType,
         itemName: preset.itemName,
+        brand: "",
+        model: "",
+        year: "",
+        hours: "",
         qty: "1",
         unitPrice: "",
         currency: settings.currency,
@@ -2618,6 +2706,9 @@
 
   function previewDescription(item) {
     const values = item.values || {};
+    if ((item.kind || "product") === "custom") {
+      return [values.productType, values.brand, values.model, values.year, values.hours].filter(Boolean).join(" | ") || values.remark || itemKindLabel(item.kind);
+    }
     if ((item.kind || "product") !== "product") return [values.itemName, values.description].filter(Boolean).join(" | ") || itemKindLabel(item.kind);
     const tpl = quoteTemplate(currentQuote);
     const skip = new Set(["qty", "unitPrice", "currency", "totalAmount", "productImage", "freight", "truckingToPort", "remark"]);
@@ -2825,13 +2916,12 @@
   function renderHistory() {
     const kw = normalize($("history-keyword").value);
     const date = $("history-date").value;
-    const status = $("history-status").value;
     const list = quotes.filter((q) => {
       const productsText = q.items.map(i => Object.values(i.values || {}).join(" ")).join(" ");
       const hay = normalize(`${q.buyer.company} ${q.buyer.country} ${productsText}`);
-      return (!kw || hay.includes(kw)) && (!date || q.quoteDate === date) && (!status || q.status === status);
+      return (!kw || hay.includes(kw)) && (!date || q.quoteDate === date);
     });
-    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)}</b><p>${escapeHtml(q.buyer.company)} | ${escapeHtml(q.buyer.country)} | ${escapeHtml(q.quoteDate)} | ${escapeHtml(q.status)}</p><p>${q.items.length} products | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
+    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)}</b><p>${escapeHtml(q.buyer.company)} | ${escapeHtml(q.buyer.country)} | ${escapeHtml(q.quoteDate)}</p><p>${q.items.length} products | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
   }
 
   function bindEvents() {
@@ -2886,6 +2976,9 @@
     $("product-search").addEventListener("input", renderProducts);
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
     $("pdf-language").addEventListener("change", renderPreview);
+    $("buyer-country").addEventListener("change", applyBuyerCountryDialCode);
+    $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
+    $("buyer-phone").addEventListener("paste", pastePlainTextIntoInput);
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
     $("quote-items").addEventListener("input", renderPreview);
     $("quote-items").addEventListener("change", async e => { if (e.target.matches(".quote-image-input")) { const img = await normalizeImage(e.target.files[0]); const prev = e.target.closest(".quote-item").querySelector("[data-image]"); if (prev) { prev.src = img; prev.dataset.image = img; } renderPreview(); } });
