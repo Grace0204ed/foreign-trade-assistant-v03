@@ -2868,7 +2868,7 @@
           <div>
             <span class="field-title">产品图片</span>
             <label class="file-btn">上传图片<input class="quote-image-input" type="file" accept="image/*" /></label>
-            <img class="product-preview" data-image src="${item.imageDataUrl || ""}" alt="" />
+            <img class="product-preview" data-image="${escapeHtml(item.imageDataUrl || "")}" src="${item.imageDataUrl || ""}" alt="" />
           </div>
           ` : ""}
         </div>
