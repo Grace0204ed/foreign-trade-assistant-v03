@@ -56,6 +56,53 @@
     }
   ];
 
+  const defaultCostTemplates = {
+    freight: {
+      name: "Sea Freight / 海运费",
+      fields: [
+        f("费用类型", "Charge Type", "productType", "text", false, true, 10),
+        f("运输产品", "Related Product", "itemName", "text", false, true, 20),
+        f("起运港", "Origin Port", "originPort", "text", false, true, 30),
+        f("目的港", "Destination Port", "destinationPort", "text", false, true, 40),
+        f("运输时间", "Transit Time", "transitTime", "text", false, true, 50),
+        f("路线说明", "Route Remark", "description", "text", false, true, 60),
+        f("数量", "Quantity", "qty", "number", true, true, 70),
+        f("单价", "Unit Price", "unitPrice", "money", true, true, 80),
+        f("货币", "Currency", "currency", "select", true, true, 90),
+        f("备注", "Remark", "remark", "textarea", false, true, 100)
+      ]
+    },
+    trucking: {
+      name: "Inland Trucking / 陆路运输费",
+      fields: [
+        f("费用类型", "Charge Type", "productType", "text", false, true, 10),
+        f("运输产品", "Related Product", "itemName", "text", false, true, 20),
+        f("起点", "From", "originPort", "text", false, true, 30),
+        f("终点", "To", "destinationPort", "text", false, true, 40),
+        f("运输时间", "Transit Time", "transitTime", "text", false, false, 50),
+        f("路线说明", "Route Remark", "description", "text", false, true, 60),
+        f("数量", "Quantity", "qty", "number", true, true, 70),
+        f("单价", "Unit Price", "unitPrice", "money", true, true, 80),
+        f("货币", "Currency", "currency", "select", true, true, 90),
+        f("备注", "Remark", "remark", "textarea", false, true, 100)
+      ]
+    },
+    custom: {
+      name: "Custom Row / 自定义行",
+      fields: [
+        f("产品类型", "Product Type", "productType", "text", false, true, 10),
+        f("品牌", "Brand", "brand", "text", false, true, 20),
+        f("型号", "Model", "model", "text", false, true, 30),
+        f("年份", "Year", "year", "text", false, true, 40),
+        f("工时", "Working Hours", "hours", "text", false, true, 50),
+        f("数量", "Quantity", "qty", "number", true, true, 60),
+        f("单价", "Unit Price", "unitPrice", "money", true, true, 70),
+        f("货币", "Currency", "currency", "select", true, true, 80),
+        f("备注", "Remark", "remark", "textarea", false, true, 90)
+      ]
+    }
+  };
+
   const defaultSettings = {
     companyNameEn: "Jinwanwa International Trading Co., Ltd.",
     companyNameZh: "合肥金万挖工程机械有限公司",
@@ -97,6 +144,7 @@
     backgroundDataUrl: "",
     stampDataUrl: "",
     costFieldsMigratedV1: false,
+    costTemplates: defaultCostTemplates,
     categories: [
       { id: "cat-used-excavator", labelEn: "Used Excavator", labelZh: "二手挖掘机", parentId: "", visible: true, sortOrder: 10 },
       { id: "cat-used-loader", labelEn: "Used Loader", labelZh: "二手装载机", parentId: "", visible: true, sortOrder: 20 },
@@ -441,7 +489,7 @@
   ];
 
   const tradeTermOptions = [
-    { value: "EXW", label: "EXW - Ex Works / 工厂交货价", desc: "EXW: Seller provides goods at factory; buyer handles pickup, export, freight and insurance. / 工厂交货，买方负责提货、出口、运输和保险。" },
+    { value: "EXW", label: "EXW - Ex Works / 工厂交货价", desc: "EXW: Seller provides goods at factory. Freight, trucking or insurance shown in this quotation can be paid by seller on buyer's behalf only and does not change seller's EXW responsibility. / 工厂交货价；报价中列明的运费、拖车费或保险如由我方代付，仅为代客户垫付，不改变我方 EXW 责任。" },
     { value: "FOB", label: "FOB - Free On Board / 装运港船上交货", desc: "FOB: Seller delivers goods to the departure port and loads on board; buyer pays sea freight and insurance. / 我们负责把货运到装运港并装船，买方负责海运和保险。" },
     { value: "CIF", label: "CIF - Cost Insurance Freight / 成本保险加运费", desc: "CIF: Seller pays cost, insurance and sea freight to buyer's destination port. / 我们负责货值、保险和海运到客户指定目的港。" }
   ];
@@ -531,6 +579,20 @@
 
   function normalizeTemplates() {
     settings.templates = (settings.templates || defaultTemplates).map(normalizeTemplate);
+  }
+
+  function normalizeCostTemplates() {
+    const current = settings.costTemplates || {};
+    settings.costTemplates = {};
+    ["freight", "trucking", "custom"].forEach((kind) => {
+      const source = current[kind] || defaultCostTemplates[kind];
+      settings.costTemplates[kind] = {
+        name: source?.name || defaultCostTemplates[kind].name,
+        fields: (source?.fields || defaultCostTemplates[kind].fields)
+          .map(normalizeField)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+      };
+    });
   }
 
   function removeLegacyCostFields() {
@@ -683,6 +745,7 @@
     normalizePaymentQrFields();
     normalizeCurrencies();
     normalizeTemplates();
+    normalizeCostTemplates();
     normalizeCategories();
     document.querySelectorAll("[data-setting]").forEach((input) => {
       input.value = settings[input.dataset.setting] || "";
@@ -1328,6 +1391,7 @@
     renderTemplateSelect(tpl.name);
     renderFieldList(tpl);
     renderTermFieldList(tpl);
+    renderCostFieldLists();
   }
 
   function currentTemplate() {
@@ -1493,7 +1557,41 @@
     $("template-term-field-list").innerHTML = renderFieldRows(fields, "terms") || `<tr><td colspan="8" class="empty">暂无条款字段，请点击“新增条款字段”。</td></tr>`;
   }
 
+  function costKindFromTarget(target) {
+    return String(target || "").startsWith("cost:") ? String(target).split(":")[1] : "";
+  }
+
+  function renderCostFieldLists() {
+    const host = $("cost-field-template-list");
+    if (!host) return;
+    normalizeCostTemplates();
+    host.innerHTML = ["freight", "trucking", "custom"].map((kind) => {
+      const tpl = settings.costTemplates[kind];
+      return `
+        <section class="cost-template-panel">
+          <div class="row-head">
+            <h4>${escapeHtml(tpl.name)}</h4>
+            <button type="button" data-add-cost-field="${kind}">新增字段</button>
+          </div>
+          <table class="field-table">
+            <thead>
+              <tr>
+                <th>排序</th><th>中文字段名</th><th>英文字段名</th><th>fieldKey</th><th>字段类型</th><th>必填</th><th>报价单显示</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="cost-field-list-${kind}" data-cost-kind="${kind}">${renderFieldRows(tpl.fields || [], `cost:${kind}`) || `<tr><td colspan="8" class="empty">暂无字段，请点击“新增字段”。</td></tr>`}</tbody>
+          </table>
+        </section>
+      `;
+    }).join("");
+  }
+
   function activeFields(tpl = currentTemplate()) {
+    const costKind = costKindFromTarget(editingFieldTarget);
+    if (costKind) {
+      normalizeCostTemplates();
+      return settings.costTemplates[costKind].fields;
+    }
     return editingFieldTarget === "terms" ? tpl.termFields : tpl.fields;
   }
 
@@ -1509,7 +1607,8 @@
     const fields = activeFields(tpl);
     editingFieldIndex = index;
     const field = index >= 0 ? fields[index] : f("", "", "", "text", false, true, (fields.length + 1) * 10);
-    $("field-modal-title").textContent = `${index >= 0 ? "编辑" : "新增"}${target === "terms" ? "条款字段" : "字段"}`;
+    const costKind = costKindFromTarget(target);
+    $("field-modal-title").textContent = `${index >= 0 ? "编辑" : "新增"}${costKind ? settings.costTemplates[costKind].name : (target === "terms" ? "条款字段" : "字段")}`;
     $("field-zh-input").value = field.zh || "";
     $("field-en-input").value = field.en || "";
     $("field-key-input").value = field.fieldKey || "";
@@ -1545,6 +1644,7 @@
     resequenceFields(fields);
     renderFieldList(tpl);
     renderTermFieldList(tpl);
+    renderCostFieldLists();
     closeFieldModal();
   }
 
@@ -1559,6 +1659,7 @@
     resequenceFields(fields);
     renderFieldList(tpl);
     renderTermFieldList(tpl);
+    renderCostFieldLists();
   }
 
   function deleteField(index, target = "product") {
@@ -1572,6 +1673,7 @@
     resequenceFields(fields);
     renderFieldList(tpl);
     renderTermFieldList(tpl);
+    renderCostFieldLists();
   }
 
   function handleFieldListClick(event) {
@@ -1579,7 +1681,7 @@
     if (!row) return;
     const index = Number(row.dataset.fieldIndex);
     const tpl = currentTemplate();
-    editingFieldTarget = event.currentTarget.id === "template-term-field-list" ? "terms" : "product";
+    editingFieldTarget = event.currentTarget.dataset.costKind ? `cost:${event.currentTarget.dataset.costKind}` : (event.currentTarget.id === "template-term-field-list" ? "terms" : "product");
     const fields = activeFields(tpl);
     if (event.target.matches(".field-required-toggle")) {
       fields[index].required = event.target.checked;
@@ -1606,7 +1708,7 @@
     const row = event.target.closest("tr[data-field-index]");
     if (!row) return;
     event.preventDefault();
-    editingFieldTarget = event.currentTarget.id === "template-term-field-list" ? "terms" : "product";
+    editingFieldTarget = event.currentTarget.dataset.costKind ? `cost:${event.currentTarget.dataset.costKind}` : (event.currentTarget.id === "template-term-field-list" ? "terms" : "product");
     const from = Number(event.dataTransfer.getData("text/plain"));
     const to = Number(row.dataset.fieldIndex);
     if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
@@ -1617,10 +1719,57 @@
     resequenceFields(fields);
     renderFieldList(tpl);
     renderTermFieldList(tpl);
+    renderCostFieldLists();
+  }
+
+  function handleCostFieldListClick(event) {
+    const tbody = event.target.closest("[data-cost-kind]");
+    if (!tbody) return;
+    const row = event.target.closest("tr[data-field-index]");
+    if (!row) return;
+    const index = Number(row.dataset.fieldIndex);
+    editingFieldTarget = `cost:${tbody.dataset.costKind}`;
+    const fields = activeFields();
+    if (event.target.matches(".field-required-toggle")) {
+      fields[index].required = event.target.checked;
+      return;
+    }
+    if (event.target.matches(".field-visible-toggle")) {
+      fields[index].visible = event.target.checked;
+      return;
+    }
+    const action = event.target.dataset.fieldAction;
+    if (action === "edit") openFieldModal(index, editingFieldTarget);
+    if (action === "delete") deleteField(index, editingFieldTarget);
+    if (action === "up") moveField(index, -1, editingFieldTarget);
+    if (action === "down") moveField(index, 1, editingFieldTarget);
+  }
+
+  function handleCostFieldDragStart(event) {
+    const row = event.target.closest("#cost-field-template-list tr[data-field-index]");
+    if (!row) return;
+    event.dataTransfer.setData("text/plain", row.dataset.fieldIndex);
+  }
+
+  function handleCostFieldDrop(event) {
+    const row = event.target.closest("#cost-field-template-list tr[data-field-index]");
+    const tbody = event.target.closest("[data-cost-kind]");
+    if (!row || !tbody) return;
+    event.preventDefault();
+    editingFieldTarget = `cost:${tbody.dataset.costKind}`;
+    const from = Number(event.dataTransfer.getData("text/plain"));
+    const to = Number(row.dataset.fieldIndex);
+    if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
+    const fields = activeFields();
+    const [field] = fields.splice(from, 1);
+    fields.splice(to, 0, field);
+    resequenceFields(fields);
+    renderCostFieldLists();
   }
 
   function saveSettings() {
     normalizeTemplates();
+    normalizeCostTemplates();
     normalizeCategories();
     normalizeCurrencies();
     collectSettingsDraft();
@@ -1633,6 +1782,7 @@
     save(keys.settings, settings);
     renderAllSelectors();
     renderCategoryList();
+    renderCostFieldLists();
     toast("设置已保存。");
   }
 
@@ -2352,12 +2502,12 @@
       terms: {
         payment: "30/70",
         deliveryTime: "",
-        shipping: "FOB",
+        shipping: "EXW",
         originPort: "Shanghai Port / 上海港, China / 中国",
         port: "",
         afterSales: "",
         warranty: "",
-        notes: ""
+        notes: "Freight and/or inland trucking charges, if listed, are paid by seller on buyer's behalf only. The trade term remains EXW and seller does not assume CIF carrier or insurance liability. / 如报价中列明海运费或陆路运输费，该费用仅为我方代客户代付或垫付，贸易方式仍为 EXW，我方不承担 CIF 项下承运或保险责任。"
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -2445,43 +2595,22 @@
     const id = item.id || uid("item");
     const kind = item.kind || "product";
     const vals = item.values || {};
-    if (kind === "custom") {
-      return `
-        <article class="quote-item panel cost-item" data-id="${id}" data-kind="custom">
-          <div class="row-head">
-            <h3>${escapeHtml(vals.productType || "Custom Item / 自定义行")}</h3>
-            <span class="manual-badge">Manual Input / 手动输入</span>
-          </div>
-          <div class="quote-item-grid">
-            <label><span>Product Type / 产品类型</span><input data-qfield="productType" value="${escapeHtml(vals.productType || "")}" placeholder="例如：Brand New TLB / 全新未使用TLB" /></label>
-            <label><span>Brand / 品牌</span><input data-qfield="brand" value="${escapeHtml(vals.brand || "")}" /></label>
-            <label><span>Model / 型号</span><input data-qfield="model" value="${escapeHtml(vals.model || "")}" /></label>
-            <label><span>Year / 年份</span><input data-qfield="year" value="${escapeHtml(vals.year || "")}" /></label>
-            <label><span>Working Hours / 工时</span><input data-qfield="hours" value="${escapeHtml(vals.hours || "")}" /></label>
-            <label><span>Quantity / 数量</span><input data-qfield="qty" type="number" value="${escapeHtml(vals.qty || "1")}" /></label>
-            <label><span>Unit Price / 单价</span><input data-qfield="unitPrice" type="number" value="${escapeHtml(vals.unitPrice || "")}" /></label>
-            <label><span>Currency / 货币</span>${renderCurrencySelect("currency", vals.currency || settings.currency)}</label>
-            <label class="wide"><span>Remark / 备注</span><textarea data-qfield="remark">${escapeHtml(vals.remark || "")}</textarea></label>
-          </div>
-          <div class="actions"><button class="remove-quote-item" type="button">Delete / 删除本项</button></div>
-        </article>
-      `;
-    }
-    if (kind !== "product") {
+    if (["freight", "trucking", "custom"].includes(kind)) {
+      const costTpl = costTemplate(kind);
+      const fields = (costTpl.fields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
       return `
         <article class="quote-item panel cost-item" data-id="${id}" data-kind="${kind}">
           <div class="row-head">
-            <h3>${escapeHtml(vals.productType || itemKindLabel(kind))}</h3>
-            <span class="manual-badge">Auto Calculate / 自动计价</span>
+            <h3>${escapeHtml(vals.productType || costTpl.name || itemKindLabel(kind))}</h3>
+            <span class="manual-badge">${kind === "custom" ? "Manual Input / 手动输入" : "Configurable Fields / 字段可配置"}</span>
           </div>
           <div class="quote-item-grid">
-            <label><span>Product Type / 产品分类</span>${renderCategorySelect("productType", vals.productType || defaultCostCategory(kind))}</label>
-            <label><span>Item Name / 项目名称</span><input data-qfield="itemName" value="${escapeHtml(vals.itemName || "")}" placeholder="例如：SANY 215C Sea Freight / 三一215C海运费" /></label>
-            <label class="wide"><span>Route / 路线说明</span><input data-qfield="description" value="${escapeHtml(vals.description || "")}" placeholder="例如：Shanghai Port to Dar es Salaam Port / 上海港到达累斯萨拉姆港" /></label>
-            <label><span>Quantity / 数量</span><input data-qfield="qty" type="number" value="${escapeHtml(vals.qty || "1")}" /></label>
-            <label><span>Unit Price / 单价</span><input data-qfield="unitPrice" type="number" value="${escapeHtml(vals.unitPrice || "")}" /></label>
-            <label><span>Currency / 货币</span>${renderCurrencySelect("currency", vals.currency || settings.currency)}</label>
-            <label class="wide"><span>Remark / 备注</span><textarea data-qfield="remark">${escapeHtml(vals.remark || "")}</textarea></label>
+            ${fields.map((field) => `
+              <label class="${field.fieldType === "textarea" ? "wide" : ""}">
+                <span>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}${field.required ? " *" : ""}</span>
+                ${renderCostFieldInput(field, vals[field.fieldKey] ?? defaultCostValue(kind, field.fieldKey))}
+              </label>
+            `).join("")}
           </div>
           <div class="actions"><button class="remove-quote-item" type="button">Delete / 删除本项</button></div>
         </article>
@@ -2532,6 +2661,33 @@
       return `<select data-qfield="${key}">${options.map((option) => `<option value="${option}"${option === value ? " selected" : ""}>${option}</option>`).join("")}</select>`;
     }
     return `<input data-qfield="${key}" type="text" value="${val}" />`;
+  }
+
+  function renderCostFieldInput(field, value) {
+    const key = escapeHtml(field.fieldKey);
+    const val = escapeHtml(value);
+    if (field.fieldKey === "currency") return renderCurrencySelect(field.fieldKey, value);
+    if (field.fieldType === "textarea") return `<textarea data-qfield="${key}">${val}</textarea>`;
+    if (field.fieldType === "date") return `<input data-qfield="${key}" type="date" value="${val}" />`;
+    if (field.fieldType === "number" || field.fieldType === "money") return `<input data-qfield="${key}" type="number" value="${val}" />`;
+    if (field.fieldType === "select") return `<input data-qfield="${key}" type="text" value="${val}" />`;
+    return `<input data-qfield="${key}" type="text" value="${val}" />`;
+  }
+
+  function costTemplate(kind) {
+    normalizeCostTemplates();
+    return settings.costTemplates[kind] || defaultCostTemplates[kind] || defaultCostTemplates.custom;
+  }
+
+  function defaultCostValue(kind, key) {
+    if (key === "qty") return "1";
+    if (key === "currency") return settings.currency;
+    if (key === "productType") {
+      if (kind === "freight") return "Sea Freight / 海运费";
+      if (kind === "trucking") return "Inland Trucking / 陆路运输费";
+      return "";
+    }
+    return "";
   }
 
   function renderCurrencySelect(fieldKey, value) {
@@ -2597,28 +2753,15 @@
 
   function addCostItem(kind) {
     collectQuoteFromForm();
-    const defaults = {
-      freight: { productType: "海运费", itemName: "Sea Freight / 海运费", description: "Shanghai Port to Destination Port / 上海港到目的港" },
-      trucking: { productType: "陆路运输费", itemName: "Inland Trucking / 陆路运输费", description: "Warehouse to Shanghai Port / 仓库到上海港" },
-      custom: { productType: "", itemName: "", description: "" }
-    };
-    const preset = defaults[kind] || defaults.custom;
+    const fields = costTemplate(kind).fields || [];
+    const values = {};
+    fields.forEach((field) => {
+      values[field.fieldKey] = defaultCostValue(kind, field.fieldKey);
+    });
     currentQuote.items.push({
       id: uid("item"),
       kind,
-      values: {
-        productType: preset.productType,
-        itemName: preset.itemName,
-        brand: "",
-        model: "",
-        year: "",
-        hours: "",
-        qty: "1",
-        unitPrice: "",
-        currency: settings.currency,
-        description: preset.description,
-        remark: ""
-      },
+      values,
       imageDataUrl: ""
     });
     renderQuoteItems();
@@ -2706,6 +2849,15 @@
 
   function previewDescription(item) {
     const values = item.values || {};
+    if (["freight", "trucking", "custom"].includes(item.kind || "")) {
+      const skip = new Set(["qty", "unitPrice", "currency", "remark"]);
+      const fields = (costTemplate(item.kind).fields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
+      const parts = fields
+        .filter((field) => field.visible && !skip.has(field.fieldKey))
+        .map((field) => values[field.fieldKey] ? `${field.en || field.zh}: ${values[field.fieldKey]}` : "")
+        .filter(Boolean);
+      return parts.join(" | ") || itemKindLabel(item.kind);
+    }
     if ((item.kind || "product") === "custom") {
       return [values.productType, values.brand, values.model, values.year, values.hours].filter(Boolean).join(" | ") || values.remark || itemKindLabel(item.kind);
     }
@@ -3019,6 +3171,7 @@
       if (event.target.id === "save-user-btn") saveUser();
       if (event.target.id === "clear-user-btn") clearUserForm();
       if (event.target.id === "add-term-field-proxy-btn") openFieldModal(-1, "terms");
+      if (event.target.matches("[data-add-cost-field]")) openFieldModal(-1, `cost:${event.target.dataset.addCostField}`);
       if (event.target.id === "add-contact-field-btn") addContactField();
       if (event.target.id === "add-bank-field-btn") addBankField();
       if (event.target.id === "add-currency-btn") addCurrency();
@@ -3026,8 +3179,14 @@
       if (event.target.matches("[data-bank-action], [data-bank-visible]")) handleBankFieldAction(event);
       if (event.target.matches("[data-qr-action], [data-qr-visible]")) handlePaymentQrAction(event);
       if (event.target.matches("[data-currency-action]")) handleCurrencyAction(event);
+      if (event.target.closest("#cost-field-template-list [data-field-action], #cost-field-template-list .field-required-toggle, #cost-field-template-list .field-visible-toggle")) handleCostFieldListClick(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
     });
+    document.addEventListener("dragstart", handleCostFieldDragStart);
+    document.addEventListener("dragover", (event) => {
+      if (event.target.closest("#cost-field-template-list tr[data-field-index]")) event.preventDefault();
+    });
+    document.addEventListener("drop", handleCostFieldDrop);
     document.addEventListener("change", (event) => {
       if (event.target.matches("[data-contact-image]")) handleContactImageChange(event);
       if (event.target.matches("[data-qr-image]")) handlePaymentQrImageChange(event);
