@@ -1941,16 +1941,13 @@
   }
 
   function renderFreightSelectors() {
-    const originOptions = `<option value="">Origin Port / 起运港</option>` + ports
-      .filter(isChinaOriginPort)
-      .map((p) => `<option value="${p.id}">${escapeHtml(portOptionLabel(p))}</option>`)
-      .join("");
-    const destinationOptions = `<option value="">Destination Port / 目的港</option>` + groupedPortOptions(ports.filter(isWorldDestinationPort));
-    ["freight-origin", "calc-origin"].forEach((id) => {
+    const originOptions = portDatalistOptions(ports.filter(isChinaOriginPort));
+    const destinationOptions = portDatalistOptions(ports.filter(isWorldDestinationPort));
+    ["freight-origin-options", "calc-origin-options"].forEach((id) => {
       const el = $(id);
       if (el) el.innerHTML = originOptions;
     });
-    ["freight-destination", "calc-destination"].forEach((id) => {
+    ["freight-destination-options", "calc-destination-options"].forEach((id) => {
       const el = $(id);
       if (el) el.innerHTML = destinationOptions;
     });
@@ -2005,6 +2002,33 @@
 
   function displayPort(port) {
     return port ? portOptionLabel(port) : "";
+  }
+
+  function portDatalistOptions(list) {
+    return list
+      .map((p) => `<option value="${escapeHtml(portOptionLabel(p))}"></option>`)
+      .join("");
+  }
+
+  function findPortByInput(value, originOnly = false) {
+    const text = String(value || "").trim();
+    if (!text) return null;
+    const source = ports.filter((port) => originOnly ? isChinaOriginPort(port) : isWorldDestinationPort(port));
+    const normalized = normalize(text);
+    return source.find((port) => port.id === text)
+      || source.find((port) => normalize(portOptionLabel(port)) === normalized)
+      || source.find((port) => normalize(port.displayName || "") === normalized)
+      || source.find((port) => normalize(`${port.portName}${port.portChineseName}${port.aliases}${port.unLocode}${port.countryName}${port.countryChineseName}`).includes(normalized))
+      || null;
+  }
+
+  function portInputId(id, originOnly = false) {
+    return findPortByInput($(id)?.value || "", originOnly)?.id || "";
+  }
+
+  function setPortInputValue(id, portId) {
+    const port = ports.find((p) => p.id === portId);
+    if ($(id)) $(id).value = port ? portOptionLabel(port) : (portId || "");
   }
 
   function isChinaOriginPort(port) {
@@ -2130,16 +2154,18 @@
   }
 
   async function saveFreightRate() {
+    const originPortId = portInputId("freight-origin", true);
+    const destinationPortId = portInputId("freight-destination", false);
     const payload = {
-      originPortId: $("freight-origin").value,
-      destinationPortId: $("freight-destination").value,
+      originPortId,
+      destinationPortId,
       shippingMethod: $("freight-method").value,
       rate: $("freight-rate").value,
       effectiveMonth: $("freight-month").value || new Date().toISOString().slice(0, 7),
       freightForwarder: $("freight-agent").value.trim(),
       remark: $("freight-remark").value.trim()
     };
-    if (!payload.originPortId || !payload.destinationPortId || !payload.rate) return toast("Please enter route and freight rate. / 请填写路线和运费。");
+    if (!payload.originPortId || !payload.destinationPortId || !payload.rate) return toast("保存运费库需要从港口库候选里选择起运港和目的港，并填写运费。手动输入港口可用于报价和运费计算。");
     await api(editingFreightId ? `/api/freight-rates/${editingFreightId}` : "/api/freight-rates", { method: editingFreightId ? "PUT" : "POST", body: JSON.stringify(payload) });
     clearFreightForm();
     await loadServerData();
@@ -2161,8 +2187,8 @@
       return toast("Copied successfully. / 复制成功。");
     }
     if (action === "use") {
-      $("calc-origin").value = rate.originPortId;
-      $("calc-destination").value = rate.destinationPortId;
+      setPortInputValue("calc-origin", rate.originPortId);
+      setPortInputValue("calc-destination", rate.destinationPortId);
       $("calc-method").value = rate.shippingMethod;
       $("calc-rate").value = rate.rate;
       switchView("freight");
@@ -2170,8 +2196,8 @@
     }
     if (action === "edit") {
       editingFreightId = rate.id;
-      $("freight-origin").value = rate.originPortId;
-      $("freight-destination").value = rate.destinationPortId;
+      setPortInputValue("freight-origin", rate.originPortId);
+      setPortInputValue("freight-destination", rate.destinationPortId);
       $("freight-method").value = rate.shippingMethod;
       $("freight-rate").value = rate.rate;
       $("freight-month").value = rate.effectiveMonth;
@@ -2191,8 +2217,10 @@
       $("calc-cbm").value = product.transportCbm || "";
       if (!product.transportCbm) toast("No transport CBM found. Please enter CBM manually. / 未找到运输立方，请手动输入。");
     }
-    const originPortId = $("calc-origin").value;
-    const destinationPortId = $("calc-destination").value;
+    const originInput = $("calc-origin").value.trim();
+    const destinationInput = $("calc-destination").value.trim();
+    const originPortId = portInputId("calc-origin", true);
+    const destinationPortId = portInputId("calc-destination", false);
     const shippingMethod = $("calc-method").value;
     let rate = $("calc-rate").value;
     let rateInfo = null;
@@ -2206,6 +2234,8 @@
       } else {
         toast("No freight rate found. Please enter freight manually or add a new freight rate. / 未找到运费，请手动输入或新增运费。");
       }
+    } else if ((originInput || destinationInput) && !rate && (!originPortId || !destinationPortId)) {
+      toast("手动输入港口时不会自动匹配运费库，请手动填写运费单价。");
     }
     const cbm = $("calc-cbm").value;
     const qty = $("calc-qty").value || 1;
@@ -2221,8 +2251,8 @@
       calculationFormula: data.calculationFormula,
       originPortId,
       destinationPortId,
-      originDisplayName: ports.find((p) => p.id === originPortId)?.displayName || "",
-      destinationDisplayName: ports.find((p) => p.id === destinationPortId)?.displayName || "",
+      originDisplayName: ports.find((p) => p.id === originPortId)?.displayName || originInput,
+      destinationDisplayName: ports.find((p) => p.id === destinationPortId)?.displayName || destinationInput,
       shippingMethod,
       freightRateId: rateInfo?.id || "",
       freightEffectiveMonth: rateInfo?.effectiveMonth || ""

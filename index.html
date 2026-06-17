@@ -372,8 +372,10 @@
               </div>
             </div>
             <div class="form-grid">
-              <select id="freight-origin"></select>
-              <select id="freight-destination"></select>
+              <input id="freight-origin" list="freight-origin-options" placeholder="起运港，可选择或手动输入" />
+              <datalist id="freight-origin-options"></datalist>
+              <input id="freight-destination" list="freight-destination-options" placeholder="目的港，可选择或手动输入" />
+              <datalist id="freight-destination-options"></datalist>
               <select id="freight-method"><option>Bulk Cargo</option><option>RORO</option><option>Container</option><option>Flat Rack</option><option>Other</option></select>
               <input id="freight-rate" type="number" placeholder="Freight Rate / 运费单价" />
               <input id="freight-month" type="month" />
@@ -391,8 +393,10 @@
             <h3>Freight Calculator / 运费查询</h3>
             <div class="form-grid">
               <select id="calc-product"></select>
-              <select id="calc-origin"></select>
-              <select id="calc-destination"></select>
+              <input id="calc-origin" list="calc-origin-options" placeholder="起运港，可选择或手动输入" />
+              <datalist id="calc-origin-options"></datalist>
+              <input id="calc-destination" list="calc-destination-options" placeholder="目的港，可选择或手动输入" />
+              <datalist id="calc-destination-options"></datalist>
               <select id="calc-method"><option>Bulk Cargo</option><option>RORO</option><option>Container</option><option>Flat Rack</option><option>Other</option></select>
               <input id="calc-qty" type="number" value="1" placeholder="Quantity / 数量" />
               <input id="calc-cbm" type="number" placeholder="Transport CBM / 运输立方" />
