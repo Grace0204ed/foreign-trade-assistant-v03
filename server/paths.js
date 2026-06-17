@@ -18,5 +18,6 @@ const uploadDir = ensureDir(path.join(dataDir, "uploads"));
 const backupDir = ensureDir(path.join(dataDir, "backups"));
 const exportDir = ensureDir(path.join(dataDir, "exports"));
 const dbPath = path.join(dataDir, "quotation-system.sqlite");
+const browserStatePath = path.join(dataDir, "browser-state.json");
 
-module.exports = { dataDir, uploadDir, backupDir, exportDir, dbPath, ensureDir };
+module.exports = { dataDir, uploadDir, backupDir, exportDir, dbPath, browserStatePath, ensureDir };

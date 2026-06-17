@@ -4,7 +4,7 @@ const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const { db, id, now, normalize, dbPath } = require("./db");
-const { dataDir, uploadDir, backupDir, exportDir, ensureDir } = require("./paths");
+const { dataDir, uploadDir, backupDir, exportDir, browserStatePath, ensureDir } = require("./paths");
 
 const app = express();
 const PORT = Number(process.env.PORT || 8765);
@@ -596,6 +596,29 @@ app.post("/api/quotations/:id/copy", requireLogin, (req, res) => {
 
 app.get("/api/system/paths", requireLogin, (req, res) => ok(res, { dataDir, uploadDir, backupDir, exportDir, dbPath }));
 
+app.get("/api/system/browser-state", requireLogin, (req, res) => {
+  if (!fs.existsSync(browserStatePath)) {
+    return ok(res, { exists: false, state: null, updatedAt: "" });
+  }
+  try {
+    const state = JSON.parse(fs.readFileSync(browserStatePath, "utf8"));
+    ok(res, { exists: true, state, updatedAt: state.updatedAt || "" });
+  } catch {
+    fail(res, 500, "Saved browser data is damaged.", "浏览器备份数据损坏。");
+  }
+});
+
+app.put("/api/system/browser-state", requireLogin, (req, res) => {
+  const state = {
+    updatedAt: now(),
+    settings: req.body?.settings || {},
+    products: Array.isArray(req.body?.products) ? req.body.products : [],
+    quotes: Array.isArray(req.body?.quotes) ? req.body.quotes : []
+  };
+  fs.writeFileSync(browserStatePath, JSON.stringify(state, null, 2), "utf8");
+  ok(res, { updatedAt: state.updatedAt, path: browserStatePath, message: "Local data backup saved.", zh: "本地数据备份已保存。" });
+});
+
 app.get("/api/system/export", requireLogin, requireAdmin, (req, res) => {
   const data = {
     exportedAt: now(),
@@ -604,7 +627,8 @@ app.get("/api/system/export", requireLogin, requireAdmin, (req, res) => {
     ports: db.prepare("SELECT * FROM ports").all(),
     freightRates: db.prepare("SELECT * FROM freight_rates").all(),
     quotations: db.prepare("SELECT * FROM quotations").all(),
-    quotationItems: db.prepare("SELECT * FROM quotation_items").all()
+    quotationItems: db.prepare("SELECT * FROM quotation_items").all(),
+    browserState: fs.existsSync(browserStatePath) ? JSON.parse(fs.readFileSync(browserStatePath, "utf8")) : null
   };
   res.setHeader("Content-Disposition", "attachment; filename=quotation-system-export.json");
   res.json(data);
@@ -632,6 +656,9 @@ app.post("/api/system/import", requireLogin, requireAdmin, (req, res) => {
       const stmt = db.prepare(`INSERT OR REPLACE INTO freight_rates (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, remark, status, search_text, created_at, updated_at)
         VALUES (@id, @origin_port_id, @destination_port_id, @origin_display_name, @destination_display_name, @destination_country, @shipping_method, @rate, @currency, @rate_unit, @effective_month, @effective_start_date, @effective_end_date, @freight_forwarder, @remark, @status, @search_text, @created_at, @updated_at)`);
       data.freightRates.forEach((row) => stmt.run(row));
+    }
+    if (data.browserState) {
+      fs.writeFileSync(browserStatePath, JSON.stringify({ ...data.browserState, updatedAt: now() }, null, 2), "utf8");
     }
   });
   tx();

@@ -4,7 +4,8 @@
     products: "quote_assistant_v01_products",
     quotes: "quote_assistant_v01_quotes",
     sidebarCollapsed: "quote_assistant_sidebar_collapsed",
-    settingsSection: "quote_assistant_settings_section"
+    settingsSection: "quote_assistant_settings_section",
+    stateUpdatedAt: "quote_assistant_state_updated_at"
   };
   const defaultBg = "./assets/company-background.png";
   const defaultTermFields = [
@@ -176,6 +177,8 @@
   let editingPortId = "";
   let editingFreightId = "";
   let lastFreightCalculation = null;
+  let stateBackupTimer = null;
+  let restoringPersistentState = false;
   let activeSettingsSection = localStorage.getItem(keys.settingsSection) || "company";
   const portRegionOrder = [
     "China / 中国",
@@ -316,6 +319,81 @@
 
   function save(key, data) {
     localStorage.setItem(key, JSON.stringify(data));
+    if ([keys.settings, keys.products, keys.quotes].includes(key)) {
+      localStorage.setItem(keys.stateUpdatedAt, new Date().toISOString());
+      schedulePersistentStateBackup();
+    }
+  }
+
+  function localStatePayload() {
+    return {
+      settings,
+      products,
+      quotes,
+      updatedAt: localStorage.getItem(keys.stateUpdatedAt) || ""
+    };
+  }
+
+  function hasLocalUserData() {
+    return !!localStorage.getItem(keys.settings)
+      || (Array.isArray(products) && products.length > 0)
+      || (Array.isArray(quotes) && quotes.length > 0);
+  }
+
+  function applyPersistentState(state) {
+    if (!state) return;
+    restoringPersistentState = true;
+    if (state.settings) {
+      settings = { ...structuredClone(defaultSettings), ...state.settings };
+      localStorage.setItem(keys.settings, JSON.stringify(settings));
+    }
+    if (Array.isArray(state.products)) {
+      products = state.products;
+      localStorage.setItem(keys.products, JSON.stringify(products));
+    }
+    if (Array.isArray(state.quotes)) {
+      quotes = state.quotes;
+      localStorage.setItem(keys.quotes, JSON.stringify(quotes));
+    }
+    if (state.updatedAt) localStorage.setItem(keys.stateUpdatedAt, state.updatedAt);
+    restoringPersistentState = false;
+  }
+
+  function schedulePersistentStateBackup() {
+    if (!currentUser || restoringPersistentState) return;
+    clearTimeout(stateBackupTimer);
+    stateBackupTimer = setTimeout(backupPersistentState, 800);
+  }
+
+  async function backupPersistentState() {
+    if (!currentUser) return;
+    try {
+      await api("/api/system/browser-state", {
+        method: "PUT",
+        body: JSON.stringify(localStatePayload())
+      });
+    } catch (error) {
+      console.warn("Local data backup failed", error);
+    }
+  }
+
+  async function restorePersistentStateIfNeeded() {
+    if (!currentUser) return;
+    try {
+      const data = await api("/api/system/browser-state");
+      if (data.exists && data.state && !hasLocalUserData()) {
+        applyPersistentState(data.state);
+        renderAllSelectors();
+        renderSettings();
+        renderProducts();
+        renderHistory();
+        toast("已从本机数据目录恢复产品库、设置和历史报价。");
+        return;
+      }
+      await backupPersistentState();
+    } catch (error) {
+      console.warn("Local data restore failed", error);
+    }
   }
 
   function escapeHtml(value) {
@@ -415,6 +493,7 @@
     currentUser = data.user;
     renderLogin();
     applyAuthLock();
+    await restorePersistentStateIfNeeded();
     await loadServerData();
     toast("Logged in successfully. / 登录成功。");
   }
@@ -462,7 +541,10 @@
       currentUser = data.user;
       renderLogin();
       applyAuthLock();
-      if (currentUser) await loadServerData();
+      if (currentUser) {
+        await restorePersistentStateIfNeeded();
+        await loadServerData();
+      }
     } catch {
       renderLogin();
       applyAuthLock();
@@ -1923,7 +2005,9 @@
         api("/api/freight-rates")
       ]);
       serverProducts = productData.products || [];
-      products = serverProducts.map(toLegacyProduct);
+      const mergedProducts = new Map(serverProducts.map((product) => [product.id, toLegacyProduct(product)]));
+      products.forEach((product) => mergedProducts.set(product.id, product));
+      products = Array.from(mergedProducts.values());
       ports = portData.ports || [];
       freightRates = freightData.freightRates || [];
       if (isAdmin()) {
