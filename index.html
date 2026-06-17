@@ -13,27 +13,27 @@
         <p>本地报价系统</p>
         <button id="sidebar-toggle-btn" class="sidebar-toggle" type="button">隐藏侧边栏</button>
         <div id="login-box" class="login-box">
-          <input id="login-username" placeholder="Username / 用户名" />
-          <input id="login-password" placeholder="Password / 密码" type="password" />
-          <button id="login-btn" class="primary" type="button">Login / 登录</button>
-          <small id="login-status">Not logged in / 未登录</small>
+          <input id="login-username" placeholder="用户名" />
+          <input id="login-password" placeholder="密码" type="password" />
+          <button id="login-btn" class="primary" type="button">登录</button>
+          <small id="login-status">未登录</small>
         </div>
         <div id="user-info-box" class="user-info-box" hidden>
-          <small>Current User / 当前用户</small>
+          <small>当前用户</small>
           <b id="user-info-name">-</b>
           <span id="user-info-id">ID: -</span>
-          <span id="user-info-role">Role / 权限编号: -</span>
-          <button id="logout-btn" type="button">Logout / 退出</button>
+          <span id="user-info-role">权限编号: -</span>
+          <button id="logout-btn" type="button">退出</button>
         </div>
         <nav>
-          <button class="nav-btn active" data-view="home">Home / 首页</button>
-          <button class="nav-btn" data-view="quote">Quotation / 新建报价</button>
-          <button class="nav-btn" data-view="history">History / 历史报价</button>
-          <button class="nav-btn" data-view="products">Products / 产品库</button>
-          <button class="nav-btn" data-view="freight">Freight Center / 运费中心</button>
-          <button class="nav-btn admin-only" data-view="users">Users / 用户管理</button>
-          <button class="nav-btn admin-only" data-view="data">Data / 数据管理</button>
-          <button class="nav-btn" data-view="settings">Settings / 设置</button>
+          <button class="nav-btn active" data-view="home">首页</button>
+          <button class="nav-btn" data-view="quote">新建报价</button>
+          <button class="nav-btn" data-view="history">历史报价</button>
+          <button class="nav-btn" data-view="products">产品库</button>
+          <button class="nav-btn" data-view="freight">运费中心</button>
+          <button class="nav-btn admin-only" data-view="users">用户管理</button>
+          <button class="nav-btn admin-only" data-view="data">数据管理</button>
+          <button class="nav-btn" data-view="settings">设置</button>
         </nav>
       </aside>
 
@@ -70,11 +70,11 @@
           <div class="panel">
             <h3>数据库与文件</h3>
             <div class="actions">
-              <button id="backup-db-btn" type="button">Backup Database / 备份数据库</button>
-              <button id="restore-db-btn" type="button">Restore Database / 恢复数据库</button>
-              <button id="export-data-btn" type="button">Export All Data / 导出全部数据</button>
-              <button id="import-data-btn" type="button">Import Data / 导入数据</button>
-              <button id="open-data-dir-btn" type="button">Open Data Folder / 打开数据目录</button>
+              <button id="backup-db-btn" type="button">备份数据库</button>
+              <button id="restore-db-btn" type="button">恢复数据库</button>
+              <button id="export-data-btn" type="button">导出全部数据</button>
+              <button id="import-data-btn" type="button">导入数据</button>
+              <button id="open-data-dir-btn" type="button">打开数据目录</button>
             </div>
           </div>
         </section>
@@ -223,14 +223,8 @@
           <div class="panel">
             <div class="form-grid">
               <label><span>分类</span><select id="product-category"></select></label>
-              <label><span>品牌</span><input id="product-brand" /></label>
-              <label><span>型号</span><input id="product-model" /></label>
-              <label><span>吨位</span><input id="product-tonnage" /></label>
-              <label><span>年份</span><input id="product-year" /></label>
-              <label><span>工时</span><input id="product-hours" /></label>
-              <label><span>参考价格</span><input id="product-price" type="number" /></label>
-              <label class="wide"><span>参数</span><textarea id="product-params"></textarea></label>
-              <label class="wide"><span>备注</span><textarea id="product-remark"></textarea></label>
+              <label><span>资料模板</span><select id="product-template"></select></label>
+              <div id="product-dynamic-fields" class="wide product-dynamic-fields"></div>
               <div>
                 <span class="field-title">常用图片</span>
                 <label class="file-btn">上传图片<input id="product-image" type="file" accept="image/*" /></label>
@@ -302,12 +296,12 @@
               <div class="row-head">
                 <h3>报价明细</h3>
                 <div class="actions">
-                  <select id="library-product-select"></select>
+                  <button id="open-product-picker-btn" type="button">从产品库选择</button>
                   <select id="add-item-type">
                     <option value="product">新增产品</option>
                     <option value="freight">新增海运费</option>
                     <option value="trucking">新增陆路运输费</option>
-                    <option value="custom">新增自定义行</option>
+                    <option value="custom">自定义行</option>
                   </select>
                   <button id="add-quote-item-btn" type="button">新增</button>
                 </div>
@@ -341,7 +335,7 @@
 
         <section id="view-freight" class="view no-print">
           <header class="page-head">
-            <h2>Freight Center / 运费中心</h2>
+            <h2>运费中心</h2>
             <p>Port Library / 港口库、Freight Rate Library / 运费库、Freight Calculator / 运费查询。</p>
           </header>
 
@@ -479,6 +473,19 @@
         <footer class="actions">
           <button id="save-category-btn" class="primary" type="button">保存分类</button>
         </footer>
+      </div>
+    </div>
+
+    <div id="product-picker-modal" class="modal no-print" hidden>
+      <div class="modal-card product-picker-card">
+        <header>
+          <h3>Product Library / 产品库</h3>
+          <button id="close-product-picker-btn" type="button">关闭</button>
+        </header>
+        <div class="filter-grid">
+          <input id="product-picker-search" placeholder="Search brand/model/category / 搜索品牌型号分类" />
+        </div>
+        <div id="product-picker-list" class="product-picker-list"></div>
       </div>
     </div>
     <script src="./app.js"></script>

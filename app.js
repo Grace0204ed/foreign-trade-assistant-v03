@@ -140,6 +140,7 @@
     ],
     quoteStyle: "business",
     currencies: ["USD", "EUR", "GBP", "CNY", "RUB", "AED", "SAR", "JPY", "AUD", "CAD"],
+    tradeTerms: ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"],
     logoDataUrl: "",
     backgroundDataUrl: "",
     stampDataUrl: "",
@@ -426,14 +427,14 @@
   }
 
   function renderLogin() {
-    $("login-status").textContent = currentUser ? `${currentUser.username} / ${currentUser.role}` : "Not logged in / 未登录";
+    $("login-status").textContent = currentUser ? `${currentUser.username} / ${currentUser.role}` : "未登录";
     $("login-btn").hidden = !!currentUser;
     $("login-box").hidden = !!currentUser;
     $("user-info-box").hidden = !currentUser;
     if (currentUser) {
       $("user-info-name").textContent = currentUser.username || "-";
       $("user-info-id").textContent = `ID: ${currentUser.id || "-"}`;
-      $("user-info-role").textContent = `Role / 权限编号: ${currentUser.role || "user"}`;
+      $("user-info-role").textContent = `权限编号: ${currentUser.role || "user"}`;
     }
   }
 
@@ -447,7 +448,7 @@
       button.disabled = !currentUser;
     });
     if (!currentUser) {
-      $("login-status").textContent = "Not logged in / 未登录";
+      $("login-status").textContent = "未登录";
       $("login-box").hidden = false;
       switchView("login");
     } else if ($("view-login")?.classList.contains("active")) {
@@ -488,14 +489,11 @@
     { value: "100%", label: "100% before shipment / 百分百付款" }
   ];
 
-  const tradeTermOptions = [
-    { value: "EXW", label: "EXW - Ex Works / 工厂交货价", desc: "EXW: Seller provides goods at factory. Freight, trucking or insurance shown in this quotation can be paid by seller on buyer's behalf only and does not change seller's EXW responsibility. / 工厂交货价；报价中列明的运费、拖车费或保险如由我方代付，仅为代客户垫付，不改变我方 EXW 责任。" },
-    { value: "FOB", label: "FOB - Free On Board / 装运港船上交货", desc: "FOB: Seller delivers goods to the departure port and loads on board; buyer pays sea freight and insurance. / 我们负责把货运到装运港并装船，买方负责海运和保险。" },
-    { value: "CIF", label: "CIF - Cost Insurance Freight / 成本保险加运费", desc: "CIF: Seller pays cost, insurance and sea freight to buyer's destination port. / 我们负责货值、保险和海运到客户指定目的港。" }
-  ];
-
-  function tradeDescription(value) {
-    return tradeTermOptions.find((option) => option.value === value)?.desc || "";
+  function normalizeTradeTerms() {
+    const fallback = defaultSettings.tradeTerms || ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
+    const list = Array.isArray(settings.tradeTerms) && settings.tradeTerms.length ? settings.tradeTerms : fallback;
+    settings.tradeTerms = [...new Set(list.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean))];
+    if (!settings.tradeTerms.length) settings.tradeTerms = [...fallback];
   }
 
   function applySidebarState() {
@@ -695,17 +693,12 @@
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, w, h);
-    const sourceRatio = img.width / img.height;
-    const targetRatio = w / h;
-    let sx = 0, sy = 0, sw = img.width, sh = img.height;
-    if (sourceRatio > targetRatio) {
-      sw = img.height * targetRatio;
-      sx = (img.width - sw) / 2;
-    } else {
-      sh = img.width / targetRatio;
-      sy = (img.height - sh) / 2;
-    }
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+    const scale = Math.min(w / img.width, h / img.height);
+    const drawWidth = img.width * scale;
+    const drawHeight = img.height * scale;
+    const dx = (w - drawWidth) / 2;
+    const dy = (h - drawHeight) / 2;
+    ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, drawWidth, drawHeight);
     return canvas.toDataURL("image/jpeg", 0.88);
   }
 
@@ -744,6 +737,7 @@
     normalizeBankFields();
     normalizePaymentQrFields();
     normalizeCurrencies();
+    normalizeTradeTerms();
     normalizeTemplates();
     normalizeCostTemplates();
     normalizeCategories();
@@ -754,6 +748,7 @@
     renderBankFields();
     renderPaymentQrFields();
     renderCurrencies();
+    renderTradeTerms();
     renderTemplateSelect();
     fillTemplateForm(settings.templates[0]?.name);
     $("logo-preview").src = settings.logoDataUrl || "";
@@ -1224,6 +1219,16 @@
         </div>
         <table class="field-table"><tbody id="currency-list"></tbody></table>
       </div>
+      <div class="currency-manager">
+        <div class="row-head">
+          <h4>Trade Terms / 贸易方式</h4>
+          <div class="actions">
+            <input id="trade-term-input" placeholder="DDP" maxlength="12" />
+            <button id="add-trade-term-btn" type="button">Add / 新增</button>
+          </div>
+        </div>
+        <table class="field-table"><tbody id="trade-term-list"></tbody></table>
+      </div>
       <div id="terms-field-host"></div>
     `;
     const sticky = document.querySelector(".sticky-actions");
@@ -1261,6 +1266,56 @@
     save(keys.settings, settings);
     renderCurrencies();
     renderAllSelectors();
+  }
+
+  function renderTradeTerms() {
+    if (!$("trade-term-list")) return;
+    normalizeTradeTerms();
+    $("trade-term-list").innerHTML = settings.tradeTerms.map((term, index) => `
+      <tr data-trade-index="${index}">
+        <td>${index + 1}</td>
+        <td><b>${escapeHtml(term)}</b></td>
+        <td class="field-actions">
+          <button data-trade-action="up" type="button">Up / 上移</button>
+          <button data-trade-action="down" type="button">Down / 下移</button>
+          <button data-trade-action="delete" type="button"${settings.tradeTerms.length <= 1 ? " disabled" : ""}>Delete / 删除</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function addTradeTerm() {
+    normalizeTradeTerms();
+    const value = $("trade-term-input").value.trim().toUpperCase();
+    if (!value) return toast("Please enter trade term. / 请输入贸易方式。");
+    if (settings.tradeTerms.includes(value)) return toast("Trade term already exists. / 贸易方式已存在。");
+    settings.tradeTerms.push(value);
+    $("trade-term-input").value = "";
+    save(keys.settings, settings);
+    renderTradeTerms();
+    renderQuoteTerms();
+  }
+
+  function handleTradeTermAction(event) {
+    const row = event.target.closest("tr[data-trade-index]");
+    if (!row) return;
+    normalizeTradeTerms();
+    const index = Number(row.dataset.tradeIndex);
+    const action = event.target.dataset.tradeAction;
+    if (action === "delete") {
+      if (settings.tradeTerms.length <= 1) return;
+      if (!confirm("Delete this trade term? / 确认删除这个贸易方式吗？")) return;
+      settings.tradeTerms.splice(index, 1);
+    }
+    if (action === "up" && index > 0) {
+      [settings.tradeTerms[index - 1], settings.tradeTerms[index]] = [settings.tradeTerms[index], settings.tradeTerms[index - 1]];
+    }
+    if (action === "down" && index < settings.tradeTerms.length - 1) {
+      [settings.tradeTerms[index + 1], settings.tradeTerms[index]] = [settings.tradeTerms[index], settings.tradeTerms[index + 1]];
+    }
+    save(keys.settings, settings);
+    renderTradeTerms();
+    renderQuoteTerms();
   }
 
   function handleCurrencyAction(event) {
@@ -1845,13 +1900,17 @@
     normalizeTemplates();
     normalizeCategories();
     normalizeCurrencies();
+    normalizeTradeTerms();
     const catOptions = settings.categories
       .filter((c) => c.visible !== false)
       .map((c) => `<option value="${escapeHtml(categoryLabel(c))}">${escapeHtml(categoryFullLabel(c))}</option>`)
       .join("");
     $("product-category").innerHTML = catOptions;
+    if ($("product-template")) {
+      $("product-template").innerHTML = settings.templates.map((tpl) => `<option value="${escapeHtml(tpl.name)}">${escapeHtml(tpl.name)}</option>`).join("");
+      if (!editingProductId && $("product-dynamic-fields")) renderProductDynamicFields();
+    }
     $("quote-template").innerHTML = settings.templates.map((t) => `<option>${escapeHtml(t.name)}</option>`).join("");
-    $("library-product-select").innerHTML = `<option value="">选择产品库产品</option>` + products.map((p) => `<option value="${p.id}">${escapeHtml(p.brand)} ${escapeHtml(p.model)}</option>`).join("");
     renderFreightSelectors();
   }
 
@@ -2267,30 +2326,84 @@
 
   function clearProductForm() {
     editingProductId = "";
-    ["product-brand", "product-model", "product-tonnage", "product-year", "product-hours", "product-price", "product-params", "product-remark"].forEach((id) => $(id).value = "");
+    if ($("product-template")) $("product-template").value = settings.templates[0]?.name || "";
+    renderProductDynamicFields();
     $("product-image-preview").src = "";
     $("product-image-preview").dataset.image = "";
   }
 
+  function productValues(product = {}) {
+    return {
+      ...(product.values || {}),
+      productType: product.values?.productType || product.category || "",
+      brand: product.values?.brand || product.brand || "",
+      model: product.values?.model || product.model || "",
+      tonnage: product.values?.tonnage || product.tonnage || "",
+      year: product.values?.year || product.year || "",
+      hours: product.values?.hours || product.hours || "",
+      unitPrice: product.values?.unitPrice || product.referencePrice || "",
+      referencePrice: product.values?.referencePrice || product.referencePrice || "",
+      params: product.values?.params || product.params || "",
+      remark: product.values?.remark || product.remark || "",
+      currency: product.values?.currency || settings.currency
+    };
+  }
+
+  function productTemplateByName(name) {
+    normalizeTemplates();
+    return settings.templates.find((tpl) => tpl.name === name) || settings.templates[0];
+  }
+
+  function renderProductDynamicFields(product = {}) {
+    const host = $("product-dynamic-fields");
+    if (!host) return;
+    const tpl = productTemplateByName($("product-template")?.value || product.templateName);
+    const values = productValues(product);
+    const fields = (tpl?.fields || [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
+    host.innerHTML = fields.map((field) => `
+      <label class="${field.fieldType === "textarea" ? "wide" : ""}">
+        <span>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}${field.required ? " *" : ""}</span>
+        ${renderProductLibraryFieldInput(field, values[field.fieldKey] || "")}
+      </label>
+    `).join("");
+  }
+
+  function renderProductLibraryFieldInput(field, value) {
+    const key = escapeHtml(field.fieldKey);
+    const val = escapeHtml(value);
+    if (field.fieldKey === "currency") return renderCurrencySelectFor("product", field.fieldKey, value);
+    if (field.fieldType === "textarea") return `<textarea data-product-field="${key}">${val}</textarea>`;
+    if (field.fieldType === "date") return `<input data-product-field="${key}" type="date" value="${val}" />`;
+    if (field.fieldType === "number" || field.fieldType === "money") return `<input data-product-field="${key}" type="number" value="${val}" />`;
+    return `<input data-product-field="${key}" type="text" value="${val}" />`;
+  }
+
   function collectProductForm() {
+    const values = {};
+    document.querySelectorAll("[data-product-field]").forEach((input) => values[input.dataset.productField] = input.value);
     return {
       id: editingProductId || uid("product"),
       category: $("product-category").value,
-      brand: $("product-brand").value.trim(),
-      model: $("product-model").value.trim(),
-      tonnage: $("product-tonnage").value.trim(),
-      year: $("product-year").value.trim(),
-      hours: $("product-hours").value.trim(),
-      referencePrice: $("product-price").value,
-      params: $("product-params").value.trim(),
-      remark: $("product-remark").value.trim(),
+      templateName: $("product-template")?.value || settings.templates[0]?.name || "",
+      values,
+      brand: values.brand || "",
+      model: values.model || "",
+      tonnage: values.tonnage || "",
+      year: values.year || "",
+      hours: values.hours || "",
+      referencePrice: values.unitPrice || values.referencePrice || "",
+      params: values.params || "",
+      remark: values.remark || "",
       imageDataUrl: $("product-image-preview").dataset.image || ""
     };
   }
 
   function saveProduct() {
     const product = collectProductForm();
-    if (!product.brand && !product.model) return toast("请至少填写品牌或型号。");
+    if (!Object.values(product.values || {}).some(Boolean)) return toast("请至少填写一个产品字段。");
     const idx = products.findIndex((p) => p.id === product.id);
     if (idx >= 0) products[idx] = product;
     else products.unshift(product);
@@ -2307,14 +2420,8 @@
     normalizeCategories();
     editingProductId = p.id;
     $("product-category").value = p.category || categoryLabel(settings.categories[0]);
-    $("product-brand").value = p.brand || "";
-    $("product-model").value = p.model || "";
-    $("product-tonnage").value = p.tonnage || "";
-    $("product-year").value = p.year || "";
-    $("product-hours").value = p.hours || "";
-    $("product-price").value = p.referencePrice || "";
-    $("product-params").value = p.params || "";
-    $("product-remark").value = p.remark || "";
+    if ($("product-template")) $("product-template").value = p.templateName || settings.templates[0]?.name || "";
+    renderProductDynamicFields(p);
     $("product-image-preview").src = p.imageDataUrl || "";
     $("product-image-preview").dataset.image = p.imageDataUrl || "";
   }
@@ -2467,14 +2574,24 @@
 
   function renderProducts() {
     const kw = normalize($("product-search").value);
-    const list = products.filter((p) => !kw || normalize(`${p.category}${p.brand}${p.model}`).includes(kw));
+    const list = products.filter((p) => !kw || normalize(`${p.category}${p.brand}${p.model}${Object.values(p.values || {}).join(" ")}`).includes(kw));
     $("product-list").innerHTML = list.map((p) => `
       <article class="list-item">
         ${p.imageDataUrl ? `<img src="${p.imageDataUrl}" alt="">` : `<div class="thumb-empty">No Image</div>`}
-        <div><b>${escapeHtml(p.brand)} ${escapeHtml(p.model)}</b><p>${escapeHtml(p.category)} | ${escapeHtml(p.tonnage)} | ${escapeHtml(p.year)} | ${escapeHtml(p.hours)}</p><p>${escapeHtml(p.remark)}</p></div>
+        <div><b>${escapeHtml(productDisplayName(p))}</b><p>${escapeHtml(p.category)} | ${escapeHtml(productSummary(p))}</p><p>${escapeHtml(p.remark)}</p></div>
         <div class="actions"><button onclick="window.quoteApp.editProduct('${p.id}')">编辑</button><button onclick="window.quoteApp.deleteProduct('${p.id}')">删除</button></div>
       </article>
     `).join("") || `<p class="empty">暂无产品。</p>`;
+  }
+
+  function productDisplayName(product) {
+    const values = productValues(product);
+    return [values.brand, values.model].filter(Boolean).join(" ") || values.productType || values.name || "未命名产品";
+  }
+
+  function productSummary(product) {
+    const values = productValues(product);
+    return [values.year, values.hours ? `${values.hours}h` : "", values.tonnage, values.params].filter(Boolean).join(" | ");
   }
 
   function renderQuoteEditor() {
@@ -2598,10 +2715,13 @@
     if (["freight", "trucking", "custom"].includes(kind)) {
       const costTpl = costTemplate(kind);
       const fields = (costTpl.fields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
+    const customTitle = kind === "custom"
+        ? [vals.productType, vals.brand, vals.model, vals.itemName, vals.description].filter(Boolean).join(" ") || "自定义行"
+        : (vals.productType || costTpl.name || itemKindLabel(kind));
       return `
         <article class="quote-item panel cost-item" data-id="${id}" data-kind="${kind}">
           <div class="row-head">
-            <h3>${escapeHtml(vals.productType || costTpl.name || itemKindLabel(kind))}</h3>
+            <h3>${escapeHtml(customTitle)}</h3>
             <span class="manual-badge">${kind === "custom" ? "Manual Input / 手动输入" : "Configurable Fields / 字段可配置"}</span>
           </div>
           <div class="quote-item-grid">
@@ -2663,6 +2783,34 @@
     return `<input data-qfield="${key}" type="text" value="${val}" />`;
   }
 
+  function openProductPicker() {
+    renderProductPicker();
+    $("product-picker-modal").hidden = false;
+    $("product-picker-search").focus();
+  }
+
+  function closeProductPicker() {
+    $("product-picker-modal").hidden = true;
+  }
+
+  function renderProductPicker() {
+    const keyword = normalize($("product-picker-search")?.value || "");
+    const list = products.filter((product) => !keyword || normalize(`${product.category}${product.brand}${product.model}${product.remark}`).includes(keyword));
+    $("product-picker-list").innerHTML = list.map((product) => `
+      <article class="product-pick-card" data-product-id="${escapeHtml(product.id)}">
+        ${product.imageDataUrl ? `<img src="${product.imageDataUrl}" alt="">` : `<div class="thumb-empty">No Image</div>`}
+        <div>
+          <h4>${escapeHtml(productDisplayName(product))}</h4>
+          <p>${escapeHtml(product.category || "")}</p>
+          <p>${escapeHtml(productSummary(product))}</p>
+          <p>${product.referencePrice ? money(product.referencePrice, settings.currency) : ""}</p>
+          <small>${escapeHtml(product.remark || "")}</small>
+        </div>
+        <button type="button" data-pick-product="${escapeHtml(product.id)}">Import to Quotation / 导入报价单</button>
+      </article>
+    `).join("") || `<p class="empty">No product found. / 未找到产品。</p>`;
+  }
+
   function renderCostFieldInput(field, value) {
     const key = escapeHtml(field.fieldKey);
     const val = escapeHtml(value);
@@ -2694,6 +2842,13 @@
     normalizeCurrencies();
     const selected = String(value || settings.currency || settings.currencies[0] || "USD").toUpperCase();
     return `<select data-qfield="${escapeHtml(fieldKey)}">${settings.currencies.map((option) => `<option value="${escapeHtml(option)}"${option === selected ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`;
+  }
+
+  function renderCurrencySelectFor(scope, fieldKey, value) {
+    normalizeCurrencies();
+    const selected = String(value || settings.currency || settings.currencies[0] || "USD").toUpperCase();
+    const attr = scope === "product" ? "data-product-field" : "data-qfield";
+    return `<select ${attr}="${escapeHtml(fieldKey)}">${settings.currencies.map((option) => `<option value="${escapeHtml(option)}"${option === selected ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`;
   }
 
   function defaultCostCategory(kind) {
@@ -2735,8 +2890,9 @@
       return `<select data-termfield="${key}">${paymentOptions.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>`;
     }
     if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
-      const selected = value || "FOB";
-      return `<select data-termfield="${key}" data-trade-term>${tradeTermOptions.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select><p class="term-desc">${escapeHtml(tradeDescription(selected))}</p>`;
+      normalizeTradeTerms();
+      const selected = value || "EXW";
+      return `<select data-termfield="${key}" data-trade-term>${settings.tradeTerms.map((option) => `<option value="${escapeHtml(option)}"${option === selected ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`;
     }
     if (field.fieldType === "textarea") return `<textarea data-termfield="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-termfield="${key}" type="date" value="${val}" />`;
@@ -2771,34 +2927,39 @@
   function addQuoteItemByType() {
     const type = $("add-item-type").value;
     if (type === "product") {
-      if ($("library-product-select").value) addProductFromLibrary();
-      else addManualProduct();
+      addManualProduct();
       return;
     }
     addCostItem(type);
   }
 
-  function addProductFromLibrary() {
-    const p = products.find((x) => x.id === $("library-product-select").value);
+  function addProductFromLibrary(productId) {
+    const p = products.find((x) => x.id === productId);
     if (!p) return toast("请选择产品库产品。");
     collectQuoteFromForm();
+    const values = productValues(p);
     currentQuote.items.push({
       id: uid("item"),
       kind: "product",
       imageDataUrl: p.imageDataUrl || "",
       values: {
-        brand: p.brand,
-        model: p.model,
-        year: p.year,
-        hours: p.hours,
-        unitPrice: p.referencePrice,
-        currency: settings.currency,
+        ...values,
+        productType: values.productType || p.category || "",
+        brand: values.brand || p.brand || "",
+        model: values.model || p.model || "",
+        year: values.year || p.year || "",
+        hours: values.hours || p.hours || "",
+        unitPrice: values.unitPrice || values.referencePrice || p.referencePrice || "",
+        currency: values.currency || settings.currency,
         qty: "1",
-        params: p.params,
-        remark: p.remark
+        params: values.params || p.params || "",
+        remark: values.remark || p.remark || ""
       }
     });
     renderQuoteItems();
+    closeProductPicker();
+    renderPreview();
+    toast("已导入报价单。");
   }
 
   function total() {
@@ -2923,7 +3084,7 @@
       return paymentOptions.find((option) => option.value === value)?.label || value;
     }
     if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
-      return `${value || "FOB"} - ${tradeDescription(value || "FOB")}`;
+      return value || "EXW";
     }
     return value;
   }
@@ -3044,6 +3205,7 @@
     switchView("quote");
     bindQuoteToForm();
     renderQuoteItems();
+    closeProductPicker();
     renderPreview();
   }
 
@@ -3120,12 +3282,20 @@
     $("reset-background-btn").addEventListener("click", () => clearSettingsAsset("backgroundDataUrl", "Default background restored. / 已恢复默认背景。"));
     $("remove-stamp-btn").addEventListener("click", () => clearSettingsAsset("stampDataUrl", "Electronic seal removed. / 电子公章已删除。"));
     $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; });
+    $("product-template").addEventListener("change", () => renderProductDynamicFields());
     $("save-product-btn").addEventListener("click", saveProduct);
     $("clear-product-btn").addEventListener("click", clearProductForm);
     $("price-import-file").addEventListener("change", async e => loadPriceImportFile(e.target.files[0]));
     $("import-price-btn").addEventListener("click", importPriceList);
     $("clear-import-text-btn").addEventListener("click", () => { $("price-import-text").value = ""; $("price-import-result").textContent = ""; });
     $("product-search").addEventListener("input", renderProducts);
+    $("open-product-picker-btn").addEventListener("click", openProductPicker);
+    $("close-product-picker-btn").addEventListener("click", closeProductPicker);
+    $("product-picker-search").addEventListener("input", renderProductPicker);
+    $("product-picker-list").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-pick-product]");
+      if (button) addProductFromLibrary(button.dataset.pickProduct);
+    });
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
     $("pdf-language").addEventListener("change", renderPreview);
     $("buyer-country").addEventListener("change", applyBuyerCountryDialCode);
@@ -3140,10 +3310,6 @@
       if (event.target.matches("[data-port-picker]")) {
         const target = event.target.closest("label")?.querySelector(`[data-termfield="${event.target.dataset.portPicker}"]`);
         if (target && event.target.value) target.value = event.target.value;
-      }
-      if (event.target.matches("[data-trade-term]")) {
-        const desc = event.target.closest("label")?.querySelector(".term-desc");
-        if (desc) desc.textContent = tradeDescription(event.target.value);
       }
       renderPreview();
     });
@@ -3175,10 +3341,12 @@
       if (event.target.id === "add-contact-field-btn") addContactField();
       if (event.target.id === "add-bank-field-btn") addBankField();
       if (event.target.id === "add-currency-btn") addCurrency();
+      if (event.target.id === "add-trade-term-btn") addTradeTerm();
       if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
       if (event.target.matches("[data-bank-action], [data-bank-visible]")) handleBankFieldAction(event);
       if (event.target.matches("[data-qr-action], [data-qr-visible]")) handlePaymentQrAction(event);
       if (event.target.matches("[data-currency-action]")) handleCurrencyAction(event);
+      if (event.target.matches("[data-trade-action]")) handleTradeTermAction(event);
       if (event.target.closest("#cost-field-template-list [data-field-action], #cost-field-template-list .field-required-toggle, #cost-field-template-list .field-visible-toggle")) handleCostFieldListClick(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
     });
