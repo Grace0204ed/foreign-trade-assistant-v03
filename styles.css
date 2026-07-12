@@ -551,6 +551,46 @@ textarea { min-height: 86px; resize: vertical; }
 .cost-item {
   border-left: 4px solid var(--accent);
 }
+.quote-line-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.quote-line-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.quote-line-table th,
+.quote-line-table td {
+  border: 1px solid var(--line);
+  padding: 7px;
+  vertical-align: middle;
+}
+.quote-line-table th {
+  background: #eef4fb;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: center;
+}
+.quote-line-table textarea,
+.quote-line-table input,
+.quote-line-table select {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+.quote-line-table textarea {
+  min-height: 44px;
+  resize: vertical;
+}
+.quote-line-table .line-amount {
+  min-width: 120px;
+  text-align: right;
+  font-weight: 900;
+  color: var(--primary);
+  white-space: nowrap;
+}
 
 .term-desc {
   margin: 4px 0 0;

@@ -2751,7 +2751,7 @@
       pdfLanguage: "bilingual",
       buyer: {},
       templateName: settings.templates[0]?.name || "",
-      items: [],
+      items: [blankQuoteLine()],
       terms: {
         payment: "30/70",
         deliveryTime: "",
@@ -2825,7 +2825,18 @@
     };
     currentQuote.terms = {};
     document.querySelectorAll("[data-termfield]").forEach((input) => currentQuote.terms[input.dataset.termfield] = input.value);
-    currentQuote.items = Array.from(document.querySelectorAll(".quote-item")).map((card) => {
+    const lineRows = Array.from(document.querySelectorAll(".quote-line"));
+    currentQuote.items = lineRows.length ? lineRows.map((row) => {
+      const values = {};
+      row.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
+      return {
+        id: row.dataset.id,
+        kind: row.dataset.kind || "product",
+        values,
+        imageDataUrl: row.dataset.image || "",
+        freightSnapshot: null
+      };
+    }) : Array.from(document.querySelectorAll(".quote-item")).map((card) => {
       const values = {};
       card.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
       let freightSnapshot = null;
@@ -2843,6 +2854,37 @@
       custom: "Custom Row / 自定义行"
     };
     return map[kind || "product"] || map.product;
+  }
+
+  function blankQuoteLine(values = {}) {
+    return {
+      id: uid("item"),
+      kind: "product",
+      values: {
+        tradeTerm: currentQuote?.terms?.shipping || "EXW",
+        description: "",
+        qty: "1",
+        unitPrice: "",
+        currency: settings.currency,
+        remark: "",
+        ...values
+      },
+      imageDataUrl: ""
+    };
+  }
+
+  function tradeTermSelect(value) {
+    normalizeTradeTerms();
+    const selected = value || currentQuote?.terms?.shipping || "EXW";
+    return `<select data-qfield="tradeTerm">${settings.tradeTerms.map((term) => `<option value="${escapeHtml(term)}"${term === selected ? " selected" : ""}>${escapeHtml(term)}</option>`).join("")}</select>`;
+  }
+
+  function lineDescription(item) {
+    const values = item.values || {};
+    return values.description
+      || [values.productType, values.brand, values.model, values.year, values.hours].filter(Boolean).join(" ")
+      || values.remark
+      || "";
   }
 
   function itemCard(item = {}) {
@@ -2902,7 +2944,53 @@
   }
 
   function renderQuoteItems() {
-    $("quote-items").innerHTML = (currentQuote.items || []).map(itemCard).join("");
+    if (!currentQuote.items?.length) currentQuote.items = [blankQuoteLine()];
+    $("quote-items").innerHTML = `
+      <div class="quote-line-table-wrap">
+        <table class="quote-line-table">
+          <thead>
+            <tr>
+              <th>贸易条款</th>
+              <th>商品信息 / 产品描述</th>
+              <th>数量</th>
+              <th>单价</th>
+              <th>币种</th>
+              <th>总价</th>
+              <th>备注</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(currentQuote.items || []).map((item) => {
+              const values = item.values || {};
+              const currency = values.currency || settings.currency;
+              return `
+                <tr class="quote-line" data-id="${escapeHtml(item.id || uid("item"))}" data-kind="${escapeHtml(item.kind || "product")}" data-image="${escapeHtml(item.imageDataUrl || "")}">
+                  <td>${tradeTermSelect(values.tradeTerm)}</td>
+                  <td><textarea data-qfield="description" placeholder="例如：Used CAT 320 Excavator / 二手卡特320挖掘机">${escapeHtml(lineDescription(item))}</textarea></td>
+                  <td><input data-qfield="qty" type="number" min="0" step="1" value="${escapeHtml(values.qty || "1")}" /></td>
+                  <td><input data-qfield="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(values.unitPrice || "")}" /></td>
+                  <td>${renderCurrencySelect("currency", currency)}</td>
+                  <td class="line-amount">${escapeHtml(money(itemSubtotal(item), currency))}</td>
+                  <td><input data-qfield="remark" value="${escapeHtml(values.remark || "")}" /></td>
+                  <td><button class="remove-quote-item" type="button">删除</button></td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function updateQuoteLineAmounts() {
+    document.querySelectorAll(".quote-line").forEach((row) => {
+      const qty = Number(row.querySelector("[data-qfield='qty']")?.value || 0);
+      const unitPrice = Number(row.querySelector("[data-qfield='unitPrice']")?.value || 0);
+      const currency = row.querySelector("[data-qfield='currency']")?.value || settings.currency;
+      const target = row.querySelector(".line-amount");
+      if (target) target.textContent = money(qty * unitPrice, currency);
+    });
   }
 
   function renderFieldInput(field, value) {
@@ -3041,8 +3129,9 @@
 
   function addManualProduct() {
     collectQuoteFromForm();
-    currentQuote.items.push({ id: uid("item"), kind: "product", values: { currency: settings.currency, qty: "1" }, imageDataUrl: "" });
+    currentQuote.items.push(blankQuoteLine());
     renderQuoteItems();
+    renderPreview();
   }
 
   function addCostItem(kind) {
@@ -3063,12 +3152,7 @@
   }
 
   function addQuoteItemByType() {
-    const type = $("add-item-type").value;
-    if (type === "product") {
-      addManualProduct();
-      return;
-    }
-    addCostItem(type);
+    addManualProduct();
   }
 
   function addProductFromLibrary(productId) {
@@ -3082,6 +3166,8 @@
       imageDataUrl: p.imageDataUrl || "",
       values: {
         ...values,
+        tradeTerm: currentQuote?.terms?.shipping || "EXW",
+        description: [values.productType || p.category, values.brand || p.brand, values.model || p.model, values.year || p.year].filter(Boolean).join(" "),
         productType: values.productType || p.category || "",
         brand: values.brand || p.brand || "",
         model: values.model || p.model || "",
@@ -3148,6 +3234,7 @@
 
   function previewDescription(item) {
     const values = item.values || {};
+    if (values.description) return values.description;
     if (["freight", "trucking", "custom"].includes(item.kind || "")) {
       const skip = new Set(["qty", "unitPrice", "currency", "remark"]);
       const fields = (costTemplate(item.kind).fields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
@@ -3184,9 +3271,9 @@
 
   function quotePreviewColumns() {
     return [
-      { key: "type", en: "Type", zh: "费用类型", visible: true },
-      { key: "description", en: "Description", zh: "说明", visible: true },
-      { key: "qty", en: "Qty", zh: "数量", visible: visibleQuoteField("qty") },
+      { key: "tradeTerm", en: "Trade Term", zh: "贸易条款", visible: true },
+      { key: "description", en: "Product Description", zh: "商品信息", visible: true },
+      { key: "qty", en: "Qty", zh: "数量", visible: true },
       { key: "unitPrice", en: "Unit Price", zh: "单价", visible: visibleQuoteField("unitPrice") },
       { key: "amount", en: "Amount", zh: "金额", visible: visibleQuoteField("totalAmount") },
       { key: "remark", en: "Remark", zh: "备注", visible: visibleQuoteField("remark") }
@@ -3200,6 +3287,7 @@
   function quotePreviewCell(item, column) {
     const values = item.values || {};
     const currency = values.currency || settings.currency;
+    if (column.key === "tradeTerm") return values.tradeTerm || currentQuote?.terms?.shipping || "EXW";
     if (column.key === "type") return values.productType || itemKindLabel(item.kind || "product");
     if (column.key === "description") return previewDescription(item);
     if (column.key === "qty") return values.qty || "1";
@@ -3297,7 +3385,7 @@
       </section>
       <section class="preview-panel"><h3>${labelText("Customer Information", "客户信息")}</h3><div class="preview-fields"><p>${labelText("Company", "公司")}：${escapeHtml(currentQuote.buyer.company)}</p><p>${labelText("Country", "国家")}：${escapeHtml(currentQuote.buyer.country)}</p><p>${labelText("Contact", "负责人")}：${escapeHtml(currentQuote.buyer.contact)}</p><p>${labelText("Phone", "电话")}：${escapeHtml(currentQuote.buyer.phone)}</p><p>${labelText("Email", "邮箱")}：${escapeHtml(currentQuote.buyer.email)}</p><p>${labelText("Address", "地址")}：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
       <section class="preview-panel"><h3>${labelText("Quotation Items", "报价明细")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${money(total(), settings.currency)}</div>` : ""}</section>
-      ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && i.imageDataUrl) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product" && i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
+      ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && i.imageDataUrl) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product" && i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.description || `${i.values.brand || ""} ${i.values.model || ""}`.trim())}</div></article>`).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${labelText("Terms", "条款")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
     `;
@@ -3319,7 +3407,7 @@
           productId: item.values.productId || "",
           productSnapshot: {
             productId: item.values.productId || "",
-            productName: `${item.values.brand || ""} ${item.values.model || ""}`.trim(),
+            productName: item.values.description || `${item.values.brand || ""} ${item.values.model || ""}`.trim(),
             machineCategory: item.values.productType || "",
             brand: item.values.brand || "",
             model: item.values.model || "",
@@ -3459,9 +3547,28 @@
     $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
     $("buyer-phone").addEventListener("paste", pastePlainTextIntoInput);
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
-    $("quote-items").addEventListener("input", renderPreview);
-    $("quote-items").addEventListener("change", async e => { if (e.target.matches(".quote-image-input")) { const img = await normalizeImage(e.target.files[0]); const prev = e.target.closest(".quote-item").querySelector("[data-image]"); if (prev) { prev.src = img; prev.dataset.image = img; } renderPreview(); } });
-    $("quote-items").addEventListener("click", e => { if (e.target.matches(".remove-quote-item")) { e.target.closest(".quote-item").remove(); renderPreview(); } });
+    $("quote-items").addEventListener("input", () => { updateQuoteLineAmounts(); renderPreview(); });
+    $("quote-items").addEventListener("change", async e => {
+      if (e.target.matches(".quote-image-input")) {
+        const img = await normalizeImage(e.target.files[0]);
+        const prev = e.target.closest(".quote-item").querySelector("[data-image]");
+        if (prev) { prev.src = img; prev.dataset.image = img; }
+      }
+      updateQuoteLineAmounts();
+      renderPreview();
+    });
+    $("quote-items").addEventListener("click", e => {
+      if (e.target.matches(".remove-quote-item")) {
+        const target = e.target.closest(".quote-line") || e.target.closest(".quote-item");
+        target?.remove();
+        if (!document.querySelector(".quote-line, .quote-item")) {
+          currentQuote.items = [blankQuoteLine()];
+          renderQuoteItems();
+        }
+        updateQuoteLineAmounts();
+        renderPreview();
+      }
+    });
     $("preview-quote-btn").addEventListener("click", renderPreview);
     $("quote-terms").addEventListener("change", (event) => {
       if (event.target.matches("[data-port-picker]")) {
