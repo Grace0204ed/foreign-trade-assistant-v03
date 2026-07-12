@@ -580,6 +580,27 @@
     return d.toISOString().slice(0, 10);
   }
 
+  function formatDateTime(value) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  function quoteHistoryTimeText(q) {
+    const created = formatDateTime(q.createdAt);
+    const saved = formatDateTime(q.savedAt || q.updatedAt);
+    if (created && saved && created !== saved) return `创建时间：${created} | 最近保存：${saved}`;
+    return `创建/保存时间：${saved || created || q.quoteDate || ""}`;
+  }
+
+  function quoteHistorySortTime(q) {
+    const value = q.savedAt || q.updatedAt || q.createdAt || q.quoteDate || "";
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+
   function quoteDateKey(date = today()) {
     return String(date || today()).replaceAll("-", "");
   }
@@ -3652,6 +3673,10 @@
     renderPreview();
     if (!validateQuoteLines()) return;
     syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
+    const nowIso = new Date().toISOString();
+    if (!currentQuote.createdAt) currentQuote.createdAt = nowIso;
+    currentQuote.updatedAt = nowIso;
+    currentQuote.savedAt = nowIso;
     const idx = quotes.findIndex((q) => q.id === currentQuote.id);
     if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
     else quotes.unshift(structuredClone(currentQuote));
@@ -3715,9 +3740,13 @@
 
   function copyQuote(id) {
     const q = structuredClone(quotes.find((x) => x.id === id));
+    const nowIso = new Date().toISOString();
     q.id = uid("quote");
     q.quoteNumber = `${q.quoteNumber}-COPY`;
     q.status = "草稿";
+    q.createdAt = nowIso;
+    q.updatedAt = nowIso;
+    q.savedAt = "";
     currentQuote = q;
     switchView("quote");
     bindQuoteToForm();
@@ -3738,8 +3767,8 @@
       const productsText = q.items.map(i => Object.values(i.values || {}).join(" ")).join(" ");
       const hay = normalize(`${q.buyer.company} ${q.buyer.country} ${productsText}`);
       return (!kw || hay.includes(kw)) && (!date || q.quoteDate === date);
-    });
-    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)}</b><p>${escapeHtml(q.buyer.company)} | ${escapeHtml(q.buyer.country)} | ${escapeHtml(q.quoteDate)}</p><p>${q.items.length} products | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
+    }).sort((a, b) => quoteHistorySortTime(b) - quoteHistorySortTime(a));
+    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)}</b><p>客户：${escapeHtml(q.buyer.company)} | 国家：${escapeHtml(q.buyer.country)} | 报价日期：${escapeHtml(q.quoteDate)}</p><p>${escapeHtml(quoteHistoryTimeText(q))}</p><p>${q.items.length} 行明细 | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
   }
 
   function bindEvents() {
