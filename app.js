@@ -600,6 +600,7 @@
 
   function showSettingsSection(section) {
     activeSettingsSection = section || "company";
+    if (activeSettingsSection === "quote-fields") activeSettingsSection = "company";
     localStorage.setItem(keys.settingsSection, activeSettingsSection);
     document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
       panel.hidden = panel.dataset.settingsPanel !== activeSettingsSection;
@@ -2875,8 +2876,9 @@
 
   function tradeTermSelect(value) {
     normalizeTradeTerms();
-    const selected = value || currentQuote?.terms?.shipping || "EXW";
-    return `<select data-qfield="tradeTerm">${settings.tradeTerms.map((term) => `<option value="${escapeHtml(term)}"${term === selected ? " selected" : ""}>${escapeHtml(term)}</option>`).join("")}</select>`;
+    const selected = value === undefined ? (currentQuote?.terms?.shipping || "EXW") : value;
+    const options = ["", ...settings.tradeTerms];
+    return `<select data-qfield="tradeTerm">${options.map((term) => `<option value="${escapeHtml(term)}"${term === selected ? " selected" : ""}>${term ? escapeHtml(term) : "空白"}</option>`).join("")}</select>`;
   }
 
   function lineDescription(item) {
@@ -3117,8 +3119,9 @@
     }
     if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
       normalizeTradeTerms();
-      const selected = value || "EXW";
-      return `<select data-termfield="${key}" data-trade-term>${settings.tradeTerms.map((option) => `<option value="${escapeHtml(option)}"${option === selected ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`;
+      const selected = value === undefined ? "EXW" : value;
+      const options = ["", ...settings.tradeTerms];
+      return `<select data-termfield="${key}" data-trade-term>${options.map((option) => `<option value="${escapeHtml(option)}"${option === selected ? " selected" : ""}>${option ? escapeHtml(option) : "空白"}</option>`).join("")}</select>`;
     }
     if (field.fieldType === "textarea") return `<textarea data-termfield="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-termfield="${key}" type="date" value="${val}" />`;
@@ -3287,7 +3290,7 @@
   function quotePreviewCell(item, column) {
     const values = item.values || {};
     const currency = values.currency || settings.currency;
-    if (column.key === "tradeTerm") return values.tradeTerm || currentQuote?.terms?.shipping || "EXW";
+    if (column.key === "tradeTerm") return Object.prototype.hasOwnProperty.call(values, "tradeTerm") ? values.tradeTerm : (currentQuote?.terms?.shipping || "EXW");
     if (column.key === "type") return values.productType || itemKindLabel(item.kind || "product");
     if (column.key === "description") return previewDescription(item);
     if (column.key === "qty") return values.qty || "1";
