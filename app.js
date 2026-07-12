@@ -140,6 +140,12 @@
       { id: "qr-alipay", labelEn: "Alipay QR Code", labelZh: "支付宝收款码", value: "", visible: true, sortOrder: 20 }
     ],
     quoteStyle: "business",
+    showQuoteNumberInPdf: true,
+    showQuoteDateInPdf: true,
+    showValidUntilInPdfTop: true,
+    showValidityRangeInPdfBottom: true,
+    validityRangeLabelEn: "Quotation Validity",
+    validityRangeLabelZh: "报价有效期",
     currencies: ["USD", "EUR", "GBP", "CNY", "RUB", "AED", "SAR", "JPY", "AUD", "CAD"],
     tradeTerms: ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"],
     logoDataUrl: "",
@@ -824,7 +830,8 @@
     normalizeCostTemplates();
     normalizeCategories();
     document.querySelectorAll("[data-setting]").forEach((input) => {
-      input.value = settings[input.dataset.setting] || "";
+      if (input.type === "checkbox") input.checked = settings[input.dataset.setting] !== false;
+      else input.value = settings[input.dataset.setting] || "";
     });
     renderCategoryList();
     renderBankFields();
@@ -843,7 +850,8 @@
     renderUsers();
     showSettingsSection(activeSettingsSection);
     document.querySelectorAll("[data-setting]").forEach((input) => {
-      input.value = settings[input.dataset.setting] || "";
+      if (input.type === "checkbox") input.checked = settings[input.dataset.setting] !== false;
+      else input.value = settings[input.dataset.setting] || "";
     });
   }
 
@@ -1290,6 +1298,19 @@
       </div>
       <div class="form-grid">
         <label><span>Default Currency / 默认货币</span><select id="default-currency-select" data-setting="currency"></select></label>
+      </div>
+      <div class="currency-manager">
+        <div class="row-head">
+          <h4>PDF Display Options / PDF显示选项</h4>
+        </div>
+        <div class="form-grid">
+          <label class="check-row"><input data-setting="showQuoteNumberInPdf" type="checkbox" /> <span>显示报价编号</span></label>
+          <label class="check-row"><input data-setting="showQuoteDateInPdf" type="checkbox" /> <span>显示报价日期</span></label>
+          <label class="check-row"><input data-setting="showValidUntilInPdfTop" type="checkbox" /> <span>顶部显示截止有效期</span></label>
+          <label class="check-row"><input data-setting="showValidityRangeInPdfBottom" type="checkbox" /> <span>底部显示有效期范围</span></label>
+          <label><span>底部有效期英文标题</span><input data-setting="validityRangeLabelEn" placeholder="Quotation Validity" /></label>
+          <label><span>底部有效期中文标题</span><input data-setting="validityRangeLabelZh" placeholder="报价有效期" /></label>
+        </div>
       </div>
       <div class="currency-manager">
         <div class="row-head">
@@ -1928,7 +1949,7 @@
     collectBankFields();
     collectPaymentQrFields();
     document.querySelectorAll("[data-setting]").forEach((input) => {
-      settings[input.dataset.setting] = input.value.trim();
+      settings[input.dataset.setting] = input.type === "checkbox" ? input.checked : input.value.trim();
     });
   }
 
@@ -2726,6 +2747,7 @@
       quoteNumber: `QA-${d.replaceAll("-", "")}-${String(quotes.length + 1).padStart(3, "0")}`,
       quoteDate: d,
       validUntil: addDays(7),
+      validityRangeText: "",
       pdfLanguage: "bilingual",
       buyer: {},
       templateName: settings.templates[0]?.name || "",
@@ -2759,6 +2781,7 @@
     $("quote-number").value = currentQuote.quoteNumber || "";
     $("quote-date").value = currentQuote.quoteDate || today();
     $("valid-until").value = currentQuote.validUntil || addDays(7);
+    $("validity-range-text").value = currentQuote.validityRangeText || "";
     $("pdf-language").value = currentQuote.pdfLanguage || "bilingual";
     $("buyer-country").value = currentQuote.buyer.country || "";
     $("buyer-company").value = currentQuote.buyer.company || "";
@@ -2790,6 +2813,7 @@
     currentQuote.quoteNumber = $("quote-number").value;
     currentQuote.quoteDate = $("quote-date").value;
     currentQuote.validUntil = $("valid-until").value;
+    currentQuote.validityRangeText = $("validity-range-text").value.trim();
     currentQuote.pdfLanguage = $("pdf-language").value || "bilingual";
     currentQuote.buyer = {
       country: $("buyer-country").value,
@@ -3233,6 +3257,24 @@
     </section>`;
   }
 
+  function renderQuoteMetaPreview() {
+    const rows = [];
+    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}</p>`);
+    if (settings.showQuoteDateInPdf !== false) rows.push(`<p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p>`);
+    if (settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
+    return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
+  }
+
+  function renderValidityRangePreview() {
+    if (settings.showValidityRangeInPdfBottom === false) return "";
+    const text = currentQuote.validityRangeText
+      || [currentQuote.quoteDate, currentQuote.validUntil].filter(Boolean).join(" - ");
+    if (!text) return "";
+    const labelEn = settings.validityRangeLabelEn || "Quotation Validity";
+    const labelZh = settings.validityRangeLabelZh || "报价有效期";
+    return `<p><b>${labelText(labelEn, labelZh)}：</b>${escapeHtml(text)}</p>`;
+  }
+
   function renderPreview() {
     collectQuoteFromForm();
     const tpl = template();
@@ -3251,12 +3293,12 @@
       </section>
       <section class="preview-top">
         <div class="preview-title"><h2>${escapeHtml(title)}</h2><p>${businessLine.split("<br>").map(escapeHtml).join("<br>")}</p></div>
-        <div class="preview-meta"><p>${labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}</p><p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p><p>${labelText("Valid Until", "有效期")}：${escapeHtml(currentQuote.validUntil)}</p></div>
+        ${renderQuoteMetaPreview()}
       </section>
       <section class="preview-panel"><h3>${labelText("Customer Information", "客户信息")}</h3><div class="preview-fields"><p>${labelText("Company", "公司")}：${escapeHtml(currentQuote.buyer.company)}</p><p>${labelText("Country", "国家")}：${escapeHtml(currentQuote.buyer.country)}</p><p>${labelText("Contact", "负责人")}：${escapeHtml(currentQuote.buyer.contact)}</p><p>${labelText("Phone", "电话")}：${escapeHtml(currentQuote.buyer.phone)}</p><p>${labelText("Email", "邮箱")}：${escapeHtml(currentQuote.buyer.email)}</p><p>${labelText("Address", "地址")}：${escapeHtml(currentQuote.buyer.address)}</p></div></section>
       <section class="preview-panel"><h3>${labelText("Quotation Items", "报价明细")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${money(total(), settings.currency)}</div>` : ""}</section>
       ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && i.imageDataUrl) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product" && i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.brand || "")} ${escapeHtml(i.values.model || "")}</div></article>`).join("")}</div></section>` : ""}
-      ${visibleTermFields.length || settings.stampDataUrl ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${labelText("Terms", "条款")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
+      ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${labelText("Terms", "条款")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
     `;
   }
@@ -3304,6 +3346,7 @@
           terms: currentQuote.terms,
           quoteDate: currentQuote.quoteDate,
           validUntil: currentQuote.validUntil,
+          validityRangeText: currentQuote.validityRangeText,
           settingsSnapshot: settings,
           showFreightDetailInPdf: !!currentQuote.showFreightDetailInPdf,
           items: apiItems
