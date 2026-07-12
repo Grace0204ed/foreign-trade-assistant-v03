@@ -105,6 +105,17 @@
     }
   };
 
+  const defaultQuoteLineColumns = [
+    { key: "tradeTerm", labelZh: "贸易条款", labelEn: "Trade Term", type: "tradeTerm", visible: true, required: false, system: true, sortOrder: 10 },
+    { key: "description", labelZh: "商品信息 / 产品描述", labelEn: "Product Description", type: "textarea", visible: true, required: true, system: true, sortOrder: 20 },
+    { key: "qty", labelZh: "数量", labelEn: "Qty", type: "number", visible: true, required: true, system: true, sortOrder: 30 },
+    { key: "unitPrice", labelZh: "单价", labelEn: "Unit Price", type: "money", visible: true, required: true, system: true, sortOrder: 40 },
+    { key: "currency", labelZh: "币种", labelEn: "Currency", type: "currency", visible: true, required: true, system: true, sortOrder: 50 },
+    { key: "amount", labelZh: "总价", labelEn: "Amount", type: "calculated", visible: true, required: false, system: true, sortOrder: 60 },
+    { key: "image", labelZh: "图片", labelEn: "Image", type: "image", visible: false, required: false, system: true, sortOrder: 70 },
+    { key: "remark", labelZh: "备注", labelEn: "Remark", type: "text", visible: true, required: false, system: true, sortOrder: 80 }
+  ];
+
   const defaultSettings = {
     companyNameEn: "Jinwanwa International Trading Co., Ltd.",
     companyNameZh: "合肥金万挖工程机械有限公司",
@@ -147,6 +158,7 @@
     showValidityRangeInPdfBottom: true,
     validityRangeLabelEn: "Quotation Validity",
     validityRangeLabelZh: "报价有效期",
+    quoteLineColumns: defaultQuoteLineColumns,
     currencies: ["USD", "EUR", "GBP", "CNY", "RUB", "AED", "SAR", "JPY", "AUD", "CAD"],
     tradeTerms: ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"],
     logoDataUrl: "",
@@ -622,6 +634,11 @@
     return `${date} ${customer} ${currentQuote.quoteNumber || "Quotation"}.pdf`;
   }
 
+  function applyPrintTitle() {
+    if (!currentQuote) return;
+    document.title = currentPdfFileName().replace(/\.pdf$/i, "");
+  }
+
   function money(amount, currency) {
     return `${currency || settings.currency || "USD"} ${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
@@ -876,10 +893,12 @@
     ensureUserManagerPanel();
     ensureContactFieldsPanel();
     ensureBankFieldsPanel();
+    ensureQuoteLineSettingsPanel();
     ensureTermsSettingsPanel();
     normalizeContactFields();
     normalizeBankFields();
     normalizePaymentQrFields();
+    normalizeQuoteLineColumns();
     normalizeCurrencies();
     normalizeTradeTerms();
     normalizeTemplates();
@@ -892,6 +911,7 @@
     renderCategoryList();
     renderBankFields();
     renderPaymentQrFields();
+    renderQuoteLineColumns();
     renderCurrencies();
     renderTradeTerms();
     renderTemplateSelect();
@@ -909,6 +929,137 @@
       if (input.type === "checkbox") input.checked = settings[input.dataset.setting] !== false;
       else input.value = settings[input.dataset.setting] || "";
     });
+  }
+
+  function normalizeQuoteLineColumns() {
+    const existing = Array.isArray(settings.quoteLineColumns) ? settings.quoteLineColumns : [];
+    const byKey = new Map(existing.map((column) => [column.key, column]));
+    settings.quoteLineColumns = defaultQuoteLineColumns.map((column) => ({
+      ...column,
+      ...(byKey.get(column.key) || {}),
+      system: true
+    }));
+    existing.filter((column) => !defaultQuoteLineColumns.some((item) => item.key === column.key)).forEach((column) => {
+      settings.quoteLineColumns.push({
+        key: column.key || uid("col"),
+        labelZh: column.labelZh || "自定义列",
+        labelEn: column.labelEn || "Custom Field",
+        type: column.type || "text",
+        visible: column.visible !== false,
+        required: !!column.required,
+        system: false,
+        sortOrder: Number(column.sortOrder || (settings.quoteLineColumns.length + 1) * 10)
+      });
+    });
+    settings.quoteLineColumns.sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  }
+
+  function ensureQuoteLineSettingsPanel() {
+    if ($("quote-line-settings-panel")) return;
+    const panel = document.createElement("div");
+    panel.id = "quote-line-settings-panel";
+    panel.className = "panel";
+    panel.dataset.settingsPanel = "quote-lines";
+    panel.innerHTML = `
+      <div class="row-head">
+        <div>
+          <h3>报价明细设置</h3>
+          <p class="hint">这里控制报价明细表格的列名、显示隐藏、必填、排序和自定义列。图片列也可以在这里设置显示或必填。</p>
+        </div>
+        <button id="add-quote-line-column-btn" class="primary" type="button">新增列</button>
+      </div>
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>排序</th>
+            <th>中文列名</th>
+            <th>英文列名</th>
+            <th>字段</th>
+            <th>类型</th>
+            <th>显示</th>
+            <th>必填</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="quote-line-column-list"></tbody>
+      </table>
+    `;
+    const termsTabPanel = $("terms-settings-panel");
+    if (termsTabPanel) termsTabPanel.before(panel);
+    else document.querySelector(".sticky-actions")?.before(panel);
+  }
+
+  function renderQuoteLineColumns() {
+    if (!$("quote-line-column-list")) return;
+    normalizeQuoteLineColumns();
+    $("quote-line-column-list").innerHTML = settings.quoteLineColumns.map((column, index) => `
+      <tr data-quote-line-column="${index}">
+        <td>${index + 1}</td>
+        <td><input data-ql-prop="labelZh" value="${escapeHtml(column.labelZh)}" /></td>
+        <td><input data-ql-prop="labelEn" value="${escapeHtml(column.labelEn)}" /></td>
+        <td><code>${escapeHtml(column.key)}</code></td>
+        <td>${escapeHtml(column.type)}</td>
+        <td><input data-ql-prop="visible" type="checkbox"${column.visible !== false ? " checked" : ""} /></td>
+        <td><input data-ql-prop="required" type="checkbox"${column.required ? " checked" : ""}${column.type === "calculated" ? " disabled" : ""} /></td>
+        <td class="field-actions">
+          <button data-ql-action="up" type="button">上移</button>
+          <button data-ql-action="down" type="button">下移</button>
+          <button data-ql-action="delete" type="button"${column.system ? " disabled" : ""}>删除</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function collectQuoteLineColumns() {
+    if (!$("quote-line-column-list")) return;
+    document.querySelectorAll("#quote-line-column-list tr[data-quote-line-column]").forEach((row) => {
+      const column = settings.quoteLineColumns[Number(row.dataset.quoteLineColumn)];
+      row.querySelectorAll("[data-ql-prop]").forEach((input) => {
+        column[input.dataset.qlProp] = input.type === "checkbox" ? input.checked : input.value.trim();
+      });
+    });
+  }
+
+  function addQuoteLineColumn() {
+    collectQuoteLineColumns();
+    settings.quoteLineColumns.push({
+      key: uid("custom").replaceAll("-", "_"),
+      labelZh: "自定义列",
+      labelEn: "Custom Field",
+      type: "text",
+      visible: true,
+      required: false,
+      system: false,
+      sortOrder: (settings.quoteLineColumns.length + 1) * 10
+    });
+    save(keys.settings, settings);
+    renderQuoteLineColumns();
+    renderQuoteItems();
+    renderPreview();
+  }
+
+  function handleQuoteLineColumnAction(event) {
+    const row = event.target.closest("tr[data-quote-line-column]");
+    if (!row) return;
+    collectQuoteLineColumns();
+    const index = Number(row.dataset.quoteLineColumn);
+    const action = event.target.dataset.qlAction;
+    if (action === "delete") {
+      if (settings.quoteLineColumns[index]?.system) return;
+      if (!confirm("确认删除这个报价明细列吗？")) return;
+      settings.quoteLineColumns.splice(index, 1);
+    }
+    if (action === "up" && index > 0) {
+      [settings.quoteLineColumns[index - 1], settings.quoteLineColumns[index]] = [settings.quoteLineColumns[index], settings.quoteLineColumns[index - 1]];
+    }
+    if (action === "down" && index < settings.quoteLineColumns.length - 1) {
+      [settings.quoteLineColumns[index + 1], settings.quoteLineColumns[index]] = [settings.quoteLineColumns[index], settings.quoteLineColumns[index + 1]];
+    }
+    settings.quoteLineColumns.forEach((column, i) => column.sortOrder = (i + 1) * 10);
+    save(keys.settings, settings);
+    renderQuoteLineColumns();
+    renderQuoteItems();
+    renderPreview();
   }
 
   function normalizeContactFields() {
@@ -2497,6 +2648,7 @@
 
   async function exportPdf() {
     renderPreview();
+    if (!validateQuoteLines()) return;
     syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
     const fileName = currentPdfFileName();
     if (window.quotationDesktop?.exportCurrentPdf) {
@@ -2504,7 +2656,7 @@
       if (filePath) toast(`PDF exported. / PDF 已导出：${filePath}`);
       return;
     }
-    document.title = fileName.replace(/\.pdf$/i, "");
+    applyPrintTitle();
     window.print();
   }
 
@@ -2947,6 +3099,37 @@
       || "";
   }
 
+  function quoteLineColumns() {
+    normalizeQuoteLineColumns();
+    return settings.quoteLineColumns
+      .slice()
+      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+      .filter((column) => column.visible !== false);
+  }
+
+  function renderQuoteLineInput(column, item) {
+    const values = item.values || {};
+    const key = escapeHtml(column.key);
+    const required = column.required ? " required" : "";
+    if (column.key === "tradeTerm") return tradeTermSelect(values.tradeTerm);
+    if (column.key === "description") return `<textarea data-qfield="description"${required} placeholder="例如：Used CAT 320 Excavator / 二手卡特320挖掘机">${escapeHtml(lineDescription(item))}</textarea>`;
+    if (column.key === "qty") return `<input data-qfield="qty" type="number" min="0" step="1" value="${escapeHtml(values.qty || "1")}"${required} />`;
+    if (column.key === "unitPrice") return `<input data-qfield="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(values.unitPrice || "")}"${required} />`;
+    if (column.key === "currency") return renderCurrencySelect("currency", values.currency || settings.currency);
+    if (column.key === "amount") return `<span class="line-amount">${escapeHtml(money(itemSubtotal(item), values.currency || settings.currency))}</span>`;
+    if (column.key === "image") {
+      return `
+        <div class="line-image-box">
+          <label class="file-btn">上传<input class="quote-line-image-input" type="file" accept="image/*"${required} /></label>
+          <button class="clear-line-image" type="button">删除</button>
+          <img src="${item.imageDataUrl || ""}" alt=""${item.imageDataUrl ? "" : " hidden"} />
+        </div>
+      `;
+    }
+    if (column.key === "remark") return `<input data-qfield="remark" value="${escapeHtml(values.remark || "")}"${required} />`;
+    return `<input data-qfield="${key}" value="${escapeHtml(values[column.key] || "")}"${required} />`;
+  }
+
   function itemCard(item = {}) {
     const tpl = template();
     const id = item.id || uid("item");
@@ -3005,18 +3188,13 @@
 
   function renderQuoteItems() {
     if (!currentQuote.items?.length) currentQuote.items = [blankQuoteLine()];
+    const columns = quoteLineColumns();
     $("quote-items").innerHTML = `
       <div class="quote-line-table-wrap">
         <table class="quote-line-table">
           <thead>
             <tr>
-              <th>贸易条款</th>
-              <th>商品信息 / 产品描述</th>
-              <th>数量</th>
-              <th>单价</th>
-              <th>币种</th>
-              <th>总价</th>
-              <th>备注</th>
+              ${columns.map((column) => `<th>${escapeHtml(column.labelZh)}${column.required ? " *" : ""}</th>`).join("")}
               <th>操作</th>
             </tr>
           </thead>
@@ -3026,13 +3204,7 @@
               const currency = values.currency || settings.currency;
               return `
                 <tr class="quote-line" data-id="${escapeHtml(item.id || uid("item"))}" data-kind="${escapeHtml(item.kind || "product")}" data-image="${escapeHtml(item.imageDataUrl || "")}">
-                  <td>${tradeTermSelect(values.tradeTerm)}</td>
-                  <td><textarea data-qfield="description" placeholder="例如：Used CAT 320 Excavator / 二手卡特320挖掘机">${escapeHtml(lineDescription(item))}</textarea></td>
-                  <td><input data-qfield="qty" type="number" min="0" step="1" value="${escapeHtml(values.qty || "1")}" /></td>
-                  <td><input data-qfield="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(values.unitPrice || "")}" /></td>
-                  <td>${renderCurrencySelect("currency", currency)}</td>
-                  <td class="line-amount">${escapeHtml(money(itemSubtotal(item), currency))}</td>
-                  <td><input data-qfield="remark" value="${escapeHtml(values.remark || "")}" /></td>
+                  ${columns.map((column) => `<td>${renderQuoteLineInput(column, item)}</td>`).join("")}
                   <td><button class="remove-quote-item" type="button">删除</button></td>
                 </tr>
               `;
@@ -3331,14 +3503,13 @@
   }
 
   function quotePreviewColumns() {
-    return [
-      { key: "tradeTerm", en: "Trade Term", zh: "贸易条款", visible: true },
-      { key: "description", en: "Product Description", zh: "商品信息", visible: true },
-      { key: "qty", en: "Qty", zh: "数量", visible: true },
-      { key: "unitPrice", en: "Unit Price", zh: "单价", visible: visibleQuoteField("unitPrice") },
-      { key: "amount", en: "Amount", zh: "金额", visible: visibleQuoteField("totalAmount") },
-      { key: "remark", en: "Remark", zh: "备注", visible: visibleQuoteField("remark") }
-    ].filter((column) => column.visible);
+    return quoteLineColumns().map((column) => ({
+      key: column.key,
+      en: column.labelEn || column.key,
+      zh: column.labelZh || column.key,
+      type: column.type,
+      visible: column.visible !== false
+    }));
   }
 
   function renderQuotePreviewHead() {
@@ -3354,7 +3525,10 @@
     if (column.key === "qty") return values.qty || "1";
     if (column.key === "unitPrice") return values.unitPrice ? money(values.unitPrice, currency) : "";
     if (column.key === "amount") return money(itemSubtotal(item), currency);
+    if (column.key === "currency") return currency;
+    if (column.key === "image") return item.imageDataUrl ? "Image attached / 已上传图片" : "";
     if (column.key === "remark") return previewRemark(item);
+    if (values[column.key]) return values[column.key];
     return "";
   }
 
@@ -3424,12 +3598,34 @@
     return `<p><b>${labelText(labelEn, labelZh)}：</b>${escapeHtml(text)}</p>`;
   }
 
+  function validateQuoteLines() {
+    const requiredColumns = quoteLineColumns().filter((column) => column.required);
+    for (let rowIndex = 0; rowIndex < (currentQuote.items || []).length; rowIndex += 1) {
+      const item = currentQuote.items[rowIndex];
+      for (const column of requiredColumns) {
+        if (column.key === "amount") continue;
+        if (column.key === "image") {
+          if (!item.imageDataUrl) {
+            toast(`第 ${rowIndex + 1} 行请上传图片。`);
+            return false;
+          }
+          continue;
+        }
+        if (!String(item.values?.[column.key] || "").trim()) {
+          toast(`第 ${rowIndex + 1} 行请填写：${column.labelZh || column.key}`);
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   function renderPreview() {
     collectQuoteFromForm();
     const tpl = template();
     const visibleFields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
     const visibleTermFields = (tpl.termFields || defaultTermFields).slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
-    const showProductPhotos = visibleFields.some((field) => field.fieldType === "image");
+    const showProductPhotos = quoteLineColumns().some((column) => column.key === "image" && column.visible !== false);
     const bg = settings.backgroundDataUrl || defaultBg;
     const title = labelText("Quotation", "报价单");
     const companySub = localizedText("", settings.companyNameZh);
@@ -3454,6 +3650,7 @@
 
   async function saveQuote() {
     renderPreview();
+    if (!validateQuoteLines()) return;
     syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
     const idx = quotes.findIndex((q) => q.id === currentQuote.id);
     if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
@@ -3611,6 +3808,18 @@
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
     $("quote-items").addEventListener("input", () => { updateQuoteLineAmounts(); renderPreview(); });
     $("quote-items").addEventListener("change", async e => {
+      if (e.target.matches(".quote-line-image-input")) {
+        const img = await normalizeImage(e.target.files[0]);
+        const row = e.target.closest(".quote-line");
+        if (row) {
+          row.dataset.image = img;
+          const preview = row.querySelector(".line-image-box img");
+          if (preview) {
+            preview.src = img;
+            preview.hidden = false;
+          }
+        }
+      }
       if (e.target.matches(".quote-image-input")) {
         const img = await normalizeImage(e.target.files[0]);
         const prev = e.target.closest(".quote-item").querySelector("[data-image]");
@@ -3628,6 +3837,18 @@
           renderQuoteItems();
         }
         updateQuoteLineAmounts();
+        renderPreview();
+      }
+      if (e.target.matches(".clear-line-image")) {
+        const row = e.target.closest(".quote-line");
+        if (row) {
+          row.dataset.image = "";
+          const preview = row.querySelector(".line-image-box img");
+          if (preview) {
+            preview.src = "";
+            preview.hidden = true;
+          }
+        }
         renderPreview();
       }
     });
@@ -3662,6 +3883,7 @@
     $("auto-calc-freight-btn").addEventListener("click", autoCalculateFreight);
     $("copy-freight-amount-btn").addEventListener("click", copyFreightAmount);
     $("use-freight-in-quote-btn").addEventListener("click", useFreightInQuotation);
+    window.addEventListener("beforeprint", applyPrintTitle);
     document.addEventListener("click", (event) => {
       if (event.target.id === "save-user-btn") saveUser();
       if (event.target.id === "clear-user-btn") clearUserForm();
@@ -3671,11 +3893,13 @@
       if (event.target.id === "add-bank-field-btn") addBankField();
       if (event.target.id === "add-currency-btn") addCurrency();
       if (event.target.id === "add-trade-term-btn") addTradeTerm();
+      if (event.target.id === "add-quote-line-column-btn") addQuoteLineColumn();
       if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
       if (event.target.matches("[data-bank-action], [data-bank-visible]")) handleBankFieldAction(event);
       if (event.target.matches("[data-qr-action], [data-qr-visible]")) handlePaymentQrAction(event);
       if (event.target.matches("[data-currency-action]")) handleCurrencyAction(event);
       if (event.target.matches("[data-trade-action]")) handleTradeTermAction(event);
+      if (event.target.matches("[data-ql-action]")) handleQuoteLineColumnAction(event);
       if (event.target.closest("#cost-field-template-list [data-field-action], #cost-field-template-list .field-required-toggle, #cost-field-template-list .field-visible-toggle")) handleCostFieldListClick(event);
       if (event.target.matches(".reset-user-password, .toggle-user-status, .delete-user")) handleUserAction(event);
     });
@@ -3693,6 +3917,13 @@
       }
       if (event.target.matches("#bank-field-list input, #bank-field-list textarea")) collectBankFields();
       if (event.target.matches("#payment-qr-list input")) collectPaymentQrFields();
+      if (event.target.matches("#quote-line-column-list input")) {
+        collectQuoteLineColumns();
+        settings.quoteLineColumns.forEach((column, i) => column.sortOrder = (i + 1) * 10);
+        save(keys.settings, settings);
+        renderQuoteItems();
+        renderPreview();
+      }
     });
   }
 

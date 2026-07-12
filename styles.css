@@ -591,6 +591,21 @@ textarea { min-height: 86px; resize: vertical; }
   color: var(--primary);
   white-space: nowrap;
 }
+.line-image-box {
+  display: grid;
+  grid-template-columns: auto auto 56px;
+  gap: 6px;
+  align-items: center;
+  min-width: 170px;
+}
+.line-image-box img {
+  width: 56px;
+  height: 42px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
 
 .term-desc {
   margin: 4px 0 0;
