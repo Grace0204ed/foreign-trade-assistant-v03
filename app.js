@@ -5,7 +5,8 @@
     quotes: "quote_assistant_v01_quotes",
     sidebarCollapsed: "quote_assistant_sidebar_collapsed",
     settingsSection: "quote_assistant_settings_section",
-    stateUpdatedAt: "quote_assistant_state_updated_at"
+    stateUpdatedAt: "quote_assistant_state_updated_at",
+    quoteSequence: "quote_assistant_quote_sequence"
   };
   const defaultBg = "./assets/company-background.png";
   const defaultTermFields = [
@@ -565,6 +566,60 @@
     const d = new Date();
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
+  }
+
+  function quoteDateKey(date = today()) {
+    return String(date || today()).replaceAll("-", "");
+  }
+
+  function nextQuoteNumber(date = today(), advance = false) {
+    const key = quoteDateKey(date);
+    let data = {};
+    try {
+      data = JSON.parse(localStorage.getItem(keys.quoteSequence) || "{}");
+    } catch {
+      data = {};
+    }
+    const sameDayQuotes = quotes
+      .map((quote) => String(quote.quoteNumber || "").match(new RegExp(`QA-${key}-(\\d+)$`)))
+      .filter(Boolean)
+      .map((match) => Number(match[1] || 0));
+    const currentSeq = Math.max(Number(data[key] || 0), ...sameDayQuotes, 0);
+    const seq = advance ? currentSeq + 1 : Math.max(currentSeq, 1);
+    if (advance) {
+      data[key] = seq;
+      localStorage.setItem(keys.quoteSequence, JSON.stringify(data));
+    }
+    return `QA-${key}-${String(seq).padStart(3, "0")}`;
+  }
+
+  function syncQuoteSequenceFromNumber(number) {
+    const match = String(number || "").match(/^QA-(\d{8})-(\d+)$/);
+    if (!match) return;
+    let data = {};
+    try {
+      data = JSON.parse(localStorage.getItem(keys.quoteSequence) || "{}");
+    } catch {
+      data = {};
+    }
+    data[match[1]] = Math.max(Number(data[match[1]] || 0), Number(match[2] || 0));
+    localStorage.setItem(keys.quoteSequence, JSON.stringify(data));
+  }
+
+  function safeFilePart(value, fallback = "客户") {
+    const cleaned = String(value || "")
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, " ")
+      .replace(/\s+/g, " ")
+      .slice(0, 80);
+    return cleaned || fallback;
+  }
+
+  function currentPdfFileName() {
+    collectQuoteFromForm();
+    const date = currentQuote.quoteDate || today();
+    const customer = safeFilePart(currentQuote.buyer?.company || currentQuote.buyer?.contact || "客户");
+    return `${date} ${customer} ${currentQuote.quoteNumber || "Quotation"}.pdf`;
   }
 
   function money(amount, currency) {
@@ -2442,11 +2497,14 @@
 
   async function exportPdf() {
     renderPreview();
+    syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
+    const fileName = currentPdfFileName();
     if (window.quotationDesktop?.exportCurrentPdf) {
-      const filePath = await window.quotationDesktop.exportCurrentPdf();
+      const filePath = await window.quotationDesktop.exportCurrentPdf(fileName);
       if (filePath) toast(`PDF exported. / PDF 已导出：${filePath}`);
       return;
     }
+    document.title = fileName.replace(/\.pdf$/i, "");
     window.print();
   }
 
@@ -2740,12 +2798,12 @@
     renderPreview();
   }
 
-  function newQuote() {
+  function newQuote(advanceNumber = false) {
     const d = today();
     currentQuote = {
       id: uid("quote"),
       status: "草稿",
-      quoteNumber: `QA-${d.replaceAll("-", "")}-${String(quotes.length + 1).padStart(3, "0")}`,
+      quoteNumber: nextQuoteNumber(d, advanceNumber),
       quoteDate: d,
       validUntil: addDays(7),
       validityRangeText: "",
@@ -3396,6 +3454,7 @@
 
   async function saveQuote() {
     renderPreview();
+    syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
     const idx = quotes.findIndex((q) => q.id === currentQuote.id);
     if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
     else quotes.unshift(structuredClone(currentQuote));
@@ -3582,7 +3641,10 @@
     });
     $("save-quote-btn").addEventListener("click", saveQuote);
     $("export-pdf-btn").addEventListener("click", exportPdf);
-    $("new-quote-btn").addEventListener("click", newQuote);
+    $("new-quote-btn").addEventListener("click", () => {
+      if (currentQuote?.quoteNumber) syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
+      newQuote(true);
+    });
     $("history-search-btn").addEventListener("click", renderHistory);
     $("refresh-ports-btn").addEventListener("click", renderPorts);
     $("save-port-btn").addEventListener("click", savePort);

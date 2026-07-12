@@ -88,17 +88,25 @@ app.on("activate", () => {
 ipcMain.handle("select-pdf-path", async () => {
   const result = await dialog.showSaveDialog({
     title: "Export PDF / 导出 PDF",
-    defaultPath: path.join(app.getPath("documents"), "quotation.pdf"),
+    defaultPath: path.join(app.getPath("desktop"), "quotation.pdf"),
     filters: [{ name: "PDF", extensions: ["pdf"] }]
   });
   return result.canceled ? null : result.filePath;
 });
 
-ipcMain.handle("export-current-pdf", async (event) => {
+function safePdfFileName(name) {
+  const value = String(name || "quotation.pdf")
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return value.toLowerCase().endsWith(".pdf") ? value : `${value || "quotation"}.pdf`;
+}
+
+ipcMain.handle("export-current-pdf", async (event, fileName) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const result = await dialog.showSaveDialog(win, {
     title: "Export PDF / 导出 PDF",
-    defaultPath: path.join(app.getPath("documents"), "quotation.pdf"),
+    defaultPath: path.join(app.getPath("desktop"), safePdfFileName(fileName)),
     filters: [{ name: "PDF", extensions: ["pdf"] }]
   });
   if (result.canceled || !result.filePath) return null;
@@ -133,3 +141,4 @@ ipcMain.handle("select-import-json", async () => {
   });
   return result.canceled ? null : result.filePaths[0];
 });
+
