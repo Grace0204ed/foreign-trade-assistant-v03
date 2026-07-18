@@ -4277,6 +4277,13 @@
     document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
     document.querySelectorAll("[data-view-target]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.viewTarget)));
     $("login-btn").addEventListener("click", () => login($("login-username").value.trim(), $("login-password").value));
+    ["login-username", "login-password"].forEach((id) => {
+      $(id).addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        login($("login-username").value.trim(), $("login-password").value);
+      });
+    });
     $("logout-btn").addEventListener("click", logout);
     $("sidebar-toggle-btn").addEventListener("click", toggleSidebar);
     document.querySelectorAll(".settings-tab").forEach((button) => {
