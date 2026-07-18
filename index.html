@@ -28,6 +28,7 @@
         <nav>
           <button class="nav-btn active" data-view="home">首页</button>
           <button class="nav-btn" data-view="quote">新建</button>
+          <button class="nav-btn" data-view="invitation">邀请函</button>
           <button class="nav-btn" data-view="history">历史报价</button>
           <button class="nav-btn" data-view="products">产品库</button>
           <button class="nav-btn" data-view="freight">运费中心</button>
@@ -45,6 +46,7 @@
           </header>
           <div class="entry-grid">
             <button class="entry-card" data-view-target="quote"><b>新建</b><span>创建报价单或形式发票、添加产品、预览导出</span></button>
+            <button class="entry-card" data-view-target="invitation"><b>邀请函</b><span>制作来华考察邀请函，支持保存和导出 PDF</span></button>
             <button class="entry-card" data-view-target="history"><b>历史报价</b><span>搜索、编辑、复制、删除、重新导出报价单</span></button>
             <button class="entry-card" data-view-target="products"><b>产品库</b><span>维护常用产品资料、分类和常用图片</span></button>
             <button class="entry-card" data-view-target="freight"><b>运费中心</b><span>港口库、运费库、运费查询、导入报价</span></button>
@@ -88,6 +90,7 @@
             <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
             <button class="settings-tab" data-settings-section="quote-lines" type="button">报价明细设置</button>
             <button class="settings-tab" data-settings-section="terms" type="button">报价条款设置</button>
+            <button class="settings-tab" data-settings-section="invitation" type="button">邀请函设置</button>
           </div>
           <div class="panel" data-settings-panel="company">
             <h3>公司与联系人信息</h3>
@@ -123,6 +126,17 @@
                 <img id="stamp-preview" class="stamp-preview" alt="" />
               </div>
             </div>
+          </div>
+
+          <div class="panel" data-settings-panel="invitation">
+            <h3>邀请函设置</h3>
+            <div class="form-grid">
+              <label><span>英文抬头</span><input data-setting="invitationTitleEn" placeholder="Invitation Letter" /></label>
+              <label><span>中文抬头</span><input data-setting="invitationTitleZh" placeholder="邀请函" /></label>
+              <label class="wide"><span>默认致大使馆</span><input data-setting="invitationEmbassy" placeholder="Embassy of the People's Republic of China" /></label>
+              <label class="wide"><span>默认邀请理由</span><textarea data-setting="invitationDefaultReason"></textarea></label>
+            </div>
+            <p class="hint">邀请函会使用公司信息设置里的 Logo 和电子公章。签字位置默认留空，方便打印后手写签字。</p>
           </div>
 
           <div class="panel" data-settings-panel="quote-fields">
@@ -312,6 +326,43 @@
           </div>
 
           <article id="quote-preview" class="quote-preview"></article>
+        </section>
+
+        <section id="view-invitation" class="view">
+          <div class="no-print page-head row-head">
+            <div>
+              <h2>邀请函</h2>
+              <p>填写客户来华考察信息，生成正式邀请函并导出 PDF。</p>
+            </div>
+            <div class="actions">
+              <button id="preview-invitation-btn" type="button">刷新预览</button>
+              <button id="save-invitation-btn" class="primary" type="button">保存邀请函</button>
+              <button id="export-invitation-pdf-btn" type="button">导出PDF</button>
+              <button id="new-invitation-btn" type="button">新建邀请函</button>
+            </div>
+          </div>
+
+          <div class="no-print quote-editor">
+            <div class="panel">
+              <h3>邀请函信息</h3>
+              <div class="form-grid">
+                <label class="wide"><span>致某某大使馆</span><input id="invitation-embassy" placeholder="Embassy of the People's Republic of China in South Africa" /></label>
+                <label><span>语言版本</span><select id="invitation-language"><option value="bilingual">中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="zh-es">中文+西班牙语</option></select></label>
+                <label><span>制作日期</span><input id="invitation-date" type="date" /></label>
+                <label><span>客户姓名</span><input id="invitation-name" /></label>
+                <label><span>客户公司</span><input id="invitation-company" /></label>
+                <label><span>国家</span><input id="invitation-country" placeholder="South Africa / 南非" /></label>
+                <label><span>护照编号</span><input id="invitation-passport" /></label>
+                <label><span>来访时间</span><input id="invitation-arrival" type="date" /></label>
+                <label><span>离开时间</span><input id="invitation-departure" type="date" /></label>
+                <label><span>邀请人</span><input id="invitation-inviter" /></label>
+                <label class="wide"><span>邀请理由</span><textarea id="invitation-reason"></textarea></label>
+                <label class="wide"><span>补充说明</span><textarea id="invitation-notes" placeholder="可填写费用承担、行程安排或其他签证说明。"></textarea></label>
+              </div>
+            </div>
+          </div>
+
+          <article id="invitation-preview" class="quote-preview invitation-preview"></article>
         </section>
 
         <section id="view-history" class="view no-print">

@@ -814,6 +814,163 @@ textarea { min-height: 86px; resize: vertical; }
   margin-top: 6px;
   font-size: 12px;
 }
+
+.invitation-preview {
+  padding: 0;
+  background: #f8f3e8;
+}
+.invitation-sheet {
+  position: relative;
+  min-height: 1080px;
+  padding: 42px 52px;
+  overflow: hidden;
+  border: 10px solid #c79a3a;
+  outline: 2px solid rgba(21, 91, 159, .28);
+  outline-offset: -20px;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(199,154,58,.18), transparent 24%),
+    radial-gradient(circle at 88% 92%, rgba(21,91,159,.13), transparent 24%),
+    linear-gradient(135deg, #fffaf0 0%, #ffffff 46%, #f7fbff 100%);
+}
+.invitation-sheet::before,
+.invitation-sheet::after {
+  content: "";
+  position: absolute;
+  width: 210px;
+  height: 210px;
+  border: 2px solid rgba(199,154,58,.42);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.invitation-sheet::before { left: -72px; top: -72px; }
+.invitation-sheet::after { right: -72px; bottom: -72px; }
+.invitation-corner {
+  position: absolute;
+  width: 135px;
+  height: 135px;
+  opacity: .35;
+  background:
+    linear-gradient(45deg, transparent 45%, #c79a3a 46%, #c79a3a 54%, transparent 55%),
+    repeating-linear-gradient(90deg, transparent 0 12px, rgba(199,154,58,.72) 13px 15px);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.invitation-corner-tl { top: 22px; left: 22px; }
+.invitation-corner-br { right: 22px; bottom: 22px; transform: rotate(180deg); }
+.invitation-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  border-bottom: 2px solid rgba(199,154,58,.38);
+  padding-bottom: 18px;
+}
+.invitation-header img {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+}
+.invitation-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #12345c;
+}
+.invitation-header p { margin: 5px 0 0; font-weight: 800; color: #536179; }
+.invitation-watermark {
+  position: absolute;
+  inset: 360px 60px auto;
+  text-align: center;
+  font-size: 46px;
+  font-weight: 900;
+  color: rgba(21,91,159,.06);
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
+.invitation-sheet h1 {
+  margin: 30px 0 10px;
+  text-align: center;
+  font-size: 38px;
+  color: #12345c;
+  letter-spacing: .02em;
+}
+.invitation-date {
+  text-align: right;
+  color: #536179;
+  font-weight: 800;
+  margin-bottom: 22px;
+}
+.invitation-to {
+  font-size: 18px;
+  font-weight: 900;
+  color: #172033;
+  margin: 16px 0;
+}
+.invitation-paragraph {
+  font-size: 16px;
+  line-height: 1.85;
+  color: #243147;
+  text-align: justify;
+}
+.invitation-info {
+  margin: 24px 0;
+  padding: 18px;
+  border: 1px solid rgba(199,154,58,.45);
+  background: rgba(255,255,255,.72);
+}
+.invitation-info h3 {
+  margin: 0 0 12px;
+  color: #12345c;
+}
+.invitation-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+}
+.invitation-info-grid p {
+  margin: 0;
+  line-height: 1.55;
+}
+.invitation-info-grid p:nth-child(n+5) {
+  grid-column: 1 / -1;
+}
+.invitation-footer {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 28px;
+  margin-top: 44px;
+  align-items: end;
+}
+.invitation-sign {
+  position: relative;
+  min-height: 180px;
+  padding-top: 86px;
+}
+.invitation-stamp {
+  position: absolute;
+  left: 8px;
+  bottom: 64px;
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  opacity: .9;
+  z-index: 2;
+  pointer-events: none;
+}
+.signature-line {
+  width: 230px;
+  border-bottom: 1.5px solid #172033;
+  margin-bottom: 8px;
+}
+.invitation-sign p,
+.invitation-company-block p {
+  margin: 4px 0;
+  line-height: 1.45;
+}
+.invitation-company-block {
+  text-align: right;
+  color: #536179;
+  font-weight: 700;
+}
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -872,10 +1029,21 @@ textarea { min-height: 86px; resize: vertical; }
   .main { padding: 0; }
   .view { display: none !important; }
   #view-quote { display: block !important; }
+  body.printing-invitation #view-quote { display: none !important; }
+  body.printing-invitation #view-invitation { display: block !important; }
   .quote-preview {
     border: 0;
     border-radius: 0;
     padding: 10mm;
+  }
+  body.printing-invitation .quote-preview {
+    padding: 0;
+  }
+  .invitation-sheet {
+    min-height: 277mm;
+    border-width: 8px;
+    outline-offset: -16px;
+    page-break-inside: avoid;
   }
   .preview-banner { min-height: 145px; }
   .photo-card img { height: 170px; }

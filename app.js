@@ -3,6 +3,7 @@
     settings: "quote_assistant_v01_settings",
     products: "quote_assistant_v01_products",
     quotes: "quote_assistant_v01_quotes",
+    invitations: "quote_assistant_v01_invitations",
     sidebarCollapsed: "quote_assistant_sidebar_collapsed",
     settingsSection: "quote_assistant_settings_section",
     stateUpdatedAt: "quote_assistant_state_updated_at",
@@ -160,6 +161,10 @@
       { key: "quotation", labelZh: "报价单", labelEn: "Quotation", visible: true, sortOrder: 10 },
       { key: "invoice", labelZh: "形式发票", labelEn: "Proforma Invoice", visible: true, sortOrder: 20 }
     ],
+    invitationTitleEn: "Invitation Letter",
+    invitationTitleZh: "邀请函",
+    invitationDefaultReason: "The visitor is invited to China for business inspection, machinery inspection, order discussion and purchasing cooperation.",
+    invitationEmbassy: "Embassy of the People's Republic of China",
     validityRangeLabelEn: "Quotation Validity",
     validityRangeLabelZh: "报价有效期",
     quoteLineColumns: defaultQuoteLineColumns,
@@ -187,7 +192,9 @@
   let settings = load(keys.settings, defaultSettings);
   let products = load(keys.products, []);
   let quotes = load(keys.quotes, []);
+  let invitations = load(keys.invitations, []);
   let currentQuote = null;
+  let currentInvitation = null;
   let editingProductId = "";
   let editingFieldIndex = -1;
   let editingFieldTarget = "product";
@@ -342,7 +349,7 @@
 
   function save(key, data) {
     localStorage.setItem(key, JSON.stringify(data));
-    if ([keys.settings, keys.products, keys.quotes].includes(key)) {
+    if ([keys.settings, keys.products, keys.quotes, keys.invitations].includes(key)) {
       localStorage.setItem(keys.stateUpdatedAt, new Date().toISOString());
       schedulePersistentStateBackup();
     }
@@ -353,6 +360,7 @@
       settings,
       products,
       quotes,
+      invitations,
       updatedAt: localStorage.getItem(keys.stateUpdatedAt) || ""
     };
   }
@@ -360,7 +368,8 @@
   function hasLocalUserData() {
     return !!localStorage.getItem(keys.settings)
       || (Array.isArray(products) && products.length > 0)
-      || (Array.isArray(quotes) && quotes.length > 0);
+      || (Array.isArray(quotes) && quotes.length > 0)
+      || (Array.isArray(invitations) && invitations.length > 0);
   }
 
   function applyPersistentState(state) {
@@ -377,6 +386,10 @@
     if (Array.isArray(state.quotes)) {
       quotes = state.quotes;
       localStorage.setItem(keys.quotes, JSON.stringify(quotes));
+    }
+    if (Array.isArray(state.invitations)) {
+      invitations = state.invitations;
+      localStorage.setItem(keys.invitations, JSON.stringify(invitations));
     }
     if (state.updatedAt) localStorage.setItem(keys.stateUpdatedAt, state.updatedAt);
     restoringPersistentState = false;
@@ -592,6 +605,28 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
+  function formatBilingualDate(value) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const en = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const zh = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    return `${en} / ${zh}`;
+  }
+
+  function formatInvitationDate(value, mode) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const en = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const zh = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    const es = d.toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
+    if (mode === "en") return en;
+    if (mode === "zh") return zh;
+    if (mode === "zh-es") return `${es} / ${zh}`;
+    return `${en} / ${zh}`;
+  }
+
   function quoteHistoryTimeText(q) {
     const created = formatDateTime(q.createdAt);
     const saved = formatDateTime(q.savedAt || q.updatedAt);
@@ -659,9 +694,21 @@
     return `${date} ${customer} ${currentQuote.quoteNumber || "Quotation"}.pdf`;
   }
 
+  function currentInvitationPdfFileName() {
+    collectInvitationFromForm();
+    const date = currentInvitation.date || today();
+    const name = safeFilePart(currentInvitation.visitorName || "客户姓名");
+    const company = safeFilePart(currentInvitation.visitorCompany || "客户公司");
+    return `${date} ${name} ${company} 邀请函.pdf`;
+  }
+
   function applyPrintTitle() {
-    if (!currentQuote) return;
-    document.title = currentPdfFileName().replace(/\.pdf$/i, "");
+    if (document.body.classList.contains("printing-invitation")) {
+      if (!currentInvitation) return;
+      document.title = currentInvitationPdfFileName().replace(/\.pdf$/i, "");
+      return;
+    }
+    if (currentQuote) document.title = currentPdfFileName().replace(/\.pdf$/i, "");
   }
 
   function money(amount, currency) {
@@ -702,6 +749,74 @@
   function documentTypeTitle(q = currentQuote) {
     const doc = documentTypeOf(q?.documentType || "quotation");
     return labelText(doc.labelEn || "Quotation", doc.labelZh || "报价单");
+  }
+
+  const invitationLangPack = {
+    en: {
+      titleFallback: "Invitation Letter",
+      toPrefix: "To",
+      date: "Date",
+      intro: "We hereby sincerely invite the following visitor to visit China for business inspection, machinery inspection, order discussion and purchasing cooperation.",
+      details: "Visitor Information",
+      name: "Name",
+      company: "Company",
+      country: "Country",
+      passport: "Passport No.",
+      visitPeriod: "Visit Period",
+      reason: "Purpose of Visit",
+      notes: "Additional Notes",
+      inviter: "Inviter",
+      signature: "Authorized Signature",
+      closing: "We kindly request the embassy to provide necessary visa assistance for the visitor's trip to China."
+    },
+    zh: {
+      titleFallback: "邀请函",
+      toPrefix: "致",
+      date: "日期",
+      intro: "我司诚挚邀请以下来访人来华进行商务考察、设备验机、订单洽谈及采购合作。",
+      details: "来访人信息",
+      name: "姓名",
+      company: "公司",
+      country: "国家",
+      passport: "护照编号",
+      visitPeriod: "来访时间",
+      reason: "邀请理由",
+      notes: "补充说明",
+      inviter: "邀请人",
+      signature: "授权签字",
+      closing: "恳请贵使馆为该来访人的来华行程提供必要的签证协助。"
+    },
+    es: {
+      titleFallback: "Carta de Invitación",
+      toPrefix: "A",
+      date: "Fecha",
+      intro: "Por la presente invitamos cordialmente al siguiente visitante a China para inspección comercial, revisión de maquinaria, negociación de pedidos y cooperación de compra.",
+      details: "Información del Visitante",
+      name: "Nombre",
+      company: "Empresa",
+      country: "País",
+      passport: "No. de Pasaporte",
+      visitPeriod: "Período de Visita",
+      reason: "Motivo de la Visita",
+      notes: "Notas Adicionales",
+      inviter: "Invitante",
+      signature: "Firma Autorizada",
+      closing: "Solicitamos amablemente a la embajada que brinde la asistencia necesaria para la visa del visitante para su viaje a China."
+    }
+  };
+
+  function invitationLanguages(mode) {
+    if (mode === "en") return ["en"];
+    if (mode === "zh") return ["zh"];
+    if (mode === "zh-es") return ["es", "zh"];
+    return ["en", "zh"];
+  }
+
+  function invitationText(key, mode, custom = {}) {
+    return invitationLanguages(mode).map((lang) => {
+      if (custom[lang]) return custom[lang];
+      return invitationLangPack[lang]?.[key] || "";
+    }).filter(Boolean).join(" / ");
   }
 
   function applySidebarState() {
@@ -930,6 +1045,7 @@
       renderUsers();
     }
     if (name === "quote") renderQuoteEditor();
+    if (name === "invitation") renderInvitationEditor();
     if (name === "freight") {
       renderPorts();
       renderFreightRates();
@@ -3073,6 +3189,162 @@
     renderPreview();
   }
 
+  function newInvitation() {
+    currentInvitation = {
+      id: uid("invitation"),
+      language: "bilingual",
+      date: today(),
+      embassy: settings.invitationEmbassy || "Embassy of the People's Republic of China",
+      visitorName: "",
+      visitorCompany: "",
+      country: "",
+      passportNo: "",
+      arrivalDate: "",
+      departureDate: "",
+      inviter: settings.contactPerson || "",
+      reason: settings.invitationDefaultReason || "The visitor is invited to China for business inspection, machinery inspection, order discussion and purchasing cooperation.",
+      notes: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    bindInvitationToForm();
+    renderInvitationPreview();
+  }
+
+  function renderInvitationEditor() {
+    if (!currentInvitation) {
+      newInvitation();
+      return;
+    }
+    bindInvitationToForm();
+    renderInvitationPreview();
+  }
+
+  function bindInvitationToForm() {
+    $("invitation-language").value = currentInvitation.language || "bilingual";
+    $("invitation-date").value = currentInvitation.date || today();
+    $("invitation-embassy").value = currentInvitation.embassy || settings.invitationEmbassy || "";
+    $("invitation-name").value = currentInvitation.visitorName || "";
+    $("invitation-company").value = currentInvitation.visitorCompany || "";
+    $("invitation-country").value = currentInvitation.country || "";
+    $("invitation-passport").value = currentInvitation.passportNo || "";
+    $("invitation-arrival").value = currentInvitation.arrivalDate || "";
+    $("invitation-departure").value = currentInvitation.departureDate || "";
+    $("invitation-inviter").value = currentInvitation.inviter || settings.contactPerson || "";
+    $("invitation-reason").value = currentInvitation.reason || settings.invitationDefaultReason || "";
+    $("invitation-notes").value = currentInvitation.notes || "";
+  }
+
+  function collectInvitationFromForm() {
+    if (!currentInvitation) newInvitation();
+    currentInvitation.language = $("invitation-language")?.value || "bilingual";
+    currentInvitation.date = $("invitation-date")?.value || today();
+    currentInvitation.embassy = $("invitation-embassy")?.value.trim() || settings.invitationEmbassy || "";
+    currentInvitation.visitorName = $("invitation-name")?.value.trim() || "";
+    currentInvitation.visitorCompany = $("invitation-company")?.value.trim() || "";
+    currentInvitation.country = $("invitation-country")?.value.trim() || "";
+    currentInvitation.passportNo = $("invitation-passport")?.value.trim() || "";
+    currentInvitation.arrivalDate = $("invitation-arrival")?.value || "";
+    currentInvitation.departureDate = $("invitation-departure")?.value || "";
+    currentInvitation.inviter = $("invitation-inviter")?.value.trim() || settings.contactPerson || "";
+    currentInvitation.reason = $("invitation-reason")?.value.trim() || settings.invitationDefaultReason || "";
+    currentInvitation.notes = $("invitation-notes")?.value.trim() || "";
+    currentInvitation.updatedAt = new Date().toISOString();
+  }
+
+  function invitationTitle(mode) {
+    const custom = {
+      en: settings.invitationTitleEn || invitationLangPack.en.titleFallback,
+      zh: settings.invitationTitleZh || invitationLangPack.zh.titleFallback
+    };
+    return invitationLanguages(mode).map((lang) => custom[lang] || invitationLangPack[lang]?.titleFallback).filter(Boolean).join(" / ");
+  }
+
+  function invitationField(labelKey, value, mode) {
+    return `<p><b>${escapeHtml(invitationText(labelKey, mode))}:</b> ${escapeHtml(value || "-")}</p>`;
+  }
+
+  function renderInvitationPreview() {
+    collectInvitationFromForm();
+    const mode = currentInvitation.language || "bilingual";
+    const visitPeriod = [formatInvitationDate(currentInvitation.arrivalDate, mode), formatInvitationDate(currentInvitation.departureDate, mode)].filter(Boolean).join(" - ");
+    const companyName = displayMode() === "zh" ? settings.companyNameZh : settings.companyNameEn;
+    $("invitation-preview").innerHTML = `
+      <section class="invitation-sheet">
+        <div class="invitation-corner invitation-corner-tl"></div>
+        <div class="invitation-corner invitation-corner-br"></div>
+        <header class="invitation-header">
+          ${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}" alt="">` : ""}
+          <div>
+            <h2>${escapeHtml(settings.companyNameEn || settings.companyNameZh || "")}</h2>
+            ${settings.companyNameZh ? `<p>${escapeHtml(settings.companyNameZh)}</p>` : ""}
+          </div>
+        </header>
+        <div class="invitation-watermark">${escapeHtml(settings.companyNameEn || settings.companyNameZh || "")}</div>
+        <h1>${escapeHtml(invitationTitle(mode))}</h1>
+        <div class="invitation-date">${escapeHtml(invitationText("date", mode))}: ${escapeHtml(formatInvitationDate(currentInvitation.date, mode))}</div>
+        <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(currentInvitation.embassy || settings.invitationEmbassy || "")}</div>
+        <p class="invitation-paragraph">${escapeHtml(invitationText("intro", mode))}</p>
+        <div class="invitation-info">
+          <h3>${escapeHtml(invitationText("details", mode))}</h3>
+          <div class="invitation-info-grid">
+            ${invitationField("name", currentInvitation.visitorName, mode)}
+            ${invitationField("company", currentInvitation.visitorCompany, mode)}
+            ${invitationField("country", currentInvitation.country, mode)}
+            ${invitationField("passport", currentInvitation.passportNo, mode)}
+            ${invitationField("visitPeriod", visitPeriod, mode)}
+            ${invitationField("reason", currentInvitation.reason, mode)}
+            ${currentInvitation.notes ? invitationField("notes", currentInvitation.notes, mode) : ""}
+          </div>
+        </div>
+        <p class="invitation-paragraph">${escapeHtml(invitationText("closing", mode))}</p>
+        <footer class="invitation-footer">
+          <div class="invitation-sign">
+            ${settings.stampDataUrl ? `<img class="invitation-stamp" src="${settings.stampDataUrl}" alt="">` : ""}
+            <div class="signature-line"></div>
+            <p><b>${escapeHtml(invitationText("signature", mode))}</b></p>
+            <p>${escapeHtml(invitationText("inviter", mode))}: ${escapeHtml(currentInvitation.inviter || settings.contactPerson || "")}</p>
+            <p>${escapeHtml(companyName || "")}</p>
+          </div>
+          <div class="invitation-company-block">
+            <p>${escapeHtml(settings.companyAddressEn || "")}</p>
+            <p>${escapeHtml(settings.companyAddressZh || "")}</p>
+            <p>${escapeHtml(settings.companyPhone || "")} ${settings.companyEmail ? ` | ${escapeHtml(settings.companyEmail)}` : ""}</p>
+          </div>
+        </footer>
+      </section>
+    `;
+  }
+
+  function saveInvitation() {
+    renderInvitationPreview();
+    const nowIso = new Date().toISOString();
+    if (!currentInvitation.createdAt) currentInvitation.createdAt = nowIso;
+    currentInvitation.updatedAt = nowIso;
+    const idx = invitations.findIndex((item) => item.id === currentInvitation.id);
+    if (idx >= 0) invitations[idx] = structuredClone(currentInvitation);
+    else invitations.unshift(structuredClone(currentInvitation));
+    save(keys.invitations, invitations);
+    toast("邀请函已保存。");
+  }
+
+  async function exportInvitationPdf() {
+    renderInvitationPreview();
+    const fileName = currentInvitationPdfFileName();
+    document.body.classList.add("printing-invitation");
+    try {
+      if (window.quotationDesktop?.exportCurrentPdf) {
+        const filePath = await window.quotationDesktop.exportCurrentPdf(fileName);
+        if (filePath) toast(`PDF 已导出：${filePath}`);
+        return;
+      }
+      applyPrintTitle();
+      window.print();
+    } finally {
+      setTimeout(() => document.body.classList.remove("printing-invitation"), 500);
+    }
+  }
+
   function template() {
     normalizeTemplates();
     return settings.templates.find((t) => t.name === $("quote-template").value) || settings.templates[0];
@@ -3970,6 +4242,14 @@
       if (currentQuote?.quoteNumber) syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
       newQuote(true, "quotation");
     });
+    $("preview-invitation-btn").addEventListener("click", renderInvitationPreview);
+    $("save-invitation-btn").addEventListener("click", saveInvitation);
+    $("export-invitation-pdf-btn").addEventListener("click", exportInvitationPdf);
+    $("new-invitation-btn").addEventListener("click", newInvitation);
+    ["invitation-language", "invitation-date", "invitation-embassy", "invitation-name", "invitation-company", "invitation-country", "invitation-passport", "invitation-arrival", "invitation-departure", "invitation-inviter", "invitation-reason", "invitation-notes"].forEach((id) => {
+      $(id)?.addEventListener("input", renderInvitationPreview);
+      $(id)?.addEventListener("change", renderInvitationPreview);
+    });
     $("history-search-btn").addEventListener("click", renderHistory);
     $("refresh-ports-btn").addEventListener("click", renderPorts);
     $("save-port-btn").addEventListener("click", savePort);
@@ -4041,6 +4321,7 @@
     renderSettings();
     renderProducts();
     newQuote();
+    newInvitation();
     await checkLogin();
     applyAuthLock();
   }
