@@ -156,6 +156,10 @@
     showQuoteDateInPdf: true,
     showValidUntilInPdfTop: true,
     showValidityRangeInPdfBottom: true,
+    documentTypes: [
+      { key: "quotation", labelZh: "报价单", labelEn: "Quotation", visible: true, sortOrder: 10 },
+      { key: "invoice", labelZh: "形式发票", labelEn: "Proforma Invoice", visible: true, sortOrder: 20 }
+    ],
     validityRangeLabelEn: "Quotation Validity",
     validityRangeLabelZh: "报价有效期",
     quoteLineColumns: defaultQuoteLineColumns,
@@ -677,6 +681,29 @@
     if (!settings.tradeTerms.length) settings.tradeTerms = [...fallback];
   }
 
+  function normalizeDocumentTypes() {
+    const current = Array.isArray(settings.documentTypes) ? settings.documentTypes : [];
+    const byKey = new Map(current.map((item) => [item.key, item]));
+    settings.documentTypes = defaultSettings.documentTypes.map((item) => ({
+      ...item,
+      ...(byKey.get(item.key) || {})
+    })).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  }
+
+  function documentTypeOf(key) {
+    normalizeDocumentTypes();
+    return settings.documentTypes.find((item) => item.key === key) || settings.documentTypes[0] || defaultSettings.documentTypes[0];
+  }
+
+  function currentDocumentType() {
+    return documentTypeOf(currentQuote?.documentType || $("document-type")?.value || "quotation");
+  }
+
+  function documentTypeTitle(q = currentQuote) {
+    const doc = documentTypeOf(q?.documentType || "quotation");
+    return labelText(doc.labelEn || "Quotation", doc.labelZh || "报价单");
+  }
+
   function applySidebarState() {
     const collapsed = localStorage.getItem(keys.sidebarCollapsed) === "true";
     document.body.classList.toggle("sidebar-collapsed", collapsed);
@@ -922,6 +949,7 @@
     normalizeQuoteLineColumns();
     normalizeCurrencies();
     normalizeTradeTerms();
+    normalizeDocumentTypes();
     normalizeTemplates();
     normalizeCostTemplates();
     normalizeCategories();
@@ -935,6 +963,7 @@
     renderQuoteLineColumns();
     renderCurrencies();
     renderTradeTerms();
+    renderDocumentTypes();
     renderTemplateSelect();
     fillTemplateForm(settings.templates[0]?.name);
     $("logo-preview").src = settings.logoDataUrl || "";
@@ -1542,6 +1571,16 @@
       </div>
       <div class="currency-manager">
         <div class="row-head">
+          <h4>Document Titles / 单据标题</h4>
+          <p class="hint">这里控制导出 PDF 顶部的大标题，例如 Quotation 或 Proforma Invoice。</p>
+        </div>
+        <table class="field-table">
+          <thead><tr><th>类型</th><th>英文标题</th><th>中文标题</th></tr></thead>
+          <tbody id="document-type-list"></tbody>
+        </table>
+      </div>
+      <div class="currency-manager">
+        <div class="row-head">
           <h4>Currency Options / 货币选项</h4>
           <div class="actions">
             <input id="currency-input" placeholder="GBP" maxlength="10" />
@@ -1613,6 +1652,34 @@
         </td>
       </tr>
     `).join("");
+  }
+
+  function renderDocumentTypes() {
+    normalizeDocumentTypes();
+    if ($("document-type")) {
+      $("document-type").innerHTML = settings.documentTypes.map((type) => `<option value="${escapeHtml(type.key)}">${escapeHtml(type.labelZh)} / ${escapeHtml(type.labelEn)}</option>`).join("");
+      $("document-type").value = currentQuote?.documentType || "quotation";
+    }
+    if (!$("document-type-list")) return;
+    $("document-type-list").innerHTML = settings.documentTypes.map((type, index) => `
+      <tr data-document-type-index="${index}">
+        <td><b>${escapeHtml(type.key === "invoice" ? "发票" : "报价单")}</b></td>
+        <td><input data-document-title="labelEn" value="${escapeHtml(type.labelEn)}" /></td>
+        <td><input data-document-title="labelZh" value="${escapeHtml(type.labelZh)}" /></td>
+      </tr>
+    `).join("");
+  }
+
+  function collectDocumentTypes() {
+    if (!$("document-type-list")) return;
+    normalizeDocumentTypes();
+    document.querySelectorAll("#document-type-list tr[data-document-type-index]").forEach((row) => {
+      const item = settings.documentTypes[Number(row.dataset.documentTypeIndex)];
+      if (!item) return;
+      row.querySelectorAll("[data-document-title]").forEach((input) => {
+        item[input.dataset.documentTitle] = input.value.trim() || item[input.dataset.documentTitle];
+      });
+    });
   }
 
   function addTradeTerm() {
@@ -2158,6 +2225,7 @@
     normalizeCostTemplates();
     normalizeCategories();
     normalizeCurrencies();
+    normalizeDocumentTypes();
     collectSettingsDraft();
     const phone = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("phone") || field.labelZh.includes("电话"));
     const email = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("email") || field.labelZh.includes("邮箱"));
@@ -2176,6 +2244,7 @@
     collectContactFields();
     collectBankFields();
     collectPaymentQrFields();
+    collectDocumentTypes();
     document.querySelectorAll("[data-setting]").forEach((input) => {
       settings[input.dataset.setting] = input.type === "checkbox" ? input.checked : input.value.trim();
     });
@@ -2971,11 +3040,13 @@
     renderPreview();
   }
 
-  function newQuote(advanceNumber = false) {
+  function newQuote(advanceNumber = false, documentType = "quotation") {
     const d = today();
+    const docType = documentTypeOf(documentType).key;
     currentQuote = {
       id: uid("quote"),
       status: "草稿",
+      documentType: docType,
       quoteNumber: nextQuoteNumber(d, advanceNumber),
       quoteDate: d,
       validUntil: addDays(7),
@@ -3009,6 +3080,8 @@
 
   function bindQuoteToForm() {
     $("quote-template").value = currentQuote.templateName || settings.templates[0]?.name || "";
+    renderDocumentTypes();
+    $("document-type").value = currentQuote.documentType || "quotation";
     if ($("quote-status")) $("quote-status").value = currentQuote.status || "普通报价";
     $("quote-number").value = currentQuote.quoteNumber || "";
     $("quote-date").value = currentQuote.quoteDate || today();
@@ -3042,6 +3115,7 @@
   function collectQuoteFromForm() {
     currentQuote.templateName = $("quote-template").value;
     currentQuote.status = $("quote-status")?.value || "普通报价";
+    currentQuote.documentType = $("document-type")?.value || "quotation";
     currentQuote.quoteNumber = $("quote-number").value;
     currentQuote.quoteDate = $("quote-date").value;
     currentQuote.validUntil = $("valid-until").value;
@@ -3648,7 +3722,7 @@
     const visibleTermFields = (tpl.termFields || defaultTermFields).slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
     const showProductPhotos = quoteLineColumns().some((column) => column.key === "image" && column.visible !== false);
     const bg = settings.backgroundDataUrl || defaultBg;
-    const title = labelText("Quotation", "报价单");
+    const title = documentTypeTitle(currentQuote);
     const companySub = localizedText("", settings.companyNameZh);
     const businessLine = localizedText(settings.businessLineEn, settings.businessLineZh, "<br>");
     $("quote-preview").innerHTML = `
@@ -3768,7 +3842,7 @@
       const hay = normalize(`${q.buyer.company} ${q.buyer.country} ${productsText}`);
       return (!kw || hay.includes(kw)) && (!date || q.quoteDate === date);
     }).sort((a, b) => quoteHistorySortTime(b) - quoteHistorySortTime(a));
-    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)}</b><p>客户：${escapeHtml(q.buyer.company)} | 国家：${escapeHtml(q.buyer.country)} | 报价日期：${escapeHtml(q.quoteDate)}</p><p>${escapeHtml(quoteHistoryTimeText(q))}</p><p>${q.items.length} 行明细 | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
+    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)} · ${escapeHtml(documentTypeTitle(q))}</b><p>客户：${escapeHtml(q.buyer.company)} | 国家：${escapeHtml(q.buyer.country)} | 报价日期：${escapeHtml(q.quoteDate)}</p><p>${escapeHtml(quoteHistoryTimeText(q))}</p><p>${q.items.length} 行明细 | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
   }
 
   function bindEvents() {
@@ -3830,6 +3904,7 @@
       if (button) addProductFromLibrary(button.dataset.pickProduct);
     });
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
+    $("document-type").addEventListener("change", renderPreview);
     $("pdf-language").addEventListener("change", renderPreview);
     $("buyer-country").addEventListener("change", applyBuyerCountryDialCode);
     $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
@@ -3893,7 +3968,7 @@
     $("export-pdf-btn").addEventListener("click", exportPdf);
     $("new-quote-btn").addEventListener("click", () => {
       if (currentQuote?.quoteNumber) syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
-      newQuote(true);
+      newQuote(true, "quotation");
     });
     $("history-search-btn").addEventListener("click", renderHistory);
     $("refresh-ports-btn").addEventListener("click", renderPorts);

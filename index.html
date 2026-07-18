@@ -27,7 +27,7 @@
         </div>
         <nav>
           <button class="nav-btn active" data-view="home">首页</button>
-          <button class="nav-btn" data-view="quote">新建报价</button>
+          <button class="nav-btn" data-view="quote">新建</button>
           <button class="nav-btn" data-view="history">历史报价</button>
           <button class="nav-btn" data-view="products">产品库</button>
           <button class="nav-btn" data-view="freight">运费中心</button>
@@ -44,7 +44,7 @@
             <p>用于本地创建、管理、导出中英双语报价单。</p>
           </header>
           <div class="entry-grid">
-            <button class="entry-card" data-view-target="quote"><b>新建报价</b><span>创建报价单、添加产品、上传图片、预览导出</span></button>
+            <button class="entry-card" data-view-target="quote"><b>新建</b><span>创建报价单或形式发票、添加产品、预览导出</span></button>
             <button class="entry-card" data-view-target="history"><b>历史报价</b><span>搜索、编辑、复制、删除、重新导出报价单</span></button>
             <button class="entry-card" data-view-target="products"><b>产品库</b><span>维护常用产品资料、分类和常用图片</span></button>
             <button class="entry-card" data-view-target="freight"><b>运费中心</b><span>港口库、运费库、运费查询、导入报价</span></button>
@@ -263,14 +263,14 @@
         <section id="view-quote" class="view">
           <div class="no-print page-head row-head">
             <div>
-              <h2>新建报价</h2>
-              <p>选择报价类型，添加多个产品，自动计算并导出。</p>
+              <h2>新建</h2>
+              <p>选择单据类型，添加多个产品，自动计算并导出。</p>
             </div>
             <div class="actions">
               <button id="preview-quote-btn" type="button">刷新预览</button>
               <button id="save-quote-btn" class="primary" type="button">保存到历史</button>
               <button id="export-pdf-btn" type="button">导出PDF</button>
-              <button id="new-quote-btn" type="button">新建空白报价</button>
+              <button id="new-quote-btn" type="button">新建空白单据</button>
             </div>
           </div>
 
@@ -278,6 +278,7 @@
             <div class="panel">
               <h3>报价基础信息</h3>
               <div class="form-grid">
+                <label><span>单据类型</span><select id="document-type"></select></label>
                 <label><span>报价类型</span><select id="quote-template"></select></label>
                 <label><span>报价编号</span><input id="quote-number" /></label>
                 <label><span>报价日期</span><input id="quote-date" type="date" /></label>
