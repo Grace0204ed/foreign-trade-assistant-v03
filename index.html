@@ -135,8 +135,16 @@
               <label><span>中文抬头</span><input data-setting="invitationTitleZh" placeholder="邀请函" /></label>
               <label class="wide"><span>默认致大使馆</span><input data-setting="invitationEmbassy" placeholder="Embassy of the People's Republic of China" /></label>
               <label class="wide"><span>默认邀请理由</span><textarea data-setting="invitationDefaultReason"></textarea></label>
+              <label><span>邀请方英文公司名</span><input data-setting="invitationCompanyNameEn" placeholder="留空则使用公司信息设置" /></label>
+              <label><span>邀请方中文公司名</span><input data-setting="invitationCompanyNameZh" placeholder="留空则使用公司信息设置" /></label>
+              <label class="wide"><span>邀请方英文地址</span><input data-setting="invitationCompanyAddressEn" placeholder="留空则使用公司信息设置" /></label>
+              <label class="wide"><span>邀请方中文地址</span><input data-setting="invitationCompanyAddressZh" placeholder="留空则使用公司信息设置" /></label>
+              <label><span>邀请方电话</span><input data-setting="invitationCompanyPhone" placeholder="留空则使用公司信息设置" /></label>
+              <label><span>邀请方邮箱</span><input data-setting="invitationCompanyEmail" placeholder="留空则使用公司信息设置" /></label>
+              <label><span>默认签名姓名</span><input data-setting="invitationSignerName" placeholder="留空则使用报价负责人" /></label>
+              <label><span>默认签名职务</span><input data-setting="invitationSignerTitle" placeholder="例如：Sales Manager" /></label>
             </div>
-            <p class="hint">邀请函会使用公司信息设置里的 Logo 和电子公章。签字位置默认留空，方便打印后手写签字。</p>
+            <p class="hint">邀请函默认使用公司信息设置里的公司、Logo 和电子公章；这里填写后只覆盖邀请函，不影响报价单。签字位置默认留空，方便打印后手写签字。</p>
           </div>
 
           <div class="panel" data-settings-panel="quote-fields">
@@ -361,7 +369,8 @@
                 <label><span>签证类型</span><input id="invitation-visa-type" placeholder="M Business Visa / M字商务签证" /></label>
                 <label><span>双方关系</span><input id="invitation-relationship" placeholder="Business partner / 商务合作客户" /></label>
                 <label><span>费用来源</span><input id="invitation-expense-source" placeholder="Visitor/customer bears all expenses / 客户自理" /></label>
-                <label><span>邀请人</span><input id="invitation-inviter" /></label>
+                <label><span>签名姓名</span><input id="invitation-inviter" /></label>
+                <label><span>签名职务</span><input id="invitation-signer-title" /></label>
                 <label class="wide"><span>邀请理由</span><textarea id="invitation-reason"></textarea></label>
                 <label class="wide"><span>补充说明</span><textarea id="invitation-notes" placeholder="可填写费用承担、行程安排或其他签证说明。"></textarea></label>
               </div>

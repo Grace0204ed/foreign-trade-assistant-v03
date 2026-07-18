@@ -165,6 +165,14 @@
     invitationTitleZh: "邀请函",
     invitationDefaultReason: "The visitor is invited to China for business inspection, machinery inspection, order discussion and purchasing cooperation.",
     invitationEmbassy: "Embassy of the People's Republic of China",
+    invitationCompanyNameEn: "",
+    invitationCompanyNameZh: "",
+    invitationCompanyAddressEn: "",
+    invitationCompanyAddressZh: "",
+    invitationCompanyPhone: "",
+    invitationCompanyEmail: "",
+    invitationSignerName: "",
+    invitationSignerTitle: "",
     validityRangeLabelEn: "Quotation Validity",
     validityRangeLabelZh: "报价有效期",
     quoteLineColumns: defaultQuoteLineColumns,
@@ -878,6 +886,19 @@
     const zh = countryZhName(country);
     if (!zh) return settings.invitationEmbassy || "中华人民共和国驻外大使馆";
     return `中华人民共和国驻${zh}大使馆`;
+  }
+
+  function invitationPartyInfo() {
+    return {
+      nameEn: settings.invitationCompanyNameEn || settings.companyNameEn || "",
+      nameZh: settings.invitationCompanyNameZh || settings.companyNameZh || "",
+      addressEn: settings.invitationCompanyAddressEn || settings.companyAddressEn || "",
+      addressZh: settings.invitationCompanyAddressZh || settings.companyAddressZh || "",
+      phone: settings.invitationCompanyPhone || settings.companyPhone || "",
+      email: settings.invitationCompanyEmail || settings.companyEmail || "",
+      signerName: settings.invitationSignerName || settings.contactPerson || "",
+      signerTitle: settings.invitationSignerTitle || ""
+    };
   }
 
   function applySidebarState() {
@@ -3251,6 +3272,7 @@
   }
 
   function newInvitation() {
+    const party = invitationPartyInfo();
     currentInvitation = {
       id: uid("invitation"),
       language: "bilingual",
@@ -3268,7 +3290,8 @@
       visaType: "M Business Visa / M字商务签证",
       relationship: "Business partner / 商务合作客户",
       expenseSource: "Visitor/customer bears all expenses / 客户自理",
-      inviter: settings.contactPerson || "",
+      inviter: party.signerName,
+      signerTitle: party.signerTitle,
       reason: settings.invitationDefaultReason || "The visitor is invited to China for business inspection, machinery inspection, order discussion and purchasing cooperation.",
       notes: "",
       createdAt: new Date().toISOString(),
@@ -3303,7 +3326,9 @@
     $("invitation-visa-type").value = currentInvitation.visaType || "M Business Visa / M字商务签证";
     $("invitation-relationship").value = currentInvitation.relationship || "Business partner / 商务合作客户";
     $("invitation-expense-source").value = currentInvitation.expenseSource || "Visitor/customer bears all expenses / 客户自理";
-    $("invitation-inviter").value = currentInvitation.inviter || settings.contactPerson || "";
+    const party = invitationPartyInfo();
+    $("invitation-inviter").value = currentInvitation.inviter || party.signerName;
+    $("invitation-signer-title").value = currentInvitation.signerTitle || party.signerTitle;
     $("invitation-reason").value = currentInvitation.reason || settings.invitationDefaultReason || "";
     $("invitation-notes").value = currentInvitation.notes || "";
   }
@@ -3325,7 +3350,8 @@
     currentInvitation.visaType = $("invitation-visa-type")?.value.trim() || "";
     currentInvitation.relationship = $("invitation-relationship")?.value.trim() || "";
     currentInvitation.expenseSource = $("invitation-expense-source")?.value.trim() || "";
-    currentInvitation.inviter = $("invitation-inviter")?.value.trim() || settings.contactPerson || "";
+    currentInvitation.inviter = $("invitation-inviter")?.value.trim() || invitationPartyInfo().signerName;
+    currentInvitation.signerTitle = $("invitation-signer-title")?.value.trim() || invitationPartyInfo().signerTitle;
     currentInvitation.reason = $("invitation-reason")?.value.trim() || settings.invitationDefaultReason || "";
     currentInvitation.notes = $("invitation-notes")?.value.trim() || "";
     currentInvitation.updatedAt = new Date().toISOString();
@@ -3383,7 +3409,8 @@
   function renderInvitationPreview() {
     collectInvitationFromForm();
     const mode = currentInvitation.language || "bilingual";
-    const companyName = displayMode() === "zh" ? settings.companyNameZh : settings.companyNameEn;
+    const party = invitationPartyInfo();
+    const companyName = displayMode() === "zh" ? party.nameZh : party.nameEn;
     $("invitation-preview").innerHTML = `
       <section class="invitation-sheet">
         <div class="invitation-corner invitation-corner-tl"></div>
@@ -3391,11 +3418,11 @@
         <header class="invitation-header">
           ${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}" alt="">` : ""}
           <div>
-            <h2>${escapeHtml(settings.companyNameEn || settings.companyNameZh || "")}</h2>
-            ${settings.companyNameZh ? `<p>${escapeHtml(settings.companyNameZh)}</p>` : ""}
+            <h2>${escapeHtml(party.nameEn || party.nameZh || "")}</h2>
+            ${party.nameZh ? `<p>${escapeHtml(party.nameZh)}</p>` : ""}
           </div>
         </header>
-        <div class="invitation-watermark">${escapeHtml(settings.companyNameEn || settings.companyNameZh || "")}</div>
+        <div class="invitation-watermark">${escapeHtml(party.nameEn || party.nameZh || "")}</div>
         <h1>${escapeHtml(invitationTitle(mode))}</h1>
         <div class="invitation-date">${escapeHtml(invitationText("date", mode))}: ${escapeHtml(formatInvitationDate(currentInvitation.date, mode))}</div>
         <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(currentInvitation.embassy || settings.invitationEmbassy || "")}</div>
@@ -3426,15 +3453,18 @@
         </div>
         <footer class="invitation-footer">
           <div class="invitation-company-block">
-            <p>${escapeHtml(settings.companyAddressEn || "")}</p>
-            <p>${escapeHtml(settings.companyAddressZh || "")}</p>
-            <p>${escapeHtml(settings.companyPhone || "")} ${settings.companyEmail ? ` | ${escapeHtml(settings.companyEmail)}` : ""}</p>
+            <p>${escapeHtml(party.nameEn || "")}</p>
+            ${party.nameZh ? `<p>${escapeHtml(party.nameZh)}</p>` : ""}
+            <p>${escapeHtml(party.addressEn || "")}</p>
+            <p>${escapeHtml(party.addressZh || "")}</p>
+            <p>${escapeHtml(party.phone || "")} ${party.email ? ` | ${escapeHtml(party.email)}` : ""}</p>
           </div>
           <div class="invitation-sign">
             ${settings.stampDataUrl ? `<img class="invitation-stamp" src="${settings.stampDataUrl}" alt="">` : ""}
             <div class="signature-line"></div>
             <p><b>${escapeHtml(invitationText("signature", mode))}</b></p>
-            <p>${escapeHtml(invitationText("inviter", mode))}: ${escapeHtml(currentInvitation.inviter || settings.contactPerson || "")}</p>
+            <p>${escapeHtml(invitationText("inviter", mode))}: ${escapeHtml(currentInvitation.inviter || party.signerName || "")}</p>
+            ${currentInvitation.signerTitle ? `<p>${escapeHtml(currentInvitation.signerTitle)}</p>` : ""}
             <p>${escapeHtml(companyName || "")}</p>
           </div>
         </footer>
@@ -4380,7 +4410,7 @@
       syncInvitationEmbassyFromCountry();
       renderInvitationPreview();
     });
-    ["invitation-language", "invitation-date", "invitation-embassy", "invitation-name", "invitation-company", "invitation-country", "invitation-gender", "invitation-birth-date", "invitation-passport", "invitation-arrival", "invitation-departure", "invitation-visit-place", "invitation-visa-type", "invitation-relationship", "invitation-expense-source", "invitation-inviter", "invitation-reason", "invitation-notes"].forEach((id) => {
+    ["invitation-language", "invitation-date", "invitation-embassy", "invitation-name", "invitation-company", "invitation-country", "invitation-gender", "invitation-birth-date", "invitation-passport", "invitation-arrival", "invitation-departure", "invitation-visit-place", "invitation-visa-type", "invitation-relationship", "invitation-expense-source", "invitation-inviter", "invitation-signer-title", "invitation-reason", "invitation-notes"].forEach((id) => {
       $(id)?.addEventListener("input", renderInvitationPreview);
       $(id)?.addEventListener("change", renderInvitationPreview);
     });
