@@ -840,6 +840,7 @@
   function invitationLanguages(mode) {
     if (mode === "en") return ["en"];
     if (mode === "zh") return ["zh"];
+    if (mode === "es") return ["es"];
     if (mode === "zh-es") return ["es", "zh"];
     return ["en", "zh"];
   }
@@ -3245,6 +3246,7 @@
       id: uid("quote"),
       status: "草稿",
       documentType: docType,
+      quoteStyle: settings.quoteStyle || "classic",
       quoteNumber: nextQuoteNumber(d, advanceNumber),
       quoteDate: d,
       validUntil: addDays(7),
@@ -3276,6 +3278,7 @@
     currentInvitation = {
       id: uid("invitation"),
       language: "bilingual",
+      style: "classic",
       date: today(),
       embassy: "",
       visitorName: "",
@@ -3312,6 +3315,7 @@
 
   function bindInvitationToForm() {
     $("invitation-language").value = currentInvitation.language || "bilingual";
+    $("invitation-style").value = currentInvitation.style || "classic";
     $("invitation-date").value = currentInvitation.date || today();
     $("invitation-embassy").value = currentInvitation.embassy || settings.invitationEmbassy || defaultEmbassyForCountry(currentInvitation.country);
     $("invitation-name").value = currentInvitation.visitorName || "";
@@ -3336,6 +3340,7 @@
   function collectInvitationFromForm() {
     if (!currentInvitation) newInvitation();
     currentInvitation.language = $("invitation-language")?.value || "bilingual";
+    currentInvitation.style = $("invitation-style")?.value || "classic";
     currentInvitation.date = $("invitation-date")?.value || today();
     currentInvitation.embassy = $("invitation-embassy")?.value.trim() || defaultEmbassyForCountry(currentInvitation.country);
     currentInvitation.visitorName = $("invitation-name")?.value.trim() || "";
@@ -3381,6 +3386,20 @@
     return `<p><b>${escapeHtml(invitationText(labelKey, mode))}:</b> ${escapeHtml(value || "-")}</p>`;
   }
 
+  function localizedSlashValue(value, mode) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (!raw.includes("/")) return raw;
+    const parts = raw.split("/").map((part) => part.trim()).filter(Boolean);
+    const hasZh = (text) => /[\u4e00-\u9fa5]/.test(text);
+    const zh = parts.find(hasZh) || "";
+    const nonZh = parts.find((part) => !hasZh(part)) || parts[0] || "";
+    if (mode === "zh") return zh || nonZh;
+    if (mode === "en" || mode === "es") return nonZh || zh;
+    if (mode === "zh-es") return [nonZh, zh].filter(Boolean).join(" / ");
+    return [nonZh, zh].filter(Boolean).join(" / ");
+  }
+
   function invitationIntroParagraph(mode) {
     const country = currentInvitation.country || "the visitor's country";
     const countryZh = countryZhName(country) || "该国家";
@@ -3412,7 +3431,7 @@
     const party = invitationPartyInfo();
     const companyName = displayMode() === "zh" ? party.nameZh : party.nameEn;
     $("invitation-preview").innerHTML = `
-      <section class="invitation-sheet">
+      <section class="invitation-sheet invitation-style-${escapeHtml(currentInvitation.style || "classic")}">
         <div class="invitation-corner invitation-corner-tl"></div>
         <div class="invitation-corner invitation-corner-br"></div>
         <header class="invitation-header">
@@ -3438,10 +3457,10 @@
             ${invitationField("passport", currentInvitation.passportNo, mode)}
             ${invitationField("arrivalDate", formatInvitationDate(currentInvitation.arrivalDate, mode), mode)}
             ${invitationField("departureDate", formatInvitationDate(currentInvitation.departureDate, mode), mode)}
-            ${invitationField("visitPlace", currentInvitation.visitPlace, mode)}
-            ${invitationField("visaType", currentInvitation.visaType, mode)}
-            ${invitationField("relationship", currentInvitation.relationship, mode)}
-            ${invitationField("expenseSource", currentInvitation.expenseSource, mode)}
+            ${invitationField("visitPlace", localizedSlashValue(currentInvitation.visitPlace, mode), mode)}
+            ${invitationField("visaType", localizedSlashValue(currentInvitation.visaType, mode), mode)}
+            ${invitationField("relationship", localizedSlashValue(currentInvitation.relationship, mode), mode)}
+            ${invitationField("expenseSource", localizedSlashValue(currentInvitation.expenseSource, mode), mode)}
             ${invitationField("reason", currentInvitation.reason, mode)}
             ${currentInvitation.notes ? invitationField("notes", currentInvitation.notes, mode) : ""}
           </div>
@@ -3510,6 +3529,7 @@
     $("quote-template").value = currentQuote.templateName || settings.templates[0]?.name || "";
     renderDocumentTypes();
     $("document-type").value = currentQuote.documentType || "quotation";
+    $("quote-style-select").value = currentQuote.quoteStyle || settings.quoteStyle || "classic";
     if ($("quote-status")) $("quote-status").value = currentQuote.status || "普通报价";
     $("quote-number").value = currentQuote.quoteNumber || "";
     $("quote-date").value = currentQuote.quoteDate || today();
@@ -3544,6 +3564,7 @@
     currentQuote.templateName = $("quote-template").value;
     currentQuote.status = $("quote-status")?.value || "普通报价";
     currentQuote.documentType = $("document-type")?.value || "quotation";
+    currentQuote.quoteStyle = $("quote-style-select")?.value || settings.quoteStyle || "classic";
     currentQuote.quoteNumber = $("quote-number").value;
     currentQuote.quoteDate = $("quote-date").value;
     currentQuote.validUntil = $("valid-until").value;
@@ -4153,6 +4174,7 @@
     const title = documentTypeTitle(currentQuote);
     const companySub = localizedText("", settings.companyNameZh);
     const businessLine = localizedText(settings.businessLineEn, settings.businessLineZh, "<br>");
+    $("quote-preview").className = `quote-preview quote-style-${currentQuote.quoteStyle || settings.quoteStyle || "classic"}`;
     $("quote-preview").innerHTML = `
       <section class="preview-banner">
         <img class="preview-banner-bg" src="${bg}" alt="">
@@ -4340,6 +4362,7 @@
     });
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
     $("document-type").addEventListener("change", renderPreview);
+    $("quote-style-select").addEventListener("change", renderPreview);
     $("pdf-language").addEventListener("change", renderPreview);
     $("buyer-country").addEventListener("change", applyBuyerCountryDialCode);
     $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
@@ -4417,7 +4440,7 @@
       syncInvitationEmbassyFromCountry();
       renderInvitationPreview();
     });
-    ["invitation-language", "invitation-date", "invitation-embassy", "invitation-name", "invitation-company", "invitation-country", "invitation-gender", "invitation-birth-date", "invitation-passport", "invitation-arrival", "invitation-departure", "invitation-visit-place", "invitation-visa-type", "invitation-relationship", "invitation-expense-source", "invitation-inviter", "invitation-signer-title", "invitation-reason", "invitation-notes"].forEach((id) => {
+    ["invitation-language", "invitation-style", "invitation-date", "invitation-embassy", "invitation-name", "invitation-company", "invitation-country", "invitation-gender", "invitation-birth-date", "invitation-passport", "invitation-arrival", "invitation-departure", "invitation-visit-place", "invitation-visa-type", "invitation-relationship", "invitation-expense-source", "invitation-inviter", "invitation-signer-title", "invitation-reason", "invitation-notes"].forEach((id) => {
       $(id)?.addEventListener("input", renderInvitationPreview);
       $(id)?.addEventListener("change", renderInvitationPreview);
     });
