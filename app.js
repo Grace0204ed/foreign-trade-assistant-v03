@@ -761,10 +761,18 @@
       name: "Name",
       company: "Company",
       country: "Country",
+      gender: "Gender",
+      birthDate: "Date of Birth",
       passport: "Passport No.",
-      visitPeriod: "Visit Period",
+      arrivalDate: "Arrival Date in China",
+      departureDate: "Departure Date from China",
+      visitPlace: "Place to Visit",
+      visaType: "Visa Type",
+      relationship: "Relationship",
+      expenseSource: "Source of Expenses",
       reason: "Purpose of Visit",
       notes: "Additional Notes",
+      responsibility: "Responsibility Statement",
       inviter: "Inviter",
       signature: "Authorized Signature",
       closing: "We kindly request the embassy to provide necessary visa assistance for the visitor's trip to China."
@@ -777,11 +785,19 @@
       details: "来访人信息",
       name: "姓名",
       company: "公司",
-      country: "国家",
+      country: "国家/护照签发国家",
+      gender: "性别",
+      birthDate: "出生日期",
       passport: "护照编号",
-      visitPeriod: "来访时间",
+      arrivalDate: "来华日期/入境日期",
+      departureDate: "离境日期",
+      visitPlace: "访问地点",
+      visaType: "签证类型",
+      relationship: "双方关系",
+      expenseSource: "费用来源",
       reason: "邀请理由",
       notes: "补充说明",
+      responsibility: "责任声明",
       inviter: "邀请人",
       signature: "授权签字",
       closing: "恳请贵使馆为该来访人的来华行程提供必要的签证协助。"
@@ -795,10 +811,18 @@
       name: "Nombre",
       company: "Empresa",
       country: "País",
+      gender: "Género",
+      birthDate: "Fecha de Nacimiento",
       passport: "No. de Pasaporte",
-      visitPeriod: "Período de Visita",
+      arrivalDate: "Fecha de Entrada a China",
+      departureDate: "Fecha de Salida de China",
+      visitPlace: "Lugar de Visita",
+      visaType: "Tipo de Visa",
+      relationship: "Relación",
+      expenseSource: "Fuente de Gastos",
       reason: "Motivo de la Visita",
       notes: "Notas Adicionales",
+      responsibility: "Declaración de Responsabilidad",
       inviter: "Invitante",
       signature: "Firma Autorizada",
       closing: "Solicitamos amablemente a la embajada que brinde la asistencia necesaria para la visa del visitante para su viaje a China."
@@ -817,6 +841,43 @@
       if (custom[lang]) return custom[lang];
       return invitationLangPack[lang]?.[key] || "";
     }).filter(Boolean).join(" / ");
+  }
+
+  const countryZhMap = {
+    "south africa": "南非",
+    "zimbabwe": "津巴布韦",
+    "nigeria": "尼日利亚",
+    "tanzania": "坦桑尼亚",
+    "zambia": "赞比亚",
+    "ghana": "加纳",
+    "kenya": "肯尼亚",
+    "uganda": "乌干达",
+    "mozambique": "莫桑比克",
+    "botswana": "博茨瓦纳",
+    "angola": "安哥拉",
+    "ethiopia": "埃塞俄比亚",
+    "rwanda": "卢旺达",
+    "senegal": "塞内加尔",
+    "chile": "智利",
+    "peru": "秘鲁",
+    "colombia": "哥伦比亚",
+    "mexico": "墨西哥",
+    "spain": "西班牙"
+  };
+
+  function countryZhName(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const zhMatch = raw.match(/[\u4e00-\u9fa5]+/g);
+    if (zhMatch?.length) return zhMatch.join("");
+    const normalizedName = raw.toLowerCase().replace(/\/.*/, "").replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+    return countryZhMap[normalizedName] || raw;
+  }
+
+  function defaultEmbassyForCountry(country) {
+    const zh = countryZhName(country);
+    if (!zh) return settings.invitationEmbassy || "中华人民共和国驻外大使馆";
+    return `中华人民共和国驻${zh}大使馆`;
   }
 
   function applySidebarState() {
@@ -3194,13 +3255,19 @@
       id: uid("invitation"),
       language: "bilingual",
       date: today(),
-      embassy: settings.invitationEmbassy || "Embassy of the People's Republic of China",
+      embassy: "",
       visitorName: "",
       visitorCompany: "",
       country: "",
+      gender: "",
+      birthDate: "",
       passportNo: "",
       arrivalDate: "",
       departureDate: "",
+      visitPlace: settings.companyAddressEn || "Hefei, Anhui, China / 中国安徽合肥",
+      visaType: "M Business Visa / M字商务签证",
+      relationship: "Business partner / 商务合作客户",
+      expenseSource: "Visitor/customer bears all expenses / 客户自理",
       inviter: settings.contactPerson || "",
       reason: settings.invitationDefaultReason || "The visitor is invited to China for business inspection, machinery inspection, order discussion and purchasing cooperation.",
       notes: "",
@@ -3223,13 +3290,19 @@
   function bindInvitationToForm() {
     $("invitation-language").value = currentInvitation.language || "bilingual";
     $("invitation-date").value = currentInvitation.date || today();
-    $("invitation-embassy").value = currentInvitation.embassy || settings.invitationEmbassy || "";
+    $("invitation-embassy").value = currentInvitation.embassy || settings.invitationEmbassy || defaultEmbassyForCountry(currentInvitation.country);
     $("invitation-name").value = currentInvitation.visitorName || "";
     $("invitation-company").value = currentInvitation.visitorCompany || "";
     $("invitation-country").value = currentInvitation.country || "";
+    $("invitation-gender").value = currentInvitation.gender || "";
+    $("invitation-birth-date").value = currentInvitation.birthDate || "";
     $("invitation-passport").value = currentInvitation.passportNo || "";
     $("invitation-arrival").value = currentInvitation.arrivalDate || "";
     $("invitation-departure").value = currentInvitation.departureDate || "";
+    $("invitation-visit-place").value = currentInvitation.visitPlace || settings.companyAddressEn || "";
+    $("invitation-visa-type").value = currentInvitation.visaType || "M Business Visa / M字商务签证";
+    $("invitation-relationship").value = currentInvitation.relationship || "Business partner / 商务合作客户";
+    $("invitation-expense-source").value = currentInvitation.expenseSource || "Visitor/customer bears all expenses / 客户自理";
     $("invitation-inviter").value = currentInvitation.inviter || settings.contactPerson || "";
     $("invitation-reason").value = currentInvitation.reason || settings.invitationDefaultReason || "";
     $("invitation-notes").value = currentInvitation.notes || "";
@@ -3239,17 +3312,35 @@
     if (!currentInvitation) newInvitation();
     currentInvitation.language = $("invitation-language")?.value || "bilingual";
     currentInvitation.date = $("invitation-date")?.value || today();
-    currentInvitation.embassy = $("invitation-embassy")?.value.trim() || settings.invitationEmbassy || "";
+    currentInvitation.embassy = $("invitation-embassy")?.value.trim() || defaultEmbassyForCountry(currentInvitation.country);
     currentInvitation.visitorName = $("invitation-name")?.value.trim() || "";
     currentInvitation.visitorCompany = $("invitation-company")?.value.trim() || "";
     currentInvitation.country = $("invitation-country")?.value.trim() || "";
+    currentInvitation.gender = $("invitation-gender")?.value.trim() || "";
+    currentInvitation.birthDate = $("invitation-birth-date")?.value || "";
     currentInvitation.passportNo = $("invitation-passport")?.value.trim() || "";
     currentInvitation.arrivalDate = $("invitation-arrival")?.value || "";
     currentInvitation.departureDate = $("invitation-departure")?.value || "";
+    currentInvitation.visitPlace = $("invitation-visit-place")?.value.trim() || "";
+    currentInvitation.visaType = $("invitation-visa-type")?.value.trim() || "";
+    currentInvitation.relationship = $("invitation-relationship")?.value.trim() || "";
+    currentInvitation.expenseSource = $("invitation-expense-source")?.value.trim() || "";
     currentInvitation.inviter = $("invitation-inviter")?.value.trim() || settings.contactPerson || "";
     currentInvitation.reason = $("invitation-reason")?.value.trim() || settings.invitationDefaultReason || "";
     currentInvitation.notes = $("invitation-notes")?.value.trim() || "";
     currentInvitation.updatedAt = new Date().toISOString();
+  }
+
+  function syncInvitationEmbassyFromCountry() {
+    const embassyInput = $("invitation-embassy");
+    if (!embassyInput) return;
+    const country = $("invitation-country")?.value || "";
+    const suggested = defaultEmbassyForCountry(country);
+    const current = embassyInput.value.trim();
+    const previous = currentInvitation?.embassy || settings.invitationEmbassy || "";
+    if (!current || current === previous || current.includes("中华人民共和国驻外大使馆") || current.includes("Embassy of the People's Republic")) {
+      embassyInput.value = suggested;
+    }
   }
 
   function invitationTitle(mode) {
@@ -3264,10 +3355,34 @@
     return `<p><b>${escapeHtml(invitationText(labelKey, mode))}:</b> ${escapeHtml(value || "-")}</p>`;
   }
 
+  function invitationIntroParagraph(mode) {
+    const country = currentInvitation.country || "the visitor's country";
+    const countryZh = countryZhName(country) || "该国家";
+    const name = currentInvitation.visitorName || "the visitor";
+    const company = currentInvitation.visitorCompany || "the customer's company";
+    const arrival = formatInvitationDate(currentInvitation.arrivalDate, mode) || "-";
+    const departure = formatInvitationDate(currentInvitation.departureDate, mode) || "-";
+    const visitPlace = currentInvitation.visitPlace || settings.companyAddressEn || "our factory in China";
+    const text = {
+      en: `Due to our business cooperation and order discussion, we hereby invite ${name} from ${country}, representing ${company}, to visit ${visitPlace} for business inspection, factory visit, machinery inspection and purchase discussion. The planned entry date is ${arrival}, and the planned departure date is ${departure}.`,
+      zh: `因双方业务往来及订单洽谈需要，我司现邀请来自${countryZh}的客户${name}（${company}）来华访问${visitPlace}，进行商务考察、工厂参观、设备验机及采购合作洽谈。计划入境日期为${arrival}，计划离境日期为${departure}。`,
+      es: `Debido a nuestra cooperación comercial y negociación de pedidos, invitamos a ${name} de ${country}, representante de ${company}, a visitar ${visitPlace} para inspección comercial, visita a la fábrica, revisión de maquinaria y conversación de compra. La fecha prevista de entrada es ${arrival}, y la fecha prevista de salida es ${departure}.`
+    };
+    return invitationLanguages(mode).map((lang) => text[lang]).filter(Boolean).join("\n");
+  }
+
+  function invitationResponsibilityParagraph(mode) {
+    const text = {
+      en: "During the visit in China, all expenses including but not limited to international and domestic transportation, accommodation, meals, insurance, medical costs and personal expenses shall be borne by the visitor/customer. Any fines, losses, penalties or legal responsibilities caused by overstaying, delayed departure, violation of local laws or personal conduct shall be borne solely by the visitor/customer. Our company does not bear any such costs or liabilities.",
+      zh: "来访人在华考察期间产生的所有费用，包括但不限于国际及境内交通、住宿、餐饮、保险、医疗及个人消费等，均由来访人/客户自行承担。如因逾期离境、延迟离境、违反当地法律法规或个人行为产生任何罚款、损失、处罚或法律责任，均由来访人/客户自行承担，我司不承担任何相关费用及责任。",
+      es: "Durante la visita en China, todos los gastos, incluidos entre otros transporte internacional y nacional, alojamiento, comidas, seguro, gastos médicos y gastos personales, serán asumidos por el visitante/cliente. Cualquier multa, pérdida, sanción o responsabilidad legal causada por permanencia vencida, salida retrasada, violación de leyes locales o conducta personal será asumida únicamente por el visitante/cliente. Nuestra empresa no asumirá dichos costos ni responsabilidades."
+    };
+    return invitationLanguages(mode).map((lang) => text[lang]).filter(Boolean).join("\n");
+  }
+
   function renderInvitationPreview() {
     collectInvitationFromForm();
     const mode = currentInvitation.language || "bilingual";
-    const visitPeriod = [formatInvitationDate(currentInvitation.arrivalDate, mode), formatInvitationDate(currentInvitation.departureDate, mode)].filter(Boolean).join(" - ");
     const companyName = displayMode() === "zh" ? settings.companyNameZh : settings.companyNameEn;
     $("invitation-preview").innerHTML = `
       <section class="invitation-sheet">
@@ -3284,32 +3399,43 @@
         <h1>${escapeHtml(invitationTitle(mode))}</h1>
         <div class="invitation-date">${escapeHtml(invitationText("date", mode))}: ${escapeHtml(formatInvitationDate(currentInvitation.date, mode))}</div>
         <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(currentInvitation.embassy || settings.invitationEmbassy || "")}</div>
-        <p class="invitation-paragraph">${escapeHtml(invitationText("intro", mode))}</p>
+        <p class="invitation-paragraph">${escapeHtml(invitationIntroParagraph(mode)).replace(/\n/g, "<br>")}</p>
         <div class="invitation-info">
           <h3>${escapeHtml(invitationText("details", mode))}</h3>
           <div class="invitation-info-grid">
             ${invitationField("name", currentInvitation.visitorName, mode)}
             ${invitationField("company", currentInvitation.visitorCompany, mode)}
             ${invitationField("country", currentInvitation.country, mode)}
+            ${invitationField("gender", currentInvitation.gender, mode)}
+            ${invitationField("birthDate", formatInvitationDate(currentInvitation.birthDate, mode), mode)}
             ${invitationField("passport", currentInvitation.passportNo, mode)}
-            ${invitationField("visitPeriod", visitPeriod, mode)}
+            ${invitationField("arrivalDate", formatInvitationDate(currentInvitation.arrivalDate, mode), mode)}
+            ${invitationField("departureDate", formatInvitationDate(currentInvitation.departureDate, mode), mode)}
+            ${invitationField("visitPlace", currentInvitation.visitPlace, mode)}
+            ${invitationField("visaType", currentInvitation.visaType, mode)}
+            ${invitationField("relationship", currentInvitation.relationship, mode)}
+            ${invitationField("expenseSource", currentInvitation.expenseSource, mode)}
             ${invitationField("reason", currentInvitation.reason, mode)}
             ${currentInvitation.notes ? invitationField("notes", currentInvitation.notes, mode) : ""}
           </div>
         </div>
         <p class="invitation-paragraph">${escapeHtml(invitationText("closing", mode))}</p>
+        <div class="invitation-responsibility">
+          <h3>${escapeHtml(invitationText("responsibility", mode))}</h3>
+          <p>${escapeHtml(invitationResponsibilityParagraph(mode)).replace(/\n/g, "<br>")}</p>
+        </div>
         <footer class="invitation-footer">
+          <div class="invitation-company-block">
+            <p>${escapeHtml(settings.companyAddressEn || "")}</p>
+            <p>${escapeHtml(settings.companyAddressZh || "")}</p>
+            <p>${escapeHtml(settings.companyPhone || "")} ${settings.companyEmail ? ` | ${escapeHtml(settings.companyEmail)}` : ""}</p>
+          </div>
           <div class="invitation-sign">
             ${settings.stampDataUrl ? `<img class="invitation-stamp" src="${settings.stampDataUrl}" alt="">` : ""}
             <div class="signature-line"></div>
             <p><b>${escapeHtml(invitationText("signature", mode))}</b></p>
             <p>${escapeHtml(invitationText("inviter", mode))}: ${escapeHtml(currentInvitation.inviter || settings.contactPerson || "")}</p>
             <p>${escapeHtml(companyName || "")}</p>
-          </div>
-          <div class="invitation-company-block">
-            <p>${escapeHtml(settings.companyAddressEn || "")}</p>
-            <p>${escapeHtml(settings.companyAddressZh || "")}</p>
-            <p>${escapeHtml(settings.companyPhone || "")} ${settings.companyEmail ? ` | ${escapeHtml(settings.companyEmail)}` : ""}</p>
           </div>
         </footer>
       </section>
@@ -4246,7 +4372,15 @@
     $("save-invitation-btn").addEventListener("click", saveInvitation);
     $("export-invitation-pdf-btn").addEventListener("click", exportInvitationPdf);
     $("new-invitation-btn").addEventListener("click", newInvitation);
-    ["invitation-language", "invitation-date", "invitation-embassy", "invitation-name", "invitation-company", "invitation-country", "invitation-passport", "invitation-arrival", "invitation-departure", "invitation-inviter", "invitation-reason", "invitation-notes"].forEach((id) => {
+    $("invitation-country").addEventListener("change", () => {
+      syncInvitationEmbassyFromCountry();
+      renderInvitationPreview();
+    });
+    $("invitation-country").addEventListener("blur", () => {
+      syncInvitationEmbassyFromCountry();
+      renderInvitationPreview();
+    });
+    ["invitation-language", "invitation-date", "invitation-embassy", "invitation-name", "invitation-company", "invitation-country", "invitation-gender", "invitation-birth-date", "invitation-passport", "invitation-arrival", "invitation-departure", "invitation-visit-place", "invitation-visa-type", "invitation-relationship", "invitation-expense-source", "invitation-inviter", "invitation-reason", "invitation-notes"].forEach((id) => {
       $(id)?.addEventListener("input", renderInvitationPreview);
       $(id)?.addEventListener("change", renderInvitationPreview);
     });

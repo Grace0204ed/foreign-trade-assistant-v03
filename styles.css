@@ -935,7 +935,7 @@ textarea { min-height: 86px; resize: vertical; }
 }
 .invitation-footer {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 1fr 320px;
   gap: 28px;
   margin-top: 44px;
   align-items: end;
@@ -944,10 +944,11 @@ textarea { min-height: 86px; resize: vertical; }
   position: relative;
   min-height: 180px;
   padding-top: 86px;
+  text-align: right;
 }
 .invitation-stamp {
   position: absolute;
-  left: 8px;
+  right: 28px;
   bottom: 64px;
   width: 180px;
   height: 180px;
@@ -960,6 +961,7 @@ textarea { min-height: 86px; resize: vertical; }
   width: 230px;
   border-bottom: 1.5px solid #172033;
   margin-bottom: 8px;
+  margin-left: auto;
 }
 .invitation-sign p,
 .invitation-company-block p {
@@ -967,7 +969,7 @@ textarea { min-height: 86px; resize: vertical; }
   line-height: 1.45;
 }
 .invitation-company-block {
-  text-align: right;
+  text-align: left;
   color: #536179;
   font-weight: 700;
 }
