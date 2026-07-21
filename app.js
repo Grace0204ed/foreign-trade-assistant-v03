@@ -457,15 +457,76 @@
     return currentQuote?.pdfLanguage || $("pdf-language")?.value || "bilingual";
   }
 
+  const quoteEsLabels = {
+    "Quotation": "Cotización",
+    "Proforma Invoice": "Factura Proforma",
+    "Quotation No.": "No. de Cotización",
+    "Date": "Fecha",
+    "Valid Until": "Válido Hasta",
+    "Customer Information": "Información del Cliente",
+    "Company": "Empresa",
+    "Country": "País",
+    "Contact": "Contacto",
+    "Phone": "Teléfono",
+    "Email": "Correo Electrónico",
+    "Address": "Dirección",
+    "Quotation Items": "Detalles de Cotización",
+    "Product Photos": "Fotos del Producto",
+    "Terms": "Términos",
+    "Total": "Total",
+    "Company Stamp": "Sello de la Empresa",
+    "Bank Payment Information": "Información Bancaria de Pago",
+    "Quotation Contact": "Contacto de Cotización",
+    "Quotation Validity": "Validez de la Cotización",
+    "Trade Term": "Término Comercial",
+    "Product Description": "Descripción del Producto",
+    "Qty": "Cantidad",
+    "Quantity": "Cantidad",
+    "Unit Price": "Precio Unitario",
+    "Currency": "Moneda",
+    "Amount": "Importe",
+    "Total Amount": "Importe Total",
+    "Remark": "Observación",
+    "Image": "Imagen",
+    "Image attached": "Imagen adjunta",
+    "Payment Ratio": "Forma de Pago",
+    "Delivery Time": "Tiempo de Entrega",
+    "Origin Port": "Puerto de Origen",
+    "Destination Port": "Puerto de Destino",
+    "After-sales": "Servicio Posventa",
+    "Warranty": "Garantía",
+    "Notes": "Notas",
+    "Payment Terms": "Condiciones de Pago",
+    "Account Number": "Número de Cuenta",
+    "Account Name": "Nombre de la Cuenta",
+    "Bank Name": "Nombre del Banco",
+    "SWIFT/BIC Code": "Código SWIFT/BIC",
+    "Branch Code": "Código de Sucursal",
+    "Bank Address": "Dirección del Banco",
+    "Country/Region": "País/Región",
+    "Account Type": "Tipo de Cuenta",
+    "Payment Method Notes": "Notas de Método de Pago",
+    "WeChat Pay QR Code": "Código QR de WeChat Pay",
+    "Alipay QR Code": "Código QR de Alipay"
+  };
+
+  function quoteEs(en, zh = "") {
+    return quoteEsLabels[en] || quoteEsLabels[zh] || en || zh || "";
+  }
+
   function labelText(en, zh, mode = displayMode()) {
     if (mode === "en") return en;
     if (mode === "zh") return zh;
+    if (mode === "es") return quoteEs(en, zh);
+    if (mode === "zh-es") return `${quoteEs(en, zh)} / ${zh || en}`;
     return `${en} / ${zh}`;
   }
 
   function labelHtml(en, zh, mode = displayMode()) {
     if (mode === "en") return escapeHtml(en);
     if (mode === "zh") return escapeHtml(zh);
+    if (mode === "es") return escapeHtml(quoteEs(en, zh));
+    if (mode === "zh-es") return `${escapeHtml(quoteEs(en, zh))}<small>${escapeHtml(zh || en)}</small>`;
     return `${escapeHtml(en)}<small>${escapeHtml(zh)}</small>`;
   }
 
@@ -473,6 +534,8 @@
     const mode = displayMode();
     if (mode === "en") return en || "";
     if (mode === "zh") return zh || "";
+    if (mode === "es") return en || "";
+    if (mode === "zh-es") return [en, zh].filter(Boolean).join(separator);
     return [en, zh].filter(Boolean).join(separator);
   }
 
@@ -728,6 +791,33 @@
     { value: "40/60", label: "40/60 - 40% deposit, 60% before shipment / 4/6付款" },
     { value: "100%", label: "100% before shipment / 百分百付款" }
   ];
+
+  function paymentLabel(value, mode = displayMode()) {
+    const labels = {
+      "30/70": {
+        en: "30/70 - 30% deposit, 70% before shipment",
+        zh: "3/7付款",
+        es: "30/70 - 30% de anticipo, 70% antes del embarque"
+      },
+      "40/60": {
+        en: "40/60 - 40% deposit, 60% before shipment",
+        zh: "4/6付款",
+        es: "40/60 - 40% de anticipo, 60% antes del embarque"
+      },
+      "100%": {
+        en: "100% before shipment",
+        zh: "百分百付款",
+        es: "100% antes del embarque"
+      }
+    };
+    const item = labels[value];
+    if (!item) return localizedSlashValue(value, mode);
+    if (mode === "en") return item.en;
+    if (mode === "zh") return item.zh;
+    if (mode === "es") return item.es;
+    if (mode === "zh-es") return `${item.es} / ${item.zh}`;
+    return `${item.en} / ${item.zh}`;
+  }
 
   function normalizeTradeTerms() {
     const fallback = defaultSettings.tradeTerms || ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
@@ -4070,7 +4160,7 @@
     if (column.key === "unitPrice") return values.unitPrice ? money(values.unitPrice, currency) : "";
     if (column.key === "amount") return money(itemSubtotal(item), currency);
     if (column.key === "currency") return currency;
-    if (column.key === "image") return item.imageDataUrl ? "Image attached / 已上传图片" : "";
+    if (column.key === "image") return item.imageDataUrl ? labelText("Image attached", "已上传图片") : "";
     if (column.key === "remark") return previewRemark(item);
     if (values[column.key]) return values[column.key];
     return "";
@@ -4086,12 +4176,12 @@
   function displayTermValue(field) {
     const value = currentQuote.terms[field.fieldKey] || "";
     if (field.fieldKey === "payment") {
-      return paymentOptions.find((option) => option.value === value)?.label || value;
+      return paymentLabel(value);
     }
     if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
       return value || "EXW";
     }
-    return value;
+    return localizedSlashValue(value, displayMode());
   }
 
   function renderCompanyContactPreview() {
@@ -4172,13 +4262,14 @@
     const showProductPhotos = quoteLineColumns().some((column) => column.key === "image" && column.visible !== false);
     const bg = settings.backgroundDataUrl || defaultBg;
     const title = documentTypeTitle(currentQuote);
+    const mode = displayMode();
     const companySub = localizedText("", settings.companyNameZh);
     const businessLine = localizedText(settings.businessLineEn, settings.businessLineZh, "<br>");
     $("quote-preview").className = `quote-preview quote-style-${currentQuote.quoteStyle || settings.quoteStyle || "classic"}`;
     $("quote-preview").innerHTML = `
       <section class="preview-banner">
         <img class="preview-banner-bg" src="${bg}" alt="">
-        <div class="preview-company">${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}">` : ""}<div><h2>${escapeHtml(displayMode() === "zh" ? settings.companyNameZh : settings.companyNameEn)}</h2>${companySub && displayMode() !== "en" ? `<p>${escapeHtml(companySub)}</p>` : ""}</div></div>
+        <div class="preview-company">${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}">` : ""}<div><h2>${escapeHtml(mode === "zh" ? settings.companyNameZh : settings.companyNameEn)}</h2>${companySub && ["zh", "bilingual", "zh-es"].includes(mode) ? `<p>${escapeHtml(companySub)}</p>` : ""}</div></div>
         ${renderCompanyContactPreview()}
       </section>
       <section class="preview-top">
