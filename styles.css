@@ -174,7 +174,7 @@ button:hover, .file-btn:hover { border-color: var(--primary); color: var(--prima
   box-shadow: 0 24px 70px rgba(0,0,0,.26);
 }
 .auth-locked .login-box::before {
-  content: "Quotation System / 报价系统";
+  content: "外贸助手";
   display: block;
   margin-bottom: 14px;
   color: var(--ink);
@@ -1086,6 +1086,24 @@ textarea { min-height: 86px; resize: vertical; }
   .form-grid, .filter-grid, .quote-item-grid, .entry-grid, .asset-row, .preview-top, .preview-fields { grid-template-columns: 1fr; }
   .wide, .quote-item-grid .wide { grid-column: auto; }
   .row-head, .list-item { grid-template-columns: 1fr; display: grid; }
+}
+
+@media (max-width: 720px) {
+  .sidebar { padding: 14px 12px; }
+  .sidebar h1 { font-size: 22px; }
+  .sidebar p { margin-bottom: 12px; }
+  .sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-bottom: 12px; }
+  .nav-btn { justify-content: center; min-height: 44px; text-align: center; }
+  .user-info-box { position: static; margin-top: 10px; }
+  .main { padding: 12px; }
+  .page-head h2 { font-size: 24px; }
+  .entry-card { min-height: 118px; padding: 14px; }
+  .entry-card b { font-size: 18px; }
+  .panel { padding: 11px; }
+  .row-head { align-items: stretch; }
+  .row-head > div, .row-head > button { width: 100%; }
+  input, select, textarea { max-width: 100%; }
+  .quote-line-table-wrap { margin-inline: -11px; width: calc(100% + 22px); }
 }
 
 @media print {

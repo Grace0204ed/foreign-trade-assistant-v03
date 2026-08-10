@@ -1,7 +1,7 @@
 {
-  "name": "quote-assistant-v01",
-  "version": "0.1.0",
-  "description": "Quotation System / 报价系统 desktop and local server app",
+  "name": "foreign-trade-assistant",
+  "version": "0.3.0",
+  "description": "外贸助手：客户跟进、报价、产品与运费管理系统",
   "main": "electron/main.js",
   "private": true,
   "scripts": {
@@ -25,8 +25,8 @@
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "com.jinwanwa.quotation",
-    "productName": "Quotation System 报价系统",
+    "appId": "com.jinwanwa.foreigntradeassistant",
+    "productName": "外贸助手",
     "directories": {
       "output": "dist"
     },

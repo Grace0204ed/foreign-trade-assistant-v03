@@ -11,9 +11,9 @@ if not exist "node_modules" (
 echo Checking SQLite / 正在检查 SQLite...
 npm run ensure:sqlite
 
-echo Starting local server / 正在启动本地服务...
-start "Quotation System Server" /min cmd /c "npm run server"
+echo Starting Foreign Trade Assistant / 正在启动外贸助手...
+start "Foreign Trade Assistant Server" /min cmd /c "npm run server"
 timeout /t 2 >nul
-start http://127.0.0.1:8765/index.html
+start http://127.0.0.1:8765/
 
 endlocal

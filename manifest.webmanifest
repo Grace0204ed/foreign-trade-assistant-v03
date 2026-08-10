@@ -1,0 +1,12 @@
+{
+  "name": "外贸助手",
+  "short_name": "外贸助手",
+  "description": "客户、需求、来华计划与跟进提醒管理",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#0f4c81",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

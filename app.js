@@ -602,6 +602,7 @@
     applyAuthLock();
     await restorePersistentStateIfNeeded();
     await loadServerData();
+    await applyCrmCustomerFromUrl();
     toast("Logged in successfully. / 登录成功。");
   }
 
@@ -651,6 +652,7 @@
       if (currentUser) {
         await restorePersistentStateIfNeeded();
         await loadServerData();
+        await applyCrmCustomerFromUrl();
       }
     } catch {
       renderLogin();
@@ -3343,6 +3345,7 @@
       validityRangeText: "",
       pdfLanguage: "bilingual",
       buyer: {},
+      customerId: null,
       templateName: settings.templates[0]?.name || "",
       items: [blankQuoteLine()],
       terms: {
@@ -3361,6 +3364,26 @@
     bindQuoteToForm();
     renderQuoteItems();
     renderPreview();
+  }
+
+  async function applyCrmCustomerFromUrl() {
+    const customerId = new URLSearchParams(window.location.search).get("crmCustomer");
+    if (!customerId || !currentUser) return;
+    const customer = await api(`/api/customers/${customerId}`);
+    newQuote();
+    currentQuote.customerId = Number(customer.id);
+    currentQuote.buyer = {
+      country: customer.country || "",
+      company: customer.name || "",
+      contact: customer.name || "",
+      phone: customer.phone || "",
+      email: "",
+      address: ""
+    };
+    bindQuoteToForm();
+    switchView("quote");
+    history.replaceState({}, "", "/");
+    toast(`已载入客户：${customer.name}`);
   }
 
   function newInvitation() {
@@ -4327,6 +4350,7 @@
         method: "POST",
         body: JSON.stringify({
           id: currentQuote.id,
+          customerId: currentQuote.customerId || null,
           quoteNumber: currentQuote.quoteNumber,
           status: currentQuote.status,
           buyer: currentQuote.buyer,
@@ -4612,6 +4636,14 @@
   }
 
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote };
+  ["crm-module-btn", "crm-entry-btn"].forEach((id) => {
+    const button = $(id);
+    if (button) button.addEventListener("click", () => {
+      if (!currentUser) return switchView("login");
+      window.location.href = "/crm";
+    });
+  });
+
   init();
 })();
 

@@ -18,7 +18,11 @@ app.use(session({
   saveUninitialized: false
 }));
 app.use("/uploads", express.static(uploadDir));
-app.use(express.static(ROOT));
+app.use("/crm", (req, res, next) => {
+  if (req.session.user) return next();
+  return res.redirect("/");
+}, express.static(path.join(ROOT, "crm")));
+app.use(express.static(ROOT, { index: false }));
 
 function ok(res, data = {}) {
   res.json({ ok: true, ...data });
@@ -36,6 +40,15 @@ function requireLogin(req, res, next) {
 function requireAdmin(req, res, next) {
   if (["owner", "admin"].includes(req.session.user?.role)) return next();
   return fail(res, 403, "Admin permission required.", "需要管理员权限。");
+}
+
+function parseCustomer(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    project_tags: JSON.parse(row.project_tags || "[]"),
+    equipment_tags: JSON.parse(row.equipment_tags || "[]")
+  };
 }
 
 function rowToProduct(row) {
@@ -553,9 +566,9 @@ app.post("/api/quotations", requireLogin, (req, res) => {
   const items = q.items || [];
   const totalMachinePrice = items.reduce((sum, item) => sum + Number(item.machineAmount || 0), 0);
   const totalFreight = items.reduce((sum, item) => sum + (item.includeFreightInTotal === false ? 0 : Number(item.freightSnapshot?.freightAmount || 0)), 0);
-  db.prepare(`INSERT OR REPLACE INTO quotations (id, quote_number, status, buyer_json, settings_snapshot_json, terms_json, total_machine_price, total_freight, total_amount, include_freight_in_total, show_freight_detail_in_pdf, quote_date, valid_until, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM quotations WHERE id=?), ?), ?)`)
-    .run(quoteId, q.quoteNumber, q.status || "Draft", JSON.stringify(q.buyer || {}), JSON.stringify(q.settingsSnapshot || {}), JSON.stringify(q.terms || {}), totalMachinePrice, totalFreight, totalMachinePrice + totalFreight, q.includeFreightInTotal === false ? 0 : 1, q.showFreightDetailInPdf ? 1 : 0, q.quoteDate || now().slice(0, 10), q.validUntil || "", quoteId, now(), now());
+  db.prepare(`INSERT OR REPLACE INTO quotations (id, customer_id, quote_number, status, buyer_json, settings_snapshot_json, terms_json, total_machine_price, total_freight, total_amount, include_freight_in_total, show_freight_detail_in_pdf, quote_date, valid_until, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM quotations WHERE id=?), ?), ?)`)
+    .run(quoteId, q.customerId || null, q.quoteNumber, q.status || "Draft", JSON.stringify(q.buyer || {}), JSON.stringify(q.settingsSnapshot || {}), JSON.stringify(q.terms || {}), totalMachinePrice, totalFreight, totalMachinePrice + totalFreight, q.includeFreightInTotal === false ? 0 : 1, q.showFreightDetailInPdf ? 1 : 0, q.quoteDate || now().slice(0, 10), q.validUntil || "", quoteId, now(), now());
   db.prepare("DELETE FROM quotation_items WHERE quotation_id=?").run(quoteId);
   const insertItem = db.prepare(`INSERT INTO quotation_items (id, quotation_id, product_id, product_snapshot_json, price_snapshot_json, freight_snapshot_json, include_freight_in_total, sort_order, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -684,17 +697,97 @@ app.post("/api/system/restore-db", requireLogin, requireAdmin, (req, res) => {
   });
 });
 
+// 客户跟进模块：与报价系统共用登录、服务器和数据库。
+app.get("/api/customers", requireLogin, (req, res) => {
+  const rows = db.prepare(`SELECT c.*,
+    (SELECT COUNT(*) FROM follow_ups f WHERE f.customer_id=c.id) AS follow_up_count
+    FROM customers c
+    ORDER BY CASE grade WHEN 'S' THEN 1 WHEN 'A' THEN 2 WHEN 'B' THEN 3 ELSE 4 END, updated_at DESC`).all();
+  res.json(rows.map(parseCustomer));
+});
+
+app.get("/api/dashboard", requireLogin, (req, res) => {
+  const completed = Number(db.prepare(`SELECT COUNT(DISTINCT customer_id) AS count FROM follow_ups
+    WHERE date(created_at, 'localtime')=date('now', 'localtime')`).get().count);
+  const pending = Number(db.prepare(`SELECT COUNT(*) AS count FROM customers
+    WHERE next_follow_up<>'' AND next_follow_up<=date('now', 'localtime')
+    AND stage NOT IN ('无效客户','已采购')`).get().count);
+  const total = completed + pending;
+  res.json({ completed, pending, total, progress: total ? Math.round(completed * 100 / total) : 100 });
+});
+
+app.get("/api/customers/:id", requireLogin, (req, res) => {
+  const customer = parseCustomer(db.prepare("SELECT * FROM customers WHERE id=?").get(req.params.id));
+  if (!customer) return res.status(404).json({ error: "客户不存在" });
+  customer.follow_ups = db.prepare("SELECT * FROM follow_ups WHERE customer_id=? ORDER BY created_at DESC").all(req.params.id);
+  customer.quotations = db.prepare("SELECT id, quote_number, status, total_amount, quote_date, updated_at FROM quotations WHERE customer_id=? ORDER BY updated_at DESC").all(req.params.id);
+  res.json(customer);
+});
+
+app.post("/api/customers", requireLogin, (req, res) => {
+  const body = req.body || {};
+  if (!String(body.name || "").trim()) return res.status(400).json({ error: "客户名称不能为空" });
+  const timestamp = now();
+  const result = db.prepare(`INSERT INTO customers
+    (name,phone,country,buyer_type,stage,grade,project_tags,equipment_tags,requirement,arrival_precision,arrival_value,next_follow_up,next_follow_purpose,whatsapp_number,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      String(body.name).trim(), body.phone || "", body.country || "", body.buyer_type || "公司买家",
+      body.stage || "需求确认中", body.grade || "B", JSON.stringify(body.project_tags || []),
+      JSON.stringify(body.equipment_tags || []), body.requirement || "", body.arrival_precision || "none",
+      body.arrival_value || "", body.next_follow_up || "", body.next_follow_purpose || "",
+      String(body.phone || "").replace(/\D/g, ""), timestamp, timestamp
+    );
+  res.json({ id: Number(result.lastInsertRowid) });
+});
+
+app.post("/api/customers/:id/followups", requireLogin, (req, res) => {
+  const customer = db.prepare("SELECT * FROM customers WHERE id=?").get(req.params.id);
+  if (!customer) return res.status(404).json({ error: "客户不存在" });
+  const body = req.body || {};
+  if (!String(body.content || "").trim() && !body.outcome) return res.status(400).json({ error: "请填写跟进内容或未联系成功原因" });
+  const timestamp = now();
+  const newStage = body.stage || customer.stage;
+  const newGrade = body.grade || customer.grade;
+  const tx = db.transaction(() => {
+    db.prepare(`INSERT INTO follow_ups
+      (customer_id,content,contact_type,outcome,old_stage,new_stage,old_grade,new_grade,next_follow_up,next_follow_purpose,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+        customer.id, body.content || "", body.contact_type || "WhatsApp", body.outcome || "",
+        customer.stage, newStage, customer.grade, newGrade, body.next_follow_up || "",
+        body.next_follow_purpose || "", timestamp
+      );
+    db.prepare(`UPDATE customers SET stage=?,grade=?,arrival_precision=?,arrival_value=?,next_follow_up=?,next_follow_purpose=?,updated_at=? WHERE id=?`).run(
+      newStage, newGrade, body.arrival_precision || customer.arrival_precision,
+      body.arrival_value ?? customer.arrival_value, body.next_follow_up || "",
+      body.next_follow_purpose || "", timestamp, customer.id
+    );
+  });
+  tx();
+  res.json({ ok: true });
+});
+
+app.post("/api/backup", requireLogin, requireAdmin, (req, res) => {
+  ensureDir(backupDir);
+  const target = path.join(backupDir, `foreign-trade-assistant-${new Date().toISOString().replace(/[:.]/g, "-")}.sqlite`);
+  db.backup(target).then(() => res.json({ path: target })).catch((error) => res.status(500).json({ error: error.message }));
+});
+
+app.get("/crm", (req, res) => {
+  if (!req.session.user) return res.redirect("/?next=crm");
+  res.sendFile(path.join(ROOT, "crm", "index.html"));
+});
+
 app.get("/", (req, res) => res.sendFile(path.join(ROOT, "index.html")));
 
 function startServer(port = PORT) {
   return new Promise((resolve) => {
-    const server = app.listen(port, "127.0.0.1", () => resolve(server));
+    const server = app.listen(port, "0.0.0.0", () => resolve(server));
   });
 }
 
 if (require.main === module) {
   startServer().then(() => {
-    console.log(`Quotation System / 报价系统 running at http://127.0.0.1:${PORT}`);
+    console.log(`Foreign Trade Assistant / 外贸助手 running at http://0.0.0.0:${PORT}`);
     console.log(`Data directory: ${dataDir}`);
   });
 }

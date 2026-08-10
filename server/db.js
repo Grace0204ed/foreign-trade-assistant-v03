@@ -138,7 +138,48 @@ function runSchema() {
       updated_at TEXT NOT NULL,
       FOREIGN KEY(quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT DEFAULT '',
+      country TEXT DEFAULT '',
+      buyer_type TEXT DEFAULT '公司买家',
+      stage TEXT DEFAULT '需求确认中',
+      grade TEXT DEFAULT 'B',
+      project_tags TEXT DEFAULT '[]',
+      equipment_tags TEXT DEFAULT '[]',
+      requirement TEXT DEFAULT '',
+      arrival_precision TEXT DEFAULT 'none',
+      arrival_value TEXT DEFAULT '',
+      next_follow_up TEXT DEFAULT '',
+      next_follow_purpose TEXT DEFAULT '',
+      whatsapp_number TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS follow_ups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      content TEXT DEFAULT '',
+      contact_type TEXT DEFAULT 'WhatsApp',
+      outcome TEXT DEFAULT '',
+      old_stage TEXT DEFAULT '',
+      new_stage TEXT DEFAULT '',
+      old_grade TEXT DEFAULT '',
+      new_grade TEXT DEFAULT '',
+      next_follow_up TEXT DEFAULT '',
+      next_follow_purpose TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    );
   `);
+
+  const quotationColumns = db.prepare("PRAGMA table_info(quotations)").all().map((column) => column.name);
+  if (!quotationColumns.includes("customer_id")) {
+    db.exec("ALTER TABLE quotations ADD COLUMN customer_id INTEGER REFERENCES customers(id)");
+  }
 }
 
 function id(prefix) {

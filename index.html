@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>报价助手 V0.1</title>
+    <title>外贸助手</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar no-print">
-        <h1>报价助手 V0.1</h1>
-        <p>本地报价系统</p>
+        <h1>外贸助手</h1>
+        <p>客户跟进与报价系统</p>
         <button id="sidebar-toggle-btn" class="sidebar-toggle" type="button">隐藏侧边栏</button>
         <div id="login-box" class="login-box">
           <input id="login-username" placeholder="用户名" />
@@ -27,6 +27,7 @@
         </div>
         <nav>
           <button class="nav-btn active" data-view="home">首页</button>
+          <button class="nav-btn" id="crm-module-btn" type="button">客户跟进</button>
           <button class="nav-btn" data-view="quote">新建</button>
           <button class="nav-btn" data-view="invitation">邀请函</button>
           <button class="nav-btn" data-view="history">历史报价</button>
@@ -41,10 +42,11 @@
       <main class="main">
         <section id="view-home" class="view active no-print">
           <header class="page-head">
-            <h2>报价助手 V0.1</h2>
-            <p>用于本地创建、管理、导出中英双语报价单。</p>
+            <h2>外贸助手</h2>
+            <p>统一管理客户跟进、提醒、报价单、产品和运费。</p>
           </header>
           <div class="entry-grid">
+            <button class="entry-card" id="crm-entry-btn" type="button"><b>客户跟进</b><span>查看今日提醒、重点客户与跟进记录</span></button>
             <button class="entry-card" data-view-target="quote"><b>新建</b><span>创建报价单或形式发票、添加产品、预览导出</span></button>
             <button class="entry-card" data-view-target="invitation"><b>邀请函</b><span>制作来华考察邀请函，支持保存和导出 PDF</span></button>
             <button class="entry-card" data-view-target="history"><b>历史报价</b><span>搜索、编辑、复制、删除、重新导出报价单</span></button>

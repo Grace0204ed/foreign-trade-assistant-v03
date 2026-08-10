@@ -63,7 +63,7 @@ async function createWindow() {
     height: 900,
     minWidth: 1120,
     minHeight: 720,
-    title: "Quotation System / 报价系统",
+    title: "外贸助手",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
