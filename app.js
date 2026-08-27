@@ -1516,7 +1516,7 @@
           <h3>二手/常规设备报价字段与排序</h3>
           <p class="hint">这里控制报价明细表格的列名、显示隐藏、必填、排序和自定义列。图片列也可以在这里设置显示或必填。</p>
         </div>
-        <button id="add-quote-line-column-btn" class="primary" type="button">新增列</button>
+        <div class="actions"><button id="save-quote-line-columns-btn" class="primary" type="button">保存列设置</button><button id="add-quote-line-column-btn" type="button">新增列</button></div>
       </div>
       <table class="field-table">
         <thead>
@@ -2740,6 +2740,7 @@
     normalizeCurrencies();
     normalizeDocumentTypes();
     collectSettingsDraft();
+    collectQuoteLineColumns();
     document.querySelectorAll("[data-user-module]").forEach(input=>settings.userModuleVisibility[input.dataset.userModule]=input.checked);
     const phone = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("phone") || field.labelZh.includes("电话"));
     const email = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("email") || field.labelZh.includes("邮箱"));
@@ -5183,6 +5184,7 @@
       if (event.target.id === "add-bank-field-btn") addBankField();
       if (event.target.id === "add-currency-btn") addCurrency();
       if (event.target.id === "add-trade-term-btn") addTradeTerm();
+      if (event.target.id === "save-quote-line-columns-btn") saveSettings();
       if (event.target.id === "add-quote-line-column-btn") addQuoteLineColumn();
       if (event.target.matches("[data-contact-action], [data-contact-visible]")) handleContactFieldAction(event);
       if (event.target.matches("[data-bank-action], [data-bank-visible]")) handleBankFieldAction(event);
