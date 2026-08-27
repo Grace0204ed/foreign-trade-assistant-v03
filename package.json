@@ -1,6 +1,6 @@
 {
   "name": "foreign-trade-assistant",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "外贸助手：客户跟进、报价、产品与运费管理系统",
   "main": "electron/main.js",
   "private": true,
@@ -12,13 +12,16 @@
     "rebuild:node": "npm rebuild better-sqlite3",
     "rebuild:electron": "electron-builder install-app-deps",
     "build:win": "electron-builder --win nsis",
-    "check": "node --check server/index.js && node --check electron/main.js && node --check app.js && node --check scripts/ensure-node-sqlite.js"
+    "check": "node --check server/index.js && node --check server/vehicle-quotes.js && node --check electron/main.js && node --check app.js && node --check vehicle-catalog.js && node --check vehicle-quotes.js && node --check crm/crm.js && node --check scripts/ensure-node-sqlite.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.10.0",
     "express": "^5.2.1",
-    "express-session": "^1.19.0"
+    "express-session": "^1.19.0",
+    "multer": "^2.2.0",
+    "pdf-parse": "^2.4.5",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "electron": "^39.2.6",
@@ -33,6 +36,8 @@
     "files": [
       "index.html",
       "app.js",
+      "vehicle-quotes.js",
+      "vehicle-catalog.js",
       "styles.css",
       "assets/**/*",
       "server/**/*",

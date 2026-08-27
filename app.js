@@ -108,12 +108,14 @@
 
   const defaultQuoteLineColumns = [
     { key: "tradeTerm", labelZh: "贸易条款", labelEn: "Trade Term", type: "tradeTerm", visible: true, required: false, system: true, sortOrder: 10 },
+    { key: "condition", labelZh: "设备状态", labelEn: "Condition", type: "condition", visible: true, required: true, system: true, sortOrder: 15 },
     { key: "description", labelZh: "商品信息 / 产品描述", labelEn: "Product Description", type: "textarea", visible: true, required: true, system: true, sortOrder: 20 },
+    { key: "hsCode", labelZh: "海关编码", labelEn: "HS CODE", type: "text", visible: true, required: false, system: true, sortOrder: 25 },
     { key: "qty", labelZh: "数量", labelEn: "Qty", type: "number", visible: true, required: true, system: true, sortOrder: 30 },
     { key: "unitPrice", labelZh: "单价", labelEn: "Unit Price", type: "money", visible: true, required: true, system: true, sortOrder: 40 },
     { key: "currency", labelZh: "币种", labelEn: "Currency", type: "currency", visible: true, required: true, system: true, sortOrder: 50 },
     { key: "amount", labelZh: "总价", labelEn: "Amount", type: "calculated", visible: true, required: false, system: true, sortOrder: 60 },
-    { key: "image", labelZh: "图片", labelEn: "Image", type: "image", visible: false, required: false, system: true, sortOrder: 70 },
+    { key: "image", labelZh: "图片", labelEn: "Image", type: "image", visible: true, required: false, system: true, sortOrder: 70 },
     { key: "remark", labelZh: "备注", labelEn: "Remark", type: "text", visible: true, required: false, system: true, sortOrder: 80 }
   ];
 
@@ -178,6 +180,7 @@
     quoteLineColumns: defaultQuoteLineColumns,
     currencies: ["USD", "EUR", "GBP", "CNY", "RUB", "AED", "SAR", "JPY", "AUD", "CAD"],
     tradeTerms: ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"],
+    userModuleVisibility: { home:true, crm:true, quote:true, invitation:true, history:true, products:true, freight:true, help:true },
     logoDataUrl: "",
     backgroundDataUrl: "",
     stampDataUrl: "",
@@ -187,6 +190,7 @@
       { id: "cat-used-excavator", labelEn: "Used Excavator", labelZh: "二手挖掘机", parentId: "", visible: true, sortOrder: 10 },
       { id: "cat-used-loader", labelEn: "Used Loader", labelZh: "二手装载机", parentId: "", visible: true, sortOrder: 20 },
       { id: "cat-used-dozer", labelEn: "Used Bulldozer", labelZh: "二手推土机", parentId: "", visible: true, sortOrder: 30 },
+      { id: "cat-water-well-rig", labelEn: "Water Well Drilling Rig", labelZh: "水井钻机", parentId: "", visible: true, sortOrder: 40 },
       { id: "cat-freight", labelEn: "Freight", labelZh: "运费", parentId: "", visible: true, sortOrder: 100 },
       { id: "cat-sea-freight", labelEn: "Sea Freight by Machine", labelZh: "单机海运费", parentId: "cat-freight", visible: true, sortOrder: 110 },
       { id: "cat-combined-freight", labelEn: "Combined Sea Freight", labelZh: "合并海运费", parentId: "cat-freight", visible: true, sortOrder: 120 },
@@ -207,7 +211,10 @@
   let editingFieldIndex = -1;
   let editingFieldTarget = "product";
   let editingCategoryIndex = -1;
+  let quickCategoryForProduct = false;
   let currentUser = null;
+  let activeViewName = "home";
+  const internalViewHistory = [];
   let users = [];
   let serverProducts = [];
   let ports = [];
@@ -583,6 +590,7 @@
       brand: product.brand,
       model: product.model,
       tonnage: product.weight || "",
+      weight: product.weight || "",
       year: "",
       hours: "",
       referencePrice: product.referencePrice || "",
@@ -591,18 +599,47 @@
       imageDataUrl: product.imagePath || "",
       aliases: product.aliases || "",
       transportCbm: product.transportCbm || "",
-      transportMethod: product.transportMethod || "Bulk Cargo"
+      transportMethod: product.transportMethod || "Bulk Cargo",
+      transportLength: product.transportLength || "",
+      transportWidth: product.transportWidth || "",
+      transportHeight: product.transportHeight || "",
+      dimensionUnit: product.dimensionUnit || "meter",
+      serverManaged: true
+    };
+  }
+
+  function serverProductFromLegacy(product) {
+    const values = productValues(product);
+    return {
+      id: product.id,
+      category: values.productType || product.category || "",
+      brand: values.brand || product.brand || "",
+      model: values.model || product.model || "",
+      aliases: product.aliases || "",
+      condition: product.condition || "Used",
+      referencePrice: values.unitPrice || values.referencePrice || product.referencePrice || null,
+      params: [values.tonnage || product.tonnage, values.year || product.year, values.hours || product.hours, values.params || product.params].filter(Boolean).join(" | "),
+      remark: values.remark || product.remark || "",
+      imagePath: product.imagePath || product.imageDataUrl || "",
+      status: product.status || "Active"
     };
   }
 
   async function login(username, password) {
     const data = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
     currentUser = data.user;
+    const portal = $("login-portal")?.value || "user";
+    if (portal === "admin" && !["owner","admin"].includes(currentUser.role)) { await api("/api/auth/logout",{method:"POST"});currentUser=null;throw new Error("该账号没有管理员权限，请使用用户登录。"); }
+    localStorage.setItem("fta-portal-mode", portal === "admin" ? "admin" : "user");
+    localStorage.setItem(keys.sidebarCollapsed, "true");
+    applySidebarState();
     renderLogin();
     applyAuthLock();
+    await loadSharedSettings();
     await restorePersistentStateIfNeeded();
     await loadServerData();
     await applyCrmCustomerFromUrl();
+    window.dispatchEvent(new CustomEvent("foreign-trade-auth-ready", { detail: currentUser }));
     toast("Logged in successfully. / 登录成功。");
   }
 
@@ -622,6 +659,7 @@
       $("user-info-name").textContent = currentUser.username || "-";
       $("user-info-id").textContent = `ID: ${currentUser.id || "-"}`;
       $("user-info-role").textContent = `权限编号: ${currentUser.role || "user"}`;
+      if ($("home-current-user")) $("home-current-user").textContent = `${currentUser.username || ""} · ${isAdmin() ? "管理员" : "用户"}`;
     }
   }
 
@@ -631,6 +669,7 @@
     document.body.classList.toggle("auth-ready", !!currentUser);
     document.body.classList.toggle("is-admin", isAdmin());
     updateAdminControls();
+    applyUserModuleVisibility();
     document.querySelectorAll(".nav-btn, .entry-card").forEach((button) => {
       button.disabled = !currentUser;
     });
@@ -650,9 +689,13 @@
       renderLogin();
       applyAuthLock();
       if (currentUser) {
+        localStorage.setItem(keys.sidebarCollapsed, "true");
+        applySidebarState();
+        await loadSharedSettings();
         await restorePersistentStateIfNeeded();
         await loadServerData();
         await applyCrmCustomerFromUrl();
+        window.dispatchEvent(new CustomEvent("foreign-trade-auth-ready", { detail: currentUser }));
       }
     } catch {
       renderLogin();
@@ -998,7 +1041,8 @@
     const collapsed = localStorage.getItem(keys.sidebarCollapsed) === "true";
     document.body.classList.toggle("sidebar-collapsed", collapsed);
     if ($("sidebar-toggle-btn")) {
-      $("sidebar-toggle-btn").textContent = collapsed ? "显示侧边栏" : "隐藏侧边栏";
+      $("sidebar-toggle-btn").setAttribute("aria-label", collapsed ? "显示侧边栏" : "隐藏侧边栏");
+      $("sidebar-toggle-btn").title = collapsed ? "显示侧边栏" : "隐藏侧边栏";
     }
   }
 
@@ -1010,7 +1054,7 @@
 
   function showSettingsSection(section) {
     activeSettingsSection = section || "company";
-    if (activeSettingsSection === "quote-fields") activeSettingsSection = "company";
+    if (["quote-fields","quote-lines","vehicle-fields","terms"].includes(activeSettingsSection)) activeSettingsSection = "quote-settings";
     localStorage.setItem(keys.settingsSection, activeSettingsSection);
     document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
       panel.hidden = panel.dataset.settingsPanel !== activeSettingsSection;
@@ -1076,6 +1120,86 @@
 
   function normalizeTemplates() {
     settings.templates = (settings.templates || defaultTemplates).map(normalizeTemplate);
+    settings.categoryFieldConfigs = settings.categoryFieldConfigs || {};
+  }
+
+  const userModules = [
+    ["home","首页"],["crm","客户跟进"],["quote","新建报价"],["invitation","邀请函"],
+    ["history","历史报价"],["products","产品库"],["freight","运费中心"],["help","帮助"]
+  ];
+
+  const hsCodeLibrary = [
+    {code:"842952",keywords:["挖掘机","excavator","360"],name:"360°回转挖掘机"},{code:"842951",keywords:["装载机","loader","滑移"],name:"前端铲装载机"},{code:"842959",keywords:["tlb","反铲"],name:"其他挖掘机械"},{code:"842911",keywords:["推土机","bulldozer","dozer"],name:"履带式推土机"},{code:"842920",keywords:["平地机","grader"],name:"平地机"},{code:"842940",keywords:["压路机","road roller","roller"],name:"压路机"},{code:"842720",keywords:["叉车","forklift","伸缩臂","telehandler"],name:"机动叉车或伸缩臂叉装车"},{code:"843041",keywords:["水井钻机","旋挖钻机","钻机","drilling rig"],name:"自行式钻探机械"},{code:"842641",keywords:["汽车吊","轮胎吊","truck crane"],name:"轮胎式自行起重机"},{code:"842649",keywords:["履带吊","crawler crane"],name:"其他自行式起重机"},{code:"870410",keywords:["矿山自卸","非公路自卸","off-highway dumper"],name:"非公路用自卸车"},{code:"870120",keywords:["牵引车","tractor truck"],name:"半挂车用公路牵引车"},{code:"870590",keywords:["水罐车","油罐车","特种车辆","special purpose"],name:"其他特殊用途车辆"},{code:"847420",keywords:["破碎机","crusher"],name:"破碎或研磨机器"},{code:"847432",keywords:["沥青搅拌","asphalt mixing"],name:"矿物材料混合机器"},{code:"847431",keywords:["混凝土搅拌","concrete mixing"],name:"混凝土或砂浆搅拌机"}
+  ];
+
+  function normalizeUserModuleVisibility() {
+    settings.userModuleVisibility = { ...defaultSettings.userModuleVisibility, ...(settings.userModuleVisibility || {}) };
+  }
+
+  async function loadSharedSettings() {
+    if (!currentUser) return;
+    try {
+      const data=await api("/api/settings");
+      if(data.settings && typeof data.settings==="object") {
+        settings={...settings,...data.settings};
+        save(keys.settings,settings);
+        applyUserModuleVisibility();
+      }
+    } catch(error) { console.warn("Shared settings load failed",error); }
+  }
+
+  function applyUserModuleVisibility() {
+    normalizeUserModuleVisibility();
+    const limited=!!currentUser && !isAdmin();
+    document.querySelectorAll(".nav-btn").forEach(button=>{
+      const key=button.id==="crm-module-btn"?"crm":button.dataset.view;
+      button.classList.toggle("module-hidden", limited && Object.prototype.hasOwnProperty.call(settings.userModuleVisibility,key) && settings.userModuleVisibility[key]===false);
+    });
+    document.querySelectorAll(".entry-card").forEach(button=>{
+      const key=button.id==="crm-entry-btn"?"crm":button.dataset.viewTarget;
+      button.classList.toggle("module-hidden", limited && Object.prototype.hasOwnProperty.call(settings.userModuleVisibility,key) && settings.userModuleVisibility[key]===false);
+    });
+  }
+
+  function renderUserModuleVisibility() {
+    const host=$("user-module-visibility"); if(!host)return;
+    normalizeUserModuleVisibility();
+    host.innerHTML=userModules.map(([key,label])=>`<label><input type="checkbox" data-user-module="${key}" ${settings.userModuleVisibility[key]!==false?"checked":""}><span>${label}</span></label>`).join("");
+  }
+
+  function categoryConfigKey(categoryId = $("category-config-select")?.value, condition = $("category-condition-select")?.value) {
+    return `${categoryId || settings.categories?.[0]?.id || "default"}:${condition || "general"}`;
+  }
+
+  function categoryFieldConfig(categoryId, condition) {
+    normalizeTemplates();
+    const key = categoryConfigKey(categoryId, condition);
+    if (!settings.categoryFieldConfigs[key]) {
+      const source = settings.templates[0]?.fields || defaultTemplates[0].fields;
+      settings.categoryFieldConfigs[key] = source.map(normalizeField).sort((a,b)=>a.sortOrder-b.sortOrder);
+    }
+    return settings.categoryFieldConfigs[key];
+  }
+
+  function renderCategoryConfigSelectors() {
+    const select = $("category-config-select");
+    if (!select) return;
+    const prior = select.value;
+    const costCategoryIds=new Set(["cat-freight","cat-sea-freight","cat-combined-freight","cat-trucking","cat-yard-to-port","cat-custom"]);
+    select.innerHTML = settings.categories.filter(c=>!costCategoryIds.has(c.id) && !costCategoryIds.has(c.parentId)).map(c=>{
+      const parent=settings.categories.find(p=>p.id===c.parentId);
+      return `<option value="${escapeHtml(c.id)}">${parent?`${escapeHtml(categoryLabel(parent))} → `:""}${escapeHtml(categoryLabel(c))}</option>`;
+    }).join("");
+    if (settings.categories.some(c=>c.id===prior)) select.value=prior;
+  }
+
+  function renderCategoryFieldLibrary() {
+    const host=$("category-field-library");
+    if(!host)return;
+    const current=categoryFieldConfig(), selected=new Set(current.map(f=>f.fieldKey));
+    const pool=new Map();
+    [...defaultTemplates.flatMap(t=>t.fields||[]),...settings.templates.flatMap(t=>t.fields||[]),...current].forEach(f=>pool.set(f.fieldKey,normalizeField(f)));
+    host.innerHTML=[...pool.values()].sort((a,b)=>a.sortOrder-b.sortOrder).map(f=>`<button type="button" class="${selected.has(f.fieldKey)?"active":""}" data-category-field="${escapeHtml(f.fieldKey)}">${escapeHtml(f.zh)} / ${escapeHtml(f.en)}</button>`).join("");
   }
 
   function normalizeCostTemplates() {
@@ -1169,6 +1293,7 @@
     if (!settings.categories.length) {
       settings.categories = structuredClone(defaultSettings.categories);
     }
+    if(!settings.categories.some(category=>category.id==="cat-water-well-rig"||category.labelZh==="水井钻机"))settings.categories.push({id:"cat-water-well-rig",labelEn:"Water Well Drilling Rig",labelZh:"水井钻机",parentId:"",visible:true,sortOrder:40});
   }
 
   function fileToDataUrl(file) {
@@ -1201,7 +1326,68 @@
     return canvas.toDataURL("image/jpeg", 0.88);
   }
 
-  function switchView(name) {
+  function updateBackButton() {
+    const button = $("global-back-btn");
+    if (!button) return;
+    button.hidden = !currentUser || ["home", "login"].includes(activeViewName);
+  }
+
+  function isProductCategory(category) {
+    const costIds=new Set(["cat-freight","cat-sea-freight","cat-combined-freight","cat-trucking","cat-yard-to-port","cat-custom"]);
+    return !!category && !costIds.has(category.id) && !costIds.has(category.parentId);
+  }
+
+  let activeQuoteBusiness = localStorage.getItem("fta-quote-business") === "vehicle" ? "vehicle" : "standard";
+
+  function setupUnifiedQuoteWorkspace() {
+    const vehicleView = $("view-vehicle-quote");
+    const host = $("vehicle-quote-workspace-host");
+    if (vehicleView && host && vehicleView.parentElement !== host) {
+      host.appendChild(vehicleView);
+      vehicleView.classList.add("embedded-vehicle-quote");
+    }
+  }
+
+  function setQuoteBusiness(mode = "standard") {
+    setupUnifiedQuoteWorkspace();
+    activeQuoteBusiness = mode === "vehicle" ? "vehicle" : "standard";
+    localStorage.setItem("fta-quote-business", activeQuoteBusiness);
+    const vehicle = activeQuoteBusiness === "vehicle";
+    $("quote-business-standard")?.classList.toggle("primary", !vehicle);
+    $("quote-business-vehicle")?.classList.toggle("primary", vehicle);
+    ["quote-standard-detail-panel", "quote-preview", "standard-quote-actions"].forEach(id => { if ($(id)) $(id).hidden = vehicle; });
+    if ($("quote-standard-terms-panel")) $("quote-standard-terms-panel").hidden = false;
+    if ($("vehicle-quote-workspace-host")) $("vehicle-quote-workspace-host").hidden = !vehicle;
+    if ($("view-vehicle-quote")) {
+      $("view-vehicle-quote").classList.toggle("active", vehicle);
+      $("view-vehicle-quote").hidden = !vehicle;
+    }
+    if ($("vq-common-panel")) $("vq-common-panel").hidden = true;
+    if ($("vq-terms-panel")) $("vq-terms-panel").hidden = true;
+    const templateLabel = $("quote-template")?.closest("label");
+    if (templateLabel) templateLabel.hidden = vehicle;
+    if (vehicle) window.vehicleQuoteApp?.importShared?.();
+    else renderQuoteEditor();
+  }
+
+  function openQuoteBusiness(mode = "standard") {
+    activeQuoteBusiness = mode === "vehicle" ? "vehicle" : "standard";
+    switchView("quote");
+  }
+  function newSharedQuote() {
+    const mode = activeQuoteBusiness;
+    newQuote(true, $("document-type")?.value || "quotation");
+    setQuoteBusiness(mode);
+  }
+  window.quoteBusiness = { show:setQuoteBusiness, open:openQuoteBusiness, newShared:newSharedQuote, get active(){ return activeQuoteBusiness; } };
+
+  async function renderAdminOverview(){if(!isAdmin()||!$("admin-data-counts"))return;try{const data=await api("/api/admin/overview"),labels={users:"用户",customers:"客户",products:"产品",quotations:"普通报价",vehicleQuotes:"新车报价版本",followUps:"跟进记录",freightRates:"运费报价"};$("admin-data-counts").innerHTML=Object.entries(data.counts||{}).map(([k,v])=>`<div><b>${Number(v).toLocaleString()}</b><span>${labels[k]||k}</span></div>`).join("");$("admin-audit-list").innerHTML=(data.audits||[]).map(x=>`<tr><td>${escapeHtml(x.created_at||"")}</td><td>${escapeHtml(x.username||x.user_id||"系统")}</td><td>${escapeHtml(x.action||"")}</td><td>${escapeHtml(`${x.entity_type||""} ${x.entity_id||""}`)}</td><td>${escapeHtml(x.reason||"")}</td></tr>`).join("")||'<tr><td colspan="5">暂无审计记录</td></tr>';}catch(e){toast(e.message);}}
+
+  function switchView(name, options = {}) {
+    if (name === "vehicle-quote") {
+      name = "quote";
+      activeQuoteBusiness = "vehicle";
+    }
     if (!currentUser && name !== "login") {
       ensureLoginView();
       name = "login";
@@ -1210,22 +1396,43 @@
       toast("Admin permission required. / 需要管理员权限。");
       name = "home";
     }
+    normalizeUserModuleVisibility();
+    if (currentUser && !isAdmin() && Object.prototype.hasOwnProperty.call(settings.userModuleVisibility,name) && settings.userModuleVisibility[name]===false) {
+      toast("该功能未向当前用户开放，请联系管理员。");
+      name="home";
+    }
+    if (!options.fromBack && activeViewName && activeViewName !== name && !["login"].includes(activeViewName)) {
+      internalViewHistory.push(activeViewName);
+      if (internalViewHistory.length > 30) internalViewHistory.shift();
+    }
+    activeViewName = name;
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
     if (name === "history") renderHistory();
-    if (name === "products") renderProducts();
+    if (name === "products") { renderProducts(); window.dispatchEvent(new Event("product-library-opened")); }
     if (name === "settings") renderSettings();
     if (name === "users") {
       ensureUserManagerPanel();
       renderUsers();
     }
-    if (name === "quote") renderQuoteEditor();
+    if (name === "data") renderAdminOverview();
+    if (name === "quote") {
+      renderQuoteEditor();
+      setQuoteBusiness(activeQuoteBusiness);
+    }
     if (name === "invitation") renderInvitationEditor();
     if (name === "freight") {
       renderPorts();
       renderFreightRates();
       renderFreightSelectors();
     }
+    updateBackButton();
+  }
+
+  function goBackInsideApp() {
+    let previous = internalViewHistory.pop();
+    while (previous === activeViewName) previous = internalViewHistory.pop();
+    switchView(previous || "home", { fromBack: true });
   }
 
   function renderSettings() {
@@ -1244,6 +1451,7 @@
     normalizeTemplates();
     normalizeCostTemplates();
     normalizeCategories();
+    renderUserModuleVisibility();
     document.querySelectorAll("[data-setting]").forEach((input) => {
       if (input.type === "checkbox") input.checked = settings[input.dataset.setting] !== false;
       else input.value = settings[input.dataset.setting] || "";
@@ -1278,6 +1486,7 @@
     settings.quoteLineColumns = defaultQuoteLineColumns.map((column) => ({
       ...column,
       ...(byKey.get(column.key) || {}),
+      visible: column.key === "image" && !byKey.has("image") ? true : (byKey.get(column.key)?.visible ?? column.visible),
       system: true
     }));
     existing.filter((column) => !defaultQuoteLineColumns.some((item) => item.key === column.key)).forEach((column) => {
@@ -1300,11 +1509,11 @@
     const panel = document.createElement("div");
     panel.id = "quote-line-settings-panel";
     panel.className = "panel";
-    panel.dataset.settingsPanel = "quote-lines";
+    panel.dataset.settingsPanel = "quote-settings";
     panel.innerHTML = `
       <div class="row-head">
         <div>
-          <h3>报价明细设置</h3>
+          <h3>二手/常规设备报价字段与排序</h3>
           <p class="hint">这里控制报价明细表格的列名、显示隐藏、必填、排序和自定义列。图片列也可以在这里设置显示或必填。</p>
         </div>
         <button id="add-quote-line-column-btn" class="primary" type="button">新增列</button>
@@ -1835,12 +2044,12 @@
     const panel = document.createElement("div");
     panel.id = "terms-settings-panel";
     panel.className = "panel";
-    panel.dataset.settingsPanel = "terms";
+    panel.dataset.settingsPanel = "quote-settings";
     panel.innerHTML = `
       <div class="row-head">
         <div>
-          <h3>报价条款设置</h3>
-          <p class="hint">维护付款方式、贸易方式、交货时间、售后、质保等条款字段。</p>
+          <h3>贸易条款设置</h3>
+          <p class="hint">维护付款方式、贸易方式、交货时间、起运港、目的港、售后和质保等贸易条款。</p>
         </div>
         <button id="add-term-field-proxy-btn" class="primary" type="button">新增条款字段</button>
       </div>
@@ -2118,7 +2327,7 @@
       if (!confirm("Are you sure you want to delete this user? / 确认删除这个用户吗？")) return;
       await api(`/api/users/${user.id}`, { method: "DELETE" });
       await refreshUsers();
-      toast("Marked as inactive successfully. / 已成功标记为停用。");
+      toast("Deleted successfully. / 账号已永久删除。");
     }
   }
 
@@ -2128,19 +2337,23 @@
 
   function fillTemplateForm(name) {
     normalizeTemplates();
-    const tpl = settings.templates.find((t) => t.name === (name || $("template-select").value)) || settings.templates[0];
+    renderCategoryConfigSelectors();
+    const category=settings.categories.find(c=>c.id===$("category-config-select")?.value)||settings.categories[0];
+    const condition=$("category-condition-select")?.value||"general";
+    const tpl = {name:`${categoryLabel(category)}-${condition}`,desc:"",fields:categoryFieldConfig(category?.id,condition),termFields:settings.templates[0]?.termFields||defaultTermFields};
     if (!tpl) return;
     $("template-name-input").value = tpl.name;
     $("template-desc-input").value = tpl.desc || "";
     renderTemplateSelect(tpl.name);
     renderFieldList(tpl);
-    renderTermFieldList(tpl);
+    renderTermFieldList({termFields:settings.templates[0]?.termFields||defaultTermFields});
     renderCostFieldLists();
+    renderCategoryFieldLibrary();
   }
 
   function currentTemplate() {
     normalizeTemplates();
-    return settings.templates.find((t) => t.name === ($("template-select").value || $("template-name-input").value)) || settings.templates[0];
+    return {name:"分类字段",desc:"",fields:categoryFieldConfig(),termFields:settings.templates[0]?.termFields||defaultTermFields};
   }
 
   function renderCategoryList() {
@@ -2188,7 +2401,7 @@
     $("category-modal").hidden = true;
   }
 
-  function saveCategoryFromModal() {
+  async function saveCategoryFromModal() {
     normalizeCategories();
     const labelEn = $("category-en-input").value.trim();
     const labelZh = $("category-zh-input").value.trim();
@@ -2197,14 +2410,23 @@
     const visible = $("category-visible-input").value !== "false";
     const exists = settings.categories.some((item, index) => normalize(item.labelEn) === normalize(labelEn) && normalize(item.labelZh) === normalize(labelZh) && index !== editingCategoryIndex);
     if (exists) return toast("分类名称已存在。");
+    let savedCategory;
     if (editingCategoryIndex >= 0) {
       settings.categories[editingCategoryIndex] = { ...settings.categories[editingCategoryIndex], labelEn, labelZh, parentId, visible };
+      savedCategory=settings.categories[editingCategoryIndex];
     } else {
-      settings.categories.push({ id: uid("cat"), labelEn, labelZh, parentId, visible, sortOrder: (settings.categories.length + 1) * 10 });
+      savedCategory={ id: uid("cat"), labelEn, labelZh, parentId, visible, sortOrder: (settings.categories.length + 1) * 10 };
+      settings.categories.push(savedCategory);
     }
     save(keys.settings, settings);
+    if(isAdmin()){try{await api("/api/settings",{method:"PUT",body:JSON.stringify(settings)});}catch(error){toast(`分类已保存在本机，但手机端同步失败：${error.message}`);}}
     renderCategoryList();
     renderAllSelectors();
+    if(quickCategoryForProduct && $("product-category")){
+      $("product-category").value=categoryLabel(savedCategory);
+      renderProductDynamicFields();
+    }
+    quickCategoryForProduct=false;
     closeCategoryModal();
     toast("分类已保存。");
   }
@@ -2511,13 +2733,14 @@
     renderCostFieldLists();
   }
 
-  function saveSettings() {
+  async function saveSettings() {
     normalizeTemplates();
     normalizeCostTemplates();
     normalizeCategories();
     normalizeCurrencies();
     normalizeDocumentTypes();
     collectSettingsDraft();
+    document.querySelectorAll("[data-user-module]").forEach(input=>settings.userModuleVisibility[input.dataset.userModule]=input.checked);
     const phone = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("phone") || field.labelZh.includes("电话"));
     const email = settings.contactFields.find((field) => normalize(field.labelEn + field.labelZh).includes("email") || field.labelZh.includes("邮箱"));
     const contactPerson = settings.contactFields.find((field) => field.id === "contact-person" || field.labelZh.includes("负责人") || normalize(field.labelEn).includes("quotationcontact"));
@@ -2525,10 +2748,17 @@
     if (phone?.type === "text") settings.companyPhone = phone.value || settings.companyPhone || "";
     if (email?.type === "text") settings.companyEmail = email.value || settings.companyEmail || "";
     save(keys.settings, settings);
+    if (isAdmin()) {
+      try { await api("/api/settings", { method:"PUT", body:JSON.stringify(settings) }); }
+      catch(error) { return toast(`本机已保存，但主机同步失败：${error.message}`); }
+    }
     renderAllSelectors();
     renderCategoryList();
+    renderCategoryConfigSelectors();
+    renderCategoryFieldLibrary();
+    applyUserModuleVisibility();
     renderCostFieldLists();
-    toast("设置已保存。");
+    toast(isAdmin() ? "设置已保存并同步到电脑和手机端。" : "设置已保存。");
   }
 
   function collectSettingsDraft() {
@@ -2559,32 +2789,19 @@
   }
 
   function saveTemplate() {
-    const name = $("template-name-input").value.trim();
-    if (!name) return toast("请输入模板名称。");
     const old = currentTemplate();
-    const tpl = {
-      name,
-      desc: $("template-desc-input").value.trim(),
-      fields: (old?.fields || []).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder),
-      termFields: (old?.termFields || defaultTermFields).map(normalizeField).sort((a, b) => a.sortOrder - b.sortOrder)
-    };
-    const idx = settings.templates.findIndex((t) => t.name === name);
-    if (idx >= 0) settings.templates[idx] = tpl;
-    else settings.templates.push(tpl);
+    settings.categoryFieldConfigs[categoryConfigKey()] = (old?.fields || []).map(normalizeField).sort((a,b)=>a.sortOrder-b.sortOrder);
     save(keys.settings, settings);
     renderAllSelectors();
-    fillTemplateForm(name);
-    toast("模板已保存。");
+    fillTemplateForm();
+    toast("当前产品分类的字段设置已保存。");
   }
 
   function deleteTemplate() {
-    const name = $("template-select").value;
-    if (settings.templates.length <= 1) return toast("至少保留一个模板。");
-    settings.templates = settings.templates.filter((t) => t.name !== name);
+    delete settings.categoryFieldConfigs[categoryConfigKey()];
     save(keys.settings, settings);
-    renderAllSelectors();
-    fillTemplateForm(settings.templates[0]?.name);
-    toast("模板已删除。");
+    fillTemplateForm();
+    toast("已恢复该分类的默认字段。");
   }
 
   function renderAllSelectors() {
@@ -2593,7 +2810,7 @@
     normalizeCurrencies();
     normalizeTradeTerms();
     const catOptions = settings.categories
-      .filter((c) => c.visible !== false)
+      .filter((c) => c.visible !== false && isProductCategory(c))
       .map((c) => `<option value="${escapeHtml(categoryLabel(c))}">${escapeHtml(categoryFullLabel(c))}</option>`)
       .join("");
     $("product-category").innerHTML = catOptions;
@@ -2617,6 +2834,16 @@
       const mergedProducts = new Map(serverProducts.map((product) => [product.id, toLegacyProduct(product)]));
       products.forEach((product) => mergedProducts.set(product.id, product));
       products = Array.from(mergedProducts.values());
+      const knownCategories=new Set(settings.categories.map(c=>normalize(`${c.labelEn}${c.labelZh}${categoryLabel(c)}`)));
+      let addedCategory=false;
+      [...new Set(products.map(p=>String(p.category||"").trim()).filter(Boolean))].forEach((name,index)=>{
+        if (["freight","sea freight","trucking","custom charge","运费","海运费","陆路运输费","自定义费用"].some(x=>normalize(name).includes(normalize(x)))) return;
+        const key=normalize(name); if([...knownCategories].some(k=>k.includes(key)||key.includes(k)))return;
+        const parts=name.split("/").map(x=>x.trim()).filter(Boolean);
+        settings.categories.push({id:uid("cat"),labelEn:parts[1]||parts[0]||name,labelZh:parts[0]||name,parentId:"",visible:true,sortOrder:(settings.categories.length+index+1)*10});
+        knownCategories.add(key); addedCategory=true;
+      });
+      if(addedCategory)save(keys.settings,settings);
       ports = portData.ports || [];
       freightRates = freightData.freightRates || [];
       if (isAdmin()) {
@@ -2758,8 +2985,11 @@
 
   function renderPorts() {
     const q = normalize($("port-search")?.value || "");
-    const list = ports.filter((p) => !q || normalize(`${p.displayName}${p.portChineseName}${p.aliases}${p.unLocode}${p.countryChineseName}`).includes(q));
-    $("port-list").innerHTML = list.map((p) => `
+    const activeRegion=$("port-region-tabs")?.dataset.active||"全部", destinations=ports.filter(isWorldDestinationPort), regions=["全部",...portRegionOrder.filter(r=>destinations.some(p=>portRegion(p)===r))];
+    if($("port-region-tabs")){$("port-region-tabs").innerHTML=regions.map(r=>`<button type="button" class="${r===activeRegion?'active':''}" data-region="${escapeHtml(r)}">${escapeHtml(r)}</button>`).join("");$("port-region-tabs").dataset.active=regions.includes(activeRegion)?activeRegion:"全部";}
+    const selected=$("port-region-tabs")?.dataset.active||"全部",list=destinations.filter(p=>(selected==="全部"||portRegion(p)===selected)&&(!q||normalize(`${p.displayName}${p.portChineseName}${p.aliases}${p.unLocode}${p.countryChineseName}`).includes(q)));
+    const groups=new Map();list.forEach(p=>{const k=`${p.countryChineseName||p.countryName} / ${p.countryName}`;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p);});
+    $("port-list").innerHTML = [...groups.entries()].map(([country,ps])=>`<details class="port-country-group" open><summary>${escapeHtml(country)} <span>${ps.length} 个港口</span></summary>${ps.map((p) => `
       <article class="list-item">
         <div><b>${escapeHtml(portOptionLabel(p))}</b><p>${escapeHtml(portRegion(p))} | ${escapeHtml(p.unLocode)} | ${escapeHtml(p.status)}</p><p>${escapeHtml(p.aliases)}</p></div>
         <div class="actions">
@@ -2767,9 +2997,11 @@
           <button type="button" data-port-action="edit" data-id="${p.id}">Edit / 编辑</button>
           <button type="button" data-port-action="delete" data-id="${p.id}">Delete / 删除</button>
         </div>
-      </article>
-    `).join("") || `<p class="empty">No port found. / 未找到港口。</p>`;
+      </article>`).join("")}</details>`).join("") || `<p class="empty">No port found. / 未找到港口。</p>`;
   }
+
+  function addLogisticsFee(name="报关费",value=""){const host=$("logistics-fee-list");host.insertAdjacentHTML("beforeend",`<div class="logistics-fee-row"><input data-fee-name value="${escapeHtml(name)}" placeholder="费用名称"><select data-fee-mode><option value="amount">固定金额</option><option value="percent">百分比 %</option></select><input data-fee-value type="number" value="${escapeHtml(value)}" placeholder="金额/比例"><label><input data-fee-include type="checkbox" checked>计入总额</label><button type="button" data-remove-fee>删除</button></div>`);}
+  function logisticsFees(){return [...document.querySelectorAll(".logistics-fee-row")].map(r=>({name:r.querySelector("[data-fee-name]").value,mode:r.querySelector("[data-fee-mode]").value,value:Number(r.querySelector("[data-fee-value]").value||0),includeInTotal:r.querySelector("[data-fee-include]").checked})).filter(x=>x.name);}
 
   function clearPortForm() {
     editingPortId = "";
@@ -2932,7 +3164,7 @@
     }
     const cbm = $("calc-cbm").value;
     const qty = $("calc-qty").value || 1;
-    const data = await api("/api/freight/calculate", { method: "POST", body: JSON.stringify({ transportCbm: cbm, freightRate: rate, quantity: qty }) });
+    const data = await api("/api/freight/calculate", { method: "POST", body: JSON.stringify({ transportCbm: cbm, freightRate: rate, quantity: qty,billingMode:$("calc-billing-mode").value,containerType:$("calc-container-type").value,containerCount:$("calc-container-count").value,fees:logisticsFees() }) });
     $("calc-amount").value = data.freightAmount;
     lastFreightCalculation = {
       productId: product?.id || "",
@@ -2941,6 +3173,7 @@
       freightRate: Number(rate || 0),
       quantity: Number(qty || 1),
       freightAmount: data.freightAmount,
+      baseFreight:data.baseFreight,feeItems:data.fees,billingMode:$("calc-billing-mode").value,containerType:$("calc-container-type").value,containerCount:Number($("calc-container-count").value||0),
       calculationFormula: data.calculationFormula,
       originPortId,
       destinationPortId,
@@ -2963,6 +3196,10 @@
   function useFreightInQuotation() {
     if (!currentQuote) return toast("Please create a quotation first. / 请先新建报价。");
     if (!lastFreightCalculation) return toast("Please calculate freight first. / 请先计算运费。");
+    $("freight-import-modal").hidden=false;
+  }
+  function importFreightToUsed(){
+    if(!lastFreightCalculation)return;
     collectQuoteFromForm();
     currentQuote.items.push({
       id: uid("item"),
@@ -3057,6 +3294,10 @@
     renderProductDynamicFields();
     $("product-image-preview").src = "";
     $("product-image-preview").dataset.image = "";
+    ["product-transport-length","product-transport-width","product-transport-height","product-transport-cbm","product-weight"].forEach(id => { if ($(id)) $(id).value = ""; });
+    if ($("product-dimension-unit")) $("product-dimension-unit").value = "meter";
+    if ($("product-transport-method")) $("product-transport-method").value = "Bulk Cargo";
+    if ($("save-product-btn")) $("save-product-btn").textContent = "保存产品";
   }
 
   function productValues(product = {}) {
@@ -3125,20 +3366,30 @@
       params: values.params || "",
       remark: values.remark || "",
       imageDataUrl: $("product-image-preview").dataset.image || ""
+      ,transportLength: $("product-transport-length")?.value || ""
+      ,transportWidth: $("product-transport-width")?.value || ""
+      ,transportHeight: $("product-transport-height")?.value || ""
+      ,transportCbm: $("product-transport-cbm")?.value || ""
+      ,dimensionUnit: $("product-dimension-unit")?.value || "meter"
+      ,weight: $("product-weight")?.value || values.tonnage || ""
+      ,transportMethod: $("product-transport-method")?.value || "Bulk Cargo"
     };
   }
 
-  function saveProduct() {
+  async function saveProduct() {
     const product = collectProductForm();
     if (!Object.values(product.values || {}).some(Boolean)) return toast("请至少填写一个产品字段。");
-    const idx = products.findIndex((p) => p.id === product.id);
-    if (idx >= 0) products[idx] = product;
-    else products.unshift(product);
-    save(keys.products, products);
-    renderProducts();
-    renderAllSelectors();
-    clearProductForm();
-    toast("产品已保存。");
+    const payload = serverProductFromLegacy(product);
+    Object.assign(payload, { transportLength:product.transportLength, transportWidth:product.transportWidth, transportHeight:product.transportHeight, transportCbm:product.transportCbm, dimensionUnit:product.dimensionUnit, weight:product.weight, transportMethod:product.transportMethod, imagePath:product.imageDataUrl });
+    try {
+      const existsOnServer = serverProducts.some(p => p.id === product.id);
+      await api(existsOnServer ? `/api/products/${encodeURIComponent(product.id)}` : "/api/products", { method: existsOnServer ? "PUT" : "POST", body: JSON.stringify(payload) });
+      products = products.filter(p => p.id !== product.id);
+      save(keys.products, products);
+      await loadServerData();
+      clearProductForm();
+      toast("产品已保存到主机数据库，报价和运费中心已同步。");
+    } catch (error) { toast(error.message); }
   }
 
   function editProduct(id) {
@@ -3151,6 +3402,15 @@
     renderProductDynamicFields(p);
     $("product-image-preview").src = p.imageDataUrl || "";
     $("product-image-preview").dataset.image = p.imageDataUrl || "";
+    if ($("product-transport-length")) $("product-transport-length").value = p.transportLength || "";
+    if ($("product-transport-width")) $("product-transport-width").value = p.transportWidth || "";
+    if ($("product-transport-height")) $("product-transport-height").value = p.transportHeight || "";
+    if ($("product-transport-cbm")) $("product-transport-cbm").value = p.transportCbm || "";
+    if ($("product-dimension-unit")) $("product-dimension-unit").value = p.dimensionUnit || "meter";
+    if ($("product-weight")) $("product-weight").value = p.weight || p.tonnage || "";
+    if ($("product-transport-method")) $("product-transport-method").value = p.transportMethod || "Bulk Cargo";
+    if ($("save-product-btn")) $("save-product-btn").textContent = "保存修改";
+    $("legacy-product-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
   }
 
   function deleteProduct(id) {
@@ -3301,11 +3561,14 @@
 
   function renderProducts() {
     const kw = normalize($("product-search").value);
-    const list = products.filter((p) => !kw || normalize(`${p.category}${p.brand}${p.model}${Object.values(p.values || {}).join(" ")}`).includes(kw));
+    const category = $("product-category-filter")?.value || "";
+    const categories = [...new Set(products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    if ($("product-category-filter")) { const prior=$("product-category-filter").value; $("product-category-filter").innerHTML=`<option value="">全部机型（${products.length}）</option>`+categories.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join(""); $("product-category-filter").value=categories.includes(prior)?prior:""; }
+    const list = products.filter((p) => (!category || p.category===category) && (!kw || normalize(`${p.category}${p.brand}${p.model}${p.aliases||""}${p.params||""}${Object.values(p.values || {}).join(" ")}`).includes(kw)));
     $("product-list").innerHTML = list.map((p) => `
       <article class="list-item">
         ${p.imageDataUrl ? `<img src="${p.imageDataUrl}" alt="">` : `<div class="thumb-empty">No Image</div>`}
-        <div><b>${escapeHtml(productDisplayName(p))}</b><p>${escapeHtml(p.category)} | ${escapeHtml(productSummary(p))}</p><p>${escapeHtml(p.remark)}</p></div>
+        <div><b>${escapeHtml(productDisplayName(p))}</b><p>${escapeHtml(p.category)} | ${escapeHtml(productSummary(p))}</p><p>运输：${p.transportCbm ? `${escapeHtml(p.transportCbm)} CBM` : "未设置方数"} · ${escapeHtml(p.transportMethod||"Bulk Cargo")}</p><p>${escapeHtml(p.remark)}</p></div>
         <div class="actions"><button onclick="window.quoteApp.editProduct('${p.id}')">编辑</button><button onclick="window.quoteApp.deleteProduct('${p.id}')">删除</button></div>
       </article>
     `).join("") || `<p class="empty">暂无产品。</p>`;
@@ -3319,6 +3582,137 @@
   function productSummary(product) {
     const values = productValues(product);
     return [values.year, values.hours ? `${values.hours}h` : "", values.tonnage, values.params].filter(Boolean).join(" | ");
+  }
+
+  function machineryReferenceProducts() {
+    return Array.isArray(window.machineryPriceReferenceProducts) ? window.machineryPriceReferenceProducts : [];
+  }
+
+  function machineryReferenceKey(product) {
+    const values = productValues(product);
+    return normalize(`${values.productType || product.category}|${values.brand || product.brand}|${values.model || product.model}`);
+  }
+
+  function productFromMachineryReference(row) {
+    const specParts = [row.spec1, row.spec2, row.spec3, row.spec4].filter(Boolean);
+    const priceParts = [
+      row.refurbishedYearRange || row.refurbishedPriceRange ? `翻新机：${row.refurbishedYearRange || "-"} / ${row.refurbishedPriceRange || "待填写"}` : "",
+      row.originalUsedYearRange || row.originalPriceRange ? `原版二手机：${row.originalUsedYearRange || "-"} / ${row.originalPriceRange || "待填写"}` : "",
+      row.newMachineAvailability || row.newPriceRange ? `全新机：${row.newMachineAvailability || "-"} / ${row.newPriceRange || "待填写"}` : "",
+    ].filter(Boolean);
+    return {
+      id: uid("product"),
+      category: row.category || "机械价格参考表",
+      templateName: "二手工程机械",
+      values: {
+        productType: row.categoryBilingual || row.category || "",
+        brand: row.brand || "",
+        model: row.model || "",
+        tonnage: row.spec2 || "",
+        year: row.originalUsedYearRange || "",
+        hours: row.usageRange || "",
+        unitPrice: "",
+        currency: "USD",
+        params: specParts.join(" | "),
+        remark: [row.remarks, priceParts.join("；"), row.newMachineAvailability === "停产无新机 / Discontinued" ? "停产型号无全新机报价" : ""].filter(Boolean).join("；"),
+      },
+      brand: row.brand || "",
+      model: row.model || "",
+      tonnage: row.spec2 || "",
+      year: row.originalUsedYearRange || "",
+      hours: row.usageRange || "",
+      referencePrice: "",
+      params: specParts.join(" | "),
+      remark: [row.remarks, priceParts.join("；")].filter(Boolean).join("；"),
+      imageDataUrl: "",
+      source: "machinery-price-reference-v7",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function mergeProductsIntoLocal(nextProducts) {
+    let added = 0;
+    let updated = 0;
+    const existing = new Map(products.map((product, index) => [machineryReferenceKey(product), index]));
+    nextProducts.forEach((product) => {
+      const key = machineryReferenceKey(product);
+      if (existing.has(key)) {
+        const index = existing.get(key);
+        products[index] = {
+          ...products[index],
+          ...product,
+          id: products[index].id,
+          referencePrice: products[index].referencePrice || product.referencePrice || "",
+          imageDataUrl: products[index].imageDataUrl || product.imageDataUrl || ""
+        };
+        updated += 1;
+      } else {
+        products.push(product);
+        existing.set(key, products.length - 1);
+        added += 1;
+      }
+    });
+    products.sort((a, b) => String(a.category || "").localeCompare(String(b.category || ""), "zh-Hans-CN") || String(a.brand || "").localeCompare(String(b.brand || ""), "zh-Hans-CN") || String(a.model || "").localeCompare(String(b.model || ""), "zh-Hans-CN"));
+    save(keys.products, products);
+    return { added, updated };
+  }
+
+  async function importMachineryReferenceProducts(targetId = "machinery-reference-result") {
+    const source = machineryReferenceProducts();
+    if (!source.length) return toast("未找到机械价格参考表数据，请确认 assets/price-lists/machinery-price-products.js 已加载。");
+    const importedProducts = source.map(productFromMachineryReference);
+    let result = mergeProductsIntoLocal(importedProducts);
+    let storageMode = "本机产品库";
+    if (currentUser) {
+      try {
+        const payload = importedProducts.map(serverProductFromLegacy);
+        const data = await api("/api/products/bulk-upsert", { method: "POST", body: JSON.stringify({ products: payload }) });
+        const serverRows = (data.products || []).map(toLegacyProduct);
+        result = { added: data.added || 0, updated: data.updated || 0 };
+        mergeProductsIntoLocal(serverRows);
+        storageMode = "服务器产品库";
+      } catch (error) {
+        storageMode = `本机产品库（服务器导入失败：${error.message}）`;
+      }
+    }
+    renderProducts();
+    renderAllSelectors();
+    const message = `机械价格参考表已导入${storageMode}：新增 ${result.added} 条，更新 ${result.updated} 条。`;
+    if ($(targetId)) $(targetId).textContent = message;
+    toast(message);
+  }
+
+  function exportProductCatalogPdf() {
+    const list = products.slice().sort((a, b) => String(a.category || "").localeCompare(String(b.category || ""), "zh-Hans-CN") || String(a.brand || "").localeCompare(String(b.brand || ""), "zh-Hans-CN") || String(a.model || "").localeCompare(String(b.model || ""), "zh-Hans-CN"));
+    if (!list.length) return toast("产品库为空，无法导出产品目录。");
+    const rows = list.map((product, index) => {
+      const values = productValues(product);
+      return `<tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(values.productType || product.category || "")}</td>
+        <td>${escapeHtml(values.brand || product.brand || "")}</td>
+        <td>${escapeHtml(values.model || product.model || "")}</td>
+        <td>${escapeHtml(values.tonnage || product.tonnage || "")}</td>
+        <td>${escapeHtml(values.year || product.year || "")}</td>
+        <td>${escapeHtml(values.hours || product.hours || "")}</td>
+        <td>${escapeHtml(values.unitPrice || values.referencePrice || product.referencePrice || "Please ask")}</td>
+        <td>${escapeHtml(values.remark || product.remark || "")}</td>
+      </tr>`;
+    }).join("");
+    const win = window.open("", "_blank");
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Product Catalog</title><style>
+      body{font-family:Arial,'Microsoft YaHei',sans-serif;color:#172033;padding:28px}
+      h1{margin:0 0 6px;color:#0f4c81} .meta{color:#64748b;margin-bottom:18px}
+      table{width:100%;border-collapse:collapse;font-size:10px} th,td{border:1px solid #d7e0ea;padding:6px;vertical-align:top}
+      th{background:#17365D;color:white} tr:nth-child(even){background:#f6f9fc}
+      @media print{body{padding:12mm} table{font-size:8px} th,td{padding:4px}}
+    </style></head><body>
+      <h1>Product Catalog / 产品目录</h1>
+      <div class="meta">${escapeHtml(settings.companyNameEn || "")} / ${escapeHtml(settings.companyNameZh || "")} · ${new Date().toISOString().slice(0, 10)}</div>
+      <table><thead><tr><th>#</th><th>Category</th><th>Brand</th><th>Model</th><th>Spec</th><th>Year Range</th><th>Hours/Mileage</th><th>Price Range</th><th>Remark</th></tr></thead><tbody>${rows}</tbody></table>
+      <script>window.onload=()=>setTimeout(()=>window.print(),200)<\/script>
+    </body></html>`);
+    win.document.close();
   }
 
   function renderQuoteEditor() {
@@ -3337,6 +3731,10 @@
     currentQuote = {
       id: uid("quote"),
       status: "草稿",
+      seriesId: "",
+      version: 0,
+      isFormal: false,
+      sourceQuoteId: "",
       documentType: docType,
       quoteStyle: settings.quoteStyle || "classic",
       quoteNumber: nextQuoteNumber(d, advanceNumber),
@@ -3344,6 +3742,7 @@
       validUntil: addDays(7),
       validityRangeText: "",
       pdfLanguage: "bilingual",
+      currency: settings.currency || "USD",
       buyer: {},
       customerId: null,
       templateName: settings.templates[0]?.name || "",
@@ -3367,14 +3766,21 @@
   }
 
   async function applyCrmCustomerFromUrl() {
-    const customerId = new URLSearchParams(window.location.search).get("crmCustomer");
-    if (!customerId || !currentUser) return;
+    const params=new URLSearchParams(window.location.search);
+    const quoteId=params.get("quote"), customerId=params.get("crmCustomer");
+    if (!currentUser) return;
+    if (quoteId) {
+      currentQuote=serverQuotationToLocal(await api(`/api/quotations/${quoteId}`));
+      switchView("quote");setQuoteBusiness("standard");bindQuoteToForm();renderQuoteItems();renderPreview();
+      history.replaceState({},"","/");toast(`已打开报价：${currentQuote.quoteNumber}`);return;
+    }
+    if (!customerId) return;
     const customer = await api(`/api/customers/${customerId}`);
     newQuote();
     currentQuote.customerId = Number(customer.id);
     currentQuote.buyer = {
       country: customer.country || "",
-      company: customer.name || "",
+      company: customer.company || customer.name || "",
       contact: customer.name || "",
       phone: customer.phone || "",
       email: "",
@@ -3649,6 +4055,8 @@
     $("valid-until").value = currentQuote.validUntil || addDays(7);
     $("validity-range-text").value = currentQuote.validityRangeText || "";
     $("pdf-language").value = currentQuote.pdfLanguage || "bilingual";
+    if ($("quote-currency")) $("quote-currency").value = currentQuote.currency || settings.currency || "USD";
+    if ($("quote-customer")) $("quote-customer").value = currentQuote.customerId ? String(currentQuote.customerId) : "";
     $("buyer-country").value = currentQuote.buyer.country || "";
     $("buyer-company").value = currentQuote.buyer.company || "";
     $("buyer-contact").value = currentQuote.buyer.contact || "";
@@ -3683,6 +4091,8 @@
     currentQuote.validUntil = $("valid-until").value;
     currentQuote.validityRangeText = $("validity-range-text").value.trim();
     currentQuote.pdfLanguage = $("pdf-language").value || "bilingual";
+    currentQuote.currency = $("quote-currency")?.value || settings.currency || "USD";
+    currentQuote.customerId = $("quote-customer")?.value || null;
     currentQuote.buyer = {
       country: $("buyer-country").value,
       company: $("buyer-company").value,
@@ -3748,10 +4158,31 @@
     return `<select data-qfield="tradeTerm">${options.map((term) => `<option value="${escapeHtml(term)}"${term === selected ? " selected" : ""}>${term ? escapeHtml(term) : "空白"}</option>`).join("")}</select>`;
   }
 
+  function isNewCondition(value) {
+    const text=String(value||"").toLowerCase();
+    return text!=="used" && (text.startsWith("new-") || text.includes("new") || text.includes("全新") || text.includes("未使用") || text.includes("新机"));
+  }
+
+  function conditionDisplayText(value) {
+    const condition=String(value||"used").trim();
+    const labels={used:labelText("Used","二手"),"new-unused":labelText("Brand New & Unused","全新未使用"),"new-machine":labelText("New Machinery","全新机械"),"new-truck":labelText("New Truck","全新卡车")};
+    return labels[condition] || condition;
+  }
+
+  function suggestedHsCode(...parts) {
+    const text=normalize(parts.filter(Boolean).join(" "));
+    return hsCodeLibrary.find(item=>item.keywords.some(keyword=>text.includes(normalize(keyword))))?.code || "";
+  }
+
   function lineDescription(item) {
     const values = item.values || {};
+    const condition = values.condition || "used";
+    const prefix = conditionDisplayText(condition);
+    const details = condition === "new-truck"
+      ? [values.productionDate ? `Production: ${values.productionDate}` : "", values.engine ? `Engine: ${values.engine}` : ""].filter(Boolean).join(" | ")
+      : isNewCondition(condition) && values.productionDate ? `Production: ${values.productionDate}` : "";
     return values.description
-      || [values.productType, values.brand, values.model, values.year, values.hours].filter(Boolean).join(" ")
+      || [prefix, values.productType, values.brand, values.model, details].filter(Boolean).join(" ")
       || values.remark
       || "";
   }
@@ -3769,7 +4200,9 @@
     const key = escapeHtml(column.key);
     const required = column.required ? " required" : "";
     if (column.key === "tradeTerm") return tradeTermSelect(values.tradeTerm);
-    if (column.key === "description") return `<textarea data-qfield="description"${required} placeholder="例如：Used CAT 320 Excavator / 二手卡特320挖掘机">${escapeHtml(lineDescription(item))}</textarea>`;
+    if (column.key === "condition") return `<input data-qfield="condition" class="quote-condition-select" list="quote-condition-options" value="${escapeHtml(values.condition||"used")}" placeholder="选择或直接输入设备状态">`;
+    if (column.key === "description") return `<div class="description-editor"><textarea data-qfield="description"${required} placeholder="填写品牌、型号和产品描述">${escapeHtml(lineDescription(item))}</textarea><div class="new-detail-fields" ${isNewCondition(values.condition)?"":"hidden"}><input data-qfield="productionDate" type="text" value="${escapeHtml(values.productionDate||"")}" placeholder="生产年份/日期（可选）"><input data-qfield="engine" type="text" value="${escapeHtml(values.engine||"")}" placeholder="发动机（新卡车填写）" ${values.condition==="new-truck"?"":"hidden"}></div></div>`;
+    if (column.key === "hsCode") return `<div class="hs-code-input"><input data-qfield="hsCode" list="hs-code-options" value="${escapeHtml(values.hsCode || suggestedHsCode(values.productType,values.description,values.brand,values.model))}" placeholder="选择或输入 HS CODE"><small>建议编码，申报前请由目的国清关代理确认</small></div>`;
     if (column.key === "qty") return `<input data-qfield="qty" type="number" min="0" step="1" value="${escapeHtml(values.qty || "1")}"${required} />`;
     if (column.key === "unitPrice") return `<input data-qfield="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(values.unitPrice || "")}"${required} />`;
     if (column.key === "currency") return renderCurrencySelect("currency", values.currency || settings.currency);
@@ -3777,7 +4210,7 @@
     if (column.key === "image") {
       return `
         <div class="line-image-box">
-          <label class="file-btn">上传<input class="quote-line-image-input" type="file" accept="image/*"${required} /></label>
+          <label class="file-btn">从电脑/手机选择图片<input class="quote-line-image-input" type="file" accept="image/*"${required} /></label>
           <button class="clear-line-image" type="button">删除</button>
           <img src="${item.imageDataUrl || ""}" alt=""${item.imageDataUrl ? "" : " hidden"} />
         </div>
@@ -3860,7 +4293,7 @@
               const values = item.values || {};
               const currency = values.currency || settings.currency;
               return `
-                <tr class="quote-line" data-id="${escapeHtml(item.id || uid("item"))}" data-kind="${escapeHtml(item.kind || "product")}" data-image="${escapeHtml(item.imageDataUrl || "")}">
+                <tr class="quote-line ${item.imageDataUrl?"has-product-image":""}" data-id="${escapeHtml(item.id || uid("item"))}" data-kind="${escapeHtml(item.kind || "product")}" data-image="${escapeHtml(item.imageDataUrl || "")}">
                   ${columns.map((column) => `<td>${renderQuoteLineInput(column, item)}</td>`).join("")}
                   <td><button class="remove-quote-item" type="button">删除</button></td>
                 </tr>
@@ -3977,7 +4410,7 @@
     const key = escapeHtml(fieldKey);
     const selected = value || categoryLabel(settings.categories.find((cat) => cat.visible !== false) || settings.categories[0]);
     const options = settings.categories
-      .filter((cat) => cat.visible !== false)
+      .filter((cat) => cat.visible !== false && isProductCategory(cat))
       .map((cat) => {
         const val = categoryLabel(cat);
         return `<option value="${escapeHtml(val)}"${val === selected ? " selected" : ""}>${escapeHtml(categoryFullLabel(cat))}</option>`;
@@ -3992,7 +4425,9 @@
       const originOnly = field.fieldKey === "originPort";
       const listId = `${key}-options`;
       const sourcePorts = ports.filter((port) => originOnly ? isChinaOriginPort(port) : isWorldDestinationPort(port));
-      const datalistOptions = sourcePorts.map((port) => `<option value="${escapeHtml(portOptionLabel(port))}"></option>`).join("");
+      const popularOrigins=["Shanghai Port / 上海港, China / 中国","Tianjin Port / 天津港, China / 中国","Lianyungang Port / 连云港港, China / 中国","Ningbo-Zhoushan Port / 宁波舟山港, China / 中国","Qingdao Port / 青岛港, China / 中国"];
+      const optionValues=[...(originOnly?popularOrigins:[]),...sourcePorts.map(portOptionLabel)].filter((item,index,array)=>item&&array.indexOf(item)===index);
+      const datalistOptions = optionValues.map((port) => `<option value="${escapeHtml(port)}"></option>`).join("");
       const placeholder = originOnly ? "Shanghai Port / 上海港" : "Dar es Salaam Port / 达累斯萨拉姆港";
       return `
         <input class="combo-input" data-termfield="${key}" list="${listId}" value="${val}" placeholder="${placeholder}" />
@@ -4177,13 +4612,14 @@
     const values = item.values || {};
     const currency = values.currency || settings.currency;
     if (column.key === "tradeTerm") return Object.prototype.hasOwnProperty.call(values, "tradeTerm") ? values.tradeTerm : (currentQuote?.terms?.shipping || "EXW");
+    if (column.key === "condition") return conditionDisplayText(values.condition || "used");
     if (column.key === "type") return values.productType || itemKindLabel(item.kind || "product");
     if (column.key === "description") return previewDescription(item);
     if (column.key === "qty") return values.qty || "1";
     if (column.key === "unitPrice") return values.unitPrice ? money(values.unitPrice, currency) : "";
     if (column.key === "amount") return money(itemSubtotal(item), currency);
     if (column.key === "currency") return currency;
-    if (column.key === "image") return item.imageDataUrl ? labelText("Image attached", "已上传图片") : "";
+    if (column.key === "image") return "";
     if (column.key === "remark") return previewRemark(item);
     if (values[column.key]) return values[column.key];
     return "";
@@ -4192,7 +4628,7 @@
   function renderQuotePreviewRows() {
     const columns = quotePreviewColumns();
     return (currentQuote.items || []).map((item) => {
-      return `<tr>${columns.map((column) => `<td>${escapeHtml(quotePreviewCell(item, column))}</td>`).join("")}</tr>`;
+      return `<tr class="${item.imageDataUrl?"preview-row-with-image":""}">${columns.map((column) => column.key==="image" ? `<td class="preview-product-image">${item.imageDataUrl?`<img src="${item.imageDataUrl}" alt="">`:""}</td>` : `<td>${escapeHtml(quotePreviewCell(item, column))}</td>`).join("")}</tr>`;
     }).join("");
   }
 
@@ -4239,7 +4675,7 @@
 
   function renderQuoteMetaPreview() {
     const rows = [];
-    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}</p>`);
+    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}${currentQuote.version?` V${currentQuote.version}`:""}</p>`);
     if (settings.showQuoteDateInPdf !== false) rows.push(`<p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p>`);
     if (settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
     return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
@@ -4307,7 +4743,7 @@
     `;
   }
 
-  async function saveQuote() {
+  async function saveQuote(formal = false) {
     renderPreview();
     if (!validateQuoteLines()) return;
     syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
@@ -4315,10 +4751,12 @@
     if (!currentQuote.createdAt) currentQuote.createdAt = nowIso;
     currentQuote.updatedAt = nowIso;
     currentQuote.savedAt = nowIso;
-    const idx = quotes.findIndex((q) => q.id === currentQuote.id);
-    if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
-    else quotes.unshift(structuredClone(currentQuote));
-    save(keys.quotes, quotes);
+    if (!(formal && currentQuote.isFormal)) {
+      const idx = quotes.findIndex((q) => q.id === currentQuote.id);
+      if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
+      else quotes.unshift(structuredClone(currentQuote));
+      save(keys.quotes, quotes);
+    }
     if (currentUser) {
       const apiItems = (currentQuote.items || []).map((item) => {
         const qty = Number(item.values.qty || 0);
@@ -4346,13 +4784,22 @@
           includeFreightInTotal: true
         };
       });
-      await api("/api/quotations", {
+      const priorId=currentQuote.id;
+      const saved=await api("/api/quotations", {
         method: "POST",
         body: JSON.stringify({
           id: currentQuote.id,
+          seriesId: currentQuote.seriesId || currentQuote.id,
+          version: currentQuote.version || 0,
+          isFormal: !!currentQuote.isFormal,
+          sourceQuoteId: formal ? priorId : (currentQuote.sourceQuoteId || ""),
+          formal,
           customerId: currentQuote.customerId || null,
           quoteNumber: currentQuote.quoteNumber,
           status: currentQuote.status,
+          documentType: currentQuote.documentType,
+          pdfLanguage: currentQuote.pdfLanguage,
+          currency: currentQuote.currency || settings.currency,
           buyer: currentQuote.buyer,
           terms: currentQuote.terms,
           quoteDate: currentQuote.quoteDate,
@@ -4363,22 +4810,45 @@
           items: apiItems
         })
       });
+      if (formal) {
+        currentQuote.id=saved.id;currentQuote.seriesId=saved.seriesId;currentQuote.version=saved.version;currentQuote.isFormal=true;currentQuote.sourceQuoteId=priorId;currentQuote.status="Formal";currentQuote.formalizedAt=new Date().toISOString();
+        quotes.unshift(structuredClone(currentQuote));save(keys.quotes,quotes);bindQuoteToForm();renderPreview();
+      } else if (saved.id !== currentQuote.id) {
+        currentQuote.id=saved.id;currentQuote.isFormal=false;currentQuote.version=0;currentQuote.status="草稿";currentQuote.sourceQuoteId=priorId;
+        quotes.unshift(structuredClone(currentQuote));save(keys.quotes,quotes);
+      }
     }
-    toast("报价已保存到历史报价。");
+    toast(formal?`正式报价 V${currentQuote.version} 已生成，旧版本保持不变。`:"报价已保存到历史报价。");
     renderHistory();
   }
 
-  function editQuote(id) {
-    currentQuote = structuredClone(quotes.find((q) => q.id === id));
+  function serverQuotationToLocal(data) {
+    const q=data.quotation || {}, meta=q.settingsSnapshot?._quoteMeta || {};
+    return {
+      id:q.id, customerId:q.customer_id || null, quoteNumber:q.quote_number || "", status:q.status || "草稿",seriesId:q.series_id||q.id,version:Number(q.version||0),isFormal:!!q.is_formal,sourceQuoteId:q.source_quote_id||"",formalizedAt:q.formalized_at||null,
+      documentType:meta.documentType || "quotation", quoteStyle:q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
+      quoteDate:q.quote_date || today(), validUntil:q.valid_until || addDays(7), validityRangeText:meta.validityRangeText || "",
+      pdfLanguage:meta.pdfLanguage || "bilingual", currency:meta.currency || "USD", buyer:q.buyer || {}, terms:q.terms || {},
+      templateName:q.settingsSnapshot?.templates?.[0]?.name || settings.templates[0]?.name || "",
+      items:(data.items || []).map(item=>({id:item.id,kind:"product",imageDataUrl:item.productSnapshot?.imagePath || item.productSnapshot?.imageDataUrl || "",values:{...(item.priceSnapshot?.values || {}),productId:item.product_id || item.productSnapshot?.productId || "",description:item.priceSnapshot?.values?.description || item.productSnapshot?.productName || "",productType:item.priceSnapshot?.values?.productType || item.productSnapshot?.machineCategory || "",brand:item.priceSnapshot?.values?.brand || item.productSnapshot?.brand || "",model:item.priceSnapshot?.values?.model || item.productSnapshot?.model || "",qty:item.priceSnapshot?.quantity ?? item.priceSnapshot?.values?.qty ?? 1,unitPrice:item.priceSnapshot?.unitPrice ?? item.priceSnapshot?.values?.unitPrice ?? 0,currency:item.priceSnapshot?.currency || meta.currency || "USD"},freightSnapshot:item.freightSnapshot || null})),
+      createdAt:q.created_at, updatedAt:q.updated_at, savedAt:q.updated_at
+    };
+  }
+
+  async function editQuote(id) {
+    const local=quotes.find(q=>q.id===id);
+    currentQuote = local ? structuredClone(local) : serverQuotationToLocal(await api(`/api/quotations/${id}`));
     switchView("quote");
+    setQuoteBusiness("standard");
     bindQuoteToForm();
     renderQuoteItems();
     closeProductPicker();
     renderPreview();
   }
 
-  function copyQuote(id) {
-    const q = structuredClone(quotes.find((x) => x.id === id));
+  async function copyQuote(id) {
+    const local=quotes.find(x=>x.id===id);
+    const q = local ? structuredClone(local) : serverQuotationToLocal(await api(`/api/quotations/${id}`));
     const nowIso = new Date().toISOString();
     q.id = uid("quote");
     q.quoteNumber = `${q.quoteNumber}-COPY`;
@@ -4388,6 +4858,7 @@
     q.savedAt = "";
     currentQuote = q;
     switchView("quote");
+    setQuoteBusiness("standard");
     bindQuoteToForm();
     renderQuoteItems();
     renderPreview();
@@ -4399,20 +4870,103 @@
     renderHistory();
   }
 
-  function renderHistory() {
-    const kw = normalize($("history-keyword").value);
+  async function renderHistory() {
+    const keyword = $("history-keyword").value.trim();
     const date = $("history-date").value;
-    const list = quotes.filter((q) => {
-      const productsText = q.items.map(i => Object.values(i.values || {}).join(" ")).join(" ");
-      const hay = normalize(`${q.buyer.company} ${q.buyer.country} ${productsText}`);
-      return (!kw || hay.includes(kw)) && (!date || q.quoteDate === date);
-    }).sort((a, b) => quoteHistorySortTime(b) - quoteHistorySortTime(a));
-    $("history-list").innerHTML = list.map((q) => `<article class="list-item"><div><b>${escapeHtml(q.quoteNumber)} · ${escapeHtml(documentTypeTitle(q))}</b><p>客户：${escapeHtml(q.buyer.company)} | 国家：${escapeHtml(q.buyer.country)} | 报价日期：${escapeHtml(q.quoteDate)}</p><p>${escapeHtml(quoteHistoryTimeText(q))}</p><p>${q.items.length} 行明细 | ${money(quoteTotal(q), settings.currency)}</p></div><div class="actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看/编辑</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制为新报价</button><button onclick="window.quoteApp.deleteQuote('${q.id}')">删除</button><button onclick="window.quoteApp.editQuote('${q.id}'); setTimeout(()=>window.print(),200)">重新导出PDF</button></div></article>`).join("") || `<p class="empty">暂无历史报价。</p>`;
+    try {
+      const normalParams=new URLSearchParams(); if(keyword)normalParams.set("q",keyword);if(date)normalParams.set("date",date);
+      const vehicleParams=new URLSearchParams();if(keyword)vehicleParams.set("q",keyword);if(date){vehicleParams.set("from",date);vehicleParams.set("to",date);}
+      const [normalResult,vehicleResult]=await Promise.all([api(`/api/quotations?${normalParams}`),api(`/api/vehicle-quotes/history?${vehicleParams}`)]);
+      const normalRows=(normalResult.quotations||[]).map(q=>({type:"standard",sort:q.updated_at||q.quote_date,q}));
+      const vehicleRows=(vehicleResult.quotations||[]).map(q=>({type:"vehicle",sort:q.updatedAt||q.quoteDate,q}));
+      const rows=[...normalRows,...vehicleRows].sort((a,b)=>String(b.sort||"").localeCompare(String(a.sort||"")));
+      $("unified-history-list").innerHTML=rows.map(({type,q})=>{
+        if(type==="vehicle"){
+          const count=(q.items||[]).reduce((sum,item)=>sum+Number(item.quantity||0),0);
+          const machines=(q.items||[]).map(item=>`${item.vehicleType?.name_zh||item.vehicleType?.name_en||""} ${item.chassis?.brand||""} ${item.chassis?.model||""} ${item.chassis?.drive_type||""} / ${item.superstructure?.brand||""} ${item.superstructure?.model||""}`).join("；");
+          const port=q.buyer?.destinationPort||q.terms?.destinationPort||"";
+          return `<tr><td><b>${escapeHtml(q.quoteNumber)} V${q.version}</b><small>新车组合报价</small></td><td>${escapeHtml(q.quoteDate)}<small>${q.isFormal?"正式报价":escapeHtml(q.status||"草稿")}</small></td><td>${escapeHtml(q.buyer?.company||q.buyer?.contact||"-")}</td><td>${escapeHtml(q.buyer?.country||"-")}<small>${escapeHtml(port)}</small></td><td class="history-machine">${escapeHtml(machines||"暂无车辆")}</td><td>${count} 台</td><td>${escapeHtml(q.currency)} ${Number(q.total||0).toLocaleString()}</td><td><div class="history-actions"><button onclick="window.vehicleQuoteApp.edit('${q.id}')">查看</button><button onclick="window.vehicleQuoteApp.copy('${q.id}')">复制</button>${q.isFormal?`<button onclick="window.vehicleQuoteApp.printHistory('${q.id}')">PDF</button>`:""}</div></td></tr>`;
+        }
+        const meta=q.settingsSnapshot?._quoteMeta||{}, machine=(q.items||[]).map(item=>`${item.productSnapshot?.machineCategory||""} ${item.productSnapshot?.brand||""} ${item.productSnapshot?.model||""} ${item.productSnapshot?.productName||""}`.trim()).filter(Boolean).join("；"),port=q.terms?.port||q.terms?.destinationPort||"",qty=(q.items||[]).reduce((sum,item)=>sum+Number(item.priceSnapshot?.quantity||item.priceSnapshot?.values?.qty||0),0);
+        return `<tr><td><b>${escapeHtml(q.quote_number||"")}${q.version?` V${q.version}`:""}</b><small>${meta.documentType==="invoice"?"形式发票":"二手/常规设备报价"}</small></td><td>${escapeHtml(q.quote_date||"")}<small>${q.is_formal?"正式报价":escapeHtml(q.status||"草稿")}</small></td><td>${escapeHtml(q.buyer?.company||q.buyer?.contact||"-")}</td><td>${escapeHtml(q.buyer?.country||"-")}<small>${escapeHtml(port)}</small></td><td class="history-machine">${escapeHtml(machine||"未填写机器")}</td><td>${qty||q.items?.length||0} 台/项</td><td>${escapeHtml(meta.currency||q.items?.[0]?.priceSnapshot?.currency||"USD")} ${Number(q.total_amount||0).toLocaleString()}</td><td><div class="history-actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制</button>${q.is_formal?`<button onclick="window.quoteApp.printStandardHistory('${q.id}')">PDF</button>`:""}</div></td></tr>`;
+      }).join("")||`<tr><td colspan="8" class="empty">没有找到历史报价。</td></tr>`;
+    } catch (error) { $("unified-history-list").innerHTML = `<tr><td colspan="8" class="empty">${escapeHtml(error.message)}</td></tr>`; }
+  }
+
+  async function printStandardHistory(id) {
+    await editQuote(id);
+    exportPdf();
+  }
+
+  function renderVehiclePreview(data = {}) {
+    window.__lastVehicleQuotePreview = data;
+    const host = $("vq-preview"); if (!host) return;
+    const buyer = data.buyer || {}, currency = data.currency || "USD";
+    const title = data.documentType === "proforma" ? "PROFORMA INVOICE / 形式发票" : "QUOTATION / 报价单";
+    const rows = (data.items || []).map((item, index) => { const pictures=[item.vehicleType?.image_path,item.chassis?.image_path,item.superstructure?.image_path,...(item.attachments||[]).map(x=>x.image_path)].filter(Boolean); const extras=[...(item.options||[]).map(x=>x.name_en||x.name_zh),...(item.attachments||[]).map(x=>`${x.name_en||x.name_zh} ${x.brand||""} ${x.model||""}`)].filter(Boolean).join("; "); return `<tr class="${pictures.length?"preview-row-with-image":""}"><td>${index + 1}</td><td class="vehicle-preview-images">${pictures.slice(0,2).map(path=>`<img src="${path}" alt="">`).join("")}</td><td>${escapeHtml(item.vehicleType?.name_en || item.vehicleType?.name_zh || "")}</td><td>${escapeHtml(`${item.chassis?.brand || ""} ${item.chassis?.model || ""} ${item.chassis?.drive_type || ""}`)}</td><td>${escapeHtml(`${item.superstructure?.brand || ""} ${item.superstructure?.model || ""}`)}${extras?`<small>${escapeHtml(extras)}</small>`:""}</td><td>${escapeHtml(Object.values(item.specs || {}).filter(Boolean).join(" / "))}</td><td>${Number(item.quantity || 0)}</td><td>${escapeHtml(currency)} ${Number(item.unitPrice || 0).toLocaleString()}</td><td>${escapeHtml(currency)} ${Number(item.lineTotal || 0).toLocaleString()}</td></tr>`; }).join("");
+    const bg = settings.backgroundDataUrl || defaultBg;
+    host.className = `quote-preview quote-style-${settings.quoteStyle || "classic"} vehicle-document-preview`;
+    host.innerHTML = `<section class="preview-banner"><img class="preview-banner-bg" src="${bg}" alt=""><div class="preview-company">${settings.logoDataUrl?`<img src="${settings.logoDataUrl}">`:""}<div><h2>${escapeHtml(settings.companyNameEn)}</h2><p>${escapeHtml(settings.companyNameZh)}</p></div></div>${renderCompanyContactPreview()}</section><section class="preview-top"><div class="preview-title"><h2>${title}</h2><p>${escapeHtml(settings.businessLineEn || "")}</p></div><div class="preview-meta"><p>Date / 日期：${escapeHtml(data.quoteDate || "")}</p><p>Valid Until / 有效期：${escapeHtml(data.validUntil || "")}</p></div></section><section class="preview-panel"><h3>Customer Information / 客户信息</h3><div class="preview-fields"><p>Company / 公司：${escapeHtml(buyer.company || "")}</p><p>Contact / 联系人：${escapeHtml(buyer.contact || "")}</p><p>Country / 国家：${escapeHtml(buyer.country || "")}</p><p>WhatsApp：${escapeHtml(buyer.phone || "")}</p><p>Destination Port / 目的港：${escapeHtml(buyer.destinationPort || "")}</p></div></section><section class="preview-panel"><h3>Vehicle Details / 车辆明细</h3><table><thead><tr><th>#</th><th>Picture</th><th>Vehicle</th><th>Chassis</th><th>Superstructure / Options</th><th>Specifications</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody>${rows||'<tr><td colspan="9">请添加车辆配置</td></tr>'}</tbody></table><div class="preview-total">TOTAL / 总金额：${escapeHtml(currency)} ${Number(data.finalTotal || 0).toLocaleString()}</div></section><section class="preview-panel terms-panel"><div class="terms-content"><h3>Terms / 条款</h3><p>${escapeHtml(data.terms?.text || "")}</p><p>Freight / 运费：${escapeHtml(currency)} ${Number(data.fees?.freight || 0).toLocaleString()}</p><p>Tax / 税费：${escapeHtml(currency)} ${Number(data.fees?.tax || 0).toLocaleString()}</p></div>${settings.stampDataUrl?`<div class="stamp-box"><img src="${settings.stampDataUrl}"><span>Company Stamp / 公司公章</span></div>`:""}</section>${renderBankPreview()}`;
+  }
+
+  function printVehicleQuote() {
+    renderVehiclePreview(window.__lastVehicleQuotePreview || {});
+    document.body.classList.add("printing-vehicle-quote"); window.print();
+    setTimeout(() => document.body.classList.remove("printing-vehicle-quote"), 300);
+  }
+
+  function recognizeCustomerText() {
+    const raw=$("customer-paste-text")?.value.trim();
+    if(!raw)return toast("请先粘贴客户信息。");
+    const result={company:"",contact:"",phone:"",email:"",country:"",address:""};
+    const lines=raw.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+    const take=(line,pattern)=>line.replace(pattern,"").replace(/^\s*[:：\-]\s*/,"").trim();
+    for(const line of lines){
+      if(!result.email){const match=line.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);if(match)result.email=match[0];}
+      if(!result.phone){const match=line.match(/(?:\+|00)?\d[\d\s()\-]{7,}\d/);if(match)result.phone=match[0].replace(/\s+/g," ").trim();}
+      if(/^(company|公司|企业|organization|organisation)\b/i.test(line))result.company=take(line,/^(company|公司|企业|organization|organisation)\b/i);
+      else if(/^(contact|contact person|name|联系人|姓名|负责人)\b/i.test(line))result.contact=take(line,/^(contact person|contact|name|联系人|姓名|负责人)\b/i);
+      else if(/^(phone|tel|telephone|mobile|whatsapp|电话|手机|手机号)\b/i.test(line))result.phone=take(line,/^(phone|tel|telephone|mobile|whatsapp|电话|手机|手机号)\b/i);
+      else if(/^(email|e-mail|邮箱|邮件)\b/i.test(line))result.email=take(line,/^(email|e-mail|邮箱|邮件)\b/i);
+      else if(/^(country|国家|地区)\b/i.test(line))result.country=take(line,/^(country|国家|地区)\b/i);
+      else if(/^(address|地址|company address)\b/i.test(line))result.address=take(line,/^(company address|address|地址)\b/i);
+    }
+    const plain=lines.filter(line=>!/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(line)&&!/(?:\+|00)?\d[\d\s()\-]{7,}\d/.test(line)&&!/:|：/.test(line));
+    if(!result.company&&plain.length)result.company=plain[0];
+    if(!result.contact&&plain.length>1)result.contact=plain[1];
+    const fields={"buyer-company":result.company,"buyer-contact":result.contact,"buyer-phone":result.phone,"buyer-email":result.email,"buyer-country":result.country,"buyer-address":result.address};
+    let count=0;Object.entries(fields).forEach(([id,value])=>{if(value&&$(id)){ $(id).value=value;count+=1; }});
+    if($("customer-recognize-result"))$("customer-recognize-result").textContent=count?`已识别并填入 ${count} 项，请检查后保存。`:`没有识别到明确字段，建议按“Company: ...”格式粘贴。`;
+    collectQuoteFromForm();renderPreview();
   }
 
   function bindEvents() {
     document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
     document.querySelectorAll("[data-view-target]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.viewTarget)));
+    $("quote-business-standard")?.addEventListener("click", () => setQuoteBusiness("standard"));
+    $("quote-business-vehicle")?.addEventListener("click", () => setQuoteBusiness("vehicle"));
+    $("recognize-customer-text-btn")?.addEventListener("click",recognizeCustomerText);
+    $("quote-customer")?.addEventListener("change", async () => {
+      const id = $("quote-customer").value;
+      currentQuote.customerId = id || null;
+      if (!id) return;
+      try {
+        const customer = await api(`/api/customers/${id}`);
+        const values = {
+          "buyer-country": customer.country,
+          "buyer-company": customer.company || customer.company_name,
+          "buyer-contact": customer.name || customer.contact,
+          "buyer-phone": customer.phone,
+          "buyer-email": customer.email,
+          "buyer-address": customer.address
+        };
+        Object.entries(values).forEach(([field, value]) => { if ($(field)) $(field).value = value || ""; });
+        collectQuoteFromForm();
+        renderPreview();
+        window.vehicleQuoteApp?.importShared?.();
+      } catch (error) { toast(error.message); }
+    });
+    $("global-back-btn").addEventListener("click", goBackInsideApp);
     $("login-btn").addEventListener("click", () => login($("login-username").value.trim(), $("login-password").value));
     ["login-username", "login-password"].forEach((id) => {
       $(id).addEventListener("keydown", (event) => {
@@ -4422,14 +4976,29 @@
       });
     });
     $("logout-btn").addEventListener("click", logout);
+    $("home-logout-btn")?.addEventListener("click", logout);
+    $("home-help-btn")?.addEventListener("click", () => switchView("help"));
     $("sidebar-toggle-btn").addEventListener("click", toggleSidebar);
     document.querySelectorAll(".settings-tab").forEach((button) => {
       button.addEventListener("click", () => showSettingsSection(button.dataset.settingsSection));
     });
     $("template-select").addEventListener("change", () => fillTemplateForm());
+    $("category-config-select")?.addEventListener("change", () => fillTemplateForm());
+    $("category-condition-select")?.addEventListener("change", () => fillTemplateForm());
+    $("category-field-library")?.addEventListener("click", (event) => {
+      const button=event.target.closest("[data-category-field]"); if(!button)return;
+      const fields=categoryFieldConfig(), index=fields.findIndex(f=>f.fieldKey===button.dataset.categoryField);
+      if(index>=0) fields.splice(index,1);
+      else {
+        const source=[...defaultTemplates.flatMap(t=>t.fields||[]),...settings.templates.flatMap(t=>t.fields||[])].find(f=>f.fieldKey===button.dataset.categoryField);
+        if(source) fields.push({...normalizeField(source),sortOrder:(fields.length+1)*10});
+      }
+      resequenceFields(fields); renderFieldList(); renderCategoryFieldLibrary();
+    });
     $("save-template-btn").addEventListener("click", saveTemplate);
     $("delete-template-btn").addEventListener("click", deleteTemplate);
     $("add-category-btn").addEventListener("click", () => openCategoryModal(-1));
+    $("quick-add-product-category")?.addEventListener("click",()=>{quickCategoryForProduct=true;openCategoryModal(-1);});
     $("close-category-modal-btn").addEventListener("click", closeCategoryModal);
     $("save-category-btn").addEventListener("click", saveCategoryFromModal);
     $("category-list").addEventListener("click", handleCategoryListClick);
@@ -4454,6 +5023,7 @@
     $("export-data-btn").addEventListener("click", exportAllData);
     $("import-data-btn").addEventListener("click", importData);
     $("open-data-dir-btn").addEventListener("click", openDataFolder);
+    $("refresh-admin-overview-btn")?.addEventListener("click", renderAdminOverview);
     $("logo-input").addEventListener("change", e => updateSettingsAsset(e.target, "logoDataUrl", "Logo uploaded. / Logo 已上传。"));
     $("background-input").addEventListener("change", e => updateSettingsAsset(e.target, "backgroundDataUrl", "Background uploaded. / 背景图已上传。"));
     $("stamp-input").addEventListener("change", e => updateSettingsAsset(e.target, "stampDataUrl", "Electronic seal uploaded. / 电子公章已上传。"));
@@ -4462,12 +5032,18 @@
     $("remove-stamp-btn").addEventListener("click", () => clearSettingsAsset("stampDataUrl", "Electronic seal removed. / 电子公章已删除。"));
     $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; });
     $("product-template").addEventListener("change", () => renderProductDynamicFields());
+    $("product-category")?.addEventListener("change", () => renderProductDynamicFields());
     $("save-product-btn").addEventListener("click", saveProduct);
     $("clear-product-btn").addEventListener("click", clearProductForm);
     $("price-import-file").addEventListener("change", async e => loadPriceImportFile(e.target.files[0]));
     $("import-price-btn").addEventListener("click", importPriceList);
     $("clear-import-text-btn").addEventListener("click", () => { $("price-import-text").value = ""; $("price-import-result").textContent = ""; });
+    $("import-machinery-reference-btn")?.addEventListener("click", () => importMachineryReferenceProducts("machinery-reference-result"));
+    $("export-product-catalog-pdf-btn")?.addEventListener("click", exportProductCatalogPdf);
+    $("import-machinery-reference-tab-btn")?.addEventListener("click", () => importMachineryReferenceProducts("machinery-reference-tab-result"));
+    $("export-product-catalog-pdf-tab-btn")?.addEventListener("click", exportProductCatalogPdf);
     $("product-search").addEventListener("input", renderProducts);
+    $("product-category-filter")?.addEventListener("change", renderProducts);
     $("open-product-picker-btn").addEventListener("click", openProductPicker);
     $("close-product-picker-btn").addEventListener("click", closeProductPicker);
     $("product-picker-search").addEventListener("input", renderProductPicker);
@@ -4483,7 +5059,14 @@
     $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
     $("buyer-phone").addEventListener("paste", pastePlainTextIntoInput);
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
-    $("quote-items").addEventListener("input", () => { updateQuoteLineAmounts(); renderPreview(); });
+    $("quote-items").addEventListener("input", (event) => {
+      const row=event.target.closest(".quote-line");
+      if(row && event.target.dataset.qfield && event.target.dataset.qfield!=="hsCode"){
+        const hsInput=row.querySelector('[data-qfield="hsCode"]');
+        if(hsInput && !hsInput.value.trim())hsInput.value=suggestedHsCode(...[...row.querySelectorAll('[data-qfield="productType"],[data-qfield="description"],[data-qfield="brand"],[data-qfield="model"]')].map(input=>input.value));
+      }
+      updateQuoteLineAmounts(); renderPreview();
+    });
     $("quote-items").addEventListener("change", async e => {
       if (e.target.matches(".quote-line-image-input")) {
         const img = await normalizeImage(e.target.files[0]);
@@ -4495,6 +5078,7 @@
             preview.src = img;
             preview.hidden = false;
           }
+          row.classList.add("has-product-image");
         }
       }
       if (e.target.matches(".quote-image-input")) {
@@ -4503,6 +5087,11 @@
         if (prev) { prev.src = img; prev.dataset.image = img; }
       }
       updateQuoteLineAmounts();
+      if (e.target.matches(".quote-condition-select")) {
+        const row=e.target.closest(".quote-line"),details=row?.querySelector(".new-detail-fields"),engine=row?.querySelector('[data-qfield="engine"]');
+        if(details)details.hidden=!isNewCondition(e.target.value);
+        if(engine)engine.hidden=e.target.value!=="new-truck";
+      }
       renderPreview();
     });
     $("quote-items").addEventListener("click", e => {
@@ -4525,6 +5114,7 @@
             preview.src = "";
             preview.hidden = true;
           }
+          row.classList.remove("has-product-image");
         }
         renderPreview();
       }
@@ -4537,7 +5127,8 @@
       }
       renderPreview();
     });
-    $("save-quote-btn").addEventListener("click", saveQuote);
+    $("save-quote-btn").addEventListener("click",()=>saveQuote(false));
+    $("formalize-standard-quote-btn")?.addEventListener("click",()=>saveQuote(true));
     $("export-pdf-btn").addEventListener("click", exportPdf);
     $("new-quote-btn").addEventListener("click", () => {
       if (currentQuote?.quoteNumber) syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
@@ -4561,6 +5152,7 @@
     });
     $("history-search-btn").addEventListener("click", renderHistory);
     $("refresh-ports-btn").addEventListener("click", renderPorts);
+    $("port-region-tabs")?.addEventListener("click",e=>{const b=e.target.closest("[data-region]");if(!b)return;$("port-region-tabs").dataset.active=b.dataset.region;renderPorts();});
     $("save-port-btn").addEventListener("click", savePort);
     $("clear-port-btn").addEventListener("click", clearPortForm);
     $("port-list").addEventListener("click", handlePortAction);
@@ -4574,8 +5166,13 @@
       $("calc-method").value = product?.transportMethod || "Bulk Cargo";
     });
     $("auto-calc-freight-btn").addEventListener("click", autoCalculateFreight);
+    $("add-logistics-fee-btn")?.addEventListener("click",()=>addLogisticsFee("其他费用",""));
+    $("logistics-fee-list")?.addEventListener("click",e=>{if(e.target.matches("[data-remove-fee]"))e.target.closest(".logistics-fee-row").remove();});
     $("copy-freight-amount-btn").addEventListener("click", copyFreightAmount);
     $("use-freight-in-quote-btn").addEventListener("click", useFreightInQuotation);
+    $("freight-to-used-btn")?.addEventListener("click",()=>{$("freight-import-modal").hidden=true;importFreightToUsed();});
+    $("freight-to-new-btn")?.addEventListener("click",()=>{$("freight-import-modal").hidden=true;window.vehicleQuoteApp?.importLogistics?.(structuredClone(lastFreightCalculation));switchView("vehicle-quote");});
+    $("freight-import-cancel")?.addEventListener("click",()=>$("freight-import-modal").hidden=true);
     window.addEventListener("beforeprint", applyPrintTitle);
     document.addEventListener("click", (event) => {
       if (event.target.id === "save-user-btn") saveUser();
@@ -4624,6 +5221,7 @@
     $("login-username").value = "";
     $("login-password").value = "";
     bindEvents();
+    setupUnifiedQuoteWorkspace();
     applySidebarState();
     removeLegacyCostFields();
     renderAllSelectors();
@@ -4635,7 +5233,7 @@
     applyAuthLock();
   }
 
-  window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote };
+  window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote, printStandardHistory, importMachineryReferenceProducts, exportProductCatalogPdf, renderVehiclePreview, printVehicleQuote };
   ["crm-module-btn", "crm-entry-btn"].forEach((id) => {
     const button = $(id);
     if (button) button.addEventListener("click", () => {

@@ -5,6 +5,8 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const { db, id, now, normalize, dbPath } = require("./db");
 const { dataDir, uploadDir, backupDir, exportDir, browserStatePath, ensureDir } = require("./paths");
+const { installVehicleQuoteRoutes } = require("./vehicle-quotes");
+const { installSpecImportRoutes } = require("./spec-import");
 
 const app = express();
 const PORT = Number(process.env.PORT || 8765);
@@ -18,6 +20,14 @@ app.use(session({
   saveUninitialized: false
 }));
 app.use("/uploads", express.static(uploadDir));
+app.post("/api/uploads/image", requireLogin, requireAdmin, express.raw({ type: ["image/jpeg","image/png","image/webp"], limit: "8mb" }), (req, res) => {
+  const types = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+  const extension = types[String(req.headers["content-type"] || "").split(";")[0]];
+  if (!extension || !Buffer.isBuffer(req.body) || !req.body.length) return fail(res, 400, "Invalid image.", "请选择 JPG、PNG 或 WebP 图片。");
+  const fileName = `vehicle-${Date.now()}-${Math.random().toString(36).slice(2,8)}${extension}`;
+  fs.writeFileSync(path.join(uploadDir, fileName), req.body);
+  ok(res, { path: `/uploads/${fileName}`, zh: "图片上传成功。" });
+});
 app.use("/crm", (req, res, next) => {
   if (req.session.user) return next();
   return res.redirect("/");
@@ -143,6 +153,12 @@ function rowToFreight(row) {
     effectiveStartDate: row.effective_start_date || "",
     effectiveEndDate: row.effective_end_date || "",
     freightForwarder: row.freight_forwarder || "",
+    billingMode: row.billing_mode || "cbm",
+    containerType: row.container_type || "",
+    partnerId: row.partner_id || "",
+    includedFees: JSON.parse(row.included_fees_json || "[]"),
+    excludedFees: JSON.parse(row.excluded_fees_json || "[]"),
+    minimumCharge: Number(row.minimum_charge || 0),
     remark: row.remark || "",
     status: row.status || "Active",
     createdAt: row.created_at,
@@ -277,8 +293,14 @@ app.delete("/api/users/:id", requireLogin, requireAdmin, (req, res) => {
   if (existing.username === "admin" || existing.id === req.session.user.id) {
     return fail(res, 400, "This account cannot be deleted.", "该账号不能删除。");
   }
-  db.prepare("UPDATE users SET status='Inactive', updated_at=? WHERE id=?").run(now(), req.params.id);
-  ok(res, { mode: "inactive", message: "Marked as inactive successfully.", zh: "已成功标记为停用。" });
+  db.prepare("DELETE FROM users WHERE id=?").run(req.params.id);
+  ok(res, { mode: "deleted", message: "Deleted successfully.", zh: "账号已永久删除。" });
+});
+
+app.get("/api/admin/overview", requireLogin, requireAdmin, (req, res) => {
+  const count = table => db.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count;
+  const audits = db.prepare("SELECT a.*,u.username FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 100").all();
+  ok(res, { counts:{ users:count("users"),customers:count("customers"),products:count("products"),quotations:count("quotations"),vehicleQuotes:count("quote_versions"),followUps:count("follow_ups"),freightRates:count("freight_rates") }, audits });
 });
 app.get("/api/products", requireLogin, (req, res) => {
   const q = normalize(req.query.keyword || "");
@@ -317,6 +339,77 @@ app.post("/api/products", requireLogin, (req, res) => {
     VALUES (@id, @category, @brand, @model, @aliases, @condition, @transportLength, @transportWidth, @transportHeight, @transportCbm, @dimensionUnit, @weight, @transportMethod, @referencePrice, @params, @remark, @imagePath, @status, @searchText, @createdAt, @updatedAt)`)
     .run({ id: productId, ...payload, searchText: productSearchText(payload), createdAt: now(), updatedAt: now() });
   ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(productId)), message: "Saved successfully.", zh: "保存成功。" });
+});
+
+app.post("/api/products/bulk-upsert", requireLogin, (req, res) => {
+  const rows = Array.isArray(req.body?.products) ? req.body.products : [];
+  if (!rows.length) return fail(res, 400, "No products to import.", "没有可导入的产品。");
+  if (rows.length > 5000) return fail(res, 400, "Too many products in one import.", "单次导入产品数量过多。");
+
+  const existingRows = db.prepare("SELECT * FROM products").all();
+  const existingByKey = new Map(existingRows.map((row) => [normalize(`${row.category}|${row.brand}|${row.model}`), row]));
+  const selectProduct = db.prepare("SELECT * FROM products WHERE id = ?");
+  const insertProduct = db.prepare(`INSERT INTO products
+    (id, category, brand, model, aliases, condition, transport_length, transport_width, transport_height, transport_cbm, dimension_unit, weight, transport_method, reference_price, params, remark, image_path, status, search_text, created_at, updated_at)
+    VALUES (@id, @category, @brand, @model, @aliases, @condition, @transportLength, @transportWidth, @transportHeight, @transportCbm, @dimensionUnit, @weight, @transportMethod, @referencePrice, @params, @remark, @imagePath, @status, @searchText, @createdAt, @updatedAt)`);
+  const updateProduct = db.prepare(`UPDATE products SET category=@category, brand=@brand, model=@model, aliases=@aliases, condition=@condition,
+    transport_length=@transportLength, transport_width=@transportWidth, transport_height=@transportHeight, transport_cbm=@transportCbm,
+    dimension_unit=@dimensionUnit, weight=@weight, transport_method=@transportMethod, reference_price=@referencePrice, params=@params,
+    remark=@remark, image_path=@imagePath, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`);
+
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+  const importedIds = [];
+  const upsert = db.transaction((items) => {
+    items.forEach((p) => {
+      const category = String(p.category || "").trim();
+      const brand = String(p.brand || "").trim();
+      const model = String(p.model || "").trim();
+      if (!brand && !model) {
+        skipped += 1;
+        return;
+      }
+      const key = normalize(`${category}|${brand}|${model}`);
+      const existing = existingByKey.get(key);
+      const payload = {
+        id: existing?.id || p.id || id("product"),
+        category,
+        brand,
+        model,
+        aliases: p.aliases || existing?.aliases || "",
+        condition: p.condition || existing?.condition || "Used",
+        transportLength: p.transportLength ?? existing?.transport_length ?? null,
+        transportWidth: p.transportWidth ?? existing?.transport_width ?? null,
+        transportHeight: p.transportHeight ?? existing?.transport_height ?? null,
+        transportCbm: p.transportCbm ?? existing?.transport_cbm ?? calculateCbm(p.transportLength, p.transportWidth, p.transportHeight, p.dimensionUnit) ?? null,
+        dimensionUnit: p.dimensionUnit || existing?.dimension_unit || "meter",
+        weight: p.weight ?? existing?.weight ?? null,
+        transportMethod: p.transportMethod || existing?.transport_method || "Bulk Cargo",
+        referencePrice: p.referencePrice || existing?.reference_price || null,
+        params: p.params || existing?.params || "",
+        remark: p.remark || existing?.remark || "",
+        imagePath: existing?.image_path || p.imagePath || "",
+        status: p.status || existing?.status || "Active",
+        createdAt: existing?.created_at || now(),
+        updatedAt: now()
+      };
+      payload.searchText = productSearchText(payload);
+      if (existing) {
+        updateProduct.run(payload);
+        updated += 1;
+      } else {
+        insertProduct.run(payload);
+        existingByKey.set(key, { id: payload.id, category, brand, model });
+        added += 1;
+      }
+      importedIds.push(payload.id);
+    });
+  });
+
+  upsert(rows);
+  const products = importedIds.map((productId) => rowToProduct(selectProduct.get(productId))).filter(Boolean);
+  ok(res, { added, updated, skipped, products, message: "Import completed.", zh: "导入完成。" });
 });
 
 app.put("/api/products/:id", requireLogin, (req, res) => {
@@ -542,13 +635,21 @@ app.post("/api/freight-rates/copy-month", requireLogin, requireAdmin, (req, res)
 });
 
 app.post("/api/freight/calculate", requireLogin, (req, res) => {
-  const { transportCbm, freightRate, quantity } = req.body || {};
-  const amount = freightAmount(transportCbm, freightRate, quantity);
+  const body=req.body||{}, mode=body.billingMode||"cbm", quantity=Number(body.quantity||1), rate=Number(body.freightRate||0);
+  let base=0, formula="";
+  if(mode==="container"){const count=Number(body.containerCount||1);base=count*rate;formula=`${count} × ${rate}`;}
+  else if(mode==="fixed"){base=rate*quantity;formula=`${rate} × ${quantity}`;}
+  else {base=freightAmount(body.transportCbm,rate,quantity);formula=`${body.transportCbm||0} × ${rate} × ${quantity}`;}
+  const fees=(Array.isArray(body.fees)?body.fees:[]).map(f=>({name:f.name||"其他费用",mode:f.mode==="percent"?"percent":"amount",value:Number(f.value||0),amount:f.mode==="percent"?Math.round(base*Number(f.value||0))/100:Number(f.value||0),includeInTotal:f.includeInTotal!==false}));
+  const extras=fees.filter(f=>f.includeInTotal).reduce((s,f)=>s+f.amount,0),amount=Math.round((base+extras)*100)/100;
   ok(res, {
-    freightAmount: amount,
-    calculationFormula: `${transportCbm || 0} × ${freightRate || 0} × ${quantity || 1} = ${amount} USD`
+    baseFreight:Math.round(base*100)/100,fees,freightAmount:amount,
+    calculationFormula: `${formula} + ${extras} = ${amount} ${body.currency||"USD"}`
   });
 });
+
+app.get("/api/logistics/partners",requireLogin,(req,res)=>ok(res,{partners:db.prepare("SELECT * FROM logistics_partners WHERE status='Active' ORDER BY company_name").all()}));
+app.post("/api/logistics/partners",requireLogin,requireAdmin,(req,res)=>{const b=req.body||{},pid=id("partner");if(!b.companyName)return fail(res,400,"Company required.","请填写物流合作伙伴名称。");db.prepare("INSERT INTO logistics_partners (id,company_name,contact_name,phone,email,wechat,status,remark,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)").run(pid,b.companyName,b.contactName||"",b.phone||"",b.email||"",b.wechat||"",b.status||"Active",b.remark||"",now(),now());ok(res,{id:pid});});
 
 app.get("/api/settings", requireLogin, (req, res) => {
   const row = db.prepare("SELECT data_json FROM company_settings WHERE id=1").get();
@@ -562,30 +663,50 @@ app.put("/api/settings", requireLogin, requireAdmin, (req, res) => {
 
 app.post("/api/quotations", requireLogin, (req, res) => {
   const q = req.body || {};
-  const quoteId = q.id || id("quote");
+  const formal=!!q.formal;
+  const seriesId=q.seriesId || q.id || id("standard-series");
+  const latestVersion=formal ? Number(db.prepare("SELECT COALESCE(MAX(version),0) version FROM quotations WHERE series_id=?").get(seriesId).version) : 0;
+  const version=formal ? latestVersion+1 : Number(q.version || 0);
+  const quoteId=formal ? id("quote-version") : (q.isFormal ? id("quote-draft") : (q.id || id("quote")));
   const items = q.items || [];
   const totalMachinePrice = items.reduce((sum, item) => sum + Number(item.machineAmount || 0), 0);
   const totalFreight = items.reduce((sum, item) => sum + (item.includeFreightInTotal === false ? 0 : Number(item.freightSnapshot?.freightAmount || 0)), 0);
-  db.prepare(`INSERT OR REPLACE INTO quotations (id, customer_id, quote_number, status, buyer_json, settings_snapshot_json, terms_json, total_machine_price, total_freight, total_amount, include_freight_in_total, show_freight_detail_in_pdf, quote_date, valid_until, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM quotations WHERE id=?), ?), ?)`)
-    .run(quoteId, q.customerId || null, q.quoteNumber, q.status || "Draft", JSON.stringify(q.buyer || {}), JSON.stringify(q.settingsSnapshot || {}), JSON.stringify(q.terms || {}), totalMachinePrice, totalFreight, totalMachinePrice + totalFreight, q.includeFreightInTotal === false ? 0 : 1, q.showFreightDetailInPdf ? 1 : 0, q.quoteDate || now().slice(0, 10), q.validUntil || "", quoteId, now(), now());
+  const settingsSnapshot = { ...(q.settingsSnapshot || {}), _quoteMeta:{ documentType:q.documentType || "quotation", pdfLanguage:q.pdfLanguage || "bilingual", currency:q.currency || "USD", validityRangeText:q.validityRangeText || "" } };
+  db.prepare(`INSERT OR REPLACE INTO quotations (id, customer_id, quote_number, status, buyer_json, settings_snapshot_json, terms_json, total_machine_price, total_freight, total_amount, include_freight_in_total, show_freight_detail_in_pdf, quote_date, valid_until, series_id, version, is_formal, source_quote_id, formalized_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM quotations WHERE id=?), ?), ?)`)
+    .run(quoteId, q.customerId || null, q.quoteNumber, formal?"Formal":(q.status || "Draft"), JSON.stringify(q.buyer || {}), JSON.stringify(settingsSnapshot), JSON.stringify(q.terms || {}), totalMachinePrice, totalFreight, totalMachinePrice + totalFreight, q.includeFreightInTotal === false ? 0 : 1, q.showFreightDetailInPdf ? 1 : 0, q.quoteDate || now().slice(0, 10), q.validUntil || "", seriesId, version, formal?1:0,q.sourceQuoteId||"",formal?now():null,quoteId,now(),now());
   db.prepare("DELETE FROM quotation_items WHERE quotation_id=?").run(quoteId);
   const insertItem = db.prepare(`INSERT INTO quotation_items (id, quotation_id, product_id, product_snapshot_json, price_snapshot_json, freight_snapshot_json, include_freight_in_total, sort_order, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  items.forEach((item, index) => insertItem.run(item.id || id("item"), quoteId, item.productId || "", JSON.stringify(item.productSnapshot || {}), JSON.stringify(item.priceSnapshot || {}), JSON.stringify(item.freightSnapshot || {}), item.includeFreightInTotal === false ? 0 : 1, index, now(), now()));
-  ok(res, { id: quoteId, message: "Quotation saved successfully.", zh: "报价保存成功。" });
+  items.forEach((item, index) => insertItem.run(formal ? id("item") : (item.id || id("item")), quoteId, item.productId || "", JSON.stringify(item.productSnapshot || {}), JSON.stringify(item.priceSnapshot || {}), JSON.stringify(item.freightSnapshot || {}), item.includeFreightInTotal === false ? 0 : 1, index, now(), now()));
+  if(formal && q.customerId){const customer=db.prepare("SELECT stage,grade,next_follow_up,next_follow_purpose FROM customers WHERE id=?").get(q.customerId);if(customer){db.prepare("UPDATE customers SET stage='报价评估中',updated_at=? WHERE id=?").run(now(),q.customerId);db.prepare("INSERT INTO follow_ups (customer_id,content,contact_type,outcome,old_stage,new_stage,old_grade,new_grade,next_follow_up,next_follow_purpose,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(q.customerId,`生成正式报价 ${q.quoteNumber} V${version}，金额 ${q.currency||"USD"} ${totalMachinePrice+totalFreight}`,"系统","正式报价",customer.stage,"报价评估中",customer.grade,customer.grade,customer.next_follow_up,customer.next_follow_purpose,now());}}
+  if(formal)db.prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,before_json,after_json,reason,created_at) VALUES (?,?,?,?,?,?,?,?,?)").run(id("audit"),req.session.user.id,"create_formal_version","quotation",quoteId,JSON.stringify({sourceQuoteId:q.sourceQuoteId||q.id||""}),JSON.stringify({seriesId,version,total:totalMachinePrice+totalFreight}),"生成正式报价版本",now());
+  ok(res, { id: quoteId,seriesId,version,isFormal:formal, message: "Quotation saved successfully.", zh: formal?"正式报价版本已生成。":"报价保存成功。" });
 });
 
 app.get("/api/quotations", requireLogin, (req, res) => {
+  const keyword=String(req.query.q || "").trim().toLowerCase(), date=String(req.query.date || "").trim();
   const rows = db.prepare("SELECT * FROM quotations ORDER BY updated_at DESC").all();
-  ok(res, { quotations: rows.map((row) => ({ ...row, buyer: JSON.parse(row.buyer_json || "{}") })) });
+  const quotations=rows.map(row=>{
+    const buyer=JSON.parse(row.buyer_json || "{}"), terms=JSON.parse(row.terms_json || "{}"), settingsSnapshot=JSON.parse(row.settings_snapshot_json || "{}");
+    const items=db.prepare("SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY sort_order").all(row.id).map(item=>({
+      id:item.id, productId:item.product_id, productSnapshot:JSON.parse(item.product_snapshot_json || "{}"), priceSnapshot:JSON.parse(item.price_snapshot_json || "{}"), freightSnapshot:JSON.parse(item.freight_snapshot_json || "{}"), includeFreightInTotal:!!item.include_freight_in_total
+    }));
+    return {...row,buyer,terms,settingsSnapshot,items};
+  }).filter(row=>{
+    if(date && row.quote_date!==date)return false;
+    if(!keyword)return true;
+    const itemText=row.items.map(item=>`${item.productSnapshot.productName||""} ${item.productSnapshot.machineCategory||""} ${item.productSnapshot.brand||""} ${item.productSnapshot.model||""} ${Object.values(item.priceSnapshot.values||{}).join(" ")}`).join(" ");
+    return `${row.quote_number||""} ${row.buyer.company||""} ${row.buyer.contact||""} ${row.buyer.country||""} ${Object.values(row.terms||{}).join(" ")} ${itemText}`.toLowerCase().includes(keyword);
+  });
+  ok(res, { quotations });
 });
 
 app.get("/api/quotations/:id", requireLogin, (req, res) => {
   const quote = db.prepare("SELECT * FROM quotations WHERE id=?").get(req.params.id);
   if (!quote) return fail(res, 404, "Quotation not found.", "报价单不存在。");
   const items = db.prepare("SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY sort_order").all(req.params.id);
-  ok(res, { quotation: quote, items });
+  ok(res, { quotation:{...quote,buyer:JSON.parse(quote.buyer_json||"{}"),terms:JSON.parse(quote.terms_json||"{}"),settingsSnapshot:JSON.parse(quote.settings_snapshot_json||"{}")}, items:items.map(item=>({...item,productSnapshot:JSON.parse(item.product_snapshot_json||"{}"),priceSnapshot:JSON.parse(item.price_snapshot_json||"{}"),freightSnapshot:JSON.parse(item.freight_snapshot_json||"{}")})) });
 });
 
 app.delete("/api/quotations/:id", requireLogin, (req, res) => {
@@ -721,6 +842,21 @@ app.get("/api/customers/:id", requireLogin, (req, res) => {
   if (!customer) return res.status(404).json({ error: "客户不存在" });
   customer.follow_ups = db.prepare("SELECT * FROM follow_ups WHERE customer_id=? ORDER BY created_at DESC").all(req.params.id);
   customer.quotations = db.prepare("SELECT id, quote_number, status, total_amount, quote_date, updated_at FROM quotations WHERE customer_id=? ORDER BY updated_at DESC").all(req.params.id);
+  customer.vehicle_quotations = db.prepare(`SELECT v.id,v.version,v.status,v.currency,v.final_total,v.formalized_at,v.updated_at,s.quote_number
+    FROM quote_versions v JOIN quote_series s ON s.id=v.series_id WHERE v.customer_id=? ORDER BY COALESCE(v.formalized_at,v.updated_at) DESC`).all(req.params.id);
+  const parse=(text,fallback={})=>{try{return JSON.parse(text||"")}catch{return fallback}};
+  const ordinaryHistory=db.prepare("SELECT * FROM quotations WHERE customer_id=? ORDER BY updated_at DESC").all(req.params.id).map(q=>{
+    const terms=parse(q.terms_json),settingsSnapshot=parse(q.settings_snapshot_json),meta=settingsSnapshot._quoteMeta||{};
+    const items=db.prepare("SELECT product_snapshot_json,price_snapshot_json FROM quotation_items WHERE quotation_id=? ORDER BY sort_order").all(q.id).map(item=>({product:parse(item.product_snapshot_json),price:parse(item.price_snapshot_json)}));
+    return {id:q.id,type:"standard",seriesId:q.series_id||q.id,quoteNumber:q.quote_number,version:q.version||null,status:q.status,currency:meta.currency||items[0]?.price?.currency||"USD",total:q.total_amount,date:q.quote_date||q.updated_at,updatedAt:q.updated_at,formalizedAt:q.formalized_at||null,sourceQuoteId:q.source_quote_id||null,documentType:meta.documentType||"quotation",port:terms.port||terms.destinationPort||"",machineSummary:items.map(item=>`${item.product.machineCategory||""} ${item.product.brand||""} ${item.product.model||""} ${item.product.productName||""}`.trim()).filter(Boolean).join("；"),quantity:items.reduce((sum,item)=>sum+Number(item.price.quantity||item.price.values?.qty||0),0)};
+  });
+  const vehicleHistory=db.prepare(`SELECT v.*,s.quote_number,s.source_quote_id FROM quote_versions v JOIN quote_series s ON s.id=v.series_id WHERE v.customer_id=? ORDER BY COALESCE(v.formalized_at,v.updated_at) DESC`).all(req.params.id).map(q=>{
+    const snapshot=parse(q.snapshot_json),items=snapshot.items||[];
+    return {id:q.id,type:"vehicle",seriesId:q.series_id,quoteNumber:q.quote_number,version:q.version,status:q.status,currency:q.currency,total:q.final_total,date:snapshot.quoteDate||q.formalized_at||q.updated_at,updatedAt:q.updated_at,formalizedAt:q.formalized_at,sourceQuoteId:q.source_quote_id,documentType:snapshot.documentType||"quotation",port:snapshot.buyer?.destinationPort||snapshot.terms?.destinationPort||"",machineSummary:items.map(item=>`${item.vehicleType?.name_zh||item.vehicleType?.name_en||""} ${item.chassis?.brand||""} ${item.chassis?.model||""} ${item.chassis?.drive_type||""} / ${item.superstructure?.brand||""} ${item.superstructure?.model||""}`).join("；"),quantity:items.reduce((sum,item)=>sum+Number(item.quantity||0),0)};
+  });
+  customer.quote_history=[...ordinaryHistory,...vehicleHistory].sort((a,b)=>String(b.formalizedAt||b.updatedAt||b.date||"").localeCompare(String(a.formalizedAt||a.updatedAt||a.date||"")));
+  const latestBySeries=new Set();customer.quote_history.forEach((q,index)=>{q.isLatest=index===0;const key=q.type==="vehicle"?q.seriesId:q.id;q.isLatestVersion=!latestBySeries.has(key);latestBySeries.add(key)});
+  customer.quote_summary={total:customer.quote_history.length,formal:customer.quote_history.filter(q=>q.formalizedAt||q.status==="Formal"||q.status==="已发送").length,latest:customer.quote_history[0]||null};
   res.json(customer);
 });
 
@@ -729,9 +865,9 @@ app.post("/api/customers", requireLogin, (req, res) => {
   if (!String(body.name || "").trim()) return res.status(400).json({ error: "客户名称不能为空" });
   const timestamp = now();
   const result = db.prepare(`INSERT INTO customers
-    (name,phone,country,buyer_type,stage,grade,project_tags,equipment_tags,requirement,arrival_precision,arrival_value,next_follow_up,next_follow_purpose,whatsapp_number,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      String(body.name).trim(), body.phone || "", body.country || "", body.buyer_type || "公司买家",
+    (name,company,phone,country,buyer_type,stage,grade,project_tags,equipment_tags,requirement,arrival_precision,arrival_value,next_follow_up,next_follow_purpose,whatsapp_number,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      String(body.name).trim(), body.company || "", body.phone || "", body.country || "", body.buyer_type || "公司买家",
       body.stage || "需求确认中", body.grade || "B", JSON.stringify(body.project_tags || []),
       JSON.stringify(body.equipment_tags || []), body.requirement || "", body.arrival_precision || "none",
       body.arrival_value || "", body.next_follow_up || "", body.next_follow_purpose || "",
@@ -739,6 +875,9 @@ app.post("/api/customers", requireLogin, (req, res) => {
     );
   res.json({ id: Number(result.lastInsertRowid) });
 });
+
+installVehicleQuoteRoutes(app, { db, requireLogin, requireAdmin, ok, fail });
+installSpecImportRoutes(app, { requireLogin, requireAdmin, ok, fail });
 
 app.post("/api/customers/:id/followups", requireLogin, (req, res) => {
   const customer = db.prepare("SELECT * FROM customers WHERE id=?").get(req.params.id);

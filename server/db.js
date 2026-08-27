@@ -174,12 +174,112 @@ function runSchema() {
       created_at TEXT NOT NULL,
       FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS vehicle_types (
+      id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name_zh TEXT NOT NULL, name_en TEXT DEFAULT '',
+      image_path TEXT DEFAULT '', description_zh TEXT DEFAULT '', description_en TEXT DEFAULT '', quote_fields_json TEXT DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'Active', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS chassis (
+      id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, brand TEXT NOT NULL, series TEXT DEFAULT '', model TEXT NOT NULL,
+      drive_type TEXT DEFAULT '', engine TEXT DEFAULT '', horsepower TEXT DEFAULT '', emission TEXT DEFAULT '', wheelbase TEXT DEFAULT '',
+      cab TEXT DEFAULT '', capacity TEXT DEFAULT '', params_zh TEXT DEFAULT '{}', params_en TEXT DEFAULT '{}', image_path TEXT DEFAULT '',
+      currency TEXT DEFAULT 'USD', cost_price REAL DEFAULT 0, sale_price REAL DEFAULT 0, status TEXT NOT NULL DEFAULT 'Active',
+      search_text TEXT DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS superstructures (
+      id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, type TEXT DEFAULT '', brand TEXT NOT NULL, model TEXT NOT NULL,
+      rated_capacity TEXT DEFAULT '', boom_sections TEXT DEFAULT '', boom_length TEXT DEFAULT '', crane_form TEXT DEFAULT '', tank_capacity TEXT DEFAULT '',
+      params_zh TEXT DEFAULT '{}', params_en TEXT DEFAULT '{}', image_path TEXT DEFAULT '', currency TEXT DEFAULT 'USD',
+      cost_price REAL DEFAULT 0, sale_price REAL DEFAULT 0, status TEXT NOT NULL DEFAULT 'Active', search_text TEXT DEFAULT '',
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS vehicle_options (
+      id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name_zh TEXT NOT NULL, name_en TEXT DEFAULT '', params_zh TEXT DEFAULT '{}', params_en TEXT DEFAULT '{}',
+      currency TEXT DEFAULT 'USD', cost_price REAL DEFAULT 0, sale_price REAL DEFAULT 0, status TEXT NOT NULL DEFAULT 'Active',
+      search_text TEXT DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS vehicle_attachments (
+      id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name_zh TEXT NOT NULL, name_en TEXT DEFAULT '', attachment_type TEXT DEFAULT '',
+      brand TEXT DEFAULT '', model TEXT DEFAULT '', params_zh TEXT DEFAULT '{}', params_en TEXT DEFAULT '{}', image_path TEXT DEFAULT '',
+      transport_length REAL DEFAULT 0, transport_width REAL DEFAULT 0, transport_height REAL DEFAULT 0, transport_cbm REAL DEFAULT 0,
+      dimension_unit TEXT DEFAULT 'meter', weight REAL DEFAULT 0, currency TEXT DEFAULT 'USD', cost_price REAL DEFAULT 0, sale_price REAL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'Active', search_text TEXT DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS compatibility_rules (
+      id TEXT PRIMARY KEY, vehicle_type_id TEXT NOT NULL, chassis_id TEXT NOT NULL, superstructure_id TEXT NOT NULL,
+      price_mode TEXT NOT NULL DEFAULT 'standard', price_value REAL DEFAULT 0, currency TEXT DEFAULT 'USD', status TEXT NOT NULL DEFAULT 'Active',
+      transport_length REAL DEFAULT 0, transport_width REAL DEFAULT 0, transport_height REAL DEFAULT 0, transport_cbm REAL DEFAULT 0,
+      dimension_unit TEXT DEFAULT 'meter', transport_method TEXT DEFAULT 'Bulk Cargo',
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(vehicle_type_id, chassis_id, superstructure_id),
+      FOREIGN KEY(vehicle_type_id) REFERENCES vehicle_types(id), FOREIGN KEY(chassis_id) REFERENCES chassis(id),
+      FOREIGN KEY(superstructure_id) REFERENCES superstructures(id)
+    );
+    CREATE TABLE IF NOT EXISTS compatibility_options (
+      compatibility_id TEXT NOT NULL, option_id TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(compatibility_id, option_id), FOREIGN KEY(compatibility_id) REFERENCES compatibility_rules(id) ON DELETE CASCADE,
+      FOREIGN KEY(option_id) REFERENCES vehicle_options(id)
+    );
+    CREATE TABLE IF NOT EXISTS compatibility_attachments (
+      compatibility_id TEXT NOT NULL, attachment_id TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(compatibility_id, attachment_id), FOREIGN KEY(compatibility_id) REFERENCES compatibility_rules(id) ON DELETE CASCADE,
+      FOREIGN KEY(attachment_id) REFERENCES vehicle_attachments(id)
+    );
+    CREATE TABLE IF NOT EXISTS quote_series (
+      id TEXT PRIMARY KEY, quote_number TEXT UNIQUE NOT NULL, quote_type TEXT NOT NULL DEFAULT 'standard', customer_id INTEGER,
+      source_quote_id TEXT, created_by TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY(customer_id) REFERENCES customers(id)
+    );
+    CREATE TABLE IF NOT EXISTS quote_versions (
+      id TEXT PRIMARY KEY, series_id TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'Draft',
+      is_formal INTEGER NOT NULL DEFAULT 0, customer_id INTEGER, buyer_json TEXT NOT NULL DEFAULT '{}', currency TEXT NOT NULL DEFAULT 'USD',
+      terms_json TEXT NOT NULL DEFAULT '{}', fees_json TEXT NOT NULL DEFAULT '{}', subtotal REAL DEFAULT 0, final_total REAL DEFAULT 0,
+      snapshot_json TEXT NOT NULL DEFAULT '{}', search_text TEXT DEFAULT '', created_by TEXT, formalized_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(series_id, version), FOREIGN KEY(series_id) REFERENCES quote_series(id), FOREIGN KEY(customer_id) REFERENCES customers(id)
+    );
+    CREATE TABLE IF NOT EXISTS quote_vehicle_items (
+      id TEXT PRIMARY KEY, quote_version_id TEXT NOT NULL, compatibility_id TEXT, quantity INTEGER NOT NULL DEFAULT 1,
+      snapshot_json TEXT NOT NULL DEFAULT '{}', unit_price REAL DEFAULT 0, line_total REAL DEFAULT 0, sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(quote_version_id) REFERENCES quote_versions(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY, user_id TEXT, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
+      before_json TEXT DEFAULT '{}', after_json TEXT DEFAULT '{}', reason TEXT DEFAULT '', created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_quote_versions_search ON quote_versions(search_text);
+    CREATE INDEX IF NOT EXISTS idx_quote_versions_customer ON quote_versions(customer_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_quote_items_version ON quote_vehicle_items(quote_version_id);
   `);
 
   const quotationColumns = db.prepare("PRAGMA table_info(quotations)").all().map((column) => column.name);
   if (!quotationColumns.includes("customer_id")) {
     db.exec("ALTER TABLE quotations ADD COLUMN customer_id INTEGER REFERENCES customers(id)");
   }
+
+  const customerColumns = db.prepare("PRAGMA table_info(customers)").all().map((column) => column.name);
+  if (!customerColumns.includes("company")) db.exec("ALTER TABLE customers ADD COLUMN company TEXT DEFAULT ''");
+  const addColumns = (table, definitions) => {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name);
+    for (const [name, definition] of definitions) if (!columns.includes(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+  };
+  addColumns("vehicle_types", [["image_path","TEXT DEFAULT ''"],["description_zh","TEXT DEFAULT ''"],["description_en","TEXT DEFAULT ''"],["quote_fields_json","TEXT DEFAULT '[]'"]]);
+  addColumns("chassis", [["length","REAL DEFAULT 0"],["width","REAL DEFAULT 0"],["height","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'mm'"],["factory_price","REAL DEFAULT 0"]]);
+  addColumns("superstructures", [["length","REAL DEFAULT 0"],["width","REAL DEFAULT 0"],["height","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'mm'"],["factory_price","REAL DEFAULT 0"]]);
+  addColumns("compatibility_rules", [["transport_length","REAL DEFAULT 0"],["transport_width","REAL DEFAULT 0"],["transport_height","REAL DEFAULT 0"],["transport_cbm","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'meter'"],["transport_method","TEXT DEFAULT 'Bulk Cargo'"]]);
+  addColumns("freight_rates", [["billing_mode","TEXT DEFAULT 'cbm'"],["container_type","TEXT DEFAULT ''"],["partner_id","TEXT DEFAULT ''"],["included_fees_json","TEXT DEFAULT '[]'"],["excluded_fees_json","TEXT DEFAULT '[]'"],["minimum_charge","REAL DEFAULT 0"]]);
+  addColumns("quotations", [["logistics_snapshot_json","TEXT DEFAULT '{}'" ],["series_id","TEXT DEFAULT ''"],["version","INTEGER DEFAULT 0"],["is_formal","INTEGER DEFAULT 0"],["source_quote_id","TEXT DEFAULT ''"],["formalized_at","TEXT"]]);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_quotations_series_version ON quotations(series_id, version DESC)");
+  db.exec(`CREATE TABLE IF NOT EXISTS logistics_partners (
+    id TEXT PRIMARY KEY, company_name TEXT NOT NULL, contact_name TEXT, phone TEXT, email TEXT, wechat TEXT,
+    status TEXT NOT NULL DEFAULT 'Active', remark TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS logistics_calculations (
+    id TEXT PRIMARY KEY, product_id TEXT, origin_port_id TEXT, destination_port_id TEXT, freight_rate_id TEXT, partner_id TEXT,
+    shipping_method TEXT, billing_mode TEXT, container_type TEXT, quantity REAL DEFAULT 1, chargeable_cbm REAL DEFAULT 0,
+    container_count REAL DEFAULT 0, unit_rate REAL DEFAULT 0, base_freight REAL DEFAULT 0, fee_items_json TEXT DEFAULT '[]',
+    total_amount REAL DEFAULT 0, currency TEXT DEFAULT 'USD', snapshot_json TEXT NOT NULL, created_by TEXT, created_at TEXT NOT NULL
+  );`);
 }
 
 function id(prefix) {
@@ -394,7 +494,25 @@ function seed() {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     rates.forEach((r) => stmt.run(...r, normalize(r.join(" ")), now(), now()));
   }
+
+  if (!db.prepare("SELECT COUNT(*) AS count FROM vehicle_types").get().count) {
+    const rows = [["truck-crane","随车吊","Truck-mounted crane"],["garbage-compactor","垃圾压缩车","Garbage compactor truck"],["sewer-cleaner","清洗吸污车","Sewer cleaning truck"],["sprinkler","洒水车","Water sprinkler truck"],["fuel-tanker","油罐车","Fuel tanker truck"],["aerial-platform","高空作业车","Aerial work platform"]];
+    const stmt = db.prepare("INSERT INTO vehicle_types (id,code,name_zh,name_en,status,created_at,updated_at) VALUES (?,?,?,?, 'Active',?,?)");
+    rows.forEach(([code, zh, en]) => stmt.run(`vt-${code}`, code, zh, en, now(), now()));
+  }
+  const expandedVehicleTypes = [
+    ["truck-crane", "随车吊", "Truck-mounted Crane"], ["garbage-compactor", "垃圾压缩车", "Garbage Compactor Truck"],
+    ["sewer-cleaner", "清洗吸污车", "Sewer Cleaning Truck"], ["sprinkler", "洒水车/水罐车", "Water Tank Truck"],
+    ["fuel-tanker", "油罐车", "Fuel Tank Truck"], ["aerial-platform", "高空作业车", "Aerial Work Platform"],
+    ["dump-truck", "自卸卡车", "Dump Truck"], ["mining-dump-truck", "矿山自卸卡车", "Mining Dump Truck"],
+    ["tractor-head", "牵引车", "Tractor Head"], ["telehandler", "伸缩臂叉装车", "Telehandler"],
+    ["mobile-crane", "汽车起重机", "Mobile Crane"], ["crawler-crane", "履带吊", "Crawler Crane"],
+    ["special-vehicle", "其他特种车辆", "Other Special Purpose Vehicle"]
+  ];
+  const insertVehicleType = db.prepare("INSERT OR IGNORE INTO vehicle_types (id,code,name_zh,name_en,status,created_at,updated_at) VALUES (?,?,?,?, 'Active',?,?)");
+  expandedVehicleTypes.forEach(([code, zh, en]) => insertVehicleType.run(`vt-${code}`, code, zh, en, now(), now()));
 }
+
 
 runSchema();
 seed();
