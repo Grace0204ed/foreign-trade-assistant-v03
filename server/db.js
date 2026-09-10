@@ -279,6 +279,8 @@ function runSchema() {
   addColumns("superstructures", [["length","REAL DEFAULT 0"],["width","REAL DEFAULT 0"],["height","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'mm'"],["factory_price","REAL DEFAULT 0"]]);
   addColumns("compatibility_rules", [["transport_length","REAL DEFAULT 0"],["transport_width","REAL DEFAULT 0"],["transport_height","REAL DEFAULT 0"],["transport_cbm","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'meter'"],["transport_method","TEXT DEFAULT 'Bulk Cargo'"]]);
   addColumns("freight_rates", [["billing_mode","TEXT DEFAULT 'cbm'"],["container_type","TEXT DEFAULT ''"],["partner_id","TEXT DEFAULT ''"],["included_fees_json","TEXT DEFAULT '[]'"],["excluded_fees_json","TEXT DEFAULT '[]'"],["minimum_charge","REAL DEFAULT 0"]]);
+  addColumns("products", [["record_type","TEXT DEFAULT 'model'"],["model_product_id","TEXT DEFAULT ''"],["inventory_code","TEXT DEFAULT ''"],["year","TEXT DEFAULT ''"],["working_hours","REAL"],["specific_price","REAL"],["currency","TEXT DEFAULT 'USD'"],["price_status","TEXT DEFAULT 'pending'"],["transport_data_status","TEXT DEFAULT 'reference'"],["transport_plans_json","TEXT DEFAULT '[]'"],["raw_import_text","TEXT DEFAULT ''"]]);
+  addColumns("freight_rates", [["quote_date","TEXT DEFAULT ''"],["valid_until","TEXT DEFAULT ''"],["transit_days","TEXT DEFAULT ''"],["cargo_limit","TEXT DEFAULT ''"],["charge_rule","TEXT DEFAULT 'standard'"],["rate_status","TEXT DEFAULT 'quoted'"],["fee_items_json","TEXT DEFAULT '[]'"]]);
   addColumns("quotations", [["logistics_snapshot_json","TEXT DEFAULT '{}'" ],["series_id","TEXT DEFAULT ''"],["version","INTEGER DEFAULT 0"],["is_formal","INTEGER DEFAULT 0"],["source_quote_id","TEXT DEFAULT ''"],["formalized_at","TEXT"]]);
   db.exec("CREATE INDEX IF NOT EXISTS idx_quotations_series_version ON quotations(series_id, version DESC)");
   db.exec(`CREATE TABLE IF NOT EXISTS logistics_partners (
@@ -291,6 +293,27 @@ function runSchema() {
     container_count REAL DEFAULT 0, unit_rate REAL DEFAULT 0, base_freight REAL DEFAULT 0, fee_items_json TEXT DEFAULT '[]',
     total_amount REAL DEFAULT 0, currency TEXT DEFAULT 'USD', snapshot_json TEXT NOT NULL, created_by TEXT, created_at TEXT NOT NULL
   );`);
+  db.exec(`CREATE TABLE IF NOT EXISTS agent_authorizations (
+    id TEXT PRIMARY KEY,
+    authorization_number TEXT NOT NULL,
+    agent_name TEXT DEFAULT '',
+    country TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'Active',
+    data_json TEXT NOT NULL DEFAULT '{}',
+    created_by TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_authorizations_updated ON agent_authorizations(updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_agent_authorizations_agent ON agent_authorizations(agent_name, country);`);
+  db.exec(`CREATE TABLE IF NOT EXISTS country_route_links (
+    id TEXT PRIMARY KEY, customer_country TEXT NOT NULL, discharge_country TEXT DEFAULT '', destination_port_id TEXT NOT NULL,
+    is_favorite INTEGER NOT NULL DEFAULT 0, sort_order INTEGER DEFAULT 0, status TEXT NOT NULL DEFAULT 'Active', remark TEXT DEFAULT '',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(customer_country,destination_port_id),
+    FOREIGN KEY(destination_port_id) REFERENCES ports(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_country_route_links_country ON country_route_links(customer_country,status,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_products_model_inventory ON products(model_product_id,record_type,status);`);
 }
 
 function id(prefix) {

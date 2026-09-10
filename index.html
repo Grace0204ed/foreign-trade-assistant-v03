@@ -41,7 +41,8 @@
           <button class="nav-btn" id="crm-module-btn" type="button">客户跟进</button>
           <button class="nav-btn" data-view="quote">新建</button>
           <button class="nav-btn" data-view="invitation">邀请函</button>
-          <button class="nav-btn" data-view="history">历史报价</button>
+          <button class="nav-btn" data-view="agency">授权代理</button>
+          <button class="nav-btn" data-view="history">历史记录</button>
           <button class="nav-btn" data-view="products">产品库</button>
           <button class="nav-btn" data-view="freight">运费查询</button>
           <button class="nav-btn admin-only" data-view="users">用户管理</button>
@@ -62,7 +63,8 @@
             <button class="entry-card" id="crm-entry-btn" type="button"><i>👥</i><b>客户跟进</b><span>查看今日提醒、重点客户与跟进记录</span></button>
             <button class="entry-card" data-view-target="quote"><i>📝</i><b>新建</b><span>创建报价单或形式发票、添加产品、预览导出</span></button>
             <button class="entry-card" data-view-target="invitation"><i>✉️</i><b>邀请函</b><span>制作来华考察邀请函，支持保存和导出 PDF</span></button>
-            <button class="entry-card" data-view-target="history"><i>🗂️</i><b>历史报价</b><span>查看客户、国家、港口、机器和历史金额</span></button>
+            <button class="entry-card" data-view-target="agency"><i>🤝</i><b>授权代理</b><span>制作国家代理授权书、佣金条款并导出 PDF</span></button>
+            <button class="entry-card" data-view-target="history"><i>🗂️</i><b>历史记录</b><span>统一查看历史报价、授权书和邀请函</span></button>
             <button class="entry-card" data-view-target="products"><i>🚜</i><b>产品库</b><span>维护二手机械、新车产品和常用图片</span></button>
             <button class="entry-card" data-view-target="freight"><i>🚢</i><b>运费查询</b><span>常用航线、运费试算并导入报价</span></button>
             <button class="entry-card admin-only" data-view-target="users"><i>🔐</i><b>用户管理</b><span>新增、删除、停用账号和修改权限</span></button>
@@ -307,9 +309,23 @@
             <div id="machinery-reference-result" class="import-result"></div>
           </div>
           <div class="panel">
+            <div class="smart-product-import">
+              <div><h3>粘贴文字智能录入</h3><p class="hint">识别品牌、型号、状态、年份、工时、价格、尺寸、重量和运输体积。识别后先预览，不会直接覆盖已有产品。</p></div>
+              <textarea id="product-smart-paste" rows="3" placeholder="例如：卡特320D，二手，运输体积85方，重量21吨，价格待询。"></textarea>
+              <div class="actions"><button id="product-smart-analyze" type="button">识别并预览</button><button id="product-smart-apply" class="primary" type="button" hidden>确认填入表单</button></div>
+              <div id="product-smart-preview" class="smart-import-preview"></div>
+            </div>
             <div class="form-grid">
               <label><span>分类</span><span class="inline-select-action"><select id="product-category"></select><button id="quick-add-product-category" type="button">＋新建分类</button></span></label>
               <label><span>资料模板</span><select id="product-template"></select></label>
+              <label><span>资料类型</span><select id="product-record-type"><option value="model">通用车型资料</option><option value="inventory">具体库存设备</option></select></label>
+              <label><span>引用通用车型</span><select id="product-model-reference"><option value="">不引用</option></select></label>
+              <label><span>库存编号</span><input id="product-inventory-code" placeholder="同型号多台设备分别编号"></label>
+              <label><span>设备状态</span><input id="product-condition" list="product-condition-values" placeholder="二手 / 翻新 / 全新未使用"><datalist id="product-condition-values"><option>二手</option><option>翻新</option><option>全新未使用</option></datalist></label>
+              <label><span>年份</span><input id="product-year" inputmode="numeric"></label>
+              <label><span>工作小时数</span><input id="product-working-hours" type="number" min="0"></label>
+              <label><span>具体设备价格</span><input id="product-specific-price" type="number" min="0" step="0.01" placeholder="留空显示待询价"></label>
+              <label><span>币种</span><select id="product-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select></label>
               <div id="product-dynamic-fields" class="wide product-dynamic-fields"></div>
               <fieldset class="wide product-logistics-fields">
                 <legend>运输资料（产品库、报价和运费查询共用）</legend>
@@ -320,7 +336,9 @@
                 <label><span>运输方数 CBM</span><input id="product-transport-cbm" type="number" min="0" step="0.001" placeholder="留空则按长×宽×高自动计算"></label>
                 <label><span>重量（吨）</span><input id="product-weight" type="number" min="0" step="0.001"></label>
                 <label><span>默认运输方式</span><select id="product-transport-method"><option>Bulk Cargo</option><option>RORO</option><option>Container</option><option>Flat Rack</option><option>Other</option></select></label>
+                <label><span>运输数据状态</span><select id="product-transport-status"><option value="reference">参考值</option><option value="confirmed">已确认</option></select></label>
               </fieldset>
+              <fieldset class="wide product-transport-plans"><legend>多个运输方案</legend><div class="row-head"><p class="hint">整机、拆解装柜等方案分别保存；集装箱方案必须明确柜型和整批柜数。</p><button id="add-product-transport-plan" type="button">＋增加方案</button></div><div id="product-transport-plan-list"></div></fieldset>
               <div>
                 <span class="field-title">常用图片</span>
                 <label class="file-btn">上传图片<input id="product-image" type="file" accept="image/*" /></label>
@@ -400,6 +418,8 @@
             </div>
             <div class="actions" id="standard-quote-actions">
               <button id="preview-quote-btn" type="button">刷新预览</button>
+              <button id="latest-quote-prices-btn" type="button">获取最新价格</button>
+              <button id="quote-route-btn" type="button">按客户国家选择运输路线</button>
               <button id="save-quote-btn" class="primary" type="button">保存到历史</button>
               <button id="formalize-standard-quote-btn" type="button">生成正式单据</button>
               <button id="export-pdf-btn" type="button">导出PDF</button>
@@ -426,6 +446,8 @@
                 <label><span>报价有效期</span><input id="valid-until" type="date" /></label>
                 <label><span>PDF语言</span><select id="pdf-language"><option value="bilingual">English + 中文 / 中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="es">Español Only / 纯西班牙语</option><option value="zh-es">中文 + Español / 中文+西班牙语</option><option value="zh-fr">中文 + Français / 中法双语</option></select></label>
                 <label><span>报价币种</span><select id="quote-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
+                <label><span>外币费用币种</span><select id="quote-fx-source"><option value="">与报价币种一致</option><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
+                <label><span>换算汇率</span><input id="quote-fx-rate" type="number" min="0" step="0.000001" placeholder="1外币 = ? 报价币种"></label>
                 <label class="wide"><span>底部有效期说明</span><input id="validity-range-text" placeholder="留空则自动显示：报价日期 - 截止日期" /></label>
                 <label><span>客户国家</span><input id="buyer-country" list="country-options" placeholder="Tanzania / 坦桑尼亚" /><datalist id="country-options"></datalist></label>
                 <label><span>客户公司</span><input id="buyer-company" /></label>
@@ -536,11 +558,51 @@
           <article id="invitation-preview" class="quote-preview invitation-preview"></article>
         </section>
 
+        <section id="view-agency" class="view">
+          <div class="no-print page-head row-head">
+            <div><h2>授权代理</h2><p>制作非独家代理授权书，可分别导出公开版和带佣金结算版。</p></div>
+            <div class="actions"><button id="agency-preview-btn" type="button">刷新预览</button><button id="agency-save-btn" class="primary" type="button">保存授权书</button><button id="agency-public-pdf-btn" type="button">导出公开版</button><button id="agency-private-pdf-btn" type="button">导出佣金版</button><button id="agency-new-btn" type="button">新建授权书</button></div>
+          </div>
+          <div class="no-print quote-editor">
+            <div class="panel"><h3>授权基本信息</h3><div class="form-grid">
+              <label><span>授权书编号</span><input id="agency-number" /></label>
+              <label><span>签发日期</span><input id="agency-date" type="date" /></label>
+              <label><span>有效期至</span><input id="agency-valid-until" type="date" /></label>
+              <label><span>语言版本</span><select id="agency-language"><option value="bilingual">中英双语</option><option value="zh-es">中西双语</option><option value="zh-fr">中法双语</option><option value="zh">纯中文</option><option value="en">纯英文</option><option value="es">纯西班牙语</option><option value="fr">纯法语</option></select></label>
+              <label class="wide"><span>授权方公司（可自由输入）</span><input id="agency-company" list="agency-company-options" placeholder="例如：万挖机械 / Wanwa Machinery" /><datalist id="agency-company-options"></datalist></label>
+              <label><span>授权方签署人</span><input id="agency-authorizer" placeholder="Ethan" /></label>
+              <label><span>签署人职务</span><input id="agency-authorizer-title" placeholder="General Manager / 总经理" /></label>
+              <label><span>授权国家/地区 *</span><input id="agency-country" list="agency-country-options" placeholder="Nigeria / 尼日利亚" /><datalist id="agency-country-options"></datalist></label>
+              <label><span>联系人姓名 *</span><input id="agency-agent-name" /></label>
+              <label><span>身份证/护照号 *</span><input id="agency-id-number" /></label>
+              <label><span>联系电话 *</span><input id="agency-phone" /></label>
+              <label><span>电子邮箱 *</span><input id="agency-email" type="email" /></label>
+              <label class="wide"><span>联系人所在地址</span><textarea id="agency-address" rows="2"></textarea></label>
+              <label class="wide"><span>门店或办公室地址</span><input id="agency-office-address" placeholder="有门店或办公室时直接填写完整地址；没有可留空" /></label>
+              <label><span>授权性质</span><input value="非独家授权 / Non-exclusive" disabled /></label>
+            </div></div>
+            <div class="panel agency-scope-panel"><div class="row-head"><div><h3>授权销售范围</h3><p class="hint">可全选、清空或仅勾选本次允许代理销售的产品。</p></div><div class="actions"><button id="agency-select-all-products" type="button">全部勾选</button><button id="agency-clear-products" type="button">清除选择</button></div></div><div id="agency-product-options" class="agency-product-options"></div></div>
+            <div class="panel"><h3>佣金与结算条款</h3><div class="form-grid">
+              <label class="wide agency-commission-switch"><input id="agency-show-commission" type="checkbox" checked /><span>预览中显示佣金与结算条款（导出时仍可单独选择公开版或佣金版）</span></label>
+              <label><span>最低佣金比例（%）</span><input id="agency-commission-min" type="number" min="0" step="0.1" value="5" /></label>
+              <label><span>最高佣金比例（%）</span><input id="agency-commission-max" type="number" min="0" step="0.1" value="10" /></label>
+              <label><span>允许代理加价</span><select id="agency-markup"><option value="yes">允许，在客户接受范围内</option><option value="no">不允许</option></select></label>
+              <label><span>到账时间</span><input id="agency-settlement-days" value="3个工作日内 / Within 3 business days" /></label>
+              <label class="wide"><span>佣金发放方式</span><input id="agency-payment-methods" value="美元银行账户或 USDT / USD bank account or USDT" /></label>
+              <label class="wide"><span>佣金条款</span><textarea id="agency-commission-terms" rows="6"></textarea></label>
+              <label class="wide"><span>补充条款</span><textarea id="agency-extra-terms" rows="4" placeholder="可填写独家/非独家授权、保密、终止条件等。"></textarea></label>
+            </div></div>
+          </div>
+          <article id="agency-preview" class="quote-preview agency-preview"></article>
+        </section>
+
         <section id="view-history" class="view no-print">
           <header class="page-head">
-            <h2>历史报价</h2>
-            <p>保存所有已创建报价单，可搜索、编辑、复制、删除和重新导出。</p>
+            <h2>历史记录</h2>
+            <p>历史报价、历史授权书和历史邀请函分开管理，互不混淆。</p>
           </header>
+          <div class="history-kind-tabs"><button class="active" data-history-kind="quotes">历史报价</button><button data-history-kind="agency">历史授权</button><button data-history-kind="invitations">历史邀请函</button></div>
+          <div id="history-quotes-panel">
           <div class="panel">
             <div class="filter-grid">
               <input id="history-keyword" placeholder="编号 / 客户 / 国家 / 车型 / 底盘 / 上装 / 型号" />
@@ -549,6 +611,9 @@
             </div>
           </div>
           <div class="history-table-wrap"><table class="history-table"><thead><tr><th>报价编号/版本</th><th>日期/状态</th><th>客户</th><th>国家/目的港</th><th>机器/型号/配置</th><th>数量</th><th>币种/总额</th><th>操作</th></tr></thead><tbody id="unified-history-list"></tbody></table></div>
+          </div>
+          <div id="history-agency-panel" hidden><div id="agency-history-list" class="list compact-list"></div></div>
+          <div id="history-invitations-panel" hidden><div id="invitation-history-list" class="list compact-list"></div></div>
         </section>
 
         <section id="view-freight" class="view no-print">
@@ -560,6 +625,26 @@
           <div class="panel freight-common-panel">
             <div class="row-head"><div><h3>常用港口与历史运价</h3><p class="hint">优先显示上海至德班、拉各斯、贝拉等常用线路；点击即可带入下方计算。</p></div></div>
             <div id="common-freight-routes" class="freight-route-cards"></div>
+          </div>
+
+          <div class="panel country-route-panel">
+            <div class="row-head"><div><h3>按客户目的国查询路线</h3><p class="hint">客户目的国与实际卸货国家分开；内陆国家可关联邻国港口、口岸或铁路站点。</p></div></div>
+            <div class="form-grid">
+              <input id="route-country-search" list="country-options" placeholder="客户目的国，如 Zimbabwe / 津巴布韦" />
+              <button id="search-country-routes-btn" class="primary" type="button">查询常用路线</button>
+            </div>
+            <div id="country-route-results" class="freight-route-cards"></div>
+            <details id="country-route-admin"><summary>维护国家与路线关联（管理员）</summary>
+              <div class="form-grid route-admin-grid">
+                <input id="route-customer-country" list="country-options" placeholder="客户目的国" />
+                <input id="route-discharge-country" list="country-options" placeholder="实际卸货国家" />
+                <input id="route-destination" list="freight-destination-options" placeholder="目的港、口岸或铁路站点" />
+                <label class="check"><input id="route-favorite" type="checkbox" /> 常用国家/路线置顶</label>
+                <input id="route-sort" type="number" value="0" placeholder="排序" />
+                <input id="route-remark" placeholder="备注" />
+              </div>
+              <div class="actions"><button id="save-country-route-btn" class="primary" type="button">保存关联</button></div>
+            </details>
           </div>
 
           <div class="panel freight-port-admin">
@@ -600,11 +685,19 @@
               <datalist id="freight-origin-options"></datalist>
               <input id="freight-destination" list="freight-destination-options" placeholder="目的港，可选择或手动输入" />
               <datalist id="freight-destination-options"></datalist>
-              <select id="freight-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
+              <select id="freight-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="RORO">滚装运输 / RORO</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
               <select id="freight-container-type"><option value="">非集装箱/请选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select>
-              <input id="freight-rate" type="number" placeholder="运费单价（USD/立方或USD/柜）" />
+              <input id="freight-rate" type="number" placeholder="运费单价，留空表示待询价" />
+              <select id="freight-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select>
+              <select id="freight-billing-mode"><option value="cbm">每立方</option><option value="ton">每吨</option><option value="unit">每台</option><option value="container">每柜</option></select>
               <input id="freight-month" type="month" />
+              <input id="freight-quote-date" type="date" placeholder="报价日期" />
+              <input id="freight-valid-until" type="date" placeholder="有效期" />
               <input id="freight-agent" placeholder="Freight Forwarder / 货代" />
+              <input id="freight-transit-days" placeholder="预计运输时间（选填）" />
+              <input id="freight-cargo-limit" class="wide" placeholder="设备尺寸/重量限制" />
+              <input id="freight-included" class="wide" placeholder="费用包含项目，用逗号分隔" />
+              <input id="freight-excluded" class="wide" placeholder="费用不包含项目，用逗号分隔" />
               <input id="freight-remark" class="wide" placeholder="Remark / 备注" />
             </div>
             <div class="actions">
@@ -624,13 +717,15 @@
               <datalist id="calc-origin-options"></datalist>
               <input id="calc-destination" list="calc-destination-options" placeholder="目的港，可选择或手动输入" />
               <datalist id="calc-destination-options"></datalist>
-              <select id="calc-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
-              <select id="calc-billing-mode"><option value="cbm">按方计费 / USD per CBM</option><option value="container">按柜计费 / Per Container</option><option value="fixed">固定包干价 / Fixed Total</option></select>
+              <select id="calc-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="RORO">滚装运输 / RORO</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
+              <select id="calc-billing-mode"><option value="cbm">按方计费 / Per CBM</option><option value="ton">按吨计费 / Per Ton</option><option value="unit">按台计费 / Per Unit</option><option value="container">按柜计费 / Per Container</option><option value="fixed">固定包干价 / Fixed Total</option></select>
               <select id="calc-container-type"><option value="">选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select>
               <input id="calc-container-count" type="number" value="1" min="0" step="1" placeholder="集装箱数量" />
               <input id="calc-qty" type="number" value="1" placeholder="Quantity / 数量" />
               <input id="calc-cbm" type="number" placeholder="Transport CBM / 运输立方" />
+              <input id="calc-weight" type="number" placeholder="Transport Weight / 运输重量（吨）" />
               <input id="calc-rate" type="number" placeholder="Freight Rate / 运费单价" />
+              <select id="calc-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select>
               <input id="calc-amount" type="number" placeholder="Sea Freight / 海运费" />
             </div>
             <div class="row-head"><div><h4>附加费用明细</h4><p class="hint">报关、清关、保险、港杂等费用会随物流快照导入报价。</p></div><button id="add-logistics-fee-btn" type="button">＋ 添加费用</button></div>

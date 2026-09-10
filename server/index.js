@@ -89,6 +89,17 @@ function rowToProduct(row) {
     weight: row.weight,
     transportMethod: row.transport_method || "Bulk Cargo",
     referencePrice: row.reference_price,
+    recordType: row.record_type || "model",
+    modelProductId: row.model_product_id || "",
+    inventoryCode: row.inventory_code || "",
+    year: row.year || "",
+    workingHours: row.working_hours,
+    specificPrice: row.specific_price,
+    currency: row.currency || "USD",
+    priceStatus: row.price_status || (row.specific_price == null ? "pending" : "quoted"),
+    transportDataStatus: row.transport_data_status || "reference",
+    transportPlans: JSON.parse(row.transport_plans_json || "[]"),
+    rawImportText: row.raw_import_text || "",
     params: row.params || "",
     remark: row.remark || "",
     imagePath: row.image_path || "",
@@ -105,6 +116,9 @@ function productSearchText(product) {
     product.model,
     product.aliases,
     product.condition,
+    product.inventoryCode,
+    product.year,
+    product.workingHours,
     product.remark
   ].join(" "));
 }
@@ -170,6 +184,13 @@ function rowToFreight(row) {
     includedFees: JSON.parse(row.included_fees_json || "[]"),
     excludedFees: JSON.parse(row.excluded_fees_json || "[]"),
     minimumCharge: Number(row.minimum_charge || 0),
+    quoteDate: row.quote_date || "",
+    validUntil: row.valid_until || row.effective_end_date || "",
+    transitDays: row.transit_days || "",
+    cargoLimit: row.cargo_limit || "",
+    chargeRule: row.charge_rule || "standard",
+    rateStatus: row.rate_status || (Number(row.rate) ? "quoted" : "pending"),
+    feeItems: JSON.parse(row.fee_items_json || "[]"),
     remark: row.remark || "",
     status: row.status || "Active",
     createdAt: row.created_at,
@@ -184,6 +205,9 @@ function freightSearchText(rate) {
     rate.destinationCountry,
     rate.shippingMethod,
     rate.effectiveMonth,
+    rate.freightForwarder,
+    rate.rateUnit,
+    rate.cargoLimit,
     rate.remark
   ].join(" "));
 }
@@ -193,7 +217,7 @@ function calculateCbm(length, width, height, unit) {
   const w = Number(width || 0);
   const h = Number(height || 0);
   if (!l || !w || !h) return null;
-  const raw = unit === "mm" ? l * w * h / 1000000000 : l * w * h;
+  const raw = unit === "mm" ? l * w * h / 1000000000 : unit === "cm" ? l * w * h / 1000000 : l * w * h;
   return Number(raw.toFixed(2));
 }
 
@@ -345,15 +369,26 @@ app.post("/api/products", requireLogin, (req, res) => {
     weight: p.weight || null,
     transportMethod: p.transportMethod || "Bulk Cargo",
     referencePrice: p.referencePrice || null,
+    recordType: p.recordType === "inventory" ? "inventory" : "model",
+    modelProductId: p.modelProductId || "",
+    inventoryCode: p.inventoryCode || "",
+    year: p.year || "",
+    workingHours: p.workingHours === "" || p.workingHours == null ? null : Number(p.workingHours),
+    specificPrice: p.specificPrice === "" || p.specificPrice == null ? null : Number(p.specificPrice),
+    currency: p.currency || "USD",
+    priceStatus: p.specificPrice === "" || p.specificPrice == null ? "pending" : (p.priceStatus || "quoted"),
+    transportDataStatus: p.transportDataStatus === "confirmed" ? "confirmed" : "reference",
+    transportPlans: Array.isArray(p.transportPlans) ? p.transportPlans : [],
+    rawImportText: p.rawImportText || "",
     params: p.params || "",
     remark: p.remark || "",
     imagePath: p.imagePath || "",
     status: p.status || "Active"
   };
   db.prepare(`INSERT INTO products
-    (id, category, brand, model, aliases, condition, transport_length, transport_width, transport_height, transport_cbm, dimension_unit, weight, transport_method, reference_price, params, remark, image_path, status, search_text, created_at, updated_at)
-    VALUES (@id, @category, @brand, @model, @aliases, @condition, @transportLength, @transportWidth, @transportHeight, @transportCbm, @dimensionUnit, @weight, @transportMethod, @referencePrice, @params, @remark, @imagePath, @status, @searchText, @createdAt, @updatedAt)`)
-    .run({ id: productId, ...payload, searchText: productSearchText(payload), createdAt: now(), updatedAt: now() });
+    (id, category, brand, model, aliases, condition, transport_length, transport_width, transport_height, transport_cbm, dimension_unit, weight, transport_method, reference_price, record_type, model_product_id, inventory_code, year, working_hours, specific_price, currency, price_status, transport_data_status, transport_plans_json, raw_import_text, params, remark, image_path, status, search_text, created_at, updated_at)
+    VALUES (@id, @category, @brand, @model, @aliases, @condition, @transportLength, @transportWidth, @transportHeight, @transportCbm, @dimensionUnit, @weight, @transportMethod, @referencePrice, @recordType, @modelProductId, @inventoryCode, @year, @workingHours, @specificPrice, @currency, @priceStatus, @transportDataStatus, @transportPlansJson, @rawImportText, @params, @remark, @imagePath, @status, @searchText, @createdAt, @updatedAt)`)
+    .run({ id: productId, ...payload, transportPlansJson:JSON.stringify(payload.transportPlans), searchText: productSearchText(payload), createdAt: now(), updatedAt: now() });
   ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(productId)), message: "Saved successfully.", zh: "保存成功。" });
 });
 
@@ -446,6 +481,17 @@ app.put("/api/products/:id", requireLogin, (req, res) => {
     weight: p.weight ?? existing.weight,
     transportMethod: p.transportMethod ?? existing.transport_method,
     referencePrice: p.referencePrice ?? existing.reference_price,
+    recordType: p.recordType ?? existing.record_type ?? "model",
+    modelProductId: p.modelProductId ?? existing.model_product_id ?? "",
+    inventoryCode: p.inventoryCode ?? existing.inventory_code ?? "",
+    year: p.year ?? existing.year ?? "",
+    workingHours: p.workingHours === "" ? null : (p.workingHours ?? existing.working_hours),
+    specificPrice: p.specificPrice === "" ? null : (p.specificPrice ?? existing.specific_price),
+    currency: p.currency ?? existing.currency ?? "USD",
+    priceStatus: p.specificPrice === "" ? "pending" : (p.priceStatus ?? existing.price_status ?? "pending"),
+    transportDataStatus: p.transportDataStatus ?? existing.transport_data_status ?? "reference",
+    transportPlans: Array.isArray(p.transportPlans) ? p.transportPlans : JSON.parse(existing.transport_plans_json || "[]"),
+    rawImportText: p.rawImportText ?? existing.raw_import_text ?? "",
     params: p.params ?? existing.params,
     remark: p.remark ?? existing.remark,
     imagePath: p.imagePath ?? existing.image_path,
@@ -453,9 +499,12 @@ app.put("/api/products/:id", requireLogin, (req, res) => {
   };
   db.prepare(`UPDATE products SET category=@category, brand=@brand, model=@model, aliases=@aliases, condition=@condition,
     transport_length=@transportLength, transport_width=@transportWidth, transport_height=@transportHeight, transport_cbm=@transportCbm,
-    dimension_unit=@dimensionUnit, weight=@weight, transport_method=@transportMethod, reference_price=@referencePrice, params=@params,
+    dimension_unit=@dimensionUnit, weight=@weight, transport_method=@transportMethod, reference_price=@referencePrice,
+    record_type=@recordType, model_product_id=@modelProductId, inventory_code=@inventoryCode, year=@year, working_hours=@workingHours,
+    specific_price=@specificPrice, currency=@currency, price_status=@priceStatus, transport_data_status=@transportDataStatus,
+    transport_plans_json=@transportPlansJson, raw_import_text=@rawImportText, params=@params,
     remark=@remark, image_path=@imagePath, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
-    .run({ id: req.params.id, ...payload, searchText: productSearchText(payload), updatedAt: now() });
+    .run({ id: req.params.id, ...payload, transportPlansJson:JSON.stringify(payload.transportPlans), searchText: productSearchText(payload), updatedAt: now() });
   ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(req.params.id)), message: "Saved successfully.", zh: "保存成功。" });
 });
 
@@ -539,6 +588,18 @@ app.delete("/api/ports/:id", requireLogin, requireAdmin, (req, res) => {
   ok(res, { mode: "deleted", message: "Deleted successfully.", zh: "删除成功。" });
 });
 
+app.get("/api/country-routes", requireLogin, (req,res) => {
+  const country=String(req.query.country||"").trim();
+  let rows=db.prepare(`SELECT l.*,p.port_name,p.port_chinese_name,p.country_name,p.country_chinese_name,p.un_locode
+    FROM country_route_links l JOIN ports p ON p.id=l.destination_port_id WHERE l.status='Active' ORDER BY l.is_favorite DESC,l.sort_order,l.updated_at DESC`).all();
+  if(country)rows=rows.filter(row=>normalize(row.customer_country)===normalize(country)||normalize(row.customer_country).includes(normalize(country)));
+  ok(res,{routes:rows.map(row=>({id:row.id,customerCountry:row.customer_country,dischargeCountry:row.discharge_country,destinationPortId:row.destination_port_id,isFavorite:!!row.is_favorite,sortOrder:row.sort_order,remark:row.remark,destinationDisplayName:row.port_name+(row.port_chinese_name?" / "+row.port_chinese_name:""),destinationCountry:row.country_name,unLocode:row.un_locode||""}))});
+});
+
+app.post("/api/country-routes",requireLogin,requireAdmin,(req,res)=>{const b=req.body||{};if(!b.customerCountry||!b.destinationPortId)return fail(res,400,"Country and destination required.","请选择客户目的国和目的港/口岸/站点。");const rid=b.id||id("route"),timestamp=now();db.prepare(`INSERT OR REPLACE INTO country_route_links (id,customer_country,discharge_country,destination_port_id,is_favorite,sort_order,status,remark,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,COALESCE((SELECT created_at FROM country_route_links WHERE id=?),?),?)`).run(rid,b.customerCountry,b.dischargeCountry||"",b.destinationPortId,b.isFavorite?1:0,Number(b.sortOrder||0),b.status||"Active",b.remark||"",rid,timestamp,timestamp);ok(res,{id:rid});});
+
+app.delete("/api/country-routes/:id",requireLogin,requireAdmin,(req,res)=>{db.prepare("UPDATE country_route_links SET status='Inactive',updated_at=? WHERE id=?").run(now(),req.params.id);ok(res,{zh:"路线关联已停用。"});});
+
 function latestFreight({ originPortId, destinationPortId, shippingMethod, effectiveMonth }) {
   const rows = db.prepare(`SELECT * FROM freight_rates
     WHERE origin_port_id=? AND destination_port_id=? AND shipping_method=? AND status='Active'
@@ -594,12 +655,21 @@ app.post("/api/freight-rates", requireLogin, requireAdmin, (req, res) => {
     freightForwarder: r.freightForwarder || "",
     billingMode: r.billingMode || (r.shippingMethod === "Container" ? "container" : "cbm"),
     containerType: r.containerType || "",
+    quoteDate: r.quoteDate || new Date().toISOString().slice(0,10),
+    validUntil: r.validUntil || r.effectiveEndDate || "",
+    transitDays: r.transitDays || "",
+    cargoLimit: r.cargoLimit || "",
+    chargeRule: r.chargeRule || "standard",
+    rateStatus: r.rate === "" || r.rate == null ? "pending" : (r.rateStatus || "quoted"),
+    feeItems: Array.isArray(r.feeItems) ? r.feeItems : [],
+    includedFees: Array.isArray(r.includedFees) ? r.includedFees : [],
+    excludedFees: Array.isArray(r.excludedFees) ? r.excludedFees : [],
     remark: r.remark || "",
     status: r.status || "Active"
   };
-  db.prepare(`INSERT INTO freight_rates (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, billing_mode, container_type, remark, status, search_text, created_at, updated_at)
-    VALUES (@id, @originPortId, @destinationPortId, @originDisplayName, @destinationDisplayName, @destinationCountry, @shippingMethod, @rate, @currency, @rateUnit, @effectiveMonth, @effectiveStartDate, @effectiveEndDate, @freightForwarder, @billingMode, @containerType, @remark, @status, @searchText, @createdAt, @updatedAt)`)
-    .run({ id: rateId, ...payload, searchText: freightSearchText(payload), createdAt: now(), updatedAt: now() });
+  db.prepare(`INSERT INTO freight_rates (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, billing_mode, container_type, quote_date, valid_until, transit_days, cargo_limit, charge_rule, rate_status, fee_items_json, included_fees_json, excluded_fees_json, remark, status, search_text, created_at, updated_at)
+    VALUES (@id, @originPortId, @destinationPortId, @originDisplayName, @destinationDisplayName, @destinationCountry, @shippingMethod, @rate, @currency, @rateUnit, @effectiveMonth, @effectiveStartDate, @effectiveEndDate, @freightForwarder, @billingMode, @containerType, @quoteDate, @validUntil, @transitDays, @cargoLimit, @chargeRule, @rateStatus, @feeItemsJson, @includedFeesJson, @excludedFeesJson, @remark, @status, @searchText, @createdAt, @updatedAt)`)
+    .run({ id: rateId, ...payload, feeItemsJson:JSON.stringify(payload.feeItems), includedFeesJson:JSON.stringify(payload.includedFees), excludedFeesJson:JSON.stringify(payload.excludedFees), searchText: freightSearchText(payload), createdAt: now(), updatedAt: now() });
   ok(res, { freightRate: rowToFreight(db.prepare("SELECT * FROM freight_rates WHERE id=?").get(rateId)), message: "Freight rate saved successfully.", zh: "运费保存成功。" });
 });
 
@@ -625,14 +695,26 @@ app.put("/api/freight-rates/:id", requireLogin, requireAdmin, (req, res) => {
     freightForwarder: r.freightForwarder,
     billingMode: r.billingMode || (r.shippingMethod === "Container" ? "container" : "cbm"),
     containerType: r.containerType || "",
+    quoteDate: r.quoteDate || "",
+    validUntil: r.validUntil || r.effectiveEndDate || "",
+    transitDays: r.transitDays || "",
+    cargoLimit: r.cargoLimit || "",
+    chargeRule: r.chargeRule || "standard",
+    rateStatus: r.rate === "" || r.rate == null ? "pending" : (r.rateStatus || "quoted"),
+    feeItems: Array.isArray(r.feeItems) ? r.feeItems : [],
+    includedFees: Array.isArray(r.includedFees) ? r.includedFees : [],
+    excludedFees: Array.isArray(r.excludedFees) ? r.excludedFees : [],
     remark: r.remark,
     status: r.status
   };
   db.prepare(`UPDATE freight_rates SET origin_port_id=@originPortId, destination_port_id=@destinationPortId, origin_display_name=@originDisplayName,
     destination_display_name=@destinationDisplayName, destination_country=@destinationCountry, shipping_method=@shippingMethod, rate=@rate,
     currency=@currency, rate_unit=@rateUnit, effective_month=@effectiveMonth, effective_start_date=@effectiveStartDate, effective_end_date=@effectiveEndDate,
-    freight_forwarder=@freightForwarder, billing_mode=@billingMode, container_type=@containerType, remark=@remark, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
-    .run({ id: req.params.id, ...payload, searchText: freightSearchText(payload), updatedAt: now() });
+    freight_forwarder=@freightForwarder, billing_mode=@billingMode, container_type=@containerType, quote_date=@quoteDate, valid_until=@validUntil,
+    transit_days=@transitDays, cargo_limit=@cargoLimit, charge_rule=@chargeRule, rate_status=@rateStatus, fee_items_json=@feeItemsJson,
+    included_fees_json=@includedFeesJson, excluded_fees_json=@excludedFeesJson,
+    remark=@remark, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
+    .run({ id: req.params.id, ...payload, feeItemsJson:JSON.stringify(payload.feeItems), includedFeesJson:JSON.stringify(payload.includedFees), excludedFeesJson:JSON.stringify(payload.excludedFees), searchText: freightSearchText(payload), updatedAt: now() });
   ok(res, { freightRate: rowToFreight(db.prepare("SELECT * FROM freight_rates WHERE id=?").get(req.params.id)), message: "Saved successfully.", zh: "保存成功。" });
 });
 
@@ -656,20 +738,49 @@ app.post("/api/freight-rates/copy-month", requireLogin, requireAdmin, (req, res)
 
 app.post("/api/freight/calculate", requireLogin, (req, res) => {
   const body=req.body||{}, mode=body.billingMode||"cbm", quantity=Number(body.quantity||1), rate=Number(body.freightRate||0);
+  if(body.freightRate==="" || body.freightRate==null) return ok(res,{complete:false,freightAmount:null,message:"Freight rate pending.",zh:"运价待询，无法形成完整报价。"});
+  if(["volume_weight_max","manual"].includes(body.chargeRule)) return ok(res,{complete:false,requiresManualReview:true,freightAmount:null,message:"Manual freight review required.",zh:"该运价采用体积重量择大或人工规则，请人工核价。"});
   let base=0, formula="";
   if(mode==="container"){const count=Number(body.containerCount||1);base=count*rate;formula=`${count} × ${rate}`;}
-  else if(mode==="fixed"){base=rate*quantity;formula=`${rate} × ${quantity}`;}
+  else if(mode==="ton"){const weight=Number(body.weight||0);base=weight*rate*quantity;formula=`${weight} × ${rate} × ${quantity}`;}
+  else if(mode==="unit"||mode==="fixed"){base=rate*quantity;formula=`${quantity} × ${rate}`;}
   else {base=freightAmount(body.transportCbm,rate,quantity);formula=`${body.transportCbm||0} × ${rate} × ${quantity}`;}
+  if(Number(body.minimumCharge||0)>base){base=Number(body.minimumCharge);formula=`minimum ${body.minimumCharge}`;}
   const fees=(Array.isArray(body.fees)?body.fees:[]).map(f=>({name:f.name||"其他费用",mode:f.mode==="percent"?"percent":"amount",value:Number(f.value||0),amount:f.mode==="percent"?Math.round(base*Number(f.value||0))/100:Number(f.value||0),includeInTotal:f.includeInTotal!==false}));
   const extras=fees.filter(f=>f.includeInTotal).reduce((s,f)=>s+f.amount,0),amount=Math.round((base+extras)*100)/100;
   ok(res, {
-    baseFreight:Math.round(base*100)/100,fees,freightAmount:amount,
+    complete:true,baseFreight:Math.round(base*100)/100,fees,freightAmount:amount,
     calculationFormula: `${formula} + ${extras} = ${amount} ${body.currency||"USD"}`
   });
 });
 
 app.get("/api/logistics/partners",requireLogin,(req,res)=>ok(res,{partners:db.prepare("SELECT * FROM logistics_partners WHERE status='Active' ORDER BY company_name").all()}));
 app.post("/api/logistics/partners",requireLogin,requireAdmin,(req,res)=>{const b=req.body||{},pid=id("partner");if(!b.companyName)return fail(res,400,"Company required.","请填写物流合作伙伴名称。");db.prepare("INSERT INTO logistics_partners (id,company_name,contact_name,phone,email,wechat,status,remark,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)").run(pid,b.companyName,b.contactName||"",b.phone||"",b.email||"",b.wechat||"",b.status||"Active",b.remark||"",now(),now());ok(res,{id:pid});});
+
+app.get("/api/agent-authorizations", requireLogin, (req, res) => {
+  const rows = db.prepare("SELECT * FROM agent_authorizations WHERE status<>'Deleted' ORDER BY updated_at DESC").all();
+  ok(res, { authorizations: rows.map((row) => ({ ...JSON.parse(row.data_json || "{}"), id: row.id, authorizationNumber: row.authorization_number, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at })) });
+});
+
+app.post("/api/agent-authorizations", requireLogin, (req, res) => {
+  const data = req.body || {};
+  if (!data.agentName || !data.country) return fail(res, 400, "Agent name and country required.", "请填写代理人姓名和授权国家。");
+  const recordId = data.id || id("agency"), timestamp = now();
+  const existing = db.prepare("SELECT created_at,data_json FROM agent_authorizations WHERE id=?").get(recordId);
+  db.prepare(`INSERT OR REPLACE INTO agent_authorizations (id,authorization_number,agent_name,country,status,data_json,created_by,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(recordId, data.authorizationNumber || recordId, data.agentName, data.country, data.status || "Active", JSON.stringify({ ...data, id: recordId }), req.session.user?.id || "", existing?.created_at || timestamp, timestamp);
+  db.prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,before_json,after_json,reason,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+    .run(id("audit"), req.session.user?.id || "", existing ? "update_agent_authorization" : "create_agent_authorization", "agent_authorization", recordId, existing?.data_json || "{}", JSON.stringify({ ...data, id:recordId }), existing ? "更新代理授权书" : "新建代理授权书", timestamp);
+  ok(res, { id: recordId, updatedAt: timestamp, message: "Authorization saved.", zh: "代理授权书已保存。" });
+});
+
+app.delete("/api/agent-authorizations/:id", requireLogin, (req, res) => {
+  const timestamp = now(), existing = db.prepare("SELECT data_json,status FROM agent_authorizations WHERE id=?").get(req.params.id);
+  db.prepare("UPDATE agent_authorizations SET status='Deleted', updated_at=? WHERE id=?").run(timestamp, req.params.id);
+  db.prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,before_json,after_json,reason,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+    .run(id("audit"), req.session.user?.id || "", "delete_agent_authorization", "agent_authorization", req.params.id, existing?.data_json || "{}", JSON.stringify({ status:"Deleted" }), "删除代理授权书", timestamp);
+  ok(res, { message: "Authorization deleted.", zh: "代理授权书已删除。" });
+});
 
 app.get("/api/settings", requireLogin, (req, res) => {
   const row = db.prepare("SELECT data_json FROM company_settings WHERE id=1").get();
