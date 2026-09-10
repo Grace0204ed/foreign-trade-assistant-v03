@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>外贸助手</title>
-    <link rel="stylesheet" href="./styles.css?v=20260827-stage10" />
+    <link rel="stylesheet" href="./styles.css?v=20260906-stage22" />
   </head>
   <body>
     <datalist id="quote-condition-options">
@@ -15,7 +15,7 @@
       <option value="水井钻机全新机">水井钻机全新机 / Brand New Water Well Drilling Rig</option>
     </datalist>
     <datalist id="hs-code-options">
-      <option value="842952">360°回转挖掘机 / Excavator with 360° revolving superstructure</option><option value="842951">前端铲装载机、滑移装载机 / Front-end shovel loader</option><option value="842959">其他机械铲、挖掘机 / Other excavating machinery</option><option value="842911">履带式推土机 / Track-laying bulldozer</option><option value="842920">平地机 / Grader</option><option value="842940">压路机 / Road roller</option><option value="842720">其他机动叉车、伸缩臂叉装车 / Other self-propelled works truck</option><option value="843041">自行式钻探机械、旋挖钻机 / Self-propelled boring machinery</option><option value="842641">轮胎式自行起重机 / Self-propelled crane on tyres</option><option value="842649">其他自行式起重机、履带吊 / Other self-propelled crane</option><option value="870410">非公路用自卸车 / Off-highway dumper</option><option value="870120">半挂车用公路牵引车 / Road tractor for semi-trailer</option><option value="870590">其他特殊用途车辆 / Other special-purpose motor vehicle</option><option value="847420">破碎或研磨机器 / Crushing or grinding machine</option><option value="847432">沥青或矿物材料混合机器 / Mineral substance mixing machine</option><option value="847431">混凝土或砂浆搅拌机 / Concrete or mortar mixer</option>
+      <option value="84295200">360°回转挖掘机 / Excavator with 360° revolving superstructure</option><option value="84295100">前端铲装载机、滑移装载机 / Front-end shovel loader</option><option value="84295900">其他机械铲、挖掘机 / Other excavating machinery</option><option value="84291100">履带式推土机 / Track-laying bulldozer</option><option value="84292000">平地机 / Grader</option><option value="84294000">压路机 / Road roller</option><option value="84272000">其他机动叉车、伸缩臂叉装车 / Other self-propelled works truck</option><option value="84304100">自行式钻探机械、旋挖钻机 / Self-propelled boring machinery</option><option value="87051091">汽车起重机（最大起重量≤50吨）/ Truck crane ≤50t</option><option value="87051092">汽车起重机（50吨＜最大起重量≤100吨）/ Truck crane 50–100t</option><option value="87051093">汽车起重机（最大起重量＞100吨）/ Truck crane &gt;100t</option><option value="84264100">轮胎式自行起重机 / Self-propelled crane on tyres</option><option value="84264900">其他自行式起重机、履带吊 / Other self-propelled crane</option><option value="87042300">豪沃等柴油公路自卸卡车（车辆总重量&gt;20吨）/ Diesel dump truck GVW &gt;20t</option><option value="87041090">其他非公路用货运自卸车 / Other off-highway dumper</option><option value="87012000">半挂车用公路牵引车 / Road tractor for semi-trailer</option><option value="87059091">混凝土泵车 / Concrete pump truck</option><option value="87054000">混凝土搅拌车 / Concrete-mixer lorry</option><option value="87059000">其他特殊用途车辆 / Other special-purpose motor vehicle</option><option value="84742000">破碎或研磨机器 / Crushing or grinding machine</option><option value="84743200">沥青或矿物材料混合机器 / Mineral substance mixing machine</option><option value="84743100">自上料小型混凝土搅拌车、混凝土或砂浆搅拌机 / Self-loading concrete mixer</option>
     </datalist>
     <div class="app-shell">
       <aside class="sidebar no-print">
@@ -43,7 +43,7 @@
           <button class="nav-btn" data-view="invitation">邀请函</button>
           <button class="nav-btn" data-view="history">历史报价</button>
           <button class="nav-btn" data-view="products">产品库</button>
-          <button class="nav-btn" data-view="freight">运费中心</button>
+          <button class="nav-btn" data-view="freight">运费查询</button>
           <button class="nav-btn admin-only" data-view="users">用户管理</button>
           <button class="nav-btn admin-only" data-view="data">数据管理</button>
           <button class="nav-btn" data-view="settings">设置</button>
@@ -64,7 +64,7 @@
             <button class="entry-card" data-view-target="invitation"><i>✉️</i><b>邀请函</b><span>制作来华考察邀请函，支持保存和导出 PDF</span></button>
             <button class="entry-card" data-view-target="history"><i>🗂️</i><b>历史报价</b><span>查看客户、国家、港口、机器和历史金额</span></button>
             <button class="entry-card" data-view-target="products"><i>🚜</i><b>产品库</b><span>维护二手机械、新车产品和常用图片</span></button>
-            <button class="entry-card" data-view-target="freight"><i>🚢</i><b>运费中心</b><span>港口、物流合作伙伴、线路和运费报价</span></button>
+            <button class="entry-card" data-view-target="freight"><i>🚢</i><b>运费查询</b><span>常用航线、运费试算并导入报价</span></button>
             <button class="entry-card admin-only" data-view-target="users"><i>🔐</i><b>用户管理</b><span>新增、删除、停用账号和修改权限</span></button>
             <button class="entry-card admin-only" data-view-target="data"><i>🗄️</i><b>管理后台</b><span>数据库、备份恢复、审计记录和员工使用情况</span></button>
             <button class="entry-card" data-view-target="settings"><i>⚙️</i><b>设置</b><span>公司信息、报价设置、贸易条款</span></button>
@@ -94,6 +94,9 @@
               <button id="open-data-dir-btn" type="button">打开数据目录</button>
             </div>
           </div>
+          <div id="admin-feature-visibility-host"></div>
+          <div id="admin-catalog-host"></div>
+          <div id="admin-overview-host"></div>
         </section>
 
         <section id="view-settings" class="view no-print">
@@ -249,6 +252,7 @@
               </div>
               <div id="cost-field-template-list"></div>
             </div>
+            <div id="vehicle-field-settings-host"></div>
           </div>
           <div class="actions sticky-actions">
             <button id="save-settings-btn" class="primary" type="button">保存设置</button>
@@ -258,7 +262,7 @@
         <section id="view-products" class="view no-print">
           <header class="page-head">
             <h2>产品库</h2>
-            <p>保存常用产品资料和常用图片，新建报价时可直接选择。</p>
+            <p>所有新机、二手机和常用设备统一保存在这里，可按分类或关键词快速查询和修改价格。</p>
           </header>
           <div class="product-library-tabs">
             <button class="active" data-product-library="legacy">普通/二手设备</button>
@@ -308,7 +312,7 @@
               <label><span>资料模板</span><select id="product-template"></select></label>
               <div id="product-dynamic-fields" class="wide product-dynamic-fields"></div>
               <fieldset class="wide product-logistics-fields">
-                <legend>运输资料（产品库、报价和运费中心共用）</legend>
+                <legend>运输资料（产品库、报价和运费查询共用）</legend>
                 <label><span>运输长</span><input id="product-transport-length" type="number" min="0" step="0.001"></label>
                 <label><span>运输宽</span><input id="product-transport-width" type="number" min="0" step="0.001"></label>
                 <label><span>运输高</span><input id="product-transport-height" type="number" min="0" step="0.001"></label>
@@ -330,9 +334,11 @@
           </div>
           <div class="panel">
             <div class="search-row">
-              <input id="product-search" placeholder="按分类、品牌、型号搜索" />
-              <select id="product-category-filter"><option value="">全部机型</option></select>
+              <input id="product-search" placeholder="输入品牌、型号或产品名称，例如：装载机、柳工、856H" />
+              <select id="product-category-filter"><option value="">全部分类</option></select>
+              <select id="product-condition-filter"><option value="">全部状态</option><option value="both">新机/二手机均有</option><option value="new">全新设备</option><option value="used">二手设备</option><option value="unspecified">未标注状态</option></select>
             </div>
+            <div id="product-filter-summary" class="product-filter-summary"></div>
             <div id="product-list" class="list"></div>
           </div>
           <div class="panel">
@@ -418,7 +424,7 @@
                 <label><span>报价编号</span><input id="quote-number" /></label>
                 <label><span>报价日期</span><input id="quote-date" type="date" /></label>
                 <label><span>报价有效期</span><input id="valid-until" type="date" /></label>
-                <label><span>PDF语言</span><select id="pdf-language"><option value="bilingual">English + 中文 / 中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="es">Español Only / 纯西班牙语</option><option value="zh-es">中文 + Español / 中文+西班牙语</option></select></label>
+                <label><span>PDF语言</span><select id="pdf-language"><option value="bilingual">English + 中文 / 中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="es">Español Only / 纯西班牙语</option><option value="zh-es">中文 + Español / 中文+西班牙语</option><option value="zh-fr">中文 + Français / 中法双语</option></select></label>
                 <label><span>报价币种</span><select id="quote-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
                 <label class="wide"><span>底部有效期说明</span><input id="validity-range-text" placeholder="留空则自动显示：报价日期 - 截止日期" /></label>
                 <label><span>客户国家</span><input id="buyer-country" list="country-options" placeholder="Tanzania / 坦桑尼亚" /><datalist id="country-options"></datalist></label>
@@ -434,10 +440,12 @@
               <div class="row-head">
                 <h3>报价明细</h3>
                 <div class="actions">
+                  <label class="inline-check image-output-switch"><input id="quote-show-product-images" type="checkbox" checked /><span>显示图片（页面预览和PDF）</span></label>
                   <button id="open-product-picker-btn" type="button">从产品库选择</button>
                   <button id="add-quote-item-btn" type="button">插入一行</button>
                 </div>
               </div>
+              <p class="image-upload-help">可以直接在每个产品行右侧上传本地图片，不需要先保存到产品库；上传成功后会立即显示缩略图，并自动加入页面预览和PDF。</p>
               <div id="quote-items" class="quote-items"></div>
             </div>
 
@@ -447,6 +455,9 @@
             </div>
           </div>
 
+          <div id="quote-preview-image-control" class="preview-image-control">
+            <b>产品图片输出</b><span id="quote-image-output-status">已开启：图片会显示在页面预览和PDF中</span>
+          </div>
           <article id="quote-preview" class="quote-preview"></article>
           <div id="vehicle-quote-workspace-host"></div>
         </section>
@@ -463,7 +474,7 @@
               <label><span>报价币种</span><select id="vq-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
               <label><span>报价编号</span><input id="vq-number" placeholder="保存时自动生成"></label>
               <label><span>报价日期</span><input id="vq-date" type="date"></label><label><span>有效期至</span><input id="vq-valid" type="date"></label>
-              <label><span>PDF语言</span><select id="vq-language"><option value="bilingual">English + 中文 / 中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option></select></label>
+              <label><span>PDF语言</span><select id="vq-language"><option value="bilingual">English + 中文 / 中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="zh-fr">中文 + Français / 中法双语</option></select></label>
               <label><span>负责人邮箱</span><input id="vq-email" type="email"></label>
               <label class="wide"><span>客户公司地址</span><input id="vq-address"></label>
             </div></div>
@@ -542,11 +553,16 @@
 
         <section id="view-freight" class="view no-print">
           <header class="page-head">
-            <h2>运费中心</h2>
-            <p>Port Library / 港口库、Freight Rate Library / 运费库、Freight Calculator / 运费查询。</p>
+            <h2>运费查询</h2>
+            <p>先选常用航线，再输入或引用产品体积，自动计算并导入当前报价单或形式发票。</p>
           </header>
 
-          <div class="panel">
+          <div class="panel freight-common-panel">
+            <div class="row-head"><div><h3>常用港口与历史运价</h3><p class="hint">优先显示上海至德班、拉各斯、贝拉等常用线路；点击即可带入下方计算。</p></div></div>
+            <div id="common-freight-routes" class="freight-route-cards"></div>
+          </div>
+
+          <div class="panel freight-port-admin">
             <div class="row-head">
               <div><h3>目的港快捷浏览</h3><p class="hint">可以直接搜索，也可以按地区、国家展开浏览；港口代码自动参与搜索。</p></div>
               <div class="actions">
@@ -571,7 +587,7 @@
             <div id="port-list" class="list compact-list"></div>
           </div>
 
-          <div class="panel">
+          <div class="panel freight-rate-admin">
             <div class="row-head">
               <h3>Freight Rate Library / 运费库</h3>
               <div class="actions">
@@ -584,8 +600,9 @@
               <datalist id="freight-origin-options"></datalist>
               <input id="freight-destination" list="freight-destination-options" placeholder="目的港，可选择或手动输入" />
               <datalist id="freight-destination-options"></datalist>
-              <select id="freight-method"><option>Bulk Cargo</option><option>RORO</option><option>Container</option><option>Flat Rack</option><option>Other</option></select>
-              <input id="freight-rate" type="number" placeholder="Freight Rate / 运费单价" />
+              <select id="freight-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
+              <select id="freight-container-type"><option value="">非集装箱/请选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select>
+              <input id="freight-rate" type="number" placeholder="运费单价（USD/立方或USD/柜）" />
               <input id="freight-month" type="month" />
               <input id="freight-agent" placeholder="Freight Forwarder / 货代" />
               <input id="freight-remark" class="wide" placeholder="Remark / 备注" />
@@ -597,15 +614,17 @@
             <div id="freight-list" class="list compact-list"></div>
           </div>
 
-          <div class="panel">
-            <h3>Freight Calculator / 运费查询</h3>
+          <div class="panel freight-calculator-panel">
+              <div><h3>计算运费</h3><p class="hint">散杂和框架运输按立方计算；集装箱按柜数计算。</p></div>
             <div class="form-grid">
-              <select id="calc-product"></select>
+              <input id="calc-product-search" list="calc-product-options" placeholder="搜索历史货物型号，如 CAT 320C" />
+              <datalist id="calc-product-options"></datalist>
+              <select id="calc-product" hidden></select>
               <input id="calc-origin" list="calc-origin-options" placeholder="起运港，可选择或手动输入" />
               <datalist id="calc-origin-options"></datalist>
               <input id="calc-destination" list="calc-destination-options" placeholder="目的港，可选择或手动输入" />
               <datalist id="calc-destination-options"></datalist>
-              <select id="calc-method"><option>Bulk Cargo</option><option>RORO</option><option>Container</option><option>Flat Rack</option><option>Other</option></select>
+              <select id="calc-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
               <select id="calc-billing-mode"><option value="cbm">按方计费 / USD per CBM</option><option value="container">按柜计费 / Per Container</option><option value="fixed">固定包干价 / Fixed Total</option></select>
               <select id="calc-container-type"><option value="">选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select>
               <input id="calc-container-count" type="number" value="1" min="0" step="1" placeholder="集装箱数量" />
@@ -623,10 +642,22 @@
             </div>
             <div id="calc-result" class="import-result"></div>
           </div>
+
+          <div class="panel freight-volume-panel">
+            <div class="row-head"><div><h3>常用货物体积</h3><p class="hint">这里保存的数据与产品库共用；下次可直接按品牌或型号搜索引用。</p></div></div>
+            <div class="form-grid freight-volume-form">
+              <input id="volume-brand" placeholder="品牌，如 CAT / 卡特" />
+              <input id="volume-model" placeholder="型号，如 320C" />
+              <input id="volume-cbm" type="number" min="0" step="0.01" placeholder="运输体积（立方米）" />
+              <button id="save-volume-product-btn" class="primary" type="button">保存到产品库</button>
+            </div>
+            <input id="volume-product-search" placeholder="搜索已保存的品牌或型号" />
+            <div id="volume-product-list" class="list compact-list"></div>
+          </div>
         </section>
       </main>
 
-      <div id="freight-import-modal" class="modal" hidden><div class="modal-card"><h3>导入物流费用</h3><p>请选择物流费用要进入哪一种当前单据。</p><div class="actions"><button id="freight-to-used-btn" class="primary" type="button">导入二手/常规报价</button><button id="freight-to-new-btn" type="button">导入新车报价</button><button id="freight-import-cancel" type="button">取消</button></div></div></div>
+      <div id="freight-import-modal" class="modal" hidden><div class="modal-card"><h3>导入物流费用</h3><p>运费快照会保存到当前单据，可用于报价单或形式发票。</p><div class="actions"><button id="freight-to-used-btn" class="primary" type="button">导入当前报价单/形式发票</button><button id="freight-to-new-btn" type="button">导入当前新车单据</button><button id="freight-import-cancel" type="button">取消</button></div></div></div>
 
       <div id="toast" class="toast no-print"></div>
     </div>
@@ -676,11 +707,11 @@
         </label>
         <label>
           <span>英文分类名 / English Name</span>
-          <input id="category-en-input" placeholder="Used Excavator" />
+          <input id="category-en-input" placeholder="Used Excavator" autocomplete="off" />
         </label>
         <label>
           <span>中文分类名 / 中文名称</span>
-          <input id="category-zh-input" placeholder="二手挖掘机" />
+          <input id="category-zh-input" placeholder="二手挖掘机" autocomplete="off" />
         </label>
         <label>
           <span>是否显示 / Show</span>
@@ -707,9 +738,28 @@
         <div id="product-picker-list" class="product-picker-list"></div>
       </div>
     </div>
+    <div id="hs-code-modal" class="modal no-print" hidden>
+      <div class="modal-card small-modal">
+        <header>
+          <h3>新建海关编码</h3>
+          <button id="close-hs-code-modal-btn" type="button">关闭</button>
+        </header>
+        <div class="form-grid hs-code-form">
+          <label><span>8位海关编码 *</span><input id="new-hs-code" inputmode="numeric" maxlength="8" placeholder="例如：87054000" /></label>
+          <label><span>中文产品名称 *</span><input id="new-hs-name-zh" placeholder="例如：混凝土搅拌车" /></label>
+          <label><span>英文产品名称</span><input id="new-hs-name-en" placeholder="Concrete-mixer lorry" /></label>
+          <label><span>搜索关键词</span><input id="new-hs-keywords" placeholder="多个关键词用逗号分隔，例如：搅拌车,mixer truck" /></label>
+        </div>
+        <p class="hint">保存到系统后，所有电脑和手机报价页面都可以选择和自动搜索该编码。</p>
+        <footer class="actions">
+          <button id="save-hs-code-btn" class="primary" type="button">保存海关编码</button>
+          <button id="cancel-hs-code-btn" type="button">取消</button>
+        </footer>
+      </div>
+    </div>
     <script src="./assets/price-lists/machinery-price-products.js"></script>
-    <script src="./app.js?v=20260827-stage10"></script>
-    <script src="./vehicle-catalog.js?v=20260814-stage3"></script>
+    <script src="./app.js?v=20260906-stage22"></script>
+    <script src="./vehicle-catalog.js?v=20260906-stage22"></script>
     <script src="./vehicle-quotes.js?v=20260827-stage9"></script>
   </body>
 </html>

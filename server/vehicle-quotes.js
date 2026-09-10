@@ -251,6 +251,19 @@ function installVehicleQuoteRoutes(app, { db, requireLogin, requireAdmin, ok, fa
     const row=db.prepare("SELECT * FROM quote_versions WHERE id=?").get(req.params.id); if(!row)return fail(res,404,"Not found.","报价不存在。");
     db.prepare("UPDATE quote_versions SET status='Void',updated_at=? WHERE id=?").run(now(),req.params.id); audit(req,"void","quote_version",req.params.id,row,{status:"Void"},req.body?.reason||""); ok(res,{zh:"报价已作废。"});
   });
+  app.delete("/api/vehicle-quotes/:id", requireLogin, (req,res) => {
+    const row=db.prepare("SELECT * FROM quote_versions WHERE id=?").get(req.params.id);
+    if(!row)return fail(res,404,"Not found.","报价不存在。");
+    if(row.is_formal)return fail(res,409,"Formal quotation cannot be deleted.","正式报价不能删除，请执行作废。");
+    db.transaction(()=>{
+      db.prepare("DELETE FROM quote_vehicle_items WHERE quote_version_id=?").run(req.params.id);
+      db.prepare("DELETE FROM quote_versions WHERE id=?").run(req.params.id);
+      const left=db.prepare("SELECT COUNT(*) count FROM quote_versions WHERE series_id=?").get(row.series_id).count;
+      if(!left)db.prepare("DELETE FROM quote_series WHERE id=?").run(row.series_id);
+    })();
+    audit(req,"delete_draft","quote_version",req.params.id,row,{},"历史报价中删除草稿");
+    ok(res,{action:"delete",zh:"草稿已删除。"});
+  });
   app.get("/api/audit-logs", requireLogin, requireAdmin, (req,res)=>ok(res,{items:db.prepare("SELECT a.*,u.username FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 500").all()}));
 }
 

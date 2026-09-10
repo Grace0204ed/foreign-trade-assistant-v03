@@ -11,6 +11,17 @@ const { installSpecImportRoutes } = require("./spec-import");
 const app = express();
 const PORT = Number(process.env.PORT || 8765);
 const ROOT = path.resolve(__dirname, "..");
+// Temporary local-first mode: set PASSWORD_LOGIN_ENABLED=1 to restore password login.
+const PASSWORD_LOGIN_DISABLED = process.env.PASSWORD_LOGIN_ENABLED !== "1";
+
+function ensureAutomaticOwner(req) {
+  if (!PASSWORD_LOGIN_DISABLED) return req.session.user || null;
+  if (req.session.user) return req.session.user;
+  const user = db.prepare("SELECT id, username, role FROM users WHERE username='admin' AND status='Active'").get();
+  if (!user) return null;
+  req.session.user = { id: user.id, username: user.username, role: user.role };
+  return req.session.user;
+}
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -29,7 +40,7 @@ app.post("/api/uploads/image", requireLogin, requireAdmin, express.raw({ type: [
   ok(res, { path: `/uploads/${fileName}`, zh: "图片上传成功。" });
 });
 app.use("/crm", (req, res, next) => {
-  if (req.session.user) return next();
+  if (ensureAutomaticOwner(req)) return next();
   return res.redirect("/");
 }, express.static(path.join(ROOT, "crm")));
 app.use(express.static(ROOT, { index: false }));
@@ -43,7 +54,7 @@ function fail(res, status, message, zh) {
 }
 
 function requireLogin(req, res, next) {
-  if (req.session.user) return next();
+  if (ensureAutomaticOwner(req)) return next();
   return fail(res, 401, "Please log in.", "请先登录。");
 }
 
@@ -233,6 +244,11 @@ function referenced(table, column, value) {
 }
 
 app.post("/api/auth/login", (req, res) => {
+  if (PASSWORD_LOGIN_DISABLED) {
+    const user = ensureAutomaticOwner(req);
+    if (!user) return fail(res, 500, "Automatic owner account is unavailable.", "管理员账号不可用。");
+    return ok(res, { user, passwordLoginDisabled: true, message: "Entered automatically.", zh: "已自动进入系统。" });
+  }
   const { username, password } = req.body || {};
   const user = db.prepare("SELECT * FROM users WHERE username = ? AND status = 'Active'").get(username);
   if (!user || !bcrypt.compareSync(password || "", user.password_hash)) {
@@ -246,7 +262,7 @@ app.post("/api/auth/logout", (req, res) => {
   req.session.destroy(() => ok(res, { message: "Logged out.", zh: "已退出登录。" }));
 });
 
-app.get("/api/auth/me", (req, res) => ok(res, { user: req.session.user || null }));
+app.get("/api/auth/me", (req, res) => ok(res, { user: ensureAutomaticOwner(req), passwordLoginDisabled: PASSWORD_LOGIN_DISABLED }));
 
 app.get("/api/users", requireLogin, requireAdmin, (req, res) => {
   const users = db.prepare("SELECT * FROM users ORDER BY created_at DESC").all().map(rowToUser);
@@ -576,11 +592,13 @@ app.post("/api/freight-rates", requireLogin, requireAdmin, (req, res) => {
     effectiveStartDate: r.effectiveStartDate || "",
     effectiveEndDate: r.effectiveEndDate || "",
     freightForwarder: r.freightForwarder || "",
+    billingMode: r.billingMode || (r.shippingMethod === "Container" ? "container" : "cbm"),
+    containerType: r.containerType || "",
     remark: r.remark || "",
     status: r.status || "Active"
   };
-  db.prepare(`INSERT INTO freight_rates (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, remark, status, search_text, created_at, updated_at)
-    VALUES (@id, @originPortId, @destinationPortId, @originDisplayName, @destinationDisplayName, @destinationCountry, @shippingMethod, @rate, @currency, @rateUnit, @effectiveMonth, @effectiveStartDate, @effectiveEndDate, @freightForwarder, @remark, @status, @searchText, @createdAt, @updatedAt)`)
+  db.prepare(`INSERT INTO freight_rates (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, billing_mode, container_type, remark, status, search_text, created_at, updated_at)
+    VALUES (@id, @originPortId, @destinationPortId, @originDisplayName, @destinationDisplayName, @destinationCountry, @shippingMethod, @rate, @currency, @rateUnit, @effectiveMonth, @effectiveStartDate, @effectiveEndDate, @freightForwarder, @billingMode, @containerType, @remark, @status, @searchText, @createdAt, @updatedAt)`)
     .run({ id: rateId, ...payload, searchText: freightSearchText(payload), createdAt: now(), updatedAt: now() });
   ok(res, { freightRate: rowToFreight(db.prepare("SELECT * FROM freight_rates WHERE id=?").get(rateId)), message: "Freight rate saved successfully.", zh: "运费保存成功。" });
 });
@@ -605,13 +623,15 @@ app.put("/api/freight-rates/:id", requireLogin, requireAdmin, (req, res) => {
     effectiveStartDate: r.effectiveStartDate,
     effectiveEndDate: r.effectiveEndDate,
     freightForwarder: r.freightForwarder,
+    billingMode: r.billingMode || (r.shippingMethod === "Container" ? "container" : "cbm"),
+    containerType: r.containerType || "",
     remark: r.remark,
     status: r.status
   };
   db.prepare(`UPDATE freight_rates SET origin_port_id=@originPortId, destination_port_id=@destinationPortId, origin_display_name=@originDisplayName,
     destination_display_name=@destinationDisplayName, destination_country=@destinationCountry, shipping_method=@shippingMethod, rate=@rate,
     currency=@currency, rate_unit=@rateUnit, effective_month=@effectiveMonth, effective_start_date=@effectiveStartDate, effective_end_date=@effectiveEndDate,
-    freight_forwarder=@freightForwarder, remark=@remark, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
+    freight_forwarder=@freightForwarder, billing_mode=@billingMode, container_type=@containerType, remark=@remark, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
     .run({ id: req.params.id, ...payload, searchText: freightSearchText(payload), updatedAt: now() });
   ok(res, { freightRate: rowToFreight(db.prepare("SELECT * FROM freight_rates WHERE id=?").get(req.params.id)), message: "Saved successfully.", zh: "保存成功。" });
 });
@@ -661,6 +681,27 @@ app.put("/api/settings", requireLogin, requireAdmin, (req, res) => {
   ok(res, { message: "Saved successfully.", zh: "保存成功。" });
 });
 
+app.get("/api/hs-codes", requireLogin, (req, res) => {
+  const codes = db.prepare("SELECT id,code,name_zh AS nameZh,name_en AS nameEn,keywords,created_at AS createdAt,updated_at AS updatedAt FROM custom_hs_codes ORDER BY code").all();
+  ok(res, { codes });
+});
+
+app.post("/api/hs-codes", requireLogin, (req, res) => {
+  const code = String(req.body?.code || "").trim();
+  const nameZh = String(req.body?.nameZh || "").trim();
+  const nameEn = String(req.body?.nameEn || "").trim();
+  const keywords = String(req.body?.keywords || "").trim();
+  if (!/^\d{8}$/.test(code)) return fail(res, 400, "HS code must contain exactly 8 digits.", "海关编码必须是8位数字。");
+  if (!nameZh) return fail(res, 400, "Chinese product name is required.", "请填写中文产品名称。");
+  const existing = db.prepare("SELECT id FROM custom_hs_codes WHERE code=?").get(code);
+  const recordId = existing?.id || id("hs");
+  db.prepare(`INSERT INTO custom_hs_codes (id,code,name_zh,name_en,keywords,created_by,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?)
+    ON CONFLICT(code) DO UPDATE SET name_zh=excluded.name_zh,name_en=excluded.name_en,keywords=excluded.keywords,updated_at=excluded.updated_at`)
+    .run(recordId, code, nameZh, nameEn, keywords, req.session.user?.id || "", now(), now());
+  ok(res, { code:{ id:recordId, code, nameZh, nameEn, keywords }, zh: existing ? "海关编码已更新。" : "海关编码已保存。" });
+});
+
 app.post("/api/quotations", requireLogin, (req, res) => {
   const q = req.body || {};
   const formal=!!q.formal;
@@ -671,7 +712,7 @@ app.post("/api/quotations", requireLogin, (req, res) => {
   const items = q.items || [];
   const totalMachinePrice = items.reduce((sum, item) => sum + Number(item.machineAmount || 0), 0);
   const totalFreight = items.reduce((sum, item) => sum + (item.includeFreightInTotal === false ? 0 : Number(item.freightSnapshot?.freightAmount || 0)), 0);
-  const settingsSnapshot = { ...(q.settingsSnapshot || {}), _quoteMeta:{ documentType:q.documentType || "quotation", pdfLanguage:q.pdfLanguage || "bilingual", currency:q.currency || "USD", validityRangeText:q.validityRangeText || "" } };
+  const settingsSnapshot = { ...(q.settingsSnapshot || {}), _quoteMeta:{ documentType:q.documentType || "quotation", pdfLanguage:q.pdfLanguage || "bilingual", currency:q.currency || "USD", validityRangeText:q.validityRangeText || "", showProductPhotos:q.showProductPhotos !== false } };
   db.prepare(`INSERT OR REPLACE INTO quotations (id, customer_id, quote_number, status, buyer_json, settings_snapshot_json, terms_json, total_machine_price, total_freight, total_amount, include_freight_in_total, show_freight_detail_in_pdf, quote_date, valid_until, series_id, version, is_formal, source_quote_id, formalized_at, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM quotations WHERE id=?), ?), ?)`)
     .run(quoteId, q.customerId || null, q.quoteNumber, formal?"Formal":(q.status || "Draft"), JSON.stringify(q.buyer || {}), JSON.stringify(settingsSnapshot), JSON.stringify(q.terms || {}), totalMachinePrice, totalFreight, totalMachinePrice + totalFreight, q.includeFreightInTotal === false ? 0 : 1, q.showFreightDetailInPdf ? 1 : 0, q.quoteDate || now().slice(0, 10), q.validUntil || "", seriesId, version, formal?1:0,q.sourceQuoteId||"",formal?now():null,quoteId,now(),now());
@@ -710,8 +751,19 @@ app.get("/api/quotations/:id", requireLogin, (req, res) => {
 });
 
 app.delete("/api/quotations/:id", requireLogin, (req, res) => {
-  db.prepare("DELETE FROM quotations WHERE id=?").run(req.params.id);
-  ok(res, { message: "Deleted successfully.", zh: "删除成功。" });
+  const quote = db.prepare("SELECT * FROM quotations WHERE id=?").get(req.params.id);
+  if (!quote) return fail(res, 404, "Quotation not found.", "报价单不存在。");
+  if (quote.is_formal) {
+    db.prepare("UPDATE quotations SET status='Void',updated_at=? WHERE id=?").run(now(), req.params.id);
+    db.prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,before_json,after_json,reason,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+      .run(id("audit"), req.session.user.id, "void_formal_quotation", "quotation", req.params.id, JSON.stringify({ status:quote.status }), JSON.stringify({ status:"Void" }), "历史报价中作废", now());
+    return ok(res, { action:"void", message:"Formal quotation voided.", zh:"正式报价已作废并保留审计记录。" });
+  }
+  db.transaction(() => {
+    db.prepare("DELETE FROM quotation_items WHERE quotation_id=?").run(req.params.id);
+    db.prepare("DELETE FROM quotations WHERE id=?").run(req.params.id);
+  })();
+  ok(res, { action:"delete", message: "Draft deleted successfully.", zh: "草稿已删除。" });
 });
 
 app.post("/api/quotations/:id/copy", requireLogin, (req, res) => {

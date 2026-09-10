@@ -94,15 +94,14 @@
   }
   function showTab(tab) {
     activeTab = tab; editingId = "";
-    $("legacy-product-editor").hidden = tab !== "legacy";
-    $("machinery-reference-editor").hidden = tab !== "machinery-reference";
-    $("unified-vehicle-product-editor").hidden = ["legacy","machinery-reference"].includes(tab);
-    if (!["legacy","machinery-reference"].includes(tab)) render();
+    $("unified-vehicle-product-editor").hidden = false;
+    render();
     document.querySelectorAll("[data-product-library]").forEach(button=>button.classList.toggle("active",button.dataset.productLibrary===tab));
   }
   async function init() {
     if (initialized || !$("unified-vehicle-product-editor")) return;
     await loadAll();
+    $("unified-vehicle-product-editor").hidden = false;
     document.querySelectorAll("[data-product-library]").forEach(button=>button.addEventListener("click",()=>showTab(button.dataset.productLibrary)));
     $("va-save-unified").addEventListener("click",()=>saveRecord().catch(e=>alert(e.message)));
     $("va-clear-unified").addEventListener("click",()=>{editingId="";render()});

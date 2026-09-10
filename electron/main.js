@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const { spawn } = require("child_process");
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
 
 let serverProcess;
 const desktopPort = 18765;
@@ -74,7 +74,17 @@ async function createWindow() {
   await win.loadURL(`http://127.0.0.1:${desktopPort}/index.html`);
 }
 
-app.whenReady().then(createWindow);
+function installChineseMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label:"文件", submenu:[{ role:"quit", label:"退出" }] },
+    { label:"编辑", submenu:[{ role:"undo", label:"撤销" },{ role:"redo", label:"重做" },{ type:"separator" },{ role:"cut", label:"剪切" },{ role:"copy", label:"复制" },{ role:"paste", label:"粘贴" },{ role:"selectAll", label:"全选" }] },
+    { label:"视图", submenu:[{ role:"reload", label:"刷新" },{ role:"forceReload", label:"强制刷新" },{ role:"toggleDevTools", label:"开发者工具" },{ type:"separator" },{ role:"resetZoom", label:"实际大小" },{ role:"zoomIn", label:"放大" },{ role:"zoomOut", label:"缩小" },{ role:"togglefullscreen", label:"全屏" }] },
+    { label:"窗口", submenu:[{ role:"minimize", label:"最小化" },{ role:"close", label:"关闭窗口" }] },
+    { label:"帮助", submenu:[{ label:"外贸助手使用说明", click:()=>shell.openExternal(`http://127.0.0.1:${desktopPort}/index.html#help`) }] }
+  ]));
+}
+
+app.whenReady().then(() => { installChineseMenu(); return createWindow(); });
 
 app.on("window-all-closed", () => {
   if (serverProcess && !serverProcess.killed) serverProcess.kill();
@@ -110,6 +120,12 @@ ipcMain.handle("export-current-pdf", async (event, fileName) => {
     filters: [{ name: "PDF", extensions: ["pdf"] }]
   });
   if (result.canceled || !result.filePath) return null;
+  await win.webContents.executeJavaScript(`(async()=>{
+    const visibleImages=[...document.images].filter(img=>img.src&&getComputedStyle(img).display!=="none");
+    await Promise.all(visibleImages.map(img=>img.complete&&img.naturalWidth>0?Promise.resolve():
+      Promise.race([img.decode?.()||new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject}),new Promise(resolve=>setTimeout(resolve,5000))]).catch(()=>{})));
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  })()`);
   const pdf = await win.webContents.printToPDF({
     printBackground: true,
     marginsType: 0,

@@ -41,6 +41,17 @@ function runSchema() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS custom_hs_codes (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      name_zh TEXT NOT NULL,
+      name_en TEXT DEFAULT '',
+      keywords TEXT DEFAULT '',
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS products (
       id TEXT PRIMARY KEY,
       category TEXT,
@@ -470,6 +481,12 @@ function seed() {
   }
   seedDefaultPorts();
 
+  const ensureKnownFreightRate = db.prepare(`INSERT OR IGNORE INTO freight_rates
+    (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, billing_mode, container_type, remark, status, search_text, created_at, updated_at)
+    VALUES (?, 'port-shanghai', 'port-durban', 'Shanghai Port / 上海港, China / 中国', 'Durban Port / 德班港, South Africa / 南非', 'South Africa', ?, ?, 'USD', ?, '2026-09', '', '', '', ?, ?, ?, 'Active', ?, ?, ?)`);
+  ensureKnownFreightRate.run("freight-sha-durban-bulk-202609", "Bulk Cargo", 80, "USD/CBM", "cbm", "", "全包参考价 / All inclusive", normalize("上海 德班 南非 Durban Bulk Cargo 散杂 80 USD 全包 2026-09"), now(), now());
+  ensureKnownFreightRate.run("freight-sha-durban-40hq-202609", "Container", 5600, "USD/Container", "container", "40HQ", "40HQ高柜全包参考价 / 40HQ all inclusive", normalize("上海 德班 南非 Durban Container 40HQ 高柜 5600 USD 全包 2026-09"), now(), now());
+
   if (!db.prepare("SELECT COUNT(*) AS count FROM products").get().count) {
     const products = [
       ["product-sany-215c", "Excavator", "SANY", "SANY 215C", "三一215, 三一215C, 31215, 31215C, SANY215, SANY 215C, SY215, SY215C, 215C", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Transport dimension required", "", "Active"],
@@ -482,6 +499,7 @@ function seed() {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     products.forEach((p) => stmt.run(...p, normalize(p.join(" ")), now(), now()));
   }
+  db.prepare("UPDATE products SET transport_cbm=85, dimension_unit='meter', updated_at=? WHERE id='product-cat-320c' AND (transport_cbm IS NULL OR transport_cbm<=0)").run(now());
 
   if (!db.prepare("SELECT COUNT(*) AS count FROM freight_rates").get().count) {
     const rates = [
