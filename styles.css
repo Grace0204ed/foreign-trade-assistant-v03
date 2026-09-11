@@ -1561,3 +1561,10 @@ textarea { min-height: 86px; resize: vertical; }
 .auth-locked .sidebar nav { display:none !important; }
 body.auth-locked.sidebar-collapsed .sidebar > nav { display:none !important; }
 body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display:none !important; }
+.freight-calculator-panel input[inputmode="decimal"] { background:#fff; cursor:text; }
+.freight-calculator-panel input[inputmode="decimal"]:focus { border-color:#1769aa; box-shadow:0 0 0 3px rgba(23,105,170,.12); }
+.freight-product-search-field { position:relative; }
+.freight-product-suggestions { position:absolute; z-index:30; top:100%; left:0; right:0; margin-top:4px; padding:6px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:0 12px 28px rgba(15,38,68,.18); }
+.freight-product-suggestions button { width:100%; display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border:0; background:#fff; text-align:left; }
+.freight-product-suggestions button:hover { background:#edf6ff; }
+.freight-product-suggestions span { color:var(--muted); white-space:nowrap; }

@@ -1206,6 +1206,32 @@
     settings.categoryFieldConfigs = settings.categoryFieldConfigs || {};
   }
 
+  function openSettingsSection(section = "company") {
+    switchView("settings");
+    showSettingsSection(section);
+    if (section === "users" && isAdmin()) {
+      ensureUserManagerPanel();
+      renderUsers();
+    }
+    if (section === "data" && isAdmin()) renderAdminOverview();
+  }
+
+  function showContactInformation() {
+    if ($("contact-modal")) {
+      if ($("contact-modal").parentElement !== document.body) document.body.appendChild($("contact-modal"));
+      $("contact-modal").hidden = false;
+    }
+  }
+
+  function handleDesktopMenuAction(action) {
+    if (action === "settings") return openSettingsSection("company");
+    if (action === "users") return openSettingsSection("users");
+    if (action === "data") return openSettingsSection("data");
+    if (action === "help") return switchView("help");
+    if (action === "contact") return showContactInformation();
+    if (action === "logout") return logout();
+  }
+
   const userModules = [
     ["home","首页"],["crm","客户跟进"],["quote","新建报价"],["invitation","邀请函"],["agency","授权代理"],
     ["history","历史记录"],["products","产品库"],["freight","运费查询"],["help","帮助"]
@@ -1304,8 +1330,11 @@
   }
 
   function organizeManagementModules() {
-    const permissionPanel = $("user-module-visibility")?.closest(".panel");
-    if (permissionPanel && $("admin-feature-visibility-host")) $("admin-feature-visibility-host").appendChild(permissionPanel);
+    const oldDataView = $("view-data");
+    const settingsDataHost = $("settings-data-host");
+    if (oldDataView && settingsDataHost) {
+      [...oldDataView.children].filter((node) => !node.matches?.("header.page-head")).forEach((node) => settingsDataHost.appendChild(node));
+    }
     const tabs = document.querySelector(".product-library-tabs");
     if (tabs && $("admin-catalog-host")) {
       tabs.querySelectorAll('[data-product-library="legacy"], [data-product-library="machinery-reference"]').forEach(button => button.remove());
@@ -2230,7 +2259,7 @@
         <tbody id="user-list"></tbody>
       </table>
     `;
-    const host = $("user-management-host") || document.querySelector(".sticky-actions");
+    const host = $("settings-users-host") || $("user-management-host") || document.querySelector(".sticky-actions");
     host?.appendChild(section);
   }
 
@@ -3130,9 +3159,7 @@
     });
     const productOptions = `<option value="">Select Product / 选择产品</option>` + products.map((p) => `<option value="${p.id}">${escapeHtml(p.brand)} ${escapeHtml(p.model)}</option>`).join("");
     if ($("calc-product")) $("calc-product").innerHTML = productOptions;
-    if ($("calc-product-options")) $("calc-product-options").innerHTML = products
-      .filter((p) => Number(p.transportCbm || 0) > 0)
-      .map((p) => `<option value="${escapeHtml(freightProductLabel(p))}"></option>`).join("");
+    renderCalcProductSuggestions();
     renderCommonFreightRoutes();
     renderVolumeProducts();
     renderCountryOptions();
@@ -3150,6 +3177,26 @@
     if (!product) return;
     $("calc-product-search").value = freightProductLabel(product);
     $("calc-cbm").value = product.transportCbm || "";
+  }
+
+  function renderCalcProductSuggestions() {
+    const host = $("calc-product-suggestions");
+    if (!host) return;
+    const query = normalize($("calc-product-search")?.value || "");
+    if (!query) { host.hidden = true; host.innerHTML = ""; return; }
+    const matches = products.filter((p) => Number(p.transportCbm || 0) > 0 && normalize(`${p.brand} ${p.model} ${p.aliases || ""}`).includes(query)).slice(0, 8);
+    host.innerHTML = matches.map((p) => `<button type="button" data-calc-product-id="${p.id}"><b>${escapeHtml(`${p.brand || ""} ${p.model || ""}`.trim())}</b><span>${Number(p.transportCbm)} m³</span></button>`).join("");
+    host.hidden = matches.length === 0;
+  }
+
+  function chooseCalcProduct(productId) {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    $("calc-product").value = product.id;
+    $("calc-product-search").value = freightProductLabel(product);
+    $("calc-cbm").value = product.transportCbm || "";
+    $("calc-weight").value = product.weight || "";
+    $("calc-product-suggestions").hidden = true;
   }
 
   function syncFreightCalculationMode() {
@@ -3375,7 +3422,7 @@
       </article>`).join("")}</details>`).join("") || `<p class="empty">No port found. / 未找到港口。</p>`;
   }
 
-  function addLogisticsFee(name="报关费",value=""){const host=$("logistics-fee-list");host.insertAdjacentHTML("beforeend",`<div class="logistics-fee-row"><input data-fee-name value="${escapeHtml(name)}" placeholder="费用名称"><select data-fee-mode><option value="amount">固定金额</option><option value="percent">百分比 %</option></select><input data-fee-value type="number" value="${escapeHtml(value)}" placeholder="金额/比例"><label><input data-fee-include type="checkbox" checked>计入总额</label><button type="button" data-remove-fee>删除</button></div>`);}
+  function addLogisticsFee(name="报关费",value=""){const host=$("logistics-fee-list");host.insertAdjacentHTML("beforeend",`<div class="logistics-fee-row"><input data-fee-name list="logistics-fee-name-options" value="${escapeHtml(name)}" placeholder="下拉选择或输入费用名称"><select data-fee-mode><option value="amount">固定金额</option><option value="percent">百分比 %</option></select><input data-fee-value type="number" value="${escapeHtml(value)}" placeholder="金额/比例"><label><input data-fee-include type="checkbox" checked>计入总额</label><button type="button" data-remove-fee>删除</button></div>`);}
   function logisticsFees(){return [...document.querySelectorAll(".logistics-fee-row")].map(r=>({name:r.querySelector("[data-fee-name]").value,mode:r.querySelector("[data-fee-mode]").value,value:Number(r.querySelector("[data-fee-value]").value||0),includeInTotal:r.querySelector("[data-fee-include]").checked})).filter(x=>x.name);}
 
   function clearPortForm() {
@@ -3569,19 +3616,19 @@
     const cbm = $("calc-cbm").value;
     const qty = $("calc-qty").value || 1;
     const calculationCurrency=$("calc-currency")?.value||rateInfo?.currency||"USD";
-    const data = await api("/api/freight/calculate", { method: "POST", body: JSON.stringify({ transportCbm: cbm,weight:$("calc-weight")?.value, freightRate: rate, quantity: qty,billingMode:$("calc-billing-mode").value,containerType:$("calc-container-type").value,containerCount:$("calc-container-count").value,minimumCharge:rateInfo?.minimumCharge||0,chargeRule:rateInfo?.chargeRule||"standard",fees:logisticsFees(),currency:calculationCurrency }) });
+    const data = await api("/api/freight/calculate", { method: "POST", body: JSON.stringify({ transportCbm: looseNumber(cbm),weight:looseNumber($("calc-weight")?.value), freightRate: rate === "" ? "" : looseNumber(rate), quantity: looseNumber(qty)||1,billingMode:$("calc-billing-mode").value,containerType:$("calc-container-type").value,containerCount:looseNumber($("calc-container-count").value)||1,minimumCharge:rateInfo?.minimumCharge||0,chargeRule:rateInfo?.chargeRule||"standard",fees:logisticsFees(),currency:calculationCurrency }) });
     $("calc-amount").value = data.freightAmount ?? "";
     if(data.complete===false)return toast(data.zh||"运价待询或需要人工核价。");
     lastFreightCalculation = {
       productId: product?.id || "",
       productName: product ? `${product.brand} ${product.model}` : "",
-      transportCbm: Number(cbm || 0),
-      weight:Number($("calc-weight")?.value||0),
-      freightRate: Number(rate || 0),
+      transportCbm: looseNumber(cbm),
+      weight:looseNumber($("calc-weight")?.value),
+      freightRate: looseNumber(rate),
       currency: calculationCurrency,
-      quantity: Number(qty || 1),
+      quantity: looseNumber(qty)||1,
       freightAmount: data.freightAmount,
-      baseFreight:data.baseFreight,feeItems:data.fees,billingMode:$("calc-billing-mode").value,containerType:$("calc-container-type").value,containerCount:Number($("calc-container-count").value||0),
+      baseFreight:data.baseFreight,feeItems:data.fees,billingMode:$("calc-billing-mode").value,containerType:$("calc-container-type").value,containerCount:looseNumber($("calc-container-count").value),
       calculationFormula: data.calculationFormula,
       originPortId,
       destinationPortId,
@@ -3597,13 +3644,30 @@
   async function copyFreightAmount() {
     const amount = $("calc-amount").value;
     if (!amount) return toast("Please calculate freight first. / 请先计算运费。");
-    await navigator.clipboard.writeText(money(amount, "USD"));
+    await navigator.clipboard.writeText(money(looseNumber(amount), $("calc-currency")?.value || "USD"));
     toast("Copied successfully. / 复制成功。");
+  }
+
+  function looseNumber(value) {
+    const normalized=String(value??"").trim().replace(/，/g,",").replace(/\s/g,"").replace(/,/g,"");
+    const number=Number(normalized);
+    return Number.isFinite(number)?number:0;
+  }
+
+  function manualFreightSnapshot() {
+    const amount=looseNumber($("calc-amount")?.value);
+    if(!amount)return null;
+    const originInput=$("calc-origin")?.value.trim()||"",destinationInput=$("calc-destination")?.value.trim()||"";
+    const originPortId=portInputId("calc-origin",true),destinationPortId=portInputId("calc-destination",false);
+    const product=products.find(p=>p.id===$("calc-product")?.value);
+    return {productId:product?.id||"",productName:product?`${product.brand||""} ${product.model||""}`.trim():$("calc-product-search")?.value.trim()||"",transportCbm:looseNumber($("calc-cbm")?.value),weight:looseNumber($("calc-weight")?.value),freightRate:amount,currency:$("calc-currency")?.value||"USD",quantity:1,freightAmount:amount,baseFreight:amount,feeItems:logisticsFees(),billingMode:"fixed",containerType:$("calc-container-type")?.value||"",containerCount:looseNumber($("calc-container-count")?.value),calculationFormula:`Manual total / 手工海运费总额：${amount}`,originPortId,destinationPortId,originDisplayName:ports.find(p=>p.id===originPortId)?.displayName||originInput,destinationDisplayName:ports.find(p=>p.id===destinationPortId)?.displayName||destinationInput,shippingMethod:$("calc-method")?.value||"Bulk Cargo",freightRateId:"",freightEffectiveMonth:"",manualAmount:true};
   }
 
   function useFreightInQuotation() {
     if (!currentQuote) return toast("Please create a quotation first. / 请先新建报价。");
-    if (!lastFreightCalculation) return toast("Please calculate freight first. / 请先计算运费。");
+    const manual=manualFreightSnapshot();
+    if(manual&&(!lastFreightCalculation||looseNumber($("calc-amount").value)!==Number(lastFreightCalculation.freightAmount)))lastFreightCalculation=manual;
+    if (!lastFreightCalculation) return toast("请先自动计算运费，或者直接在“海运费”框中输入总金额。");
     $("freight-import-modal").hidden=false;
   }
   function importFreightToUsed(){
@@ -5775,6 +5839,11 @@
   }
 
   function bindEvents() {
+    window.addEventListener("wheel", (event) => {
+      if (!event.ctrlKey || !window.quotationDesktop?.adjustZoom) return;
+      event.preventDefault();
+      window.quotationDesktop.adjustZoom(event.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
     document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
     document.querySelectorAll("[data-view-target]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.viewTarget)));
     $("quote-business-standard")?.addEventListener("click", () => setQuoteBusiness("standard"));
@@ -5810,8 +5879,9 @@
       });
     });
     $("logout-btn").addEventListener("click", logout);
-    $("home-logout-btn")?.addEventListener("click", logout);
-    $("home-help-btn")?.addEventListener("click", () => switchView("help"));
+    $("home-contact-btn")?.addEventListener("click", showContactInformation);
+    $("close-contact-modal-btn")?.addEventListener("click", () => { $("contact-modal").hidden = true; });
+    $("contact-modal")?.addEventListener("click", (event) => { if (event.target === $("contact-modal")) $("contact-modal").hidden = true; });
     $("sidebar-toggle-btn").addEventListener("click", toggleSidebar);
     document.querySelectorAll(".settings-tab").forEach((button) => {
       button.addEventListener("click", () => showSettingsSection(button.dataset.settingsSection));
@@ -6075,7 +6145,15 @@
       $("calc-cbm").value = product?.transportCbm || "";
       if($("calc-weight"))$("calc-weight").value=product?.weight||"";
     });
+    $("calc-product-search")?.addEventListener("input", renderCalcProductSuggestions);
     $("calc-product-search")?.addEventListener("change", selectFreightProductFromSearch);
+    $("calc-product-suggestions")?.addEventListener("mousedown", (event) => {
+      const button = event.target.closest("[data-calc-product-id]");
+      if (!button) return;
+      event.preventDefault();
+      chooseCalcProduct(button.dataset.calcProductId);
+    });
+    $("calc-product-search")?.addEventListener("blur", () => setTimeout(() => { if ($("calc-product-suggestions")) $("calc-product-suggestions").hidden = true; }, 120));
     $("calc-method")?.addEventListener("change", syncFreightCalculationMode);
     $("save-volume-product-btn")?.addEventListener("click", saveVolumeProduct);
     $("volume-product-search")?.addEventListener("input", renderVolumeProducts);
@@ -6140,6 +6218,7 @@
     bindEvents();
     setupUnifiedQuoteWorkspace();
     organizeManagementModules();
+    window.quotationDesktop?.onMenuAction?.(handleDesktopMenuAction);
     applySidebarState();
     removeLegacyCostFields();
     renderAllSelectors();

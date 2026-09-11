@@ -74,13 +74,30 @@ async function createWindow() {
   await win.loadURL(`http://127.0.0.1:${desktopPort}/index.html`);
 }
 
+function sendMenuAction(action) {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win && !win.isDestroyed()) win.webContents.send("desktop-menu-action", action);
+}
+
 function installChineseMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label:"文件", submenu:[{ role:"quit", label:"退出" }] },
-    { label:"编辑", submenu:[{ role:"undo", label:"撤销" },{ role:"redo", label:"重做" },{ type:"separator" },{ role:"cut", label:"剪切" },{ role:"copy", label:"复制" },{ role:"paste", label:"粘贴" },{ role:"selectAll", label:"全选" }] },
+    { label:"设置", submenu:[
+      { label:"系统设置", click:()=>sendMenuAction("settings") },
+      { label:"用户管理", click:()=>sendMenuAction("users") },
+      { label:"管理后台", click:()=>sendMenuAction("data") },
+      { type:"separator" },
+      { label:"使用说明", click:()=>sendMenuAction("help") },
+      { label:"退出登录", click:()=>sendMenuAction("logout") },
+      { type:"separator" },
+      { role:"quit", label:"退出软件" }
+    ] },
+    { label:"文字操作", submenu:[{ role:"undo", label:"撤销" },{ role:"redo", label:"重做" },{ type:"separator" },{ role:"cut", label:"剪切" },{ role:"copy", label:"复制" },{ role:"paste", label:"粘贴" },{ role:"selectAll", label:"全选" }] },
     { label:"视图", submenu:[{ role:"reload", label:"刷新" },{ role:"forceReload", label:"强制刷新" },{ role:"toggleDevTools", label:"开发者工具" },{ type:"separator" },{ role:"resetZoom", label:"实际大小" },{ role:"zoomIn", label:"放大" },{ role:"zoomOut", label:"缩小" },{ role:"togglefullscreen", label:"全屏" }] },
     { label:"窗口", submenu:[{ role:"minimize", label:"最小化" },{ role:"close", label:"关闭窗口" }] },
-    { label:"帮助", submenu:[{ label:"外贸助手使用说明", click:()=>shell.openExternal(`http://127.0.0.1:${desktopPort}/index.html#help`) }] }
+    { label:"帮助", submenu:[
+      { label:"使用说明", click:()=>sendMenuAction("help") },
+      { label:"联系我们", click:()=>sendMenuAction("contact") }
+    ] }
   ]));
 }
 

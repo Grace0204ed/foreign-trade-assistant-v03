@@ -41,14 +41,11 @@
           <button class="nav-btn" id="crm-module-btn" type="button">客户跟进</button>
           <button class="nav-btn" data-view="quote">新建</button>
           <button class="nav-btn" data-view="invitation">邀请函</button>
-          <button class="nav-btn" data-view="agency">授权代理</button>
+          <button class="nav-btn" data-view="agency">代理授权</button>
           <button class="nav-btn" data-view="history">历史记录</button>
           <button class="nav-btn" data-view="products">产品库</button>
           <button class="nav-btn" data-view="freight">运费查询</button>
-          <button class="nav-btn admin-only" data-view="users">用户管理</button>
-          <button class="nav-btn admin-only" data-view="data">数据管理</button>
           <button class="nav-btn" data-view="settings">设置</button>
-          <button class="nav-btn" data-view="help">帮助</button>
         </nav>
       </aside>
 
@@ -57,19 +54,17 @@
         <section id="view-home" class="view active no-print">
           <header class="page-head home-head">
             <div><h2>外贸助手</h2><p>统一管理客户跟进、提醒、报价单、产品和运费。</p></div>
-            <div class="home-account-actions"><span id="home-current-user"></span><button id="home-help-btn" type="button">使用说明</button><button id="home-logout-btn" type="button">退出登录</button></div>
+            <div class="home-account-actions"><button id="home-contact-btn" type="button">联系我们</button></div>
           </header>
           <div class="entry-grid">
             <button class="entry-card" id="crm-entry-btn" type="button"><i>👥</i><b>客户跟进</b><span>查看今日提醒、重点客户与跟进记录</span></button>
             <button class="entry-card" data-view-target="quote"><i>📝</i><b>新建</b><span>创建报价单或形式发票、添加产品、预览导出</span></button>
             <button class="entry-card" data-view-target="invitation"><i>✉️</i><b>邀请函</b><span>制作来华考察邀请函，支持保存和导出 PDF</span></button>
-            <button class="entry-card" data-view-target="agency"><i>🤝</i><b>授权代理</b><span>制作国家代理授权书、佣金条款并导出 PDF</span></button>
+            <button class="entry-card" data-view-target="agency"><i>🤝</i><b>代理授权</b><span>制作国家代理授权书、佣金条款并导出 PDF</span></button>
             <button class="entry-card" data-view-target="history"><i>🗂️</i><b>历史记录</b><span>统一查看历史报价、授权书和邀请函</span></button>
             <button class="entry-card" data-view-target="products"><i>🚜</i><b>产品库</b><span>维护二手机械、新车产品和常用图片</span></button>
             <button class="entry-card" data-view-target="freight"><i>🚢</i><b>运费查询</b><span>常用航线、运费试算并导入报价</span></button>
-            <button class="entry-card admin-only" data-view-target="users"><i>🔐</i><b>用户管理</b><span>新增、删除、停用账号和修改权限</span></button>
-            <button class="entry-card admin-only" data-view-target="data"><i>🗄️</i><b>管理后台</b><span>数据库、备份恢复、审计记录和员工使用情况</span></button>
-            <button class="entry-card" data-view-target="settings"><i>⚙️</i><b>设置</b><span>公司信息、报价设置、贸易条款</span></button>
+            <button class="entry-card" data-view-target="settings"><i>⚙️</i><b>设置</b><span>公司信息、报价设置、用户管理和管理后台</span></button>
           </div>
         </section>
 
@@ -110,6 +105,30 @@
             <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
             <button class="settings-tab" data-settings-section="quote-settings" type="button">报价设置</button>
             <button class="settings-tab" data-settings-section="invitation" type="button">邀请函设置</button>
+            <button class="settings-tab admin-only" data-settings-section="permissions" type="button">用户端展示</button>
+            <button class="settings-tab admin-only" data-settings-section="users" type="button">用户管理</button>
+            <button class="settings-tab admin-only" data-settings-section="data" type="button">管理后台</button>
+          </div>
+          <div class="panel admin-only" data-settings-panel="permissions">
+            <h3>用户端功能展示</h3>
+            <p class="hint">管理员勾选普通用户登录后可以看到的功能。用户管理、管理后台和权限设置始终只对管理员开放。</p>
+            <div id="user-module-visibility" class="permission-grid"></div>
+          </div>
+          <div class="panel admin-only settings-management-link" data-settings-panel="users">
+            <h3>用户管理</h3><p>新增、删除、停用账号和修改权限。</p>
+            <div id="settings-users-host"></div>
+          </div>
+          <div class="panel admin-only settings-management-link" data-settings-panel="data">
+            <h3>管理后台</h3><p>管理数据库、备份恢复、审计记录和员工使用情况。</p>
+            <div id="settings-data-host"></div>
+          </div>
+          <div id="contact-modal" class="modal" hidden>
+            <div class="modal-card small-modal contact-card" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title">
+              <header><h3 id="contact-modal-title">联系我们</h3><button id="close-contact-modal-btn" type="button">关闭</button></header>
+              <p><b>Ethan</b></p>
+              <p>WhatsApp：<a href="https://wa.me/861855540395" target="_blank" rel="noopener">+86 185 5540 395</a></p>
+              <p>邮箱：<a href="mailto:60839992@gmail.com">60839992@gmail.com</a></p>
+            </div>
           </div>
           <div class="panel" data-settings-panel="company">
             <h3>公司与联系人信息</h3>
@@ -275,12 +294,6 @@
             <button class="admin-only" data-product-library="options">选装件</button>
             <button class="admin-only" data-product-library="attachments">属具/工具头</button>
             <button class="admin-only" data-product-library="compatibility">兼容组合</button>
-          </div>
-
-          <div class="panel admin-only" data-settings-panel="company">
-            <h3>用户端功能展示</h3>
-            <p class="hint">管理员勾选普通用户登录后可以看到的功能。用户管理、管理后台和这些权限设置始终只对管理员开放。</p>
-            <div id="user-module-visibility" class="permission-grid"></div>
           </div>
 
           <div class="panel" data-settings-panel="quote-settings" id="vehicle-field-settings-panel">
@@ -710,26 +723,28 @@
           <div class="panel freight-calculator-panel">
               <div><h3>计算运费</h3><p class="hint">散杂和框架运输按立方计算；集装箱按柜数计算。</p></div>
             <div class="form-grid">
-              <input id="calc-product-search" list="calc-product-options" placeholder="搜索历史货物型号，如 CAT 320C" />
-              <datalist id="calc-product-options"></datalist>
+              <label class="wide freight-product-search-field"><span>货物型号（可搜索历史，也可直接手动输入）</span><input id="calc-product-search" autocomplete="off" placeholder="例如：CAT 320C" /><div id="calc-product-suggestions" class="freight-product-suggestions" hidden></div></label>
               <select id="calc-product" hidden></select>
-              <input id="calc-origin" list="calc-origin-options" placeholder="起运港，可选择或手动输入" />
+              <label><span>起运港 / 起运地</span><input id="calc-origin" list="calc-origin-options" placeholder="可选择或手动输入" /></label>
               <datalist id="calc-origin-options"></datalist>
-              <input id="calc-destination" list="calc-destination-options" placeholder="目的港，可选择或手动输入" />
+              <label><span>目的港 / 口岸 / 站点</span><input id="calc-destination" list="calc-destination-options" placeholder="可选择或手动输入" /></label>
               <datalist id="calc-destination-options"></datalist>
-              <select id="calc-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="RORO">滚装运输 / RORO</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
-              <select id="calc-billing-mode"><option value="cbm">按方计费 / Per CBM</option><option value="ton">按吨计费 / Per Ton</option><option value="unit">按台计费 / Per Unit</option><option value="container">按柜计费 / Per Container</option><option value="fixed">固定包干价 / Fixed Total</option></select>
-              <select id="calc-container-type"><option value="">选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select>
-              <input id="calc-container-count" type="number" value="1" min="0" step="1" placeholder="集装箱数量" />
-              <input id="calc-qty" type="number" value="1" placeholder="Quantity / 数量" />
-              <input id="calc-cbm" type="number" placeholder="Transport CBM / 运输立方" />
-              <input id="calc-weight" type="number" placeholder="Transport Weight / 运输重量（吨）" />
-              <input id="calc-rate" type="number" placeholder="Freight Rate / 运费单价" />
-              <select id="calc-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select>
-              <input id="calc-amount" type="number" placeholder="Sea Freight / 海运费" />
+              <label><span>运输方式</span><select id="calc-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="RORO">滚装运输 / RORO</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select></label>
+              <label><span>计费方式</span><select id="calc-billing-mode"><option value="cbm">按方计费 / Per CBM</option><option value="ton">按吨计费 / Per Ton</option><option value="unit">按台计费 / Per Unit</option><option value="container">按柜计费 / Per Container</option><option value="fixed">固定包干价 / Fixed Total</option></select></label>
+              <label><span>柜型</span><select id="calc-container-type"><option value="">选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select></label>
+              <label><span>集装箱数量（柜）</span><input id="calc-container-count" type="number" value="1" min="0" step="1" /></label>
+              <label><span>货物数量（台）</span><input id="calc-qty" type="number" value="1" /></label>
+              <label><span>运输体积（m³）</span><input id="calc-cbm" type="text" inputmode="decimal" autocomplete="off" placeholder="可手动输入数字" /></label>
+              <label><span>运输重量（吨）</span><input id="calc-weight" type="text" inputmode="decimal" autocomplete="off" placeholder="可手动输入数字" /></label>
+              <label><span>运费单价</span><input id="calc-rate" type="text" inputmode="decimal" autocomplete="off" placeholder="可手动输入数字" /></label>
+              <label><span>币种</span><select id="calc-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select></label>
+              <label><span>海运费总额</span><input id="calc-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="自动计算或手动输入" /></label>
             </div>
             <div class="row-head"><div><h4>附加费用明细</h4><p class="hint">报关、清关、保险、港杂等费用会随物流快照导入报价。</p></div><button id="add-logistics-fee-btn" type="button">＋ 添加费用</button></div>
             <div id="logistics-fee-list" class="logistics-fees"></div>
+            <datalist id="logistics-fee-name-options">
+              <option value="国内运输费"></option><option value="港杂费"></option><option value="报关费"></option><option value="清关费"></option><option value="保险费"></option><option value="拆装费"></option><option value="目的地内陆转运费"></option><option value="装卸费"></option><option value="仓储费"></option><option value="其他费用"></option>
+            </datalist>
             <div class="actions">
               <button id="auto-calc-freight-btn" class="primary" type="button">Auto Calculate / 自动计算</button>
               <button id="copy-freight-amount-btn" type="button">Copy / 复制</button>
