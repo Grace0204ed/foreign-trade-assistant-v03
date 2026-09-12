@@ -105,6 +105,7 @@
             <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
             <button class="settings-tab" data-settings-section="quote-settings" type="button">报价设置</button>
             <button class="settings-tab" data-settings-section="invitation" type="button">邀请函设置</button>
+            <button class="settings-tab admin-only" data-settings-section="freight-settings" type="button">国家、港口与运费设置</button>
             <button class="settings-tab admin-only" data-settings-section="permissions" type="button">用户端展示</button>
             <button class="settings-tab admin-only" data-settings-section="users" type="button">用户管理</button>
             <button class="settings-tab admin-only" data-settings-section="data" type="button">管理后台</button>
@@ -114,6 +115,7 @@
             <p class="hint">管理员勾选普通用户登录后可以看到的功能。用户管理、管理后台和权限设置始终只对管理员开放。</p>
             <div id="user-module-visibility" class="permission-grid"></div>
           </div>
+          <div class="admin-only" data-settings-panel="freight-settings" id="settings-freight-host"></div>
           <div class="panel admin-only settings-management-link" data-settings-panel="users">
             <h3>用户管理</h3><p>新增、删除、停用账号和修改权限。</p>
             <div id="settings-users-host"></div>
@@ -640,7 +642,7 @@
             <div id="common-freight-routes" class="freight-route-cards"></div>
           </div>
 
-          <div class="panel country-route-panel">
+          <div class="panel country-route-panel admin-only">
             <div class="row-head"><div><h3>按客户目的国查询路线</h3><p class="hint">客户目的国与实际卸货国家分开；内陆国家可关联邻国港口、口岸或铁路站点。</p></div></div>
             <div class="form-grid">
               <input id="route-country-search" list="country-options" placeholder="客户目的国，如 Zimbabwe / 津巴布韦" />
@@ -660,9 +662,9 @@
             </details>
           </div>
 
-          <div class="panel freight-port-admin">
+          <div class="panel freight-port-admin admin-only">
             <div class="row-head">
-              <div><h3>目的港快捷浏览</h3><p class="hint">可以直接搜索，也可以按地区、国家展开浏览；港口代码自动参与搜索。</p></div>
+              <div><h3>常用国家与港口</h3><p class="hint">维护经营市场、港口和别名；国家与邻国港口的推荐关系在上方维护。</p></div>
               <div class="actions">
                 <input id="port-search" placeholder="Search port / 搜索港口" />
                 <button id="refresh-ports-btn" type="button">Search / 搜索</button>
@@ -685,7 +687,7 @@
             <div id="port-list" class="list compact-list"></div>
           </div>
 
-          <div class="panel freight-rate-admin">
+          <div class="panel freight-rate-admin admin-only">
             <div class="row-head">
               <h3>Freight Rate Library / 运费库</h3>
               <div class="actions">
@@ -720,9 +722,20 @@
             <div id="freight-list" class="list compact-list"></div>
           </div>
 
+          <div class="panel freight-text-import admin-only">
+            <div class="row-head"><div><h3>货代运价文字识别与批量更新</h3><p class="hint">把模板发给货代，收到后原样粘贴。系统先匹配国家、港口和运价，确认后才更新。</p></div><button id="copy-freight-text-template-btn" type="button">复制货代填写模板</button></div>
+            <textarea id="freight-text-import-input" rows="8" placeholder="每行一条运价，可直接粘贴货代回复"></textarea>
+            <div class="actions"><button id="preview-freight-text-btn" class="primary" type="button">识别并预览</button><button id="confirm-freight-text-btn" type="button" hidden>确认批量更新</button></div>
+            <div id="freight-text-import-status" class="hint"></div>
+            <div id="freight-text-preview" class="history-table-wrap"></div>
+          </div>
+
           <div class="panel freight-calculator-panel">
               <div><h3>计算运费</h3><p class="hint">散杂和框架运输按立方计算；集装箱按柜数计算。</p></div>
             <div class="form-grid">
+              <label class="wide"><span>客户目的国</span><input id="calc-country" list="country-options" placeholder="例如：Zimbabwe / 津巴布韦" /></label>
+              <datalist id="country-options"></datalist>
+              <div id="calc-country-routes" class="freight-route-cards wide"></div>
               <label class="wide freight-product-search-field"><span>货物型号（可搜索历史，也可直接手动输入）</span><input id="calc-product-search" autocomplete="off" placeholder="例如：CAT 320C" /><div id="calc-product-suggestions" class="freight-product-suggestions" hidden></div></label>
               <select id="calc-product" hidden></select>
               <label><span>起运港 / 起运地</span><input id="calc-origin" list="calc-origin-options" placeholder="可选择或手动输入" /></label>
@@ -868,7 +881,8 @@
       </div>
     </div>
     <script src="./assets/price-lists/machinery-price-products.js"></script>
-    <script src="./app.js?v=20260906-stage22"></script>
+    <script src="./assets/freight-workspace.js?v=20260912"></script>
+    <script src="./app.js?v=20260912"></script>
     <script src="./vehicle-catalog.js?v=20260906-stage22"></script>
     <script src="./vehicle-quotes.js?v=20260827-stage9"></script>
   </body>

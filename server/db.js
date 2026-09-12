@@ -373,6 +373,7 @@ function seedDefaultPorts() {
     ["port-takoradi", "Ghana", "加纳", "GH", "Takoradi Port", "塔科拉迪港", "GHTKD", "Takoradi, 塔科拉迪, Ghana, 加纳", 0, 1, "Active", "West Africa"],
     ["port-abidjan", "Cote d'Ivoire", "科特迪瓦", "CI", "Abidjan Port", "阿比让港", "CIABJ", "Abidjan, 阿比让, Cote d'Ivoire, Ivory Coast, 科特迪瓦", 0, 1, "Active", "West Africa"],
     ["port-dakar", "Senegal", "塞内加尔", "SN", "Dakar Port", "达喀尔港", "SNDKR", "Dakar, 达喀尔, Senegal, 塞内加尔", 0, 1, "Active", "West Africa"],
+    ["port-douala", "Cameroon", "喀麦隆", "CM", "Douala Port", "杜阿拉港", "CMDLA", "Douala, 杜阿拉, Cameroon, 喀麦隆", 0, 1, "Active", "Central Africa"],
     ["port-lome", "Togo", "多哥", "TG", "Lome Port", "洛美港", "TGLFW", "Lome, Lomé, 洛美, Togo, 多哥", 0, 1, "Active", "West Africa"],
     ["port-cotonou", "Benin", "贝宁", "BJ", "Cotonou Port", "科托努港", "BJCOO", "Cotonou, 科托努, Benin, 贝宁, Niger, 尼日尔", 0, 1, "Active", "West Africa"],
     ["port-conakry", "Guinea", "几内亚", "GN", "Conakry Port", "科纳克里港", "GNCKY", "Conakry, 科纳克里, Guinea, 几内亚", 0, 1, "Active", "West Africa"],

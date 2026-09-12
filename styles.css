@@ -1568,3 +1568,17 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
 .freight-product-suggestions button { width:100%; display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border:0; background:#fff; text-align:left; }
 .freight-product-suggestions button:hover { background:#edf6ff; }
 .freight-product-suggestions span { color:var(--muted); white-space:nowrap; }
+.freight-calculator-panel > .actions { justify-content:flex-end; }
+.freight-maintenance-section { margin:16px 0; padding:14px; border:1px solid var(--line); border-radius:10px; }
+.freight-maintenance-section > summary { cursor:pointer; font-weight:700; }
+.market-groups,.market-countries,.market-port-options { display:flex;flex-wrap:wrap;gap:8px;margin:8px 0; }
+#calc-country-routes { display:block; }
+.config-route { display:grid;grid-template-columns:2fr 2fr 2fr auto auto;gap:10px;align-items:end;margin:12px 0; }
+.config-route label { display:flex;flex-direction:column;gap:6px; }
+#freight-config-groups details,#freight-config-editor > details { padding:12px;border:1px solid var(--line);border-radius:8px;margin:10px 0; }
+#freight-config-groups summary { cursor:pointer;font-weight:700; }
+.freight-template { white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px; }
+.quote-history-suggestions { position:fixed;z-index:1000;max-height:260px;overflow-y:auto;background:white;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 22px #1233; }
+.quote-history-suggestions button { display:block;width:100%;text-align:left;white-space:normal;border:0; }
+.quote-history-suggestions button:hover { background:#eef6ff; }
+@media(max-width:720px){.config-route{grid-template-columns:1fr;} .freight-calculator-panel > .actions{flex-wrap:wrap;} }

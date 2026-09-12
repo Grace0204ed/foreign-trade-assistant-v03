@@ -240,6 +240,7 @@
   let ports = [];
   let freightRates = [];
   let countryRoutes = [];
+  let freightTextPreviewRows = [];
   let editingPortId = "";
   let editingFreightId = "";
   let lastFreightCalculation = null;
@@ -263,6 +264,7 @@
     China: "China / 中国",
     "Hong Kong": "China / 中国",
     Nigeria: "Africa / 非洲",
+    Cameroon: "Africa / 非洲",
     Ghana: "Africa / 非洲",
     "Cote d'Ivoire": "Africa / 非洲",
     Senegal: "Africa / 非洲",
@@ -1140,7 +1142,7 @@
     if (["quote-fields","quote-lines","vehicle-fields","terms"].includes(activeSettingsSection)) activeSettingsSection = "quote-settings";
     localStorage.setItem(keys.settingsSection, activeSettingsSection);
     document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
-      panel.hidden = panel.dataset.settingsPanel !== activeSettingsSection;
+      panel.hidden = panel.dataset.settingsPanel !== activeSettingsSection || (panel.classList.contains("admin-only") && !isAdmin());
     });
     document.querySelectorAll(".settings-tab").forEach((tab) => {
       tab.classList.toggle("active", tab.dataset.settingsSection === activeSettingsSection);
@@ -1334,6 +1336,11 @@
     const settingsDataHost = $("settings-data-host");
     if (oldDataView && settingsDataHost) {
       [...oldDataView.children].filter((node) => !node.matches?.("header.page-head")).forEach((node) => settingsDataHost.appendChild(node));
+    }
+    const freightSettingsHost = $("settings-freight-host");
+    if (freightSettingsHost) {
+      [document.querySelector(".country-route-panel"), document.querySelector(".freight-port-admin"), document.querySelector(".freight-rate-admin"), document.querySelector(".freight-text-import")]
+        .filter(Boolean).forEach((panel) => freightSettingsHost.appendChild(panel));
     }
     const tabs = document.querySelector(".product-library-tabs");
     if (tabs && $("admin-catalog-host")) {
@@ -1621,6 +1628,7 @@
   }
 
   function renderSettings() {
+    window.freightWorkspace?.renderSettings();
     ensureUserManagerPanel();
     ensureContactFieldsPanel();
     ensureBankFieldsPanel();
@@ -2465,7 +2473,7 @@
 
   function updateAdminControls() {
     document.querySelectorAll(".admin-only").forEach((el) => {
-      el.hidden = !isAdmin();
+      el.hidden = !isAdmin() || (el.hasAttribute("data-settings-panel") && el.dataset.settingsPanel !== activeSettingsSection);
     });
     ["save-settings-btn", "backup-db-btn", "restore-db-btn", "export-data-btn", "import-data-btn"].forEach((id) => {
       const button = $(id);
@@ -3207,6 +3215,7 @@
   }
 
   function renderCommonFreightRoutes() {
+    if (window.freightWorkspace) return window.freightWorkspace.render();
     const host = $("common-freight-routes");
     if (!host) return;
     const preferred = ["port-durban", "port-lagos-apapa", "port-beira"];
@@ -3235,6 +3244,31 @@
       <span class="actions"><button type="button" data-route-use="${escapeHtml(route.id)}">带入运费计算</button>${isAdmin()?`<button type="button" data-route-delete="${escapeHtml(route.id)}">停用</button>`:""}</span>
     </article>`).join("") || `<p class="empty">暂无关联路线，可由管理员在下方新增；也可直接搜索港口、口岸或站点。</p>`;
     if ($("country-route-admin")) $("country-route-admin").hidden = !isAdmin();
+  }
+
+  function renderCalcCountryRoutes() {
+    if (window.freightWorkspace) return window.freightWorkspace.renderCountries();
+    const host = $("calc-country-routes");
+    if (!host) return;
+    const q = normalize($("calc-country")?.value || "");
+    if (!q) { host.innerHTML = '<p class="hint">选择客户目的国后，这里会推荐本国或邻国可用港口。</p>'; return; }
+    const rows = countryRoutes.filter((route) => normalize(route.customerCountry).includes(q) || q.includes(normalize(route.customerCountry)));
+    host.innerHTML = rows.map((route) => `<button type="button" class="freight-route-card" data-calc-route="${escapeHtml(route.id)}"><b>${escapeHtml(route.destinationDisplayName)}</b><span>${escapeHtml(route.dischargeCountry || route.destinationCountry || "")} ${route.unLocode ? `· ${escapeHtml(route.unLocode)}` : ""}</span><span>${route.isFavorite ? "★ 推荐路线" : "可选路线"}${route.remark ? ` · ${escapeHtml(route.remark)}` : ""}</span></button>`).join("") || '<p class="empty">暂无推荐港口。请到“设置 → 国家、港口与运费设置”添加关联。</p>';
+  }
+
+  function useCalcCountryRoute(routeId) {
+    const route = countryRoutes.find((item) => item.id === routeId);
+    if (!route) return;
+    setPortInputValue("calc-destination", route.destinationPortId);
+    if (!$("calc-origin").value) setPortInputValue("calc-origin", "port-shanghai");
+    const latest = freightRates.filter((rate) => rate.destinationPortId === route.destinationPortId).sort((a,b)=>String(b.quoteDate||b.effectiveMonth).localeCompare(String(a.quoteDate||a.effectiveMonth)))[0];
+    if (latest) {
+      $("calc-method").value = latest.shippingMethod;
+      $("calc-billing-mode").value = latest.billingMode || "cbm";
+      $("calc-container-type").value = latest.containerType || "";
+      $("calc-rate").value = latest.rateStatus === "pending" ? "" : latest.rate;
+      $("calc-currency").value = latest.currency || "USD";
+    }
   }
 
   async function saveCountryRoute() {
@@ -3583,7 +3617,7 @@
   }
 
   async function autoCalculateFreight() {
-    selectFreightProductFromSearch();
+    // A typed model is not a selection. Preserve manually edited transport data.
     const product = products.find((p) => p.id === $("calc-product").value);
     if (product && !$("calc-cbm").value) {
       $("calc-cbm").value = product.transportCbm || "";
@@ -6146,7 +6180,7 @@
       if($("calc-weight"))$("calc-weight").value=product?.weight||"";
     });
     $("calc-product-search")?.addEventListener("input", renderCalcProductSuggestions);
-    $("calc-product-search")?.addEventListener("change", selectFreightProductFromSearch);
+    $("calc-product-search")?.addEventListener("input", () => { $("calc-product").value = ""; });
     $("calc-product-suggestions")?.addEventListener("mousedown", (event) => {
       const button = event.target.closest("[data-calc-product-id]");
       if (!button) return;
@@ -6218,6 +6252,7 @@
     bindEvents();
     setupUnifiedQuoteWorkspace();
     organizeManagementModules();
+    window.freightWorkspace?.init();
     window.quotationDesktop?.onMenuAction?.(handleDesktopMenuAction);
     applySidebarState();
     removeLegacyCostFields();
@@ -6240,6 +6275,9 @@
     });
   });
 
+  window.freightContext = { get settings(){return settings;}, get ports(){return ports;}, get rates(){return freightRates;}, get routes(){return countryRoutes;}, get products(){return products;}, get quotes(){return quotes;}, api, isAdmin, toast, portRegion, portOptionLabel, setPortInputValue, openSettingsSection, loadServerData, renderPreview, collectQuoteFromForm,
+    async saveConfig(config) { if(!isAdmin()) throw new Error("需要管理员权限"); const next={...settings,freightWorkspace:config}; await api("/api/settings",{method:"PUT",body:JSON.stringify(next)}); settings.freightWorkspace=config; save(keys.settings,settings); }
+  };
   init();
 })();
 
