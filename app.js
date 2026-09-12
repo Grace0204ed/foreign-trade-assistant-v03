@@ -490,6 +490,7 @@
   }
 
   const quoteEsLabels = {
+    "Item Type": "Tipo de concepto", "Billing Unit": "Unidad de facturación",
     "Quotation": "Cotización",
     "Proforma Invoice": "Factura Proforma",
     "Quotation No.": "No. de Cotización",
@@ -547,6 +548,7 @@
   }
 
   const quoteFrLabels = {
+    "Item Type": "Type de poste", "Billing Unit": "Unité de facturation",
     "Quotation": "Devis", "Proforma Invoice": "Facture Proforma", "Quotation No.": "N° de Devis",
     "Date": "Date", "Valid Until": "Valable Jusqu'au", "Customer Information": "Informations Client",
     "Company": "Société", "Country": "Pays", "Contact": "Contact", "Phone": "Téléphone",
@@ -577,6 +579,7 @@
     if (mode === "en") return en;
     if (mode === "zh") return zh;
     if (mode === "es") return quoteEs(en, zh);
+    if (mode === "fr") return quoteFr(en, zh);
     if (mode === "zh-es") return `${quoteEs(en, zh)} / ${zh || en}`;
     if (mode === "zh-fr") return `${quoteFr(en, zh)} / ${zh || en}`;
     return `${en} / ${zh}`;
@@ -586,6 +589,7 @@
     if (mode === "en") return escapeHtml(en);
     if (mode === "zh") return escapeHtml(zh);
     if (mode === "es") return escapeHtml(quoteEs(en, zh));
+    if (mode === "fr") return escapeHtml(quoteFr(en, zh));
     if (mode === "zh-es") return `${escapeHtml(quoteEs(en, zh))}<small>${escapeHtml(zh || en)}</small>`;
     if (mode === "zh-fr") return `${escapeHtml(quoteFr(en, zh))}<small>${escapeHtml(zh || en)}</small>`;
     return `${escapeHtml(en)}<small>${escapeHtml(zh)}</small>`;
@@ -5453,9 +5457,28 @@
     return quotePreviewColumns().map((column) => `<th class="preview-col-${escapeHtml(column.key)}">${labelHtml(column.en, column.zh)}</th>`).join("");
   }
 
+  // Keep canonical values in storage; translate only document output.
+  function quoteItemTypeText(item, mode = displayMode()) {
+    const types = {
+      product: ["设备", "Equipment", "Équipement", "Equipo"],
+      freight: ["海运费", "Sea freight", "Fret maritime", "Flete marítimo"],
+      trucking: ["国内运输费", "Inland transport", "Transport intérieur", "Transporte interior"],
+      port: ["港杂及报关费", "Port and customs clearance charges", "Frais portuaires et de dédouanement", "Gastos portuarios y de despacho aduanero"],
+      insurance: ["保险费", "Insurance", "Assurance", "Seguro"],
+      handling: ["拆装费", "Disassembly and assembly charges", "Frais de démontage et de remontage", "Gastos de desmontaje y montaje"],
+      custom: ["其他费用", "Other charges", "Autres frais", "Otros gastos"]
+    };
+    const raw = item.values?.itemType;
+    const entry = Object.values(types).find(labels => labels.includes(raw)) || types[item.kind || "product"];
+    if (!entry) return raw || "";
+    const [zh, en, fr, es] = entry;
+    return ({zh, en, fr, es, bilingual: `${en} / ${zh}`, "zh-en": `${en} / ${zh}`, "zh-fr": `${fr} / ${zh}`, "zh-es": `${es} / ${zh}`})[mode] || `${en} / ${zh}`;
+  }
+
   function quotePreviewCell(item, column) {
     const values = item.values || {};
     const currency = values.currency || settings.currency;
+    if (column.key === "itemType") return quoteItemTypeText(item);
     if (column.key === "tradeTerm") return Object.prototype.hasOwnProperty.call(values, "tradeTerm") ? values.tradeTerm : (currentQuote?.terms?.shipping || "EXW");
     if (column.key === "condition") return (item.kind||"product")==="product" ? conditionDisplayText(values.condition || "used") : "—";
     if (column.key === "type") return values.productType || itemKindLabel(item.kind || "product");
