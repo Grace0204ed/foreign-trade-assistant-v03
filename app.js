@@ -5557,6 +5557,26 @@
     });
   }
 
+  function bankValueText(field, mode = displayMode()) {
+    const raw = String(field.value || "");
+    // Translate known boilerplate only. Never rewrite bank identifiers or custom terms.
+    const copy = {
+      "Please make payment via SWIFT (T/T) to the following account.": ["Veuillez effectuer le paiement par SWIFT (T/T) sur le compte suivant.", "请通过 SWIFT（T/T）汇款至以下账户。"],
+      "Business Account": ["Compte professionnel", "企业账户"],
+      "For the payment of goods, please make a SWIFT(T/T) or CHATS(HK Local Payment) payment.": ["Pour le paiement des marchandises, veuillez effectuer un virement SWIFT (T/T) ou CHATS (paiement local à Hong Kong).", "支付货款时，请使用 SWIFT（T/T）或 CHATS（香港本地付款）汇款。"],
+      "Please include [Buyer's Name, Invoice/Contract Number, and Product Name] in the memo or note section when making the payment. The deposit is non-refundable.": ["Veuillez indiquer [le nom de l’acheteur, le numéro de facture/contrat et le nom du produit] dans le motif du paiement. L’acompte n’est pas remboursable.", "汇款时请在附言中注明【买方名称、发票/合同编号及产品名称】。定金不予退还。"]
+    };
+    const en = raw.split(" / ")[0].trim();
+    if (!Object.prototype.hasOwnProperty.call(copy, en)) return raw;
+    const [fr, zh] = copy[en];
+    if (mode === "zh-fr") return `${fr} / ${zh}`;
+    if (mode === "fr") return fr;
+    if (mode === "en") return en;
+    if (mode === "zh") return zh;
+    if (mode === "bilingual") return `${en} / ${zh}`;
+    return raw;
+  }
+
   function renderBankPreview() {
     normalizeBankFields();
     normalizePaymentQrFields();
@@ -5566,7 +5586,7 @@
     return `<section class="preview-panel bank-panel">
       <h3>${quoteSectionTitle("bank")}</h3>
       ${fields.length ? `<div class="bank-grid">
-        ${fields.map((field) => `<p><b>${labelText(field.labelEn, field.labelZh)}:</b> ${escapeHtml(field.value)}</p>`).join("")}
+        ${fields.map((field) => `<p><b>${escapeHtml(labelText(field.labelEn, field.labelZh))}:</b> ${escapeHtml(bankValueText(field))}</p>`).join("")}
       </div>` : ""}
       ${qrFields.length ? `<div class="payment-qr-grid">${qrFields.map((field) => `<figure><img src="${field.value}" alt=""><figcaption>${labelText(field.labelEn, field.labelZh)}</figcaption></figure>`).join("")}</div>` : ""}
     </section>`;
