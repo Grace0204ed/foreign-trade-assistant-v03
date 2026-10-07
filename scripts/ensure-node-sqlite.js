@@ -2,7 +2,9 @@ const { spawnSync } = require("child_process");
 
 function sqliteWorks() {
   try {
-    require("better-sqlite3");
+    const Database = require("better-sqlite3");
+    const probe = new Database(":memory:");
+    probe.close();
     return true;
   } catch (error) {
     console.log("SQLite needs rebuild / SQLite 需要修复:");

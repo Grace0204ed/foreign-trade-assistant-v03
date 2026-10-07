@@ -764,9 +764,14 @@ app.get("/api/agent-authorizations", requireLogin, (req, res) => {
 
 app.post("/api/agent-authorizations", requireLogin, (req, res) => {
   const data = req.body || {};
+  const agencyDocuments = require('../assets/agency-documents');
+  const validation = agencyDocuments.validate(data);
+  if(validation) return fail(res,400,'Invalid agency document.',validation);
+  if(data.documentType && !Object.hasOwn(agencyDocuments.types,data.documentType))return fail(res,400,'Invalid document type.','文件类型不正确。');
   if (!data.agentName || !data.country) return fail(res, 400, "Agent name and country required.", "请填写代理人姓名和授权国家。");
   const recordId = data.id || id("agency"), timestamp = now();
-  const existing = db.prepare("SELECT created_at,data_json FROM agent_authorizations WHERE id=?").get(recordId);
+  const existing = db.prepare("SELECT created_at,data_json,status FROM agent_authorizations WHERE id=?").get(recordId);
+  if(existing?.status==='Deleted')return fail(res,409,'Document deleted.','文件已删除，请复制为新文件。');
   db.prepare(`INSERT OR REPLACE INTO agent_authorizations (id,authorization_number,agent_name,country,status,data_json,created_by,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?)`).run(recordId, data.authorizationNumber || recordId, data.agentName, data.country, data.status || "Active", JSON.stringify({ ...data, id: recordId }), req.session.user?.id || "", existing?.created_at || timestamp, timestamp);
   db.prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,before_json,after_json,reason,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
@@ -815,6 +820,8 @@ app.post("/api/hs-codes", requireLogin, (req, res) => {
 
 app.post("/api/quotations", requireLogin, (req, res) => {
   const q = req.body || {};
+  const prior = q.id && db.prepare("SELECT status FROM quotations WHERE id=?").get(q.id);
+  if (prior && ["Deleted", "Void"].includes(prior.status)) return fail(res,409,"Inactive quotation.","此报价已删除或作废，请刷新历史报价；如需使用，请恢复或复制为新报价。");
   const formal=!!q.formal;
   const seriesId=q.seriesId || q.id || id("standard-series");
   const latestVersion=formal ? Number(db.prepare("SELECT COALESCE(MAX(version),0) version FROM quotations WHERE series_id=?").get(seriesId).version) : 0;
@@ -838,13 +845,15 @@ app.post("/api/quotations", requireLogin, (req, res) => {
 
 app.get("/api/quotations", requireLogin, (req, res) => {
   const keyword=String(req.query.q || "").trim().toLowerCase(), date=String(req.query.date || "").trim();
-  const rows = db.prepare("SELECT * FROM quotations ORDER BY updated_at DESC").all();
+  const rows = db.prepare("SELECT * FROM quotations ORDER BY updated_at DESC").all().filter(row => req.query.includeInactive === "1" || !["Void","Deleted"].includes(row.status));
   const quotations=rows.map(row=>{
-    const buyer=JSON.parse(row.buyer_json || "{}"), terms=JSON.parse(row.terms_json || "{}"), settingsSnapshot=JSON.parse(row.settings_snapshot_json || "{}");
+    const buyer=JSON.parse(row.buyer_json || "{}"), terms=JSON.parse(row.terms_json || "{}"), savedSettings=JSON.parse(row.settings_snapshot_json || "{}");
+    const settingsSnapshot={_quoteMeta:savedSettings._quoteMeta};
     const items=db.prepare("SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY sort_order").all(row.id).map(item=>({
-      id:item.id, productId:item.product_id, productSnapshot:JSON.parse(item.product_snapshot_json || "{}"), priceSnapshot:JSON.parse(item.price_snapshot_json || "{}"), freightSnapshot:JSON.parse(item.freight_snapshot_json || "{}"), includeFreightInTotal:!!item.include_freight_in_total
+      id:item.id, productId:item.product_id, productSnapshot:((p)=>({productName:p.productName,machineCategory:p.machineCategory,brand:p.brand,model:p.model}))(JSON.parse(item.product_snapshot_json || "{}")), priceSnapshot:JSON.parse(item.price_snapshot_json || "{}"), includeFreightInTotal:!!item.include_freight_in_total
     }));
-    return {...row,buyer,terms,settingsSnapshot,items};
+    const {buyer_json,terms_json,settings_snapshot_json,logistics_snapshot_json,...summary}=row;
+    return {...summary,buyer,terms,settingsSnapshot,items};
   }).filter(row=>{
     if(date && row.quote_date!==date)return false;
     if(!keyword)return true;
@@ -962,11 +971,11 @@ app.post("/api/system/import", requireLogin, requireAdmin, (req, res) => {
   ok(res, { message: "Import completed successfully.", zh: "导入完成。" });
 });
 
-app.get("/api/system/backup-db", requireLogin, requireAdmin, (req, res) => {
+app.get("/api/system/backup-db", requireLogin, requireAdmin, async (req, res) => {
   ensureDir(backupDir);
   const fileName = `quotation-system-${new Date().toISOString().replace(/[:.]/g, "-")}.sqlite`;
   const target = path.join(backupDir, fileName);
-  fs.copyFileSync(dbPath, target);
+  try { await db.backup(target); } catch(error) { return fail(res,500,'Backup failed.',`数据库备份失败：${error.message}`); }
   ok(res, { path: target, message: "Database backup created.", zh: "数据库备份已创建。" });
 });
 
@@ -1040,6 +1049,7 @@ app.post("/api/customers", requireLogin, (req, res) => {
 });
 
 installVehicleQuoteRoutes(app, { db, requireLogin, requireAdmin, ok, fail });
+require("./history-actions").installHistoryActions(app, { db, requireLogin, ok, fail });
 installSpecImportRoutes(app, { requireLogin, requireAdmin, ok, fail });
 
 app.post("/api/customers/:id/followups", requireLogin, (req, res) => {

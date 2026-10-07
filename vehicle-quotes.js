@@ -146,6 +146,8 @@
     await edit(versionId);
     current.seriesId="";
     current.sourceQuoteId=versionId;
+    const date=new Date(),today=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    for(const id of ['quote-date','vq-date'])if($(id))$(id).value=today;
     if ($("quote-number")) $("quote-number").value="";
     if ($("vq-number")) $("vq-number").value="";
     alert("已复制为新的新车报价草稿，修改客户、价格或运费后再保存。原报价不会被覆盖。");

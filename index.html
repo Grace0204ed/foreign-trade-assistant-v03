@@ -134,6 +134,7 @@
           </div>
           <div class="panel" data-settings-panel="company">
             <h3>公司与联系人信息</h3>
+            <label><span>选择公司（地址、收款账户和公章一起切换）</span><select id="company-profile-select"></select></label>
             <div class="form-grid">
               <label><span>英文公司名</span><input data-setting="companyNameEn" /></label>
               <label><span>中文公司名</span><input data-setting="companyNameZh" /></label>
@@ -575,12 +576,16 @@
 
         <section id="view-agency" class="view">
           <div class="no-print page-head row-head">
-            <div><h2>授权代理</h2><p>制作非独家代理授权书，可分别导出公开版和带佣金结算版。</p></div>
+            <div><h2>代理文件与模板</h2><p>选择授权书、佣金协议或订单佣金结算单；模板与正式记录分别保存，不覆盖原授权。</p></div>
             <div class="actions"><button id="agency-preview-btn" type="button">刷新预览</button><button id="agency-save-btn" class="primary" type="button">保存授权书</button><button id="agency-public-pdf-btn" type="button">导出公开版</button><button id="agency-private-pdf-btn" type="button">导出佣金版</button><button id="agency-new-btn" type="button">新建授权书</button></div>
           </div>
           <div class="no-print quote-editor">
             <div class="panel"><h3>授权基本信息</h3><div class="form-grid">
-              <label><span>授权书编号</span><input id="agency-number" /></label>
+              <label><span>文件类型</span><select id="agency-document-type"><option value="authorization">代理授权书</option><option value="agreement">销售代理佣金协议</option><option value="statement">订单佣金结算单</option></select></label>
+              <label><span>使用已保存模板</span><select id="agency-template"><option value="">选择模板…</option></select></label>
+              <div class="actions wide"><button id="agency-use-template" type="button">使用模板新建</button><button id="agency-save-template" type="button">另存为模板</button><button id="agency-export-document" type="button">导出当前文件 PDF</button></div>
+              <label><span>文件编号</span><input id="agency-number" /></label>
+              <label><span>关联授权书编号</span><input id="agency-related-authorization" /></label>
               <label><span>签发日期</span><input id="agency-date" type="date" /></label>
               <label><span>有效期至</span><input id="agency-valid-until" type="date" /></label>
               <label><span>语言版本</span><select id="agency-language"><option value="bilingual">中英双语</option><option value="zh-es">中西双语</option><option value="zh-fr">中法双语</option><option value="zh">纯中文</option><option value="en">纯英文</option><option value="es">纯西班牙语</option><option value="fr">纯法语</option></select></label>
@@ -597,7 +602,7 @@
               <label><span>授权性质</span><input value="非独家授权 / Non-exclusive" disabled /></label>
             </div></div>
             <div class="panel agency-scope-panel"><div class="row-head"><div><h3>授权销售范围</h3><p class="hint">可全选、清空或仅勾选本次允许代理销售的产品。</p></div><div class="actions"><button id="agency-select-all-products" type="button">全部勾选</button><button id="agency-clear-products" type="button">清除选择</button></div></div><div id="agency-product-options" class="agency-product-options"></div></div>
-            <div class="panel"><h3>佣金与结算条款</h3><div class="form-grid">
+            <div class="panel" id="agency-legacy-commission"><h3>授权书附加佣金条款（可选）</h3><div class="form-grid">
               <label class="wide agency-commission-switch"><input id="agency-show-commission" type="checkbox" checked /><span>预览中显示佣金与结算条款（导出时仍可单独选择公开版或佣金版）</span></label>
               <label><span>最低佣金比例（%）</span><input id="agency-commission-min" type="number" min="0" step="0.1" value="5" /></label>
               <label><span>最高佣金比例（%）</span><input id="agency-commission-max" type="number" min="0" step="0.1" value="10" /></label>
@@ -606,6 +611,19 @@
               <label class="wide"><span>佣金发放方式</span><input id="agency-payment-methods" value="美元银行账户或 USDT / USD bank account or USDT" /></label>
               <label class="wide"><span>佣金条款</span><textarea id="agency-commission-terms" rows="6"></textarea></label>
               <label class="wide"><span>补充条款</span><textarea id="agency-extra-terms" rows="4" placeholder="可填写独家/非独家授权、保密、终止条件等。"></textarea></label>
+            </div></div>
+            <div class="panel" id="agency-commercial-panel" hidden><h3>协议与逐单结算</h3><p class="hint">最低佣金5%；加价计入佣金、不重复叠加。收到客户100%合同款后3–7个工作日内支付。协议自动采用已确认的客户保护等条款。</p><div class="form-grid">
+              <label class="agency-order-field"><span>关联佣金协议编号</span><input id="agency-related-agreement" /></label>
+              <label class="agency-order-field"><span>客户姓名或公司</span><input id="agency-customer-name" /></label>
+              <label class="agency-order-field"><span>销售合同编号</span><input id="agency-sales-contract-number" /></label>
+              <label class="agency-order-field"><span>合同币种</span><select id="agency-currency"><option>USD</option><option>CNY</option><option>EUR</option></select></label>
+              <label class="agency-order-field"><span>销售合同金额</span><input id="agency-contract-amount" type="number" min="0.01" step="0.01" /></label>
+              <label class="agency-order-field"><span>佣金方式</span><select id="agency-commission-basis"><option value="rate">固定比例</option><option value="markup">约定加价（保底比例）</option></select></label>
+              <label class="agency-order-field"><span>确认佣金比例（最低5%）</span><input id="agency-order-rate" type="number" min="5" max="100" step="0.01" value="5" /></label>
+              <label class="agency-order-field"><span>约定加价收益（与合同同币种）</span><input id="agency-markup-amount" type="number" min="0" step="0.01" /></label>
+              <label class="agency-order-field"><span>应付佣金（自动计算）</span><input id="agency-payable" readonly /></label>
+              <label class="wide agency-order-field"><span>代理人银行收款信息</span><textarea id="agency-bank-details" rows="4" placeholder="收款人、银行名称、账号、SWIFT/BIC、银行地址。未提供时留空，不沿用公司的收款账户。"></textarea></label>
+              <label class="wide"><span>本文件补充约定（按所选语言填写）</span><textarea id="agency-document-notes" rows="3"></textarea></label>
             </div></div>
           </div>
           <article id="agency-preview" class="quote-preview agency-preview"></article>
@@ -623,7 +641,9 @@
               <input id="history-keyword" placeholder="编号 / 客户 / 国家 / 车型 / 底盘 / 上装 / 型号" />
               <input id="history-date" type="date" />
               <button id="history-search-btn" type="button">搜索筛选</button>
+              <select id="history-status"><option value="active">有效报价（草稿及正式）</option><option value="void">已作废</option><option value="deleted">回收站</option><option value="all">全部</option></select>
             </div>
+            <div class="history-actions"><label><input type="checkbox" id="history-select-all"> 全选当前结果</label><span id="history-selected-count">已选0份</span><button id="history-bulk-delete" class="danger" type="button" disabled>删除所选（移入回收站）</button></div>
           </div>
           <div class="history-table-wrap"><table class="history-table"><thead><tr><th>报价编号/版本</th><th>日期/状态</th><th>客户</th><th>国家/目的港</th><th>机器/型号/配置</th><th>数量</th><th>币种/总额</th><th>操作</th></tr></thead><tbody id="unified-history-list"></tbody></table></div>
           </div>
@@ -882,7 +902,8 @@
     </div>
     <script src="./assets/price-lists/machinery-price-products.js"></script>
     <script src="./assets/freight-workspace.js?v=20260912"></script>
-    <script src="./app.js?v=20260912"></script>
+    <script src="./assets/agency-documents.js?v=20261007"></script>
+    <script src="./app.js?v=20261007"></script>
     <script src="./vehicle-catalog.js?v=20260906-stage22"></script>
     <script src="./vehicle-quotes.js?v=20260827-stage9"></script>
   </body>

@@ -785,13 +785,14 @@
   }
 
   function today() {
-    return new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
   function addDays(days) {
     const d = new Date();
     d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
   function formatDateTime(value) {
@@ -919,6 +920,7 @@
   const paymentOptions = [
     { value: "30/70", label: "30/70 - 30% deposit, 70% before shipment / 3/7付款" },
     { value: "40/60", label: "40/60 - 40% deposit, 60% before shipment / 4/6付款" },
+    { value: "50/50", label: "50/50 - 50% deposit, 50% before shipment / 50%定金，50%尾款发货前付清" },
     { value: "100%", label: "100% before shipment / 百分百付款" }
   ];
 
@@ -936,6 +938,12 @@
         es: "40/60 - 40% de anticipo, 60% antes del embarque",
         fr: "40/60 - 40% d'acompte, 60% avant expédition"
       },
+      "50/50": {
+        en: "50/50 - 50% deposit for production; remaining 50% paid in full before dispatch. Dispatch only after full balance received.",
+        zh: "50/50 - 50%定金安排生产，50%尾款发货前付清；收齐尾款后才发货。",
+        es: "50/50 - 50% de anticipo para producción; 50% restante antes del envío. Envío únicamente tras recibir el saldo completo.",
+        fr: "50/50 - acompte de 50% pour la production ; solde de 50% avant expédition. Expédition uniquement après réception intégrale du solde."
+      },
       "100%": {
         en: "100% before shipment",
         zh: "百分百付款",
@@ -948,6 +956,7 @@
     if (mode === "en") return item.en;
     if (mode === "zh") return item.zh;
     if (mode === "es") return item.es;
+    if (mode === "fr") return item.fr;
     if (mode === "zh-es") return `${item.es} / ${item.zh}`;
     if (mode === "zh-fr") return `${item.fr} / ${item.zh}`;
     return `${item.en} / ${item.zh}`;
@@ -963,7 +972,7 @@
   function normalizeDocumentTypes() {
     const current = Array.isArray(settings.documentTypes) ? settings.documentTypes : [];
     const byKey = new Map(current.map((item) => [item.key, item]));
-    settings.documentTypes = defaultSettings.documentTypes.map((item) => ({
+    settings.documentTypes = [...defaultSettings.documentTypes, {key:"contract",labelZh:"销售合同",labelEn:"Sales Contract",visible:true,sortOrder:30}].map((item) => ({
       ...item,
       ...(byKey.get(item.key) || {})
     })).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
@@ -1631,7 +1640,39 @@
     switchView(previous || "home", { fromBack: true });
   }
 
+  function companyProfileData(source) {
+    return structuredClone(Object.fromEntries(Object.entries(source).filter(([key]) => /^(companyName|companyAddress|companyPhone$|companyEmail$|contactPerson$|contactFields$|bankFields$|paymentQrFields$|logoDataUrl$|logoPath$|stampDataUrl$|stampPath$|agencySignature|agencyAuthorizer|invitationCompany|businessLine)/.test(key))));
+  }
+
+  function storeActiveCompany() {
+    settings.companyProfiles ||= [];
+    settings.activeCompanyId ||= 'company-default';
+    const profile={id:settings.activeCompanyId,data:companyProfileData(settings)};
+    const index=settings.companyProfiles.findIndex(p=>p.id===profile.id);
+    if(index<0)settings.companyProfiles.push(profile);else settings.companyProfiles[index]=profile;
+  }
+
+  async function switchCompanyProfile(id) {
+    const previous=structuredClone(settings);
+    try {
+      collectSettingsDraft();
+      storeActiveCompany();
+      const profile=settings.companyProfiles.find(p=>p.id===id);
+      if(!profile)throw new Error('未找到公司资料');
+      for(const key of Object.keys(companyProfileData(settings)))delete settings[key];
+      Object.assign(settings,structuredClone(profile.data));
+      settings.activeCompanyId=id;
+      await api('/api/settings',{method:'PUT',body:JSON.stringify(settings)});
+      save(keys.settings,settings);
+      renderSettings();
+      toast('已切换公司，新建单据将使用所选公司的资料。');
+    } catch(error){settings=previous;renderSettings();toast(`公司切换失败：${error.message}`);}
+  }
+
   function renderSettings() {
+    storeActiveCompany();
+    const companySelect=$('company-profile-select');
+    if(companySelect){companySelect.innerHTML=settings.companyProfiles.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.data.companyNameZh||p.data.companyNameEn)}</option>`).join('');companySelect.value=settings.activeCompanyId;companySelect.onchange=()=>switchCompanyProfile(companySelect.value);}
     window.freightWorkspace?.renderSettings();
     ensureUserManagerPanel();
     ensureContactFieldsPanel();
@@ -3003,6 +3044,7 @@
     if (contactPerson?.type === "text") settings.contactPerson = contactPerson.value || settings.contactPerson || "";
     if (phone?.type === "text") settings.companyPhone = phone.value || settings.companyPhone || "";
     if (email?.type === "text") settings.companyEmail = email.value || settings.companyEmail || "";
+    storeActiveCompany();
     save(keys.settings, settings);
     if (isAdmin()) {
       try { await api("/api/settings", { method:"PUT", body:JSON.stringify(settings) }); }
@@ -4705,9 +4747,10 @@
   function newAgentAuthorization() {
     const date = today(), party = invitationPartyInfo();
     currentAgentAuthorization = {
-      id: "", authorizationNumber: `AUTH-${date.replace(/-/g, "")}-${String(agentAuthorizations.length + 1).padStart(3, "0")}`,
+      id: "", documentType:"authorization", isTemplate:false, authorizationNumber: AgencyDocuments.number('authorization',date,agentAuthorizations),
       date, validUntil: "", language: "bilingual", company: [party.nameEn || settings.companyNameEn, party.nameZh || settings.companyNameZh].filter(Boolean).join(" / "),
-      authorizer: party.signerName || settings.contactPerson || "Ethan", authorizerTitle: party.signerTitle || "General Manager / 总经理",
+      authorizer: settings.agencyAuthorizer || party.signerName || settings.contactPerson || "Ethan", authorizerTitle: settings.agencyAuthorizerTitle || party.signerTitle || "General Manager / 总经理",
+      signatureDataUrl: settings.agencySignatureDataUrl || "", signatureRotation: settings.agencySignatureRotation || 0,
       country: "", agentName: "", idNumber: "", phone: "", email: "", address:"", officeAddress:"",
       selectedProducts: agencyProductGroups.flatMap(group => group.items.map(item => item[0])), showCommission:true,
       commissionMin: 5, commissionMax: 10, markupAllowed: true,
@@ -4741,6 +4784,9 @@
       "agency-commission-min":a.commissionMin, "agency-commission-max":a.commissionMax, "agency-markup":a.markupAllowed === false ? "no" : "yes",
       "agency-payment-methods":a.paymentMethods, "agency-settlement-days":a.settlementDays, "agency-commission-terms":a.commissionTerms, "agency-extra-terms":a.extraTerms };
     Object.entries(values).forEach(([id,value]) => { if ($(id)) $(id).value = value ?? ""; });
+    $("agency-document-type").value = AgencyDocuments.type(a);
+    Object.entries(agencyDocumentFields).forEach(([id,key])=>{ $(id).value=a[key]??(key==='orderRate'?5:key==='currency'?'USD':key==='commissionBasis'?'rate':''); });
+    updateAgencyDocumentControls();
     if ($("agency-show-commission")) $("agency-show-commission").checked = a.showCommission !== false;
     renderAgencyProductOptions();
   }
@@ -4762,6 +4808,64 @@
       commissionMin:Number(val("agency-commission-min") || 0), commissionMax:Number(val("agency-commission-max") || 0), markupAllowed:val("agency-markup") !== "no",
       paymentMethods:val("agency-payment-methods"), settlementDays:val("agency-settlement-days"), commissionTerms:val("agency-commission-terms"), extraTerms:val("agency-extra-terms")
     });
+    currentAgentAuthorization.documentType=val('agency-document-type')||'authorization';
+    Object.entries(agencyDocumentFields).forEach(([id,key])=>{currentAgentAuthorization[key]=val(id);});
+    updateAgencyDocumentControls();
+  }
+
+  const agencyDocumentFields={
+    'agency-related-authorization':'relatedAuthorization','agency-related-agreement':'relatedAgreement',
+    'agency-customer-name':'customerName','agency-sales-contract-number':'salesContractNumber',
+    'agency-currency':'currency','agency-contract-amount':'contractAmount','agency-commission-basis':'commissionBasis',
+    'agency-order-rate':'orderRate','agency-markup-amount':'markupAmount','agency-bank-details':'bankDetails','agency-document-notes':'documentNotes'
+  };
+
+  function updateAgencyDocumentControls(){
+    const a=currentAgentAuthorization||{},kind=AgencyDocuments.type(a),commercial=kind!=='authorization';
+    $('agency-commercial-panel').hidden=!commercial;
+    $('agency-legacy-commission').hidden=commercial;
+    document.querySelector('.agency-scope-panel').hidden=commercial;
+    document.querySelectorAll('.agency-order-field').forEach(el=>el.hidden=kind!=='statement');
+    $('agency-public-pdf-btn').hidden=commercial; $('agency-private-pdf-btn').hidden=commercial;
+    $('agency-save-btn').textContent=a.isTemplate?'保存模板':'保存文件';
+    $('agency-new-btn').textContent='新建空白文件';
+    const value=AgencyDocuments.calculate(a);
+    $('agency-payable').value=value===null?'待填写':`${a.currency||'USD'} ${value.toFixed(2)}`;
+    const selected=$('agency-template').value;
+    $('agency-template').innerHTML='<option value="">选择模板…</option>'+agentAuthorizations.filter(r=>r.isTemplate&&AgencyDocuments.type(r)===kind).map(r=>`<option value="${escapeHtml(r.id)}">${escapeHtml(r.templateName||r.agentName)} · ${escapeHtml(AgencyDocuments.types[kind])}</option>`).join('');
+    $('agency-template').value=selected;
+  }
+
+  function changeAgencyDocumentType(){
+    const previous=AgencyDocuments.type(currentAgentAuthorization),kind=$('agency-document-type').value;
+    collectAgentAuthorizationForm();
+    const a=currentAgentAuthorization;
+    if(previous!==kind){
+      if(previous==='authorization')a.relatedAuthorization=a.authorizationNumber;
+      if(previous==='agreement')a.relatedAgreement=a.authorizationNumber;
+      a.id=''; a.isTemplate=false; a.templateName=''; a.date=today();
+      a.authorizationNumber=AgencyDocuments.number(kind,a.date,agentAuthorizations);
+      a.documentNotes='';
+    }
+    bindAgentAuthorizationForm(); renderAgentAuthorizationPreview();
+  }
+
+  function useAgencyDocumentTemplate(){
+    const source=agentAuthorizations.find(r=>r.id===$('agency-template').value&&r.isTemplate);
+    if(!source)return toast('请先选择模板。');
+    currentAgentAuthorization=structuredClone(source);
+    Object.assign(currentAgentAuthorization,{id:'',isTemplate:false,templateName:'',date:today(),status:'Active'});
+    currentAgentAuthorization.authorizationNumber=AgencyDocuments.number(AgencyDocuments.type(source),today(),agentAuthorizations);
+    bindAgentAuthorizationForm(); renderAgentAuthorizationPreview();
+  }
+
+  async function saveAgencyDocumentTemplate(){
+    collectAgentAuthorizationForm();
+    const previous=structuredClone(currentAgentAuthorization);
+    currentAgentAuthorization={...previous,id:'',isTemplate:true,templateName:`${previous.agentName} · ${AgencyDocuments.types[AgencyDocuments.type(previous)]}`};
+    currentAgentAuthorization.authorizationNumber=AgencyDocuments.number(AgencyDocuments.type(previous),today(),agentAuthorizations);
+    bindAgentAuthorizationForm();
+    try{await saveAgentAuthorization();}catch(error){currentAgentAuthorization=previous;bindAgentAuthorizationForm();throw error;}
   }
 
   function agencyText(en, zh, es=en, fr=en) {
@@ -4785,7 +4889,12 @@
   function renderAgentAuthorizationPreview() {
     if (!$("agency-preview")) return;
     collectAgentAuthorizationForm();
-    const a = currentAgentAuthorization, stamp = settings.stampDataUrl || "", showCommission=a.showCommission !== false;
+    if(AgencyDocuments.type(currentAgentAuthorization)!=='authorization'){
+      $('agency-preview').dataset.language=currentAgentAuthorization.language||'bilingual';
+      $('agency-preview').innerHTML=AgencyDocuments.render(currentAgentAuthorization,settings);
+      return;
+    }
+    const a = currentAgentAuthorization, stamp = a.companySnapshot?.stampDataUrl || settings.stampDataUrl || "", showCommission=a.showCommission !== false;
     $("agency-preview").dataset.language=a.language||"bilingual";
     $("agency-preview").innerHTML = `<section class="agency-sheet">
       <div class="agency-crest"><span class="agency-wheat left">❧</span><div class="agency-emblem">★</div><span class="agency-wheat right">❧</span></div>
@@ -4804,20 +4913,37 @@
     </section>`;
   }
 
+  const renderAgentAuthorizationWithoutSignature = renderAgentAuthorizationPreview;
+  renderAgentAuthorizationPreview = function () {
+    renderAgentAuthorizationWithoutSignature();
+    applyAgencySignature();
+  };
+
+  function applyAgencySignature() {
+    const a = currentAgentAuthorization, host = $("agency-preview");
+    if (!host || !/^data:image\/(png|jpeg);base64,/.test(a?.signatureDataUrl || "")) return;
+    const rotation = [-90, 0, 90, 180].includes(a.signatureRotation) ? a.signatureRotation : 0;
+    host.innerHTML = host.innerHTML.replace('____________________', `<span style="display:inline-block;position:relative;width:150px;height:85px;vertical-align:middle"><img alt="Signature" src="${escapeHtml(a.signatureDataUrl)}" style="position:absolute;left:50%;top:50%;width:${Math.abs(rotation) === 90 ? 80 : 145}px;height:${Math.abs(rotation) === 90 ? 145 : 80}px;object-fit:contain;transform:translate(-50%,-50%) rotate(${rotation}deg);mix-blend-mode:multiply"></span>`);
+  }
+
   async function saveAgentAuthorization() {
     collectAgentAuthorizationForm();
     if (!currentAgentAuthorization.agentName || !currentAgentAuthorization.country || !currentAgentAuthorization.idNumber || !currentAgentAuthorization.phone || !currentAgentAuthorization.email) return toast("请填写授权国家、联系人姓名、身份证/护照号、联系电话和电子邮箱。");
     if (!/^\S+@\S+\.\S+$/.test(currentAgentAuthorization.email)) return toast("电子邮箱格式不正确。");
-    if (!currentAgentAuthorization.selectedProducts.length) return toast("请至少勾选一个授权产品。");
+    if (AgencyDocuments.type(currentAgentAuthorization)==='authorization'&&!currentAgentAuthorization.selectedProducts.length) return toast("请至少勾选一个授权产品。");
+    const validation=AgencyDocuments.validate(currentAgentAuthorization);
+    if(validation)return toast(validation);
+    if(!currentAgentAuthorization.companySnapshot)currentAgentAuthorization.companySnapshot={companyNameEn:settings.companyNameEn,companyNameZh:settings.companyNameZh,companyAddressEn:settings.companyAddressEn,companyAddressZh:settings.companyAddressZh,stampDataUrl:settings.stampDataUrl||''};
     const data = await api("/api/agent-authorizations", { method:"POST", body:JSON.stringify(currentAgentAuthorization) });
     currentAgentAuthorization.id = data.id;
     await loadAgentAuthorizations();
-    toast(data.zh || "代理授权书已保存。");
+    toast(currentAgentAuthorization.isTemplate?'模板已保存。':'代理文件已保存。');
+    updateAgencyDocumentControls();
   }
 
   function renderAgentAuthorizationHistory() {
     const host = $("agency-history-list"); if (!host) return;
-    host.innerHTML = agentAuthorizations.map((a) => `<article class="list-item"><div><b>${escapeHtml(a.authorizationNumber || "授权书")}</b><p>${escapeHtml(a.agentName || "-")} · ${escapeHtml(a.country || "-")} · ${escapeHtml(a.company || "-")}</p></div><div class="actions"><button type="button" data-agency-action="open" data-id="${a.id}">查看/编辑</button><button type="button" data-agency-action="delete" data-id="${a.id}">删除</button></div></article>`).join("") || `<p class="empty">暂无历史授权书。</p>`;
+    host.innerHTML = agentAuthorizations.map((a) => `<article class="list-item"><div><b>${escapeHtml(a.authorizationNumber || "代理文件")} · ${escapeHtml(AgencyDocuments.types[AgencyDocuments.type(a)])}${a.isTemplate?' · 模板':''}</b><p>${escapeHtml(a.agentName || "-")} · ${escapeHtml(a.country || "-")} · ${escapeHtml(a.company || "-")}</p></div><div class="actions"><button type="button" data-agency-action="open" data-id="${a.id}">查看/编辑</button><button type="button" data-agency-action="delete" data-id="${a.id}">删除</button></div></article>`).join("") || `<p class="empty">暂无历史代理文件。</p>`;
   }
 
   function renderInvitationHistory() {
@@ -4835,7 +4961,7 @@
 
   async function handleAgentAuthorizationHistory(event) {
     const button = event.target.closest("[data-agency-action]"); if (!button) return;
-    if (button.dataset.agencyAction === "open") { currentAgentAuthorization = structuredClone(agentAuthorizations.find((a) => a.id === button.dataset.id)); bindAgentAuthorizationForm(); renderAgentAuthorizationPreview(); return; }
+    if (button.dataset.agencyAction === "open") { currentAgentAuthorization = structuredClone(agentAuthorizations.find((a) => a.id === button.dataset.id)); switchView('agency'); bindAgentAuthorizationForm(); renderAgentAuthorizationPreview(); return; }
     if (!confirm("确认删除这份代理授权书吗？")) return;
     await api(`/api/agent-authorizations/${button.dataset.id}`, { method:"DELETE" });
     if (currentAgentAuthorization?.id === button.dataset.id) currentAgentAuthorization = null;
@@ -4844,13 +4970,15 @@
 
   async function exportAgentAuthorizationPdf(includeCommission=true) {
     collectAgentAuthorizationForm();
+    const validation=AgencyDocuments.validate(currentAgentAuthorization,true);if(validation)return toast(validation);
     const previous=currentAgentAuthorization.showCommission;
     currentAgentAuthorization.showCommission=includeCommission;
+    if($('agency-show-commission'))$('agency-show-commission').checked=includeCommission;
     renderAgentAuthorizationPreview();
     document.body.classList.add("printing-agency");
     try {
       await waitForPrintableImages($("agency-preview"));
-      const fileName = `${currentAgentAuthorization.date || today()} ${currentAgentAuthorization.agentName || "代理授权书"} ${includeCommission?"佣金版":"公开版"}.pdf`;
+      const fileName = `${currentAgentAuthorization.date || today()} ${currentAgentAuthorization.agentName || "代理文件"} ${currentAgentAuthorization.authorizationNumber} ${AgencyDocuments.types[AgencyDocuments.type(currentAgentAuthorization)]}${currentAgentAuthorization.isTemplate?' 模板':''}.pdf`;
       if (window.quotationDesktop?.exportCurrentPdf) { const path = await window.quotationDesktop.exportCurrentPdf(fileName); if (path) toast(`PDF 已导出：${path}`); }
       else { applyPrintTitle(); window.print(); }
     } finally { currentAgentAuthorization.showCommission=previous; if($("agency-show-commission"))$("agency-show-commission").checked=previous!==false; setTimeout(() => { document.body.classList.remove("printing-agency"); renderAgentAuthorizationPreview(); }, 500); }
@@ -4934,6 +5062,7 @@
       return {
         id: row.dataset.id,
         kind: row.dataset.kind || "product",
+        additionalImages: currentQuote.items.find(item => item.id === row.dataset.id)?.additionalImages || [],
         values,
         imageDataUrl: row.dataset.image || "",
         freightSnapshot
@@ -4943,7 +5072,7 @@
       card.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
       let freightSnapshot = null;
       try { freightSnapshot = card.dataset.freightSnapshot ? JSON.parse(decodeURIComponent(card.dataset.freightSnapshot)) : null; } catch { freightSnapshot = null; }
-      return { id: card.dataset.id, kind: card.dataset.kind || "product", values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
+      return { id: card.dataset.id, kind: card.dataset.kind || "product", additionalImages: currentQuote.items.find(item => item.id === card.dataset.id)?.additionalImages || [], values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
     });
     currentQuote.updatedAt = new Date().toISOString();
   }
@@ -5032,7 +5161,7 @@
     if (column.key === "billingUnit") return `<select data-qfield="billingUnit"><option ${values.billingUnit==="台"?"selected":""}>台</option><option ${values.billingUnit==="m³"?"selected":""}>m³</option><option ${values.billingUnit==="吨"?"selected":""}>吨</option><option ${values.billingUnit==="柜"?"selected":""}>柜</option><option ${values.billingUnit==="项"?"selected":""}>项</option></select>`;
     if (column.key === "hsCode") return isEquipment?`<div class="hs-code-input"><input data-qfield="hsCode" list="hs-code-options" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" value="${escapeHtml(values.hsCode || suggestedHsCode(values.productType,values.description,values.brand,values.model))}" placeholder="8位 HS CODE"><button class="add-hs-code-btn no-print" type="button">＋ 新建编码</button><small>请输入8位编码，申报前请由目的国清关代理确认</small></div>`:`<span class="not-applicable">—</span>`;
     if (column.key === "qty") return `<input data-qfield="qty" type="number" min="0" step="1" value="${escapeHtml(values.qty || "1")}"${required} />`;
-    if (column.key === "unitPrice") return `<input data-qfield="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(values.unitPrice || "")}"${required} />`;
+    if (column.key === "unitPrice") return `<input data-qfield="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(values.unitPrice ?? "")}"${required} />`;
     if (column.key === "currency") return renderCurrencySelect("currency", values.currency || settings.currency);
     if (column.key === "amount") return `<span class="line-amount">${values.unitPrice===""||values.unitPrice==null?"待询价":escapeHtml(money(itemSubtotal(item), values.currency || settings.currency))}</span>`;
     if (column.key === "image") return `<div class="line-image-box"><img src="${item.imageDataUrl || ""}" alt=""${item.imageDataUrl ? "" : " hidden"} /><span${item.imageDataUrl ? " hidden" : ""}>尚未上传</span></div>`;
@@ -5510,7 +5639,9 @@
 
   function displayTermValue(field) {
     const value = currentQuote.terms[field.fieldKey] || "";
+    if (["notes", "warranty", "afterSales"].includes(field.fieldKey) && ["bilingual", "zh-fr", "zh-es"].includes(displayMode())) return value;
     if (field.fieldKey === "payment") {
+      if (["bilingual", "zh-fr", "zh-es"].includes(displayMode()) && String(value).includes(' / ')) return value;
       return paymentLabel(value);
     }
     if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
@@ -5632,7 +5763,7 @@
           }
           continue;
         }
-        if (!String(item.values?.[column.key] || "").trim()) {
+        if (!String(item.values?.[column.key] ?? "").trim()) {
           toast(`第 ${rowIndex + 1} 行请填写：${column.labelZh || column.key}`);
           return false;
         }
@@ -5671,7 +5802,7 @@
       </section>
       <section class="preview-panel"><h3>${quoteSectionTitle("customer")}</h3><div class="preview-fields">${customerPreviewFields(currentQuote.buyer)}</div></section>
       <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">报价未完整：存在待询价项目，可保存草稿，但不能生成正式单据。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${money(total(), settings.currency)}</div>` : ""}</section>
-      ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && i.imageDataUrl) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product" && i.imageDataUrl).map(i => `<article class="photo-card"><img src="${i.imageDataUrl}"><div>${escapeHtml(i.values.description || `${i.values.brand || ""} ${i.values.model || ""}`.trim())}</div></article>`).join("")}</div></section>` : ""}
+      ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && (i.imageDataUrl || i.additionalImages?.length)) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product").flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || `${i.values.brand || ""} ${i.values.model || ""}`.trim())}</div></article>`)).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${quoteSectionTitle("terms")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
     `;
@@ -5709,6 +5840,7 @@
             model: item.values.model || "",
             transportCbm: freightSnapshot?.transportCbm || item.values.transportCbm || "",
             imageDataUrl: item.imageDataUrl || "",
+            additionalImages: item.additionalImages || [],
             imagePath: item.imageDataUrl || ""
           },
           priceSnapshot: {
@@ -5770,17 +5902,17 @@
       pdfLanguage:meta.pdfLanguage || "bilingual", currency:meta.currency || "USD", buyer:q.buyer || {}, terms:q.terms || {},
       templateName:q.settingsSnapshot?.templates?.[0]?.name || settings.templates[0]?.name || "",
       items:(data.items || []).map(item=>{
+        const additionalImages=Array.isArray(item.productSnapshot?.additionalImages)?item.productSnapshot.additionalImages:[];
         const values=item.priceSnapshot?.values||{};
         const kind=({"设备":"product","海运费":"freight","国内运输费":"trucking","港杂及报关费":"port","保险费":"insurance","拆装费":"handling","其他费用":"custom"})[values.itemType]||(item.freightSnapshot?"freight":"product");
-        return {id:item.id,kind,imageDataUrl:item.productSnapshot?.imagePath || item.productSnapshot?.imageDataUrl || "",values:{...values,productId:item.product_id || item.productSnapshot?.productId || "",description:values.description || item.productSnapshot?.productName || "",productType:values.productType || item.productSnapshot?.machineCategory || "",brand:values.brand || item.productSnapshot?.brand || "",model:values.model || item.productSnapshot?.model || "",qty:values.qty ?? item.priceSnapshot?.quantity ?? 1,unitPrice:values.unitPrice ?? item.priceSnapshot?.unitPrice ?? "",currency:values.currency || item.priceSnapshot?.currency || meta.currency || "USD"},freightSnapshot:item.freightSnapshot || null};
+        return {id:item.id,kind,additionalImages,imageDataUrl:item.productSnapshot?.imagePath || item.productSnapshot?.imageDataUrl || "",values:{...values,productId:item.product_id || item.productSnapshot?.productId || "",description:values.description || item.productSnapshot?.productName || "",productType:values.productType || item.productSnapshot?.machineCategory || "",brand:values.brand || item.productSnapshot?.brand || "",model:values.model || item.productSnapshot?.model || "",qty:values.qty ?? item.priceSnapshot?.quantity ?? 1,unitPrice:values.unitPrice ?? item.priceSnapshot?.unitPrice ?? "",currency:values.currency || item.priceSnapshot?.currency || meta.currency || "USD"},freightSnapshot:item.freightSnapshot || null};
       }),
       createdAt:q.created_at, updatedAt:q.updated_at, savedAt:q.updated_at
     };
   }
 
   async function editQuote(id) {
-    const local=quotes.find(q=>q.id===id);
-    currentQuote = local ? structuredClone(local) : serverQuotationToLocal(await api(`/api/quotations/${id}`));
+    currentQuote = serverQuotationToLocal(await api(`/api/quotations/${id}`));
     switchView("quote");
     setQuoteBusiness("standard");
     bindQuoteToForm();
@@ -5790,11 +5922,20 @@
   }
 
   async function copyQuote(id) {
-    const local=quotes.find(x=>x.id===id);
-    const q = local ? structuredClone(local) : serverQuotationToLocal(await api(`/api/quotations/${id}`));
+    const q = serverQuotationToLocal(await api(`/api/quotations/${id}`));
+    const existing = await api('/api/quotations?includeInactive=1');
+    (existing.quotations || []).forEach(row => syncQuoteSequenceFromNumber(row.quote_number));
     const nowIso = new Date().toISOString();
     q.id = uid("quote");
-    q.quoteNumber = `${q.quoteNumber}-COPY`;
+    q.quoteDate = today();
+    q.quoteNumber = nextQuoteNumber(q.quoteDate, true);
+    q.validUntil = addDays(7);
+    q.validityRangeText = `${q.quoteDate} - ${q.validUntil}`;
+    q.sourceQuoteId = id;
+    q.seriesId = q.id;
+    q.isFormal = false;
+    q.version = 0;
+    q.formalizedAt = null;
     q.status = "草稿";
     q.createdAt = nowIso;
     q.updatedAt = nowIso;
@@ -5808,20 +5949,21 @@
   }
 
   async function deleteQuote(id, type = "standard", isFormal = false) {
-    const actionName = isFormal ? "作废" : "删除";
-    if (!confirm(`确定要${actionName}这份报价吗？${isFormal ? "\n正式报价会保留审计记录，但不会继续作为有效报价使用。" : "\n删除后无法从历史报价恢复。"}`)) return;
+    return historyAction([{id,type}], 'delete');
+  }
+
+  async function historyAction(entries, action) {
+    const label = {delete:'删除并移入回收站',void:'作废',restore:'恢复'}[action];
+    if (!entries.length || !confirm(`确定要${label}选中的 ${entries.length} 份报价吗？${action==='delete'?'可在回收站恢复。':''}`)) return;
     try {
-      if (type === "vehicle") {
-        await api(isFormal ? `/api/vehicle-quotes/${id}/void` : `/api/vehicle-quotes/${id}`, {
-          method: isFormal ? "POST" : "DELETE",
-          body: isFormal ? JSON.stringify({ reason:"用户从历史报价执行作废" }) : undefined
-        });
-      } else {
-        await api(`/api/quotations/${id}`, { method:"DELETE" });
-        quotes = quotes.filter((q) => q.id !== id);
-        save(keys.quotes, quotes);
+      await api('/api/history/actions', {method:'POST',body:JSON.stringify({entries,action})});
+      const ids=new Set(entries.filter(e=>e.type==='standard').map(e=>e.id));
+      quotes=quotes.filter(q=>!ids.has(q.id));
+      save(keys.quotes,quotes);
+      if (currentQuote && ids.has(currentQuote.id)) {
+        currentQuote=null;
       }
-      toast(isFormal ? "正式报价已作废。" : "历史草稿已删除。");
+      toast(`${entries.length}份报价已${label}。`);
       await renderHistory();
     } catch (error) { toast(error.message); }
   }
@@ -5832,10 +5974,12 @@
     try {
       const normalParams=new URLSearchParams(); if(keyword)normalParams.set("q",keyword);if(date)normalParams.set("date",date);
       const vehicleParams=new URLSearchParams();if(keyword)vehicleParams.set("q",keyword);if(date){vehicleParams.set("from",date);vehicleParams.set("to",date);}
+      normalParams.set('includeInactive','1');vehicleParams.set('includeInactive','1');
       const [normalResult,vehicleResult]=await Promise.all([api(`/api/quotations?${normalParams}`),api(`/api/vehicle-quotes/history?${vehicleParams}`)]);
       const normalRows=(normalResult.quotations||[]).map(q=>({type:"standard",sort:q.updated_at||q.quote_date,q}));
       const vehicleRows=(vehicleResult.quotations||[]).map(q=>({type:"vehicle",sort:q.updatedAt||q.quoteDate,q}));
-      const rows=[...normalRows,...vehicleRows].sort((a,b)=>String(b.sort||"").localeCompare(String(a.sort||"")));
+      const filter=$('history-status')?.value || 'active';
+      const rows=[...normalRows,...vehicleRows].filter(({q})=>filter==='all'||(filter==='void'?q.status==='Void':filter==='deleted'?q.status==='Deleted':!['Void','Deleted'].includes(q.status))).sort((a,b)=>String(b.sort||"").localeCompare(String(a.sort||"")));
       $("unified-history-list").innerHTML=rows.map(({type,q})=>{
         if(type==="vehicle"){
           const count=(q.items||[]).reduce((sum,item)=>sum+Number(item.quantity||0),0);
@@ -5846,6 +5990,27 @@
         const meta=q.settingsSnapshot?._quoteMeta||{}, machine=(q.items||[]).map(item=>`${item.productSnapshot?.machineCategory||""} ${item.productSnapshot?.brand||""} ${item.productSnapshot?.model||""} ${item.productSnapshot?.productName||""}`.trim()).filter(Boolean).join("；"),port=q.terms?.port||q.terms?.destinationPort||"",qty=(q.items||[]).reduce((sum,item)=>sum+Number(item.priceSnapshot?.quantity||item.priceSnapshot?.values?.qty||0),0);
         return `<tr><td><b>${escapeHtml(q.quote_number||"")}${q.version?` V${q.version}`:""}</b><small>${meta.documentType==="invoice"?"形式发票":"二手/常规设备报价"}</small></td><td>${escapeHtml(q.quote_date||"")}<small>${q.is_formal?"正式报价":escapeHtml(q.status||"草稿")}</small></td><td>${escapeHtml(q.buyer?.company||q.buyer?.contact||"-")}</td><td>${escapeHtml(q.buyer?.country||"-")}<small>${escapeHtml(port)}</small></td><td class="history-machine">${escapeHtml(machine||"未填写机器")}</td><td>${qty||q.items?.length||0} 台/项</td><td>${escapeHtml(meta.currency||q.items?.[0]?.priceSnapshot?.currency||"USD")} ${Number(q.total_amount||0).toLocaleString()}</td><td><div class="history-actions"><button onclick="window.quoteApp.editQuote('${q.id}')">查看</button><button onclick="window.quoteApp.copyQuote('${q.id}')">复制</button>${q.is_formal?`<button onclick="window.quoteApp.printStandardHistory('${q.id}')">PDF</button>`:""}<button class="danger" onclick="window.quoteApp.deleteQuote('${q.id}','standard',${q.is_formal?"true":"false"})">${q.is_formal?"作废":"删除"}</button></div></td></tr>`;
       }).join("")||`<tr><td colspan="8" class="empty">没有找到历史报价。</td></tr>`;
+      $('history-select-all').checked=false;
+      const selected=()=>Array.from(document.querySelectorAll('.history-row-select:checked')).map(el=>({id:el.dataset.id,type:el.dataset.type}));
+      const updateSelection=()=>{const count=selected().length;$('history-selected-count').textContent=`已选${count}份`;$('history-bulk-delete').disabled=!count;$('history-select-all').checked=count>0&&count===rows.length;$('history-select-all').indeterminate=count>0&&count<rows.length;};
+      Array.from($('unified-history-list').rows).forEach((tr,index)=>{
+        const entry=rows[index];if(!entry)return;const {q,type}=entry;
+        const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.className='history-row-select';checkbox.dataset.id=q.id;checkbox.dataset.type=type;checkbox.setAttribute('aria-label',`选择报价 ${q.quote_number||q.quoteNumber}`);checkbox.onchange=updateSelection;tr.cells[0].prepend(checkbox);
+        tr.cells[1].querySelector('small').textContent=q.status==='Deleted'?'已删除（回收站）':q.status==='Void'?'已作废':(q.is_formal||q.isFormal)?'正式报价':'草稿';
+        const actions=tr.querySelector('.history-actions');actions.replaceChildren();
+        const add=(label,handler)=>{const b=document.createElement('button');b.textContent=label;b.onclick=handler;actions.append(b);};
+        const copy=()=>type==='standard'?copyQuote(q.id):window.vehicleQuoteApp.copy(q.id);
+        add('查看',()=>type==='standard'?editQuote(q.id):window.vehicleQuoteApp.edit(q.id));
+        if(q.status==='Deleted'){add('恢复',()=>historyAction([{id:q.id,type}],'restore'));return;}
+        if(q.status!=='Void')add('编辑',(q.is_formal||q.isFormal)?copy:()=>type==='standard'?editQuote(q.id):window.vehicleQuoteApp.edit(q.id));
+        add('复制',copy);
+        if(q.status!=='Void')add('PDF',()=>type==='standard'?printStandardHistory(q.id):window.vehicleQuoteApp.printHistory(q.id));
+        if(q.status!=='Void')add('作废',()=>historyAction([{id:q.id,type}],'void'));
+        add('删除',()=>historyAction([{id:q.id,type}],'delete'));
+      });
+      updateSelection();
+      $('history-select-all').onchange=()=>{document.querySelectorAll('.history-row-select').forEach(el=>{el.checked=$('history-select-all').checked;});updateSelection();};
+      $('history-bulk-delete').onclick=()=>historyAction(selected(),'delete');
     } catch (error) { $("unified-history-list").innerHTML = `<tr><td colspan="8" class="empty">${escapeHtml(error.message)}</td></tr>`; }
   }
 
@@ -6163,6 +6328,11 @@
     $("agency-public-pdf-btn")?.addEventListener("click", () => exportAgentAuthorizationPdf(false).catch((error) => toast(error.message)));
     $("agency-private-pdf-btn")?.addEventListener("click", () => exportAgentAuthorizationPdf(true).catch((error) => toast(error.message)));
     $("agency-new-btn")?.addEventListener("click", newAgentAuthorization);
+    $('agency-document-type')?.addEventListener('change',changeAgencyDocumentType);
+    $('agency-use-template')?.addEventListener('click',useAgencyDocumentTemplate);
+    $('agency-save-template')?.addEventListener('click',()=>saveAgencyDocumentTemplate().catch(e=>toast(e.message)));
+    $('agency-export-document')?.addEventListener('click',()=>exportAgentAuthorizationPdf(true).catch(e=>toast(e.message)));
+    Object.keys(agencyDocumentFields).forEach(id=>$(id)?.addEventListener('input',renderAgentAuthorizationPreview));
     $("agency-history-list")?.addEventListener("click", (event) => handleAgentAuthorizationHistory(event).catch((error) => toast(error.message)));
     $("agency-product-options")?.addEventListener("change", renderAgentAuthorizationPreview);
     $("agency-select-all-products")?.addEventListener("click",()=>{document.querySelectorAll("#agency-product-options input").forEach(input=>input.checked=true);renderAgentAuthorizationPreview();});
@@ -6185,6 +6355,7 @@
       $(id)?.addEventListener("change", renderInvitationPreview);
     });
     $("history-search-btn").addEventListener("click", renderHistory);
+    $("history-status").addEventListener("change", renderHistory);
     $("invitation-history-list")?.addEventListener("click",handleInvitationHistory);
     document.querySelectorAll("[data-history-kind]").forEach(button=>button.addEventListener("click",()=>{
       document.querySelectorAll("[data-history-kind]").forEach(item=>item.classList.toggle("active",item===button));

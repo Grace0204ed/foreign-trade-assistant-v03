@@ -1163,6 +1163,14 @@ textarea { min-height: 86px; resize: vertical; }
 .agency-preview[data-language="es"],.agency-preview[data-language="fr"],.agency-preview[data-language="en"] { font-family:"Segoe UI","Noto Sans",Arial,sans-serif; }
 .agency-preview[data-language="fr"] .agency-sheet,.agency-preview[data-language="es"] .agency-sheet { hyphens:auto; }
 .agency-sheet { width:min(100%,900px); margin:auto; background:#fffdf8; color:#282316; padding:38px 58px 50px; border:1px solid #c9a95f; box-shadow:0 18px 48px rgba(71,51,13,.16); font-family:Arial,"Microsoft YaHei",sans-serif; position:relative; overflow:hidden; }
+.agency-commercial { background:white; color:#182536; border-color:#bdcddd; overflow:visible; }
+.agency-commercial::before,.agency-commercial::after { display:none; }
+.agency-commercial h1 { font: bold 24px Arial,"Microsoft YaHei",sans-serif; color:#183f68; letter-spacing:0; }
+.agency-clause { line-height:1.6; white-space:pre-wrap; break-inside:avoid; margin:14px 0; }
+.agency-commercial .agency-info-grid span { white-space:pre-wrap; overflow-wrap:anywhere; }
+.agency-commercial-stamp { max-width:130px; max-height:130px; object-fit:contain; }
+#view-agency [hidden] { display:none !important; }
+@media print { .agency-commercial .agency-clause { font-size:10pt; line-height:1.45; } .agency-commercial .agency-signature { break-inside:avoid; } }
 .agency-sheet::before,.agency-sheet::after { content:""; position:absolute; inset:12px; border:1px solid rgba(176,132,36,.34); pointer-events:none; }
 .agency-sheet::after { inset:17px; border-color:rgba(176,132,36,.15); }
 .agency-crest { height:78px; display:flex; align-items:center; justify-content:center; gap:8px; color:#b2872e; position:relative; z-index:1; }
@@ -1582,3 +1590,15 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
 .quote-history-suggestions button { display:block;width:100%;text-align:left;white-space:normal;border:0; }
 .quote-history-suggestions button:hover { background:#eef6ff; }
 @media(max-width:720px){.config-route{grid-template-columns:1fr;} .freight-calculator-panel > .actions{flex-wrap:wrap;} }
+
+/* Commercial agency documents share the blue quotation identity, not the certificate ornament. */
+.agency-preview .agency-commercial h1 { font:bold 23px Arial,"Microsoft YaHei",sans-serif; color:#183f68; letter-spacing:0; margin:15px 0 10px; }
+.agency-commercial .agency-letterhead { border-color:#c4d3e1; }
+.agency-commercial .agency-letterhead b,.agency-commercial .agency-info-grid b { color:#183f68; }
+.agency-commercial .agency-meta { margin-bottom:12px; }
+.agency-commercial .agency-info-grid { background:#e8eff5; border-color:#c4d3e1; margin:12px 0; }
+.agency-commercial .agency-info-grid p { padding:8px 10px; gap:3px; break-inside:avoid; }
+.agency-commercial .agency-signature { margin-top:20px; align-items:start; }
+.agency-commercial .agency-signer-side { position:relative; padding-right:100px; }
+.agency-commercial .agency-commercial-stamp { position:absolute; right:0; top:10px; width:95px; height:125px; }
+@media print { .agency-commercial .agency-info-grid span {font-size:10pt;} .agency-commercial .agency-clause {margin:10px 0;} }

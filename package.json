@@ -5,6 +5,7 @@
   "main": "electron/main.js",
   "private": true,
   "scripts": {
+    "test": "node scripts/test-agency-documents.js && node scripts/test-history-actions.js",
     "server": "node server/index.js",
     "electron": "electron .",
     "dev": "node server/index.js",

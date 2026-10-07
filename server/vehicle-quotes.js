@@ -164,7 +164,8 @@ function installVehicleQuoteRoutes(app, { db, requireLogin, requireAdmin, ok, fa
   app.post("/api/customers/match", requireLogin, (req, res) => ok(res, matchCustomer(req.body || {})));
 
   function quoteNumber() {
-    const day = now().slice(0,10).replace(/-/g, "");
+    const d=new Date();
+    const day = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
     const count = db.prepare("SELECT COUNT(*) count FROM quote_series WHERE quote_number LIKE ?").get(`QA-${day}-%`).count + 1;
     return `QA-${day}-${String(count).padStart(3,"0")}`;
   }
@@ -192,6 +193,7 @@ function installVehicleQuoteRoutes(app, { db, requireLogin, requireAdmin, ok, fa
           series = db.prepare("SELECT * FROM quote_series WHERE id=?").get(seriesId);
         } else db.prepare("UPDATE quote_series SET customer_id=?,updated_at=? WHERE id=?").run(customerId, now(), series.id);
         const latest = db.prepare("SELECT * FROM quote_versions WHERE series_id=? ORDER BY version DESC LIMIT 1").get(series.id);
+        if (latest && ['Deleted','Void'].includes(latest.status)) throw new Error('报价已删除或作废，请刷新后复制为新报价。');
         let version = latest?.version || 1, versionId = latest?.id;
         if (!latest || latest.is_formal || formal) { version = latest ? latest.version + (latest.is_formal ? 1 : 0) : 1; versionId = id("qv"); }
         const snapshot = { quoteType:"vehicle", documentType:body.documentType || "quotation", language:body.language||"bilingual", buyer: body.buyer || {}, currency:calc.currency, items:calc.items, feesInput:body.fees || {}, fees:calc.fees, logistics:body.logistics||null, subtotal:calc.subtotal, finalTotal:calc.finalTotal, terms:body.terms || {}, quoteDate:body.quoteDate || now().slice(0,10), validUntil:body.validUntil || "" };
@@ -219,6 +221,7 @@ function installVehicleQuoteRoutes(app, { db, requireLogin, requireAdmin, ok, fa
 
   app.get("/api/vehicle-quotes/history", requireLogin, (req, res) => {
     const clauses = ["1=1"], values = [];
+    if (req.query.includeInactive !== "1") clauses.push("v.status NOT IN ('Void','Deleted')");
     if (req.query.q) { clauses.push("v.search_text LIKE ?"); values.push(`%${normalize(req.query.q)}%`); }
     if (req.query.status) { clauses.push("v.status=?"); values.push(req.query.status); }
     if (req.query.from) { clauses.push("date(v.created_at)>=date(?)"); values.push(req.query.from); }
