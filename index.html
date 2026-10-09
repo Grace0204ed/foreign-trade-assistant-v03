@@ -576,12 +576,12 @@
 
         <section id="view-agency" class="view">
           <div class="no-print page-head row-head">
-            <div><h2>代理文件与模板</h2><p>选择授权书、佣金协议或订单佣金结算单；模板与正式记录分别保存，不覆盖原授权。</p></div>
+            <div><h2>授权与佣金文件</h2><p>佣金结算单适用于代理人、中介和其他佣金结算人，可打印后手工填写并签字。</p></div>
             <div class="actions"><button id="agency-preview-btn" type="button">刷新预览</button><button id="agency-save-btn" class="primary" type="button">保存授权书</button><button id="agency-public-pdf-btn" type="button">导出公开版</button><button id="agency-private-pdf-btn" type="button">导出佣金版</button><button id="agency-new-btn" type="button">新建授权书</button></div>
           </div>
           <div class="no-print quote-editor">
-            <div class="panel"><h3>授权基本信息</h3><div class="form-grid">
-              <label><span>文件类型</span><select id="agency-document-type"><option value="authorization">代理授权书</option><option value="agreement">销售代理佣金协议</option><option value="statement">订单佣金结算单</option></select></label>
+            <div class="panel"><h3 id="agency-basic-title">基本信息</h3><div class="form-grid">
+              <label><span>文件类型</span><select id="agency-document-type"><option value="authorization">代理授权书</option><option value="agreement">销售代理佣金协议</option><option value="statement">订单佣金结算单</option><option value="procurement">个人委托采购协议</option></select></label>
               <label><span>使用已保存模板</span><select id="agency-template"><option value="">选择模板…</option></select></label>
               <div class="actions wide"><button id="agency-use-template" type="button">使用模板新建</button><button id="agency-save-template" type="button">另存为模板</button><button id="agency-export-document" type="button">导出当前文件 PDF</button></div>
               <label><span>文件编号</span><input id="agency-number" /></label>
@@ -592,14 +592,21 @@
               <label class="wide"><span>授权方公司（可自由输入）</span><input id="agency-company" list="agency-company-options" placeholder="例如：万挖机械 / Wanwa Machinery" /><datalist id="agency-company-options"></datalist></label>
               <label><span>授权方签署人</span><input id="agency-authorizer" placeholder="Ethan" /></label>
               <label><span>签署人职务</span><input id="agency-authorizer-title" placeholder="General Manager / 总经理" /></label>
-              <label><span>授权国家/地区 *</span><input id="agency-country" list="agency-country-options" placeholder="Nigeria / 尼日利亚" /><datalist id="agency-country-options"></datalist></label>
-              <label><span>联系人姓名 *</span><input id="agency-agent-name" /></label>
+              <label><span>国家/地区</span><input id="agency-country" list="agency-country-options" placeholder="Nigeria / 尼日利亚" /><datalist id="agency-country-options"></datalist></label>
+              <label><span>姓名或全名</span><input id="agency-agent-name" /></label>
               <label><span>身份证/护照号 *</span><input id="agency-id-number" /></label>
               <label><span>联系电话 *</span><input id="agency-phone" /></label>
               <label><span>电子邮箱 *</span><input id="agency-email" type="email" /></label>
               <label class="wide"><span>联系人所在地址</span><textarea id="agency-address" rows="2"></textarea></label>
               <label class="wide"><span>门店或办公室地址</span><input id="agency-office-address" placeholder="有门店或办公室时直接填写完整地址；没有可留空" /></label>
               <label><span>授权性质</span><input value="非独家授权 / Non-exclusive" disabled /></label>
+            </div></div>
+            <div class="panel" id="agency-procurement-panel" hidden><h3>个人委托采购 · 甲方信息与设备</h3><p>个人身份签署，不使用公司抬头或公章；外籍乙方可填写护照或当地证件。空白模板可保存，正式签署前补齐证件姓名及取消采购的佣金约定。</p><div class="form-grid">
+              <label><span>甲方证件姓名</span><input id="procurement-legal-name" /></label><label><span>甲方身份证</span><input id="procurement-id" /></label>
+              <label><span>甲方电话</span><input id="procurement-phone" /></label><label><span>甲方微信</span><input id="procurement-wechat" /></label><label><span>甲方WhatsApp</span><input id="procurement-whatsapp" /></label>
+              <label class="wide"><span>设备型号、状态及数量</span><input id="procurement-machine" /></label><label><span>年份</span><input id="procurement-year" /></label>
+              <label><span>设备采购款（人民币）</span><input id="procurement-amount" type="number" min="0" step="0.01" /></label><label><span>采购服务佣金（人民币）</span><input id="procurement-fee" type="number" min="0" step="0.01" /></label>
+              <label class="wide"><span>取消或未完成采购时佣金处理（待双方确认）</span><textarea id="procurement-cancellation"></textarea></label>
             </div></div>
             <div class="panel agency-scope-panel"><div class="row-head"><div><h3>授权销售范围</h3><p class="hint">可全选、清空或仅勾选本次允许代理销售的产品。</p></div><div class="actions"><button id="agency-select-all-products" type="button">全部勾选</button><button id="agency-clear-products" type="button">清除选择</button></div></div><div id="agency-product-options" class="agency-product-options"></div></div>
             <div class="panel" id="agency-legacy-commission"><h3>授权书附加佣金条款（可选）</h3><div class="form-grid">
@@ -618,11 +625,26 @@
               <label class="agency-order-field"><span>销售合同编号</span><input id="agency-sales-contract-number" /></label>
               <label class="agency-order-field"><span>合同币种</span><select id="agency-currency"><option>USD</option><option>CNY</option><option>EUR</option></select></label>
               <label class="agency-order-field"><span>销售合同金额</span><input id="agency-contract-amount" type="number" min="0.01" step="0.01" /></label>
-              <label class="agency-order-field"><span>佣金方式</span><select id="agency-commission-basis"><option value="rate">固定比例</option><option value="markup">约定加价（保底比例）</option></select></label>
-              <label class="agency-order-field"><span>确认佣金比例（最低5%）</span><input id="agency-order-rate" type="number" min="5" max="100" step="0.01" value="5" /></label>
+              <label class="agency-order-field"><span>佣金方式</span><select id="agency-commission-basis"><option value="rate">按销售合同金额比例</option><option value="fixed">约定固定金额（手动填写）</option><option value="markup" hidden>历史加价方式</option></select></label>
+              <label class="agency-order-field"><span>佣金比例（%）</span><input id="agency-order-rate" type="number" min="0" max="100" step="0.01" /></label>
+              <label class="agency-order-field"><span>固定佣金金额（与合同同币种）</span><input id="agency-fixed-commission" type="number" min="0" step="0.01" /></label>
               <label class="agency-order-field"><span>约定加价收益（与合同同币种）</span><input id="agency-markup-amount" type="number" min="0" step="0.01" /></label>
               <label class="agency-order-field"><span>应付佣金（自动计算）</span><input id="agency-payable" readonly /></label>
-              <label class="wide agency-order-field"><span>代理人银行收款信息</span><textarea id="agency-bank-details" rows="4" placeholder="收款人、银行名称、账号、SWIFT/BIC、银行地址。未提供时留空，不沿用公司的收款账户。"></textarea></label>
+              <label class="agency-order-field"><span>乙方收款方式（二选一）</span><select id="agency-payment-channel"><option value="bank">银行汇款 · 全款到账后7个工作日内</option><option value="crypto">USDT · 全款到账后3个工作日内</option></select></label>
+              <label class="agency-order-field"><span>打印后手填</span><input id="agency-manual-completion" type="checkbox" checked /><small>允许乙方资料和收款资料留空，打印后填写并签字回传。</small></label>
+              <label class="agency-order-field"><span>乙方公司（如适用）</span><input id="agency-recipient-company" /></label>
+              <div class="wide agency-order-field form-grid" id="agency-bank-fields">
+                <label><span>收款人全名</span><input id="agency-beneficiary-name" /></label><label><span>银行名称</span><input id="agency-bank-name" /></label>
+                <label><span>银行账号</span><input id="agency-bank-account" /></label><label><span>SWIFT / BIC</span><input id="agency-bank-swift" /></label>
+                <label><span>银行或路由代码（如适用）</span><input id="agency-bank-routing" /></label><label><span>IBAN（如适用）</span><input id="agency-bank-iban" /></label>
+                <label><span>银行国家</span><input id="agency-bank-country" /></label><label><span>银行地址</span><input id="agency-bank-address" /></label>
+                <label class="wide"><span>收款人地址</span><input id="agency-beneficiary-address" /></label>
+              </div>
+              <div class="wide agency-order-field form-grid" id="agency-crypto-fields" hidden>
+                <label><span>收款币种</span><input value="USDT" readonly /></label><label><span>区块链网络（可选或手填）</span><input id="agency-crypto-network" list="agency-network-options" placeholder="选择或填写网络" /><datalist id="agency-network-options"><option value="TRC20"/><option value="ERC20"/><option value="BEP20"/></datalist></label>
+                <label class="wide"><span>钱包地址（由乙方填写并确认）</span><textarea id="agency-wallet-address" rows="3"></textarea></label>
+              </div>
+              <label class="wide agency-order-field" hidden><span>历史收款备注</span><textarea id="agency-bank-details" rows="2"></textarea></label>
               <label class="wide"><span>本文件补充约定（按所选语言填写）</span><textarea id="agency-document-notes" rows="3"></textarea></label>
             </div></div>
           </div>
@@ -634,7 +656,7 @@
             <h2>历史记录</h2>
             <p>历史报价、历史授权书和历史邀请函分开管理，互不混淆。</p>
           </header>
-          <div class="history-kind-tabs"><button class="active" data-history-kind="quotes">历史报价</button><button data-history-kind="agency">历史授权</button><button data-history-kind="invitations">历史邀请函</button></div>
+          <div class="history-kind-tabs"><button class="active" data-history-kind="quotes">历史报价</button><button data-history-kind="agency">历史授权与佣金</button><button data-history-kind="invitations">历史邀请函</button></div>
           <div id="history-quotes-panel">
           <div class="panel">
             <div class="filter-grid">

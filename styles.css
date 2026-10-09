@@ -1602,3 +1602,27 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
 .agency-commercial .agency-signer-side { position:relative; padding-right:100px; }
 .agency-commercial .agency-commercial-stamp { position:absolute; right:0; top:10px; width:95px; height:125px; }
 @media print { .agency-commercial .agency-info-grid span {font-size:10pt;} .agency-commercial .agency-clause {margin:10px 0;} }
+.commission-write-line { display:block; border-bottom:1px solid #8796a8; min-width:140px; min-height:26px; margin-top:5px; }
+.sales-contract-signatures { display:grid; grid-template-columns:1fr 1fr; gap:24px; break-inside:avoid; page-break-inside:avoid; }
+.sales-contract-signatures .commission-stamp-overlay { top:60px; }
+@media print { .quote-preview.sales-contract-preview .preview-top h2 { font-size:22px; white-space:nowrap; } }
+.commission-statement .agency-info-grid span { overflow-wrap:anywhere; }
+.commission-statement .agency-info-grid .wide { grid-column:1/-1; }
+.commission-statement h2 { break-after:avoid; page-break-after:avoid; }
+.commission-statement .agency-signature { break-inside:avoid; page-break-inside:avoid; gap:35px; }
+.commission-party-a { position:relative; }
+.commission-statement .commission-parties-intro { font-size:12px; line-height:1.6; margin:12px 0; }
+.commission-electronic-signature { display:block; position:relative; height:80px; width:170px; }
+.commission-electronic-signature img { position:absolute; left:50%; top:50%; object-fit:contain; mix-blend-mode:multiply; }
+.commission-stamp-overlay { position:absolute; left:20px; top:20px; width:250px; height:180px; overflow:hidden; pointer-events:none; mix-blend-mode:multiply; }
+.commission-signature-stamp { position:absolute; left:0; top:-90px; width:250px; height:377px; object-fit:contain; opacity:.8; }
+@media print { .commission-write-line { min-height:8mm; } .commission-statement .agency-clause { break-inside:avoid; page-break-inside:avoid; } }
+.pi-company-signature { break-inside:avoid; }
+.pi-signature-assets { display:flex; gap:40px; margin:16px 0; }
+.pi-signature-assets > div { position:relative; width:220px; min-height:165px; }
+.pi-signature-assets .commission-electronic-signature { display:block; position:relative; margin-top:12px; }
+.pi-signature-assets .commission-stamp-overlay { position:static; display:block; margin-top:12px; }
+.pi-signature-assets .commission-signature-stamp { position:static; width:135px; height:135px; object-fit:contain; }
+.procurement-document h2 { break-after:avoid; }
+.procurement-document .agency-info-grid,.procurement-document .agency-signature { break-inside:avoid; }
+.procurement-document .agency-clause { letter-spacing:normal; line-height:1.65; }

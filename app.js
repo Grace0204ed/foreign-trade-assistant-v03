@@ -4785,7 +4785,8 @@
       "agency-payment-methods":a.paymentMethods, "agency-settlement-days":a.settlementDays, "agency-commission-terms":a.commissionTerms, "agency-extra-terms":a.extraTerms };
     Object.entries(values).forEach(([id,value]) => { if ($(id)) $(id).value = value ?? ""; });
     $("agency-document-type").value = AgencyDocuments.type(a);
-    Object.entries(agencyDocumentFields).forEach(([id,key])=>{ $(id).value=a[key]??(key==='orderRate'?5:key==='currency'?'USD':key==='commissionBasis'?'rate':''); });
+    Object.entries(agencyDocumentFields).forEach(([id,key])=>{ $(id).value=a[key]??(key==='orderRate'?'':key==='currency'?'USD':key==='commissionBasis'?'rate':key==='paymentChannel'?'bank':''); });
+    $('agency-manual-completion').checked=a.allowManualCompletion!==false;
     updateAgencyDocumentControls();
     if ($("agency-show-commission")) $("agency-show-commission").checked = a.showCommission !== false;
     renderAgencyProductOptions();
@@ -4810,22 +4811,41 @@
     });
     currentAgentAuthorization.documentType=val('agency-document-type')||'authorization';
     Object.entries(agencyDocumentFields).forEach(([id,key])=>{currentAgentAuthorization[key]=val(id);});
+    currentAgentAuthorization.allowManualCompletion=$('agency-manual-completion').checked;
     updateAgencyDocumentControls();
   }
 
   const agencyDocumentFields={
+    'procurement-legal-name':'personalLegalName','procurement-id':'personalId','procurement-phone':'personalPhone','procurement-wechat':'personalWechat','procurement-whatsapp':'personalWhatsapp','procurement-machine':'purchaseMachine','procurement-year':'purchaseYear','procurement-amount':'purchaseAmount','procurement-fee':'purchaseFee','procurement-cancellation':'purchaseCancellation',
     'agency-related-authorization':'relatedAuthorization','agency-related-agreement':'relatedAgreement',
     'agency-customer-name':'customerName','agency-sales-contract-number':'salesContractNumber',
     'agency-currency':'currency','agency-contract-amount':'contractAmount','agency-commission-basis':'commissionBasis',
-    'agency-order-rate':'orderRate','agency-markup-amount':'markupAmount','agency-bank-details':'bankDetails','agency-document-notes':'documentNotes'
+    'agency-order-rate':'orderRate','agency-fixed-commission':'fixedCommission','agency-markup-amount':'markupAmount','agency-bank-details':'bankDetails','agency-document-notes':'documentNotes',
+    'agency-payment-channel':'paymentChannel','agency-recipient-company':'recipientCompany',
+    'agency-beneficiary-name':'beneficiaryFullName','agency-bank-name':'bankName','agency-bank-account':'bankAccount','agency-bank-swift':'bankSwift','agency-bank-routing':'bankRouting','agency-bank-iban':'bankIban','agency-bank-country':'bankCountry','agency-bank-address':'bankAddress','agency-beneficiary-address':'beneficiaryAddress','agency-crypto-network':'cryptoNetwork','agency-wallet-address':'walletAddress'
   };
 
   function updateAgencyDocumentControls(){
     const a=currentAgentAuthorization||{},kind=AgencyDocuments.type(a),commercial=kind!=='authorization';
+    const procurement=kind==='procurement';
+    $('agency-procurement-panel').hidden=!procurement;
     $('agency-commercial-panel').hidden=!commercial;
     $('agency-legacy-commission').hidden=commercial;
     document.querySelector('.agency-scope-panel').hidden=commercial;
     document.querySelectorAll('.agency-order-field').forEach(el=>el.hidden=kind!=='statement');
+    const statement=kind==='statement';
+    $('agency-basic-title').textContent=statement?'甲方与乙方佣金结算人':'授权及协议基本信息';
+    for(const [id,title] of Object.entries({'agency-company':statement?'甲方公司抬头':'授权方公司','agency-authorizer':statement?'甲方负责人':'授权方签署人','agency-country':statement?'乙方国家':'授权国家/地区','agency-agent-name':statement?'乙方姓名或全名':'联系人姓名'}))$(id).closest('label').querySelector('span').textContent=title;
+    for(const id of ['agency-related-authorization','agency-office-address','agency-valid-until'])$(id).closest('label').hidden=statement;
+    document.querySelector('input[value="非独家授权 / Non-exclusive"]').closest('label').hidden=statement;
+    $('agency-related-agreement').closest('label').hidden=true;
+    $('agency-bank-details').closest('label').hidden=true;
+    const basis=$('agency-commission-basis').value;
+    $('agency-order-rate').closest('label').hidden=!statement||basis==='fixed';
+    $('agency-fixed-commission').closest('label').hidden=!statement||basis!=='fixed';
+    $('agency-markup-amount').closest('label').hidden=!statement||basis!=='markup';
+    $('agency-bank-fields').hidden=!statement||$('agency-payment-channel').value!=='bank';
+    $('agency-crypto-fields').hidden=!statement||$('agency-payment-channel').value!=='crypto';
     $('agency-public-pdf-btn').hidden=commercial; $('agency-private-pdf-btn').hidden=commercial;
     $('agency-save-btn').textContent=a.isTemplate?'保存模板':'保存文件';
     $('agency-new-btn').textContent='新建空白文件';
@@ -4834,6 +4854,14 @@
     const selected=$('agency-template').value;
     $('agency-template').innerHTML='<option value="">选择模板…</option>'+agentAuthorizations.filter(r=>r.isTemplate&&AgencyDocuments.type(r)===kind).map(r=>`<option value="${escapeHtml(r.id)}">${escapeHtml(r.templateName||r.agentName)} · ${escapeHtml(AgencyDocuments.types[kind])}</option>`).join('');
     $('agency-template').value=selected;
+    for(const id of ['agency-company','agency-authorizer-title'])$(id).closest('label').hidden=procurement;
+    if(procurement){
+      $('agency-commercial-panel').hidden=true;
+      $('agency-basic-title').textContent='个人委托采购 · 乙方信息';
+      for(const id of ['agency-related-authorization','agency-office-address','agency-valid-until'])$(id).closest('label').hidden=true;
+      document.querySelector('input[value="非独家授权 / Non-exclusive"]').closest('label').hidden=true;
+      for(const [id,title] of Object.entries({'agency-authorizer':'甲方常用名','agency-agent-name':'乙方护照英文全名','agency-country':'乙方国籍','agency-id-number':'乙方护照或当地证件号码（如适用）','agency-phone':'乙方电话或WhatsApp','agency-email':'乙方邮箱'}))$(id).closest('label').querySelector('span').textContent=title;
+    }else{for(const [id,title] of Object.entries({'agency-id-number':'身份证/护照号','agency-phone':'联系电话','agency-email':'电子邮箱'}))$(id).closest('label').querySelector('span').textContent=title;}
   }
 
   function changeAgencyDocumentType(){
@@ -4846,6 +4874,13 @@
       a.id=''; a.isTemplate=false; a.templateName=''; a.date=today();
       a.authorizationNumber=AgencyDocuments.number(kind,a.date,agentAuthorizations);
       a.documentNotes='';
+      if(kind==='statement'){
+        a.company=[settings.companyNameEn,settings.companyNameZh].filter(Boolean).join(' / ');
+        a.authorizer='Ethan';a.authorizerTitle='General Manager for Africa / 非洲区总经理';
+        a.signatureDataUrl=settings.agencySignatureDataUrl||'';a.signatureRotation=settings.agencySignatureRotation||0;
+        a.paymentChannel='bank';a.commissionBasis='rate';a.orderRate='';a.fixedCommission='';a.allowManualCompletion=true;
+        a.companySnapshot={companyNameEn:settings.companyNameEn,companyNameZh:settings.companyNameZh,companyAddressEn:settings.companyAddressEn,companyAddressZh:settings.companyAddressZh,stampDataUrl:settings.stampDataUrl||'',agencySignatureDataUrl:settings.agencySignatureDataUrl||'',agencySignatureRotation:settings.agencySignatureRotation||0};
+      }
     }
     bindAgentAuthorizationForm(); renderAgentAuthorizationPreview();
   }
@@ -4921,6 +4956,7 @@
 
   function applyAgencySignature() {
     const a = currentAgentAuthorization, host = $("agency-preview");
+    if(['statement','procurement'].includes(AgencyDocuments.type(a||{})))return;
     if (!host || !/^data:image\/(png|jpeg);base64,/.test(a?.signatureDataUrl || "")) return;
     const rotation = [-90, 0, 90, 180].includes(a.signatureRotation) ? a.signatureRotation : 0;
     host.innerHTML = host.innerHTML.replace('____________________', `<span style="display:inline-block;position:relative;width:150px;height:85px;vertical-align:middle"><img alt="Signature" src="${escapeHtml(a.signatureDataUrl)}" style="position:absolute;left:50%;top:50%;width:${Math.abs(rotation) === 90 ? 80 : 145}px;height:${Math.abs(rotation) === 90 ? 145 : 80}px;object-fit:contain;transform:translate(-50%,-50%) rotate(${rotation}deg);mix-blend-mode:multiply"></span>`);
@@ -4928,8 +4964,8 @@
 
   async function saveAgentAuthorization() {
     collectAgentAuthorizationForm();
-    if (!currentAgentAuthorization.agentName || !currentAgentAuthorization.country || !currentAgentAuthorization.idNumber || !currentAgentAuthorization.phone || !currentAgentAuthorization.email) return toast("请填写授权国家、联系人姓名、身份证/护照号、联系电话和电子邮箱。");
-    if (!/^\S+@\S+\.\S+$/.test(currentAgentAuthorization.email)) return toast("电子邮箱格式不正确。");
+    if (!['statement','procurement'].includes(AgencyDocuments.type(currentAgentAuthorization))&&(!currentAgentAuthorization.agentName || !currentAgentAuthorization.country || !currentAgentAuthorization.idNumber || !currentAgentAuthorization.phone || !currentAgentAuthorization.email)) return toast("请填写授权国家、联系人姓名、身份证/护照号、联系电话和电子邮箱。");
+    if (currentAgentAuthorization.email&&!/^\S+@\S+\.\S+$/.test(currentAgentAuthorization.email)) return toast("电子邮箱格式不正确。");
     if (AgencyDocuments.type(currentAgentAuthorization)==='authorization'&&!currentAgentAuthorization.selectedProducts.length) return toast("请至少勾选一个授权产品。");
     const validation=AgencyDocuments.validate(currentAgentAuthorization);
     if(validation)return toast(validation);
@@ -5666,6 +5702,7 @@
   }
 
   function quoteSectionTitle(key) {
+    if(currentQuote.documentType==='contract' && key==='items')return labelText('Contract Items','合同明细');
     normalizeCustomerQuoteFields();
     const title=settings.quoteSectionTitles[key] || defaultSettings.quoteSectionTitles[key];
     return labelText(title.labelEn,title.labelZh);
@@ -5725,13 +5762,14 @@
 
   function renderQuoteMetaPreview() {
     const rows = [];
-    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}${currentQuote.version?` V${currentQuote.version}`:""}</p>`);
+    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${currentQuote.documentType==='contract'?labelText('Contract No.','合同编号'):labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}${currentQuote.version?` V${currentQuote.version}`:""}</p>`);
     if (settings.showQuoteDateInPdf !== false) rows.push(`<p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p>`);
-    if (settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
+    if (currentQuote.documentType!=='contract' && settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
     return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
   }
 
   function renderValidityRangePreview() {
+    if(currentQuote.documentType==='contract')return '';
     if (settings.showValidityRangeInPdfBottom === false) return "";
     const text = currentQuote.validityRangeText
       || [currentQuote.quoteDate, currentQuote.validUntil].filter(Boolean).join(" - ");
@@ -5789,7 +5827,7 @@
     const mode = displayMode();
     const companySub = localizedText("", settings.companyNameZh);
     const businessLine = localizedText(settings.businessLineEn, settings.businessLineZh, "<br>");
-    $("quote-preview").className = `quote-preview quote-style-${currentQuote.quoteStyle || settings.quoteStyle || "classic"}`;
+    $("quote-preview").className = `quote-preview quote-style-${currentQuote.quoteStyle || settings.quoteStyle || "classic"}${currentQuote.documentType==='contract'?' sales-contract-preview':''}`;
     $("quote-preview").innerHTML = `
       <section class="preview-banner">
         <img class="preview-banner-bg" src="${bg}" alt="">
@@ -5805,7 +5843,21 @@
       ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && (i.imageDataUrl || i.additionalImages?.length)) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product").flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || `${i.values.brand || ""} ${i.values.model || ""}`.trim())}</div></article>`)).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${quoteSectionTitle("terms")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
+      ${['contract','invoice'].includes(currentQuote.documentType)?renderSalesContractSignatures():''}
     `;
+    if(currentQuote.documentType==='contract'){
+      const contact=$('quote-preview').querySelector('.preview-contact-list');
+      if(contact)contact.innerHTML=contact.innerHTML.replaceAll('Quotation Contact','Contract Contact').replaceAll('报价负责人','合同负责人');
+    }
+  }
+
+  function renderSalesContractSignatures() {
+    const signature=settings.agencySignatureDataUrl||'';
+    const angle=[-90,0,90,180].includes(Number(settings.agencySignatureRotation))?Number(settings.agencySignatureRotation):0;
+    const sign=signature?`<span class="commission-electronic-signature"><img src="${escapeHtml(signature)}" alt="Seller electronic signature" style="transform:translate(-50%,-50%) rotate(${angle}deg);width:${Math.abs(angle)===90?55:130}px;height:${Math.abs(angle)===90?130:55}px"></span>`:'____________________';
+    const stamp=settings.stampDataUrl?`<span class="commission-stamp-overlay"><img class="commission-signature-stamp" src="${escapeHtml(settings.stampDataUrl)}" alt="Seller electronic company stamp"></span>`:'';
+    if(currentQuote.documentType==='invoice')return `<section class="preview-panel pi-company-signature"><h3>${labelText('For and on behalf of the Seller','卖方公司授权签署')}</h3><p><b>${labelText('Company','公司全称')}:</b> ${localizedText(settings.companyNameEn,settings.companyNameZh)}</p><p><b>${labelText('Title','职务')}:</b> ${escapeHtml(settings.agencyAuthorizerTitle||labelText('General Manager, Africa','非洲区总经理'))}</p><p><b>${labelText('Authorized Signatory','授权签字人')}:</b> ${escapeHtml(settings.agencyAuthorizer||settings.contactPerson||'')}</p><div class="pi-signature-assets"><div><b>${labelText('Electronic Signature','电子签名')}</b>${sign}</div><div><b>${labelText('Company Seal','公司公章')}</b>${stamp}</div></div><p><b>${labelText('Date','签署日期')}:</b> ${escapeHtml(currentQuote.quoteDate)}</p></section>`;
+    return `<section class="preview-panel sales-contract-signatures"><div class="commission-party-a"><h3>${labelText('Seller signature','卖方签署')}</h3><p>${escapeHtml(settings.companyNameEn)} / ${escapeHtml(settings.companyNameZh)}</p><p>${labelText('Responsible person','负责人')}: Ethan</p><p>${labelText('Title','职务')}: ${labelText('General Manager for Africa','非洲区总经理')}</p><p>${labelText('Signature','签字')}:</p>${sign}${stamp}<p>${labelText('Date','日期')}: ${escapeHtml(currentQuote.quoteDate)}</p></div><div><h3>${labelText('Buyer signature','买方签署')}</h3><p>${escapeHtml(currentQuote.buyer.company||'')}</p><p>${labelText('Responsible person','负责人')}: ${escapeHtml(currentQuote.buyer.contact||'')}</p><p>${labelText('Signature','签字')}: ____________________</p><p>${labelText('Date','日期')}: ____________________</p></div></section>`;
   }
 
   async function saveQuote(formal = false) {
@@ -6333,6 +6385,7 @@
     $('agency-save-template')?.addEventListener('click',()=>saveAgencyDocumentTemplate().catch(e=>toast(e.message)));
     $('agency-export-document')?.addEventListener('click',()=>exportAgentAuthorizationPdf(true).catch(e=>toast(e.message)));
     Object.keys(agencyDocumentFields).forEach(id=>$(id)?.addEventListener('input',renderAgentAuthorizationPreview));
+    $('agency-manual-completion')?.addEventListener('change',renderAgentAuthorizationPreview);
     $("agency-history-list")?.addEventListener("click", (event) => handleAgentAuthorizationHistory(event).catch((error) => toast(error.message)));
     $("agency-product-options")?.addEventListener("change", renderAgentAuthorizationPreview);
     $("agency-select-all-products")?.addEventListener("click",()=>{document.querySelectorAll("#agency-product-options input").forEach(input=>input.checked=true);renderAgentAuthorizationPreview();});

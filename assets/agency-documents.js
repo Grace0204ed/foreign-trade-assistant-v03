@@ -4,7 +4,7 @@
   else root.AgencyDocuments = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const types = {authorization:'代理授权书', agreement:'销售代理佣金协议', statement:'订单佣金结算单'};
+  const types = {authorization:'代理授权书', agreement:'销售代理佣金协议', statement:'订单佣金结算单', procurement:'个人委托采购协议'};
   const titles = {
     authorization:['代理授权书','Letter of Authorization','Lettre d’autorisation','Carta de autorización'],
     agreement:['销售代理佣金协议','Sales Agency Commission Agreement','Accord de commission d’agence commerciale','Acuerdo de comisión de agencia comercial'],
@@ -29,19 +29,44 @@
   function type(a) { return Object.hasOwn(types,a.documentType) ? a.documentType : 'authorization'; }
   function number(kind,date,records=[]) {
     const prefix=({authorization:'AUTH',agreement:'COM',statement:'OCS'})[kind]||'AUTH';
-    const base=`${prefix}-${date.replaceAll('-','')}-`;
+    const base=kind==='procurement'?`${date.replaceAll('-','')}-`:`${prefix}-${date.replaceAll('-','')}-`;
     let n=1;while(records.some(a=>a.authorizationNumber===base+String(n).padStart(3,'0')))n++;
     return base+String(n).padStart(3,'0');
   }
   function calculate(a) {
+    if(type(a)==='statement'&&a.commissionBasis==='fixed'){
+      if(a.fixedCommission===''||a.fixedCommission==null)return null;
+      const fixed=Number(a.fixedCommission);return Number.isFinite(fixed)&&fixed>=0?Math.round(fixed*100)/100:null;
+    }
     if(a.contractAmount===''||a.contractAmount==null)return null;
     const amount=Number(a.contractAmount),rate=Number(a.orderRate??5),markup=Number(a.markupAmount||0);
-    if(!Number.isFinite(amount)||amount<=0||!Number.isFinite(rate)||rate<5||rate>100||!Number.isFinite(markup)||markup<0)return null;
+    if(a.orderRate===''||!Number.isFinite(amount)||amount<=0||!Number.isFinite(rate)||rate<(type(a)==='statement'&&a.commissionBasis!=='markup'?0:5)||rate>100||!Number.isFinite(markup)||markup<0)return null;
     if(a.commissionBasis==='markup'&&(a.markupAmount===''||a.markupAmount==null))return null;
     const cents=Math.round(amount*100),percent=Math.round(cents*rate/100);
     return Math.max(percent,a.commissionBasis==='markup'?Math.round(markup*100):0)/100;
   }
   function validate(a,final=false) {
+    if(type(a)==='procurement'){
+      if(!a.authorizationNumber?.trim())return '请填写文件编号。';
+      if(!['bilingual','en','zh'].includes(a.language))return '个人采购模板支持中英双语、纯英文或纯中文。';
+      for(const k of ['purchaseAmount','purchaseFee'])if(a[k]!==''&&a[k]!=null&&(!Number.isFinite(Number(a[k]))||Number(a[k])<0))return '采购金额和佣金须为非负金额。';
+      if(final&&!a.isTemplate&&(!a.personalLegalName?.trim()||!a.agentName?.trim()||!a.purchaseMachine?.trim()||!a.purchaseCancellation?.trim()))return '正式导出前请填写甲方证件姓名、乙方姓名、设备及取消采购时佣金处理约定；空白模板可另存为模板后导出。';
+      return '';
+    }
+    if(type(a)==='statement'){
+      if(!a.authorizationNumber?.trim())return '请填写文件编号。';
+      if(a.contractAmount!==''&&a.contractAmount!=null&&(!Number.isFinite(Number(a.contractAmount))||Number(a.contractAmount)<=0))return '销售合同金额应大于0。';
+      if(a.commissionBasis==='fixed'&&a.fixedCommission!==''&&a.fixedCommission!=null&&calculate(a)===null)return '固定佣金须为非负金额。';
+      if(a.commissionBasis!=='fixed'&&a.orderRate!==''&&a.orderRate!=null&&(!Number.isFinite(Number(a.orderRate))||Number(a.orderRate)<0||Number(a.orderRate)>100))return '佣金比例须为0%至100%。';
+      if(!['bank','crypto'].includes(a.paymentChannel))return '请选择银行汇款或USDT收款。';
+      if(final&&!a.isTemplate&&!a.allowManualCompletion){
+        if(!a.agentName?.trim()||!a.country?.trim()||!a.idNumber?.trim()||!a.phone?.trim()||!a.email?.trim()||!a.address?.trim())return '请填写乙方姓名、证件号码、电话、邮箱、国家及地址，或启用打印后手填。';
+        if(!a.salesContractNumber?.trim()||!a.currency?.trim()||!a.contractAmount||calculate(a)===null)return '请填写销售合同编号、金额及佣金。';
+        if(a.paymentChannel==='bank'&&(!a.beneficiaryFullName?.trim()||!a.bankName?.trim()||!a.bankAccount?.trim()||!a.bankCountry?.trim()||!(a.bankSwift?.trim()||a.bankRouting?.trim()||a.bankIban?.trim())))return '请填写收款人全名、银行名称、账号、银行国家及适用的SWIFT/BIC、银行代码或IBAN。';
+        if(a.paymentChannel==='crypto'&&(!a.cryptoNetwork?.trim()||!a.walletAddress?.trim()))return '请填写USDT网络及钱包地址，或启用打印后手填。';
+      }
+      return '';
+    }
     if(!a.agentName?.trim()||!a.country?.trim())return '请填写代理人姓名和国家。';
     if(!a.authorizationNumber?.trim())return '请填写文件编号。';
     if(type(a)==='statement') {
@@ -51,12 +76,61 @@
     return '';
   }
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function renderStatement(a,settings){
+    const mode=a.language||'bilingual',t=v=>esc(text(v,mode)),s=a.companySnapshot||settings;
+    const blank='<span class="commission-write-line"></span>';
+    const row=(label,value,wide=false)=>`<p class="${wide?'wide':''}"><b>${t(label)}</b><span>${value!==''&&value!=null?esc(value):blank}</span></p>`;
+    const money=n=>n==null?'':`${a.currency||'USD'} ${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    const amount=calculate(a),crypto=a.paymentChannel==='crypto';
+    const signature=a.signatureDataUrl||s.agencySignatureDataUrl||settings.agencySignatureDataUrl||'';
+    const stamp=s.stampDataUrl||settings.stampDataUrl||'';
+    const angle=[-90,0,90,180].includes(Number(a.signatureRotation??s.agencySignatureRotation??settings.agencySignatureRotation))?Number(a.signatureRotation??s.agencySignatureRotation??settings.agencySignatureRotation):0;
+    const sign=/^data:image\/(png|jpeg);base64,/.test(signature)?`<span class="commission-electronic-signature"><img src="${esc(signature)}" alt="Company signatory signature" style="transform:translate(-50%,-50%) rotate(${angle}deg);width:${Math.abs(angle)===90?55:130}px;height:${Math.abs(angle)===90?130:55}px"></span>`:blank;
+    const clauses=[
+      [['适用范围及佣金','Scope and commission'],['本结算单适用于上述销售合同，可用于代理人、中介或其他佣金结算人，无需关联代理授权。佣金按所选比例乘以销售合同金额，或按双方填写的固定金额计算，两种方式不重复叠加。','This statement applies to the sales contract identified above and may be used for an agent, intermediary or other commission recipient without a prior agency authorization. Commission is either the selected percentage of the sales contract amount or the agreed fixed amount; the methods are not cumulative.']],
+      [['全款到账及付款期限','Full payment and payment deadline'],[crypto?'甲方实际收到上述销售合同全部应付货款后，应在3个工作日内发起USDT转账并提供交易凭证。仅收到定金或部分货款时不结算佣金。':'甲方实际收到上述销售合同全部应付货款后，应在7个工作日内办理银行汇款并提供汇款凭证。仅收到定金或部分货款时不结算佣金。',crypto?'Party A shall initiate the USDT transfer and provide transaction evidence within 3 working days after actually receiving all amounts due under the sales contract. A deposit or partial payment does not trigger settlement.':'Party A shall arrange the bank remittance and provide remittance evidence within 7 working days after actually receiving all amounts due under the sales contract. A deposit or partial payment does not trigger settlement.']],
+      [['收款资料及费用','Payment instructions and charges'],[crypto?'乙方应在签署后单独提供并确认USDT网络及钱包地址。美元佣金按甲方实际兑换成交汇率换算为USDT。转账过程中如产生手续费，由乙方承担；USDT结算金额以乙方钱包实际到账金额为准。甲方应提供实际成交汇率及转账交易凭证（TXID）。':'乙方应填写完整银行收款资料并确认账户信息。与本次佣金付款直接相关的实际银行汇款及中转行手续费由乙方承担，可从佣金中扣除；甲方应提供实际费用及净汇款金额明细。',crypto?'Party B shall separately provide and confirm the USDT network and wallet address after signing. USD commission is converted at Party A’s actual executed exchange rate. Any fees incurred during the transfer shall be borne by Party B. USDT settlement is based on the amount actually received in Party B’s wallet. Party A shall provide the executed exchange rate and transaction evidence (TXID).':'Party B shall provide complete and confirmed bank payment instructions. Party B bears actual bank remittance and intermediary bank fees directly related to this commission payment; these may be deducted from commission. Party A shall provide an itemized statement of actual fees and the net amount remitted.']],
+      [['佣金保密','Commission confidentiality'],['甲方应对乙方佣金的存在、比例、金额、结算安排及收款信息保密，未经乙方事先书面同意，不得向最终买家、其他客户或无关第三方私下披露。依法必须披露，或为银行、支付平台办理本次结算必须提供资料时，仅披露必要范围的信息。','Party A shall keep confidential the existence, rate, amount and settlement arrangements of Party B’s commission and Party B’s receiving details. Without Party B’s prior written consent, Party A shall not privately disclose them to the end buyer, other customers or unrelated third parties. Where disclosure is legally required or necessary for a bank or payment provider to process this settlement, disclosure shall be limited to the necessary information.']],
+      [['手填签署与确认','Handwritten completion and confirmation'],['本文件可打印后由乙方手工填写空白信息并签字，通过扫描件或传真回传。涉及合同、金额、比例和收款方式的手填内容须经双方书面确认；甲方付款前应复核收款信息。因乙方资料缺失或错误造成的延误，付款期限仅顺延实际延误时间。双方签署后生效，变更须书面确认。','Party B may print this document, complete the blank fields by hand, sign it and return a scan or fax. Handwritten contract details, amounts, rates and payment selections require written confirmation by both parties. Party A shall verify receiving details before payment. Delay caused by missing or incorrect Party B instructions extends the deadline only by the actual delay. Effective upon signature by both parties; changes require written confirmation.']]
+    ];
+    if(a.commissionAgreement && a.commissionBasis==='fixed')clauses[0][1]=[`本合同针对销售合同${a.salesContractNumber||''}约定甲方向乙方个人佣金结算人支付固定佣金${money(amount)}，不按销售合同金额比例计算，不与其他佣金重复叠加。`,`Under this agreement, Party A shall pay Party B, the individual commission recipient, a fixed commission of ${money(amount)} for sales contract ${a.salesContractNumber||''}. No percentage-based or cumulative commission applies.`];
+    return `<section class="agency-sheet agency-commercial commission-statement"><header class="agency-letterhead"><div><b>${esc(a.company||s.companyNameEn||'')}</b><span>${esc(s.companyAddressEn||s.companyAddressZh||'')}</span></div></header><h1>${t(a.commissionAgreement?['佣金结算合同','Commission Settlement Agreement']:titles.statement)}</h1><div class="agency-meta">${t(['编号','No.'])}: ${esc(a.authorizationNumber)} · ${esc(a.date||'')}</div>
+      ${a.commissionAgreement?`<p class="commission-parties-intro"><b>${t(['甲方（公司）','Party A (company)'])}:</b> ${esc(a.company||s.companyNameEn||'')}<br><b>${t(['乙方（个人佣金结算人）','Party B (individual commission recipient)'])}:</b> ${esc(a.agentName||'________________')}</p>`:""}<h2>${t(['乙方佣金结算人','Party B commission recipient'])}</h2><section class="agency-info-grid">${row(['姓名或全名','Full name'],a.agentName)}${row(['证件号码','ID or passport number'],a.idNumber)}${row(['联系电话','Telephone'],a.phone)}${row(['邮箱','Email'],a.email)}${row(['国家','Country'],a.country)}${row(['公司名称（如适用）','Company if applicable'],a.recipientCompany)}${row(['地址','Address'],a.address,true)}</section>
+      <h2>${t(['关联合同及佣金','Related sales contract and commission'])}</h2><section class="agency-info-grid">${row(['销售合同编号','Sales contract number'],a.salesContractNumber)}${row(['客户姓名或公司','Customer or company'],a.customerName)}${row(['销售合同金额','Sales contract amount'],a.contractAmount?money(a.contractAmount):'')}${row(['佣金币种','Commission currency'],a.currency||'USD')}${row(['佣金方式','Commission basis'],text(a.commissionBasis==='fixed'?['固定金额','Fixed amount']:['按合同金额比例','Percentage of contract amount'],mode))}${a.commissionBasis==='fixed'?row(['固定佣金金额','Fixed commission amount'],amount==null?'':money(amount)):row(['佣金比例','Commission rate'],a.orderRate===''||a.orderRate==null?'':`${a.orderRate}%`)}${row(['约定佣金金额','Agreed commission amount'],money(amount),true)}</section>
+      <h2>${t(crypto?['乙方USDT收款资料','Party B USDT receiving details']:['乙方银行收款资料','Party B bank receiving details'])}</h2><section class="agency-info-grid">${row(['已选收款方式','Selected payment method'],crypto?'USDT':'Bank remittance')}${crypto?row(['区块链网络','Blockchain network'],a.cryptoNetwork)+row(['钱包地址（逐字核对）','Wallet address verify every character'],a.walletAddress,true):row(['收款人全名','Beneficiary full legal name'],a.beneficiaryFullName)+row(['银行名称','Bank name'],a.bankName)+row(['银行账号','Account number'],a.bankAccount)+row(['SWIFT或BIC代码','SWIFT or BIC'],a.bankSwift)+row(['银行或路由代码（如适用）','Bank or routing code if applicable'],a.bankRouting)+row(['IBAN（如适用）','IBAN if applicable'],a.bankIban)+row(['银行国家','Bank country'],a.bankCountry)+row(['银行地址','Bank address'],a.bankAddress,true)+row(['收款人地址','Beneficiary address'],a.beneficiaryAddress,true)}</section>
+      ${clauses.map(([title,body],i)=>`<h2>${i+1}. ${t(title)}</h2><p class="agency-clause">${t(body)}</p>`).join('')}${a.documentNotes?`<h2>${t(['补充约定','Additional terms'])}</h2><p class="agency-clause">${esc(a.documentNotes)}</p>`:''}
+      <footer class="agency-signature"><div class="commission-party-a"><p>${t(['甲方公司','Party A company'])}: ${esc(a.company||s.companyNameEn||'')}</p><p>${t(['负责人','Responsible person'])}: ${esc(a.authorizer||'Ethan')}</p><p>${t(['职务','Title'])}: ${esc(a.authorizerTitle||text(['非洲区总经理','General Manager for Africa'],mode))}</p>${sign}${stamp?`<span class="commission-stamp-overlay"><img class="commission-signature-stamp" src="${esc(stamp)}" alt="Company electronic stamp"></span>`:''}<p>${t(['日期','Date'])}: ${esc(a.date||'')}</p></div><div><p>${t(['乙方签署','Party B signature'])}: ${esc(a.agentName||'')}</p><p>${t(['签字','Signature'])}: ${blank}</p><p>${t(['日期','Date'])}: ${blank}</p></div></footer></section>`;
+  }
+  function renderProcurement(a){
+    const mode=a.language||'bilingual',t=(zh,en)=>esc(text([zh,en],mode)),v=x=>esc(x||'________________'),money=x=>x===''||x==null?'________________':`CNY ${Number(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    const row=(zh,en,x)=>`<p><b>${t(zh,en)}</b><span>${v(x)}</span></p>`;
+    const clauses=[
+      ['委托服务','Procurement services','甲方以个人身份协助乙方寻找机械设备、联系卖家、沟通采购价格及已知车况，协调采购、清洁、拖车及交接。不使用公司名义。设备以双方确认的照片、视频及设备编号等资料为准。未经乙方确认，不得更换设备或增加费用。','Party A acts personally to assist Party B with sourcing machinery, contacting sellers, communicating prices and known condition, and coordinating purchase, cleaning, trucking and handover, not in a company capacity. The equipment is identified by mutually confirmed photos, videos and serial details. Substitution or additional charges require Party B’s confirmation.'],
+      ['100%付款及两种支付方式','Full payment and two payment routes','不接受分期付款。乙方可直接向双方确认的设备卖家支付全部设备款，另向甲方支付采购服务佣金；也可将全部设备款及佣金支付给甲方，委托甲方按确认的卖家账户和金额代付。两种方式二选一，不重复收取。甲方须区分货款与佣金，并提供代付凭证。','No instalments. Party B may pay the equipment seller in full directly and pay the service fee separately to Party A; alternatively, Party B may pay the full equipment price and fee to Party A for onward payment to the confirmed seller. These are alternative routes, without duplicate charges. Party A shall distinguish purchase funds from the fee and provide onward-payment evidence.'],
+      ['收款渠道','Payment channels','甲方支持中国境内银行卡、微信及支付宝收款，账户另行书面提供并确认。乙方直接向卖家付款时，以卖家确认的收款方式为准。','Party A accepts transfers to a Chinese bank account, WeChat Pay or Alipay. Receiving details shall be separately provided and confirmed in writing. Direct seller payments use the seller’s confirmed payment method.'],
+      ['清洁及拖车费用另计','Separate cleaning and trucking charges','清洁费及拖车费不包含在设备款和佣金合计中，须经乙方确认后另行计算。乙方可直接支付给清洁服务方或拖车公司，也可交给甲方代付。甲方提供费用明细及代付凭证，结余退还，增加支出须经乙方确认，不重复收费。','Cleaning and trucking are excluded from the equipment-and-fee total and charged separately following Party B’s confirmation. Party B may pay the providers directly or fund Party A to pay them. Party A shall provide a breakdown and evidence, refund unused funds and obtain confirmation for additional expenditure, without duplicate charges.'],
+      ['设备确认与交接','Inspection and handover','乙方可自行或委托第三方检查设备。具体车况、附件、交接地点、时间及是否质保另行书面确认。本协议不额外承诺未约定的质保。甲方如实告知已知重要情况，提供可取得的采购及付款凭证。','Party B may inspect personally or through a third party. Condition, attachments, handover location and timing, and any warranty require separate written confirmation. No additional warranty is promised here. Party A shall disclose known material facts and provide available purchase and payment evidence.'],
+      ['采购取消及未完成','Cancellation or unsuccessful purchase','无法采购时甲方及时通知乙方，未使用的代收款退还；已支付卖家或服务方的款项提供凭证并协助退款，已确认且实际发生的费用据实核算。佣金处理按下方双方填写的约定执行。','If procurement cannot proceed, Party A shall notify Party B, return unused funds, provide evidence of amounts already paid and assist with refunds. Confirmed costs actually incurred are reconciled against evidence. Fee treatment follows the agreement entered below.'],
+      ['逐单确认及签署','Order-specific confirmation and signatures','本协议仅适用于本次确认的设备；后续采购另行确认设备、金额、佣金及费用。变更须双方书面确认。本协议经双方签署后生效。','This agreement covers only the identified purchase. Subsequent purchases require separate equipment, price, fee and expense confirmation. Changes require mutual written confirmation. Effective upon both parties’ signatures.']
+    ];
+    return `<section class="agency-sheet agency-commercial procurement-document"><h1>${t('个人委托采购服务协议','Personal Procurement Service Agreement')}</h1><div class="agency-meta">${v(a.authorizationNumber)} · ${v(a.date)}</div><h2>${t('甲方（个人受托采购人）','Party A (individual procurement service provider)')}</h2><section class="agency-info-grid">${row('证件姓名','Legal name',a.personalLegalName)}${row('常用名','Known as',a.authorizer)}${row('身份证号码','ID number',a.personalId)}${row('联系电话','Telephone',a.personalPhone)}${row('微信','WeChat',a.personalWechat)}${row('WhatsApp','WhatsApp',a.personalWhatsapp)}</section><h2>${t('乙方（委托采购人）','Party B (client)')}</h2><section class="agency-info-grid">${row('护照英文全名','Full legal name',a.agentName)}${row('国籍','Nationality',a.country)}${row('护照或当地证件号码（如适用）','Passport or local ID (if applicable)',a.idNumber)}${row('电话或WhatsApp','Telephone or WhatsApp',a.phone)}${row('邮箱','Email',a.email)}${row('地址','Address',a.address)}</section><h2>${t('采购设备及金额','Equipment and amounts')}</h2><section class="agency-info-grid">${row('设备及数量','Equipment and quantity',a.purchaseMachine)}${row('年份','Year',a.purchaseYear)}${row('设备采购款','Equipment price',money(a.purchaseAmount))}${row('采购服务佣金','Service fee',money(a.purchaseFee))}${row('合计（不含清洁和拖车）','Total (excluding cleaning and trucking)',a.purchaseAmount!==''&&a.purchaseAmount!=null&&a.purchaseFee!==''&&a.purchaseFee!=null?money(Number(a.purchaseAmount)+Number(a.purchaseFee)):'')}</section>${clauses.map(([zh,en,cz,ce],i)=>`<h2>${i+1}. ${t(zh,en)}</h2><p class="agency-clause">${t(cz,ce)}</p>`).join('')}<p class="agency-clause"><b>${t('取消或未完成采购时佣金处理（签署前填写）','Fee treatment on cancellation or unsuccessful purchase (complete before signing)')}:</b> ${v(a.purchaseCancellation)}</p><footer class="agency-signature"><div>${t('甲方签名','Party A signature')}: ____________________<p>${v(a.authorizer)}</p><p>${t('日期','Date')}: ____________________</p></div><div>${t('乙方签名','Party B signature')}: ____________________<p>${v(a.agentName)}</p><p>${t('日期','Date')}: ____________________</p></div></footer></section>`;
+  }
   function render(a,settings) {
+    if(type(a)==='procurement')return renderProcurement(a);
+    if(type(a)==='statement')return renderStatement(a,settings);
     const mode=a.language||'bilingual',t=v=>esc(text(v,mode)),kind=type(a),s=a.companySnapshot||settings;
     const row=(label,value)=>`<p><b>${t(label)}</b><span>${esc(value||'________________')}</span></p>`;
     const item=k=>`<p class="agency-clause">${t(clauses[k])}</p>`;
     const amount=calculate(a),money=n=>n==null?'________________':`${a.currency||'USD'} ${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
     const stamp=s.stampDataUrl||'';
+    if(kind==='agreement'&&a.orderCommissionAgreement){
+      const c=a.orderCommissionAgreement;
+      return `<section class="agency-sheet agency-commercial"><header class="agency-letterhead"><div><b>${esc(a.company||s.companyNameEn||'')}</b><span>${esc(s.companyAddressEn||s.companyAddressZh||'')}</span></div></header>
+        <h1>${t(['订单佣金结算协议','Order Commission Settlement Agreement'])}</h1><div class="agency-meta">${t(['编号','No.'])}: ${esc(a.authorizationNumber)} · ${esc(a.date)}</div>
+        <section class="agency-info-grid">${row(['甲方','Party A'],a.company)}${row(['乙方联系人','Party B contact'],a.agentName)}${row(['乙方公司','Party B company'],c.company)}${row(['国家','Country'],a.country)}${row(['电话','Telephone'],a.phone)}${row(['邮箱','Email'],a.email)}${row(['地址','Address'],a.address)}${row(['关联报价单编号','Related quotation number'],c.quotationNumber)}${row(['报价金额','Quotation amount'],money(c.quotationAmount))}${row(['固定佣金','Fixed commission'],money(c.commissionAmount))}</section>
+        ${(c.clauses||[]).map((clause,i)=>`<h2>${i+1}. ${t(clause.title)}</h2><p class="agency-clause">${t(clause.body)}</p>`).join('')}
+        <footer class="agency-signature"><div class="agency-signer-side"><p>${t(['甲方签署','For Party A'])}: ${esc(a.authorizer||'Ethan')}</p><p>${t(['签名','Signature'])}: ____________________</p><p>${t(['日期','Date'])}: ____________________</p></div><div><p>${t(['乙方签署','For Party B'])}: ${esc(a.agentName)}</p><p>${t(['签名','Signature'])}: ____________________</p><p>${t(['日期','Date'])}: ____________________</p></div></footer></section>`;
+    }
     const bankLabel=['乙方银行收款信息','Agent bank details','Coordonnées bancaires de l’agent','Datos bancarios del agente'];
     return `<section class="agency-sheet agency-commercial"><header class="agency-letterhead"><div><b>${esc(a.company||s.companyNameEn||'')}</b><span>${esc(s.companyAddressEn||s.companyAddressZh||'')}</span></div></header>
       <h1>${t(titles[kind])}</h1><div class="agency-meta">${t(['编号','No.','N°','N.º'])}: ${esc(a.authorizationNumber)} · ${esc(a.date)} ${a.isTemplate?' · '+t(['模板','Template','Modèle','Plantilla']):''}</div>

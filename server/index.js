@@ -768,12 +768,12 @@ app.post("/api/agent-authorizations", requireLogin, (req, res) => {
   const validation = agencyDocuments.validate(data);
   if(validation) return fail(res,400,'Invalid agency document.',validation);
   if(data.documentType && !Object.hasOwn(agencyDocuments.types,data.documentType))return fail(res,400,'Invalid document type.','文件类型不正确。');
-  if (!data.agentName || !data.country) return fail(res, 400, "Agent name and country required.", "请填写代理人姓名和授权国家。");
+  if (!['statement','procurement'].includes(agencyDocuments.type(data))&&(!data.agentName || !data.country)) return fail(res, 400, "Agent name and country required.", "请填写代理人姓名和授权国家。");
   const recordId = data.id || id("agency"), timestamp = now();
   const existing = db.prepare("SELECT created_at,data_json,status FROM agent_authorizations WHERE id=?").get(recordId);
   if(existing?.status==='Deleted')return fail(res,409,'Document deleted.','文件已删除，请复制为新文件。');
   db.prepare(`INSERT OR REPLACE INTO agent_authorizations (id,authorization_number,agent_name,country,status,data_json,created_by,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(recordId, data.authorizationNumber || recordId, data.agentName, data.country, data.status || "Active", JSON.stringify({ ...data, id: recordId }), req.session.user?.id || "", existing?.created_at || timestamp, timestamp);
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(recordId, data.authorizationNumber || recordId, data.agentName||'', data.country||'', data.status || "Active", JSON.stringify({ ...data, id: recordId }), req.session.user?.id || "", existing?.created_at || timestamp, timestamp);
   db.prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,before_json,after_json,reason,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
     .run(id("audit"), req.session.user?.id || "", existing ? "update_agent_authorization" : "create_agent_authorization", "agent_authorization", recordId, existing?.data_json || "{}", JSON.stringify({ ...data, id:recordId }), existing ? "更新代理授权书" : "新建代理授权书", timestamp);
   ok(res, { id: recordId, updatedAt: timestamp, message: "Authorization saved.", zh: "代理授权书已保存。" });
