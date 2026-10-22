@@ -1023,14 +1023,15 @@ app.get("/crm", (req, res) => {
 app.get("/", (req, res) => res.sendFile(path.join(ROOT, "index.html")));
 
 function startServer(port = PORT) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const server = app.listen(port, "127.0.0.1", () => resolve(server));
+    server.once('error', reject);
   });
 }
 
 if (require.main === module) {
   startServer().then(() => {
-    console.log(`Foreign Trade Assistant / 外贸助手 running at http://0.0.0.0:${PORT}`);
+    console.log(`Foreign Trade Assistant / 外贸助手 running at http://127.0.0.1:${PORT}`);
     console.log(`Data directory: ${dataDir}`);
   });
 }

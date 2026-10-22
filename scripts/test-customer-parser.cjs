@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),{parse}=require('../assets/customer-text-parser');
+let r=parse('公司名称：示例贸易有限公司 联系人：张三 手机号：13812345678 邮箱：test@example.com 地址：广州市天河区测试路101号 国家：中国');
+assert.equal(r.company,'示例贸易有限公司');assert.equal(r.contact,'张三');assert.equal(r.phone,'13812345678');assert.equal(r.address,'广州市天河区测试路101号');
+r=parse('Company name: Example LTD\nContact person: John Smith\nPhone: +260 770 959132 / +263 783 029655\nEmail: test@example.com\nAddress: 44 Sample park\nMidlands\nCountry: Zambia');
+assert.equal(r.contact,'John Smith');assert.equal(r.phone,'+260 770 959132 / +263 783 029655');assert.equal(r.address,'44 Sample park, Midlands');
+r=parse('Example Building Systems\nWest Palm Beach, Florida 33470\n\nLuis Brown\n561-334-4541\nlbrown@example.com');
+assert.equal(r.company,'Example Building Systems');assert.equal(r.contact,'Luis Brown');assert.equal(r.address,'West Palm Beach, Florida 33470');assert.equal(r.phone,'561-334-4541');
+r=parse('Chris Smith\nI.D. 66-039516G66\nEmail: cs@example.com\nAddress: 44 Example park\nMidlands\nPhone number: +263783029655\n+26761468607');assert.equal(r.contact,'Chris Smith');assert.equal(r.phone,'+263783029655 / +26761468607');
+console.log('PASS Chinese, inline labels, English signatures, multiline address, multiple phones, ID exclusion.');
+const numbered=parse('1. Example distributor 2. Gobabis Omaheke 3.Albanus Example 4. +264817571596/ +264817371436 5. test@example.com');
+assert.equal(numbered.contact,'Albanus Example');assert.equal(numbered.address,'Gobabis Omaheke');assert.equal(numbered.company,'Example distributor');

@@ -1,77 +1,46 @@
 const fs = require("fs");
 const path = require("path");
-const http = require("http");
-const { spawn } = require("child_process");
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
 
-let serverProcess;
-const desktopPort = 18765;
+let localServer;
+let desktopPort = 18765;
+// Keep installed upgrades on the same local data directory as the existing desktop app.
+app.setPath("userData", process.env.QUOTE_DATA_DIR || path.join(app.getPath("appData"), "foreign-trade-assistant"));
+const ownsInstance = app.requestSingleInstanceLock();
+if (!ownsInstance) app.quit();
+app.on("second-instance", () => {
+  const win=BrowserWindow.getAllWindows()[0];
+  if(win){if(win.isMinimized())win.restore();win.focus();}
+});
+function dataDir() { return app.getPath("userData"); }
 
-function dataDir() {
-  return app.getPath("userData");
+async function startLocalServer() {
+  if(localServer)return;
+  process.env.QUOTE_DATA_DIR=dataDir();
+  const {startServer}=require("../server/index");
+  try { localServer=await startServer(desktopPort); }
+  catch(error) {
+    if(error.code!=="EADDRINUSE")throw error;
+    // Never load an older service accidentally when a development copy is still running.
+    localServer=await startServer(0);
+  }
+  desktopPort=localServer.address().port;
 }
-
-function waitForServer(url, timeoutMs = 20000) {
-  const startedAt = Date.now();
-  return new Promise((resolve, reject) => {
-    const tick = () => {
-      const req = http.get(url, (res) => {
-        res.resume();
-        resolve();
-      });
-
-      req.on("error", () => {
-        if (Date.now() - startedAt > timeoutMs) {
-          reject(new Error("Local server start timeout."));
-          return;
-        }
-        setTimeout(tick, 300);
-      });
-
-      req.setTimeout(1000, () => {
-        req.destroy();
-      });
-    };
-
-    tick();
-  });
-}
-
-function startLocalServer() {
-  if (serverProcess && !serverProcess.killed) return;
-
-  const projectRoot = path.join(__dirname, "..");
-  const serverEntry = path.join(projectRoot, "server", "index.js");
-  serverProcess = spawn(process.env.QUOTE_NODE_EXE || "node", [serverEntry], {
-    cwd: projectRoot,
-    env: {
-      ...process.env,
-      PORT: String(desktopPort),
-      QUOTE_DATA_DIR: dataDir()
-    },
-    windowsHide: true,
-    stdio: "ignore"
-  });
-}
-
 async function createWindow() {
-  startLocalServer();
-  await waitForServer(`http://127.0.0.1:${desktopPort}/index.html`);
-
+  await startLocalServer();
   const win = new BrowserWindow({
-    width: 1360,
-    height: 900,
-    minWidth: 1120,
-    minHeight: 720,
-    title: "外贸助手",
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
+    width:1360,height:900,minWidth:1000,minHeight:700,
+    title:"外贸助手",show:false,icon:path.join(__dirname,"../assets/app-icon.png"),
+    webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false}
   });
-
+  win.once("ready-to-show",()=>win.show());
   await win.loadURL(`http://127.0.0.1:${desktopPort}/index.html`);
+}
+function startupError(error){
+  fs.mkdirSync(dataDir(),{recursive:true});
+  fs.appendFileSync(path.join(dataDir(),"startup-error.log"),new Date().toISOString()+" "+(error.stack||error)+"\n");
+  dialog.showErrorBox("外贸助手启动失败","未能启动本地服务，历史数据未删除。\n"+error.message+"\n日志位置："+dataDir());
+  app.quit();
 }
 
 function sendMenuAction(action) {
@@ -99,15 +68,15 @@ function installChineseMenu() {
   ]));
 }
 
-app.whenReady().then(() => { installChineseMenu(); return createWindow(); });
+if(ownsInstance)app.whenReady().then(() => { installChineseMenu(); return createWindow(); }).catch(startupError);
 
 app.on("window-all-closed", () => {
-  if (serverProcess && !serverProcess.killed) serverProcess.kill();
+  if (localServer) { localServer.close(); localServer=null; }
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (ownsInstance && BrowserWindow.getAllWindows().length === 0) createWindow().catch(startupError);
 });
 
 ipcMain.handle("select-pdf-path", async () => {
@@ -136,6 +105,7 @@ ipcMain.handle("export-current-pdf", async (event, fileName) => {
   });
   if (result.canceled || !result.filePath) return null;
   await win.webContents.executeJavaScript(`(async()=>{
+    await document.fonts.ready;
     const visibleImages=[...document.images].filter(img=>img.src&&getComputedStyle(img).display!=="none");
     await Promise.all(visibleImages.map(img=>img.complete&&img.naturalWidth>0?Promise.resolve():
       Promise.race([img.decode?.()||new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject}),new Promise(resolve=>setTimeout(resolve,5000))]).catch(()=>{})));

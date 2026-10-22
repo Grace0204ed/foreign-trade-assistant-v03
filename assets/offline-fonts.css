@@ -1,0 +1,11 @@
+@font-face {
+  font-family: TradeOffline;
+  src: url('./fonts/NotoSansSC.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+html body, .quote-preview, .quote-preview.trade-layout, .invitation-sheet,
+.agency-sheet, .agency-preview[data-language], .agency-sheet h1 {
+  font-family: TradeOffline, 'Microsoft YaHei', Arial, sans-serif;
+}

@@ -15,6 +15,10 @@
 [data-settings-section="users"],[data-settings-panel="users"],#view-users,#user-module-visibility { display:none!important; }
 .document-jump-bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px; margin:12px 0; background:#fff; border:1px solid #d8e1ec; border-radius:10px; }
 .quote-line-table [data-qfield="route"] { min-width:150px; }
+.document-switch-buttons {display:flex;flex-wrap:wrap;gap:8px;width:100%;}
+.document-switch-buttons button[aria-pressed="true"] {background:#174d7d;color:white;border-color:#174d7d;}
+.quote-draft-toolbar {padding:8px 0 14px;font-size:13px;}
+#document-output-options {margin:10px 12px;padding:10px;background:white;border:1px solid #d8e2ec;border-radius:8px;}
 .quote-line-table .quote-item-type { min-width:110px; }
 .quote-line-table [data-qfield="unitPrice"] { min-width:100px; }
 .quote-line-table [data-qfield="currency"] { min-width:85px; }
@@ -1052,9 +1056,13 @@ textarea { min-height: 86px; resize: vertical; }
 .invitation-sign {
   position: relative;
   min-height: 180px;
-  padding-top: 86px;
-  text-align: right;
+  padding-top: 12px;
+  text-align: center;
+  break-inside: avoid;
 }
+.invitation-sign-assets { display:flex; align-items:center; justify-content:center; gap:8px; min-height:86px; }
+.invitation-sign .invitation-stamp { position:static; width:80px; height:80px; order:2; }
+.invitation-sign .signature-line { margin-left:auto; margin-right:auto; }
 .invitation-stamp {
   position: absolute;
   right: 18px;

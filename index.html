@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>外贸助手</title>
     <link rel="stylesheet" href="./styles.css?v=20261012-documents" />
+    <link rel="stylesheet" href="./assets/offline-fonts.css" />
   </head>
   <body>
     <datalist id="quote-condition-options">
@@ -387,7 +388,7 @@
             <article class="panel"><h3>5. 历史报价复用</h3><p>历史报价一行显示客户、国家、目的港、机器型号、金额和状态。点击“复制”即可沿用相似报价，不会覆盖原记录。</p></article>
             <article class="panel"><h3>6. 产品及报价设置</h3><p>产品库维护二手机械、新车车型、底盘、上装、选装件和兼容关系。“设置 → 报价设置”统一维护通用条款、二手字段排序和不同新车车型字段。</p></article>
             <article class="panel"><h3>7. iPhone 使用</h3><p>手机与主机连接同一 Wi‑Fi，用 Safari 打开主机地址，登录后点击“分享 → 添加到主屏幕”。电脑关机或服务停止时手机无法访问。</p></article>
-            <article class="panel help-contact"><h3>需要帮助</h3><p>使用中遇到问题可以联系我：</p><p><b>Ethan</b><br>WhatsApp：<a href="https://wa.me/861855540395" target="_blank">+86 185 5540 395</a><br>Email：<a href="mailto:60839992@gmail.com">60839992@gmail.com</a></p></article>
+            <article class="panel help-contact"><h3>需要帮助</h3><p>使用中遇到问题可以联系我：</p><p><b>Ethan</b><br>电话：15209867156<br>微信：18555403955<br>Email：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p></article>
           </div>
         </section>
 
@@ -399,8 +400,6 @@
             </div>
             <div class="actions" id="standard-quote-actions">
               <button id="preview-quote-btn" type="button">刷新预览</button>
-              <button id="latest-quote-prices-btn" type="button">获取最新价格</button>
-              <button id="quote-route-btn" type="button">按客户国家选择运输路线</button>
               <button id="save-quote-btn" class="primary" type="button">保存到历史</button>
               <button id="formalize-standard-quote-btn" type="button">生成正式单据</button>
               <button id="export-pdf-btn" type="button">导出PDF</button>
@@ -422,7 +421,6 @@
               <div class="customer-paste-box"><label><span>粘贴客户信息自动识别</span><textarea id="customer-paste-text" placeholder="粘贴 WhatsApp 签名、名片文字或客户资料，例如：Company / Contact / Phone / Email / Country / Address"></textarea></label><div><button id="recognize-customer-text-btn" type="button">识别并填入客户资料</button><p id="customer-recognize-result" class="hint">只在本机识别，不会发送到第三方。</p></div></div>
               <div class="form-grid">
                 <label><span>关联客户</span><select id="quote-customer"><option value="">自动匹配/暂不关联</option></select></label>
-                <label><span>单据类型</span><select id="document-type"></select></label>
                 <label><span>单据样式</span><select id="quote-style-select"><option value="classic">商务金色</option><option value="black-gold">黑金典雅</option><option value="blue-white">蓝白商务</option></select></label>
                 <label><span>报价类型</span><select id="quote-template"></select></label>
                 <label><span>报价编号</span><input id="quote-number" /></label>
@@ -464,10 +462,9 @@
           <div id="quote-preview-image-control" class="preview-image-control">
             <b>产品图片输出</b><span id="quote-image-output-status">已开启：图片会显示在页面预览和PDF中</span>
           </div>
-          <div id="document-workspace-tools" class="panel no-print">
+          <div id="document-workspace-tools" class="no-print">
             <div class="actions"><span id="quote-autosave-status" role="status">草稿自动保存已就绪</span><button id="restore-quote-draft" type="button">恢复上次编辑</button></div>
-            <details><summary>需要时生成其他单证</summary><p class="hint">引用当前客户和商品，另存为独立草稿，原报价不变。商业发票、装箱单请在确认订单并进入出货阶段后制作。</p><div class="actions"><select id="related-document-choice"><option value="">选择单据类型</option><option value="invoice">形式发票（PI）</option><option value="contract">销售合同</option><option value="commercial">商业发票（出货阶段）</option><option value="packing">装箱单（出货阶段）</option></select><button id="generate-related-document" type="button">生成关联单证草稿</button></div></details>
-            <details><summary>高级选项：输出与语言</summary>
+            <details id="document-output-options"><summary>预览与输出设置</summary>
             <div class="actions"><label><input id="quote-photo-appendix" type="checkbox">附加详细照片</label><label>预览缩放 <select id="quote-preview-zoom"><option value="fit">适合宽度</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option></select></label><span>PDF自动按A4分页，缩放仅影响屏幕预览。</span></div>
             <details id="document-language-editor"><summary>各语言商品及条款文案（保留原文，按输出语言调用）</summary><p class="hint">系统字段自动切换语言。自行填写的设备说明、质保等不会擅自翻译；请在这里补充对应语言的准确文案。</p><div id="document-language-rows"></div></details>
             <div class="actions"><label><input id="document-show-bank" type="checkbox">当前单据显示收款信息</label><label><input id="document-show-signature" type="checkbox">当前单据显示公司授权签署（签名／公章）</label></div>
@@ -914,6 +911,7 @@
     <script src="./assets/freight-workspace.js?v=20260912"></script>
     <script src="./assets/agency-documents.js?v=20261007"></script>
     <script src="./assets/trade-document-layouts.js?v=20261012"></script>
+    <script src="./assets/customer-text-parser.js"></script>
     <script src="./app.js?v=20261012-document-layouts"></script>
     <script src="./vehicle-catalog.js?v=20260906-stage22"></script>
     <script src="./vehicle-quotes.js?v=20260827-stage9"></script>

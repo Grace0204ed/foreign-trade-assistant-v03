@@ -926,7 +926,7 @@
   }
 
   function currentDocumentType() {
-    return documentTypeOf(currentQuote?.documentType || $("document-type")?.value || "quotation");
+    return documentTypeOf(currentQuote?.documentType || "quotation");
   }
 
   function documentTypeTitle(q = currentQuote) {
@@ -1527,7 +1527,7 @@
   }
   function newSharedQuote() {
     const mode = activeQuoteBusiness;
-    newQuote(true, $("document-type")?.value || "quotation");
+    newQuote(true, currentQuote?.documentType || "quotation");
     setQuoteBusiness(mode);
   }
   window.quoteBusiness = { show:setQuoteBusiness, open:openQuoteBusiness, newShared:newSharedQuote, get active(){ return activeQuoteBusiness; } };
@@ -2385,10 +2385,6 @@
 
   function renderDocumentTypes() {
     normalizeDocumentTypes();
-    if ($("document-type")) {
-      $("document-type").innerHTML = settings.documentTypes.map((type) => `<option value="${escapeHtml(type.key)}">${escapeHtml(type.labelZh)} / ${escapeHtml(type.labelEn)}</option>`).join("");
-      $("document-type").value = currentQuote?.documentType || "quotation";
-    }
     if (!$("document-type-list")) return;
     $("document-type-list").innerHTML = settings.documentTypes.map((type, index) => `
       <tr data-document-type-index="${index}">
@@ -4568,8 +4564,10 @@
             <p>${escapeHtml(party.phone || "")} ${party.email ? ` | ${escapeHtml(party.email)}` : ""}</p>
           </div>
           <div class="invitation-sign">
+            <div class="invitation-sign-assets">
             ${settings.stampDataUrl ? `<img class="invitation-stamp" src="${settings.stampDataUrl}" alt="">` : ""}
             ${(settings.invitationSignatureDataUrl || settings.agencySignatureDataUrl)?`<div class="invitation-electronic-signature"><img src="${escapeHtml(settings.invitationSignatureDataUrl || settings.agencySignatureDataUrl)}" alt="Signature" style="transform:rotate(${Number(settings.invitationSignatureDataUrl ? settings.invitationSignatureRotation : settings.agencySignatureRotation)||0}deg)"></div>`:''}
+            </div>
             <div class="signature-line"></div>
             <p><b>${escapeHtml(invitationText("signature", mode))}</b></p>
             <p>${escapeHtml(invitationText("inviter", mode))}: ${escapeHtml(currentInvitation.inviter || party.signerName || "")}</p>
@@ -4917,7 +4915,6 @@
   function bindQuoteToForm() {
     $("quote-template").value = currentQuote.templateName || settings.templates[0]?.name || "";
     renderDocumentTypes();
-    $("document-type").value = currentQuote.documentType || "quotation";
     $("quote-style-select").value = currentQuote.quoteStyle || settings.quoteStyle || "classic";
     if ($("quote-status")) $("quote-status").value = currentQuote.status || "普通报价";
     $("quote-number").value = currentQuote.quoteNumber || "";
@@ -4957,7 +4954,6 @@
   function collectQuoteFromForm() {
     currentQuote.templateName = $("quote-template").value;
     currentQuote.status = $("quote-status")?.value || "普通报价";
-    currentQuote.documentType = $("document-type")?.value || "quotation";
     currentQuote.quoteStyle = $("quote-style-select")?.value || settings.quoteStyle || "classic";
     currentQuote.quoteNumber = $("quote-number").value;
     currentQuote.quoteDate = $("quote-date").value;
@@ -5402,30 +5398,6 @@
     return quoteTotal(currentQuote);
   }
 
-  function openFreightForQuoteCountry(){
-    collectQuoteFromForm();
-    const country=currentQuote.buyer?.country||"";
-    switchView("freight");
-    if($("route-country-search"))$("route-country-search").value=country;
-    renderCountryRoutes();
-    if(!country)toast("请先填写客户目的国，或在运费查询中手动搜索。");
-  }
-
-  function refreshCurrentQuotePrices(){
-    collectQuoteFromForm();
-    const changes=[];
-    currentQuote.items.forEach((item,index)=>{
-      if((item.kind||"product")!=="product"||!item.values?.productId)return;
-      const product=products.find(p=>p.id===item.values.productId);if(!product)return;
-      const oldPrice=item.values.unitPrice,newPrice=product.specificPrice;
-      if(String(oldPrice??"")!==String(newPrice??"")||item.values.productUpdatedAt!==product.updatedAt)changes.push({item,index,product,oldPrice,newPrice});
-    });
-    if(!changes.length)return toast("当前报价引用的产品资料已是最新，或手工录入行没有产品库关联。");
-    const summary=changes.map(c=>`第${c.index+1}行 ${c.product.brand||""} ${c.product.model||""}: ${c.oldPrice===""||c.oldPrice==null?"待询价":c.oldPrice} → ${c.newPrice===""||c.newPrice==null?"待询价":c.newPrice}`).join("\n");
-    if(!confirm(`发现以下变化：\n${summary}\n\n确认更新本次报价吗？历史版本不会被覆盖。`))return;
-    changes.forEach(({item,product,newPrice})=>{item.values.unitPrice=newPrice??"";item.values.currency=product.currency||item.values.currency;item.values.transportCbm=product.transportCbm||"";item.values.transportWeight=product.weight||"";item.values.transportPlans=structuredClone(product.transportPlans||[]);item.values.transportDataStatus=product.transportDataStatus||"reference";item.values.productUpdatedAt=product.updatedAt||"";});
-    renderQuoteItems();renderPreview();toast("已更新本次报价，请核对后另存草稿或生成新版本。");
-  }
 
   function quoteTemplate(quote) {
     normalizeTemplates();
@@ -5745,6 +5717,7 @@
   }
 
   function renderPreview() {
+    updateDocumentSwitchState();
     collectQuoteFromForm();
     const tpl = template();
     const visibleFields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
@@ -6123,22 +6096,7 @@
   function recognizeCustomerText() {
     const raw=$("customer-paste-text")?.value.trim();
     if(!raw)return toast("请先粘贴客户信息。");
-    const result={company:"",contact:"",phone:"",email:"",country:"",address:""};
-    const lines=raw.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-    const take=(line,pattern)=>line.replace(pattern,"").replace(/^\s*[:：\-]\s*/,"").trim();
-    for(const line of lines){
-      if(!result.email){const match=line.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);if(match)result.email=match[0];}
-      if(!result.phone){const match=line.match(/(?:\+|00)?\d[\d\s()\-]{7,}\d/);if(match)result.phone=match[0].replace(/\s+/g," ").trim();}
-      if(/^(company|公司|企业|organization|organisation)\b/i.test(line))result.company=take(line,/^(company|公司|企业|organization|organisation)\b/i);
-      else if(/^(contact|contact person|name|联系人|姓名|负责人)\b/i.test(line))result.contact=take(line,/^(contact person|contact|name|联系人|姓名|负责人)\b/i);
-      else if(/^(phone|tel|telephone|mobile|whatsapp|电话|手机|手机号)\b/i.test(line))result.phone=take(line,/^(phone|tel|telephone|mobile|whatsapp|电话|手机|手机号)\b/i);
-      else if(/^(email|e-mail|邮箱|邮件)\b/i.test(line))result.email=take(line,/^(email|e-mail|邮箱|邮件)\b/i);
-      else if(/^(country|国家|地区)\b/i.test(line))result.country=take(line,/^(country|国家|地区)\b/i);
-      else if(/^(address|地址|company address)\b/i.test(line))result.address=take(line,/^(company address|address|地址)\b/i);
-    }
-    const plain=lines.filter(line=>!/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(line)&&!/(?:\+|00)?\d[\d\s()\-]{7,}\d/.test(line)&&!/:|：/.test(line));
-    if(!result.company&&plain.length)result.company=plain[0];
-    if(!result.contact&&plain.length>1)result.contact=plain[1];
+    const result=window.CustomerTextParser.parse(raw);
     const fields={"buyer-company":result.company,"buyer-contact":result.contact,"buyer-phone":result.phone,"buyer-email":result.email,"buyer-country":result.country,"buyer-address":result.address};
     let count=0;Object.entries(fields).forEach(([id,value])=>{if(value&&$(id)){ $(id).value=value;count+=1; }});
     if($("customer-recognize-result"))$("customer-recognize-result").textContent=count?`已识别并填入 ${count} 项，请检查后保存。`:`没有识别到明确字段，建议按“Company: ...”格式粘贴。`;
@@ -6268,7 +6226,6 @@
       if (button) addProductFromLibrary(button.dataset.pickProduct);
     });
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
-    $("document-type").addEventListener("change", renderPreview);
     $("quote-style-select").addEventListener("change", renderPreview);
     $("pdf-language").addEventListener("change", renderPreview);
     $("buyer-country").addEventListener("change", applyBuyerCountryDialCode);
@@ -6378,8 +6335,6 @@
       renderPreview();
     });
     $("save-quote-btn").addEventListener("click",()=>saveQuote(false));
-    $("latest-quote-prices-btn")?.addEventListener("click",refreshCurrentQuotePrices);
-    $("quote-route-btn")?.addEventListener("click",openFreightForQuoteCountry);
     $("formalize-standard-quote-btn")?.addEventListener("click",()=>saveQuote(true));
     $("export-pdf-btn").addEventListener("click", exportPdf);
     $("new-quote-btn").addEventListener("click", () => {
@@ -6650,7 +6605,6 @@
     }));
     $('shipment-document-editor').addEventListener('toggle',()=>{if($('shipment-document-editor').open)renderShipmentFields();});
     $('shipment-document-fields').addEventListener('input',event=>{const key=event.target.dataset.shipmentField;if(!key)return;currentQuote.shipmentDetails||={};currentQuote.shipmentDetails[key]=event.target.value;renderPreview();scheduleDraftRecovery();});
-    $('document-type').addEventListener('change',()=>{if($('shipment-document-editor').open)renderShipmentFields();});
   }
   function initDocumentWorkspace() {
     initTradeDocumentControls();
@@ -6680,27 +6634,15 @@
         clearTimeout(draftTimer);currentQuote=saved.quote;bindQuoteToForm();renderQuoteItems();renderPreview();renderPackingEditor();toast('已恢复上次编辑，请确认当前开票公司。');
       }catch(error){toast('恢复失败：'+error.message);}
     });
-    $('generate-related-document').addEventListener('click',async()=>{
-      collectQuoteFromForm();const original=structuredClone(currentQuote);
-      const selected=$('related-document-choice')?.value;
-      if(!selected)return toast('请先选择需要生成的单据类型。');
-      if(!confirm('将当前单据另存为关联草稿，保留原历史文件，是否继续？'))return;
-      currentQuote={...original,id:uid('quote'),isFormal:false,version:0,status:'草稿',sourceQuoteId:original.id,seriesId:'',relatedOrderId:original.relatedOrderId||original.id,relatedOrderNumber:original.relatedOrderNumber||original.quoteNumber,quoteNumber:nextQuoteNumber(today(),true)};
-      currentQuote.documentType=selected;
-      currentQuote.packing={};currentQuote.translations=structuredClone(original.translations||{});
-      currentQuote.items=original.items.map(item=>{
-        const id=uid('item');
-        if(original.packing?.[item.id])currentQuote.packing[id]=structuredClone(original.packing[item.id]);
-        Object.values(currentQuote.translations).forEach(texts=>{for(const field of ['description','remark']){const oldKey='item:'+item.id+':'+field;if(texts[oldKey]!=null){texts['item:'+id+':'+field]=texts[oldKey];delete texts[oldKey];}}});
-        return {...item,id};
-      });
-      bindQuoteToForm();renderQuoteItems();try{await saveQuote(false);scheduleDraftRecovery();}catch(error){toast('另存失败：'+error.message);}
-    });
     workspaceReady=true;
     draftStorage('get').then(saved=>{if(saved)$('quote-autosave-status').textContent='发现上次编辑的恢复草稿，点击“恢复上次编辑”继续';}).catch(()=>{$('quote-autosave-status').textContent='恢复存储不可用，请手动保存草稿';});
     renderPreview();
   }
 
+  function updateDocumentSwitchState() {
+    const type=activeViewName==='invitation'?'invitation':activeViewName==='agency'?'authorization':currentQuote?.documentType||'quotation';
+    document.querySelectorAll('[data-switch-document]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.switchDocument===type)));
+  }
   function initDocumentNavigation() {
     const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',invitation:'商务邀请函'};
     const drafts=new Map();let sharedBuyer={};
@@ -6713,11 +6655,11 @@
       capture();
       if(type==='invitation'){
         if(drafts.has(type))currentInvitation=structuredClone(drafts.get(type));else{newInvitation();Object.assign(currentInvitation,{visitorName:sharedBuyer.contact||'',visitorCompany:sharedBuyer.company||'',country:sharedBuyer.country||''});}
-        bindInvitationToForm();switchView('invitation');return;
+        bindInvitationToForm();switchView('invitation');updateDocumentSwitchState();return;
       }
       if(type==='authorization'){
         if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization();Object.assign(currentAgentAuthorization,{agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
-        bindAgentAuthorizationForm();switchView('agency');return;
+        bindAgentAuthorizationForm();switchView('agency');updateDocumentSwitchState();return;
       }
       if(drafts.has(type))currentQuote=structuredClone(drafts.get(type));else{
         const source=drafts.get('quotation');newQuote();currentQuote.documentType=type;currentQuote.buyer={...currentQuote.buyer,...sharedBuyer};
@@ -6729,8 +6671,8 @@
     section.innerHTML='<header class="page-head"><h2>新建单证</h2><p>每种单证独立填写和保存，可携带同一客户资料继续制作其他单证。</p></header><div class="entry-grid">'+Object.entries(types).map(([key,label])=>`<button class="entry-card" data-create-document="${key}"><b>${label}</b><span>进入独立填写界面</span></button>`).join('')+'</div>';
     document.querySelector('main').append(section);
     for(const view of ['quote','invitation','agency']){
-      const bar=document.createElement('div');bar.className='document-jump-bar no-print';bar.innerHTML='<b>为当前客户制作其他单证</b><select aria-label="选择其他单证"><option value="">选择单证</option>'+Object.entries(types).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')+'</select><button type="button">进入制作</button><small>保留当前填写内容；目标单证独立保存，已有内容不自动覆盖。</small>';
-      bar.querySelector('button').onclick=()=>{const type=bar.querySelector('select').value;if(type)open(type);};
+      const bar=document.createElement('div');bar.className='document-jump-bar no-print';bar.innerHTML='<b>单证工作台</b><nav class="document-switch-buttons" aria-label="切换单证">'+Object.entries(types).map(([k,v])=>`<button type="button" data-switch-document="${k}">${v}</button>`).join('')+'</nav><small>点击切换；客户资料可共用，每份单证独立填写和保存。</small>';
+      bar.querySelector('nav').onclick=e=>{const type=e.target.closest('[data-switch-document]')?.dataset.switchDocument;if(type)open(type);};
       const batch=document.createElement('details');
       batch.innerHTML='<summary>同时准备多份单证</summary><div class="actions">'+Object.entries(types).map(([key,label])=>`<label><input type="checkbox" value="${key}"> ${label}</label>`).join('')+'</div><button type="button">准备所选草稿</button><small>只准备独立草稿；请逐份补充资料、核对后保存，不自动签发。</small>';
       batch.querySelector('button').onclick=()=>{const selected=[...batch.querySelectorAll('input:checked')].map(el=>el.value);if(!selected.length)return toast('请先选择单证');selected.forEach(open);open(selected[0]);toast('已准备 '+selected.length+' 份独立草稿，可用上方选择框切换核对和保存。');};
@@ -6739,7 +6681,10 @@
     }
     section.addEventListener('click',e=>{const type=e.target.closest('[data-create-document]')?.dataset.createDocument;if(type)open(type);});
     document.addEventListener('click',e=>{if(e.target.closest('[data-view-target]'))capture();},true);
-    $('document-type').addEventListener('change',e=>{const target=e.target.value;if(target===currentQuote.documentType)return;e.stopImmediatePropagation();e.target.value=currentQuote.documentType;open(target);},true);
+    const status=$('quote-autosave-status').parentElement;
+    status.classList.add('quote-draft-toolbar');
+    document.querySelector('#view-quote .page-head').after(status);
+    document.querySelector('.quote-output-pane .split-pane-title').after($('document-output-options'));
   }
 
   async function init() {
