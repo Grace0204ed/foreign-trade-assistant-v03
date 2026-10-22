@@ -16,10 +16,8 @@
     "check": "node --check server/index.js && node --check server/vehicle-quotes.js && node --check electron/main.js && node --check app.js && node --check vehicle-catalog.js && node --check vehicle-quotes.js && node --check crm/crm.js && node --check scripts/ensure-node-sqlite.js"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.10.0",
     "express": "^5.2.1",
-    "express-session": "^1.19.0",
     "multer": "^2.2.0",
     "pdf-parse": "^2.4.5",
     "xlsx": "^0.18.5"

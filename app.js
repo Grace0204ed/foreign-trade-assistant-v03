@@ -191,6 +191,8 @@
     invitationCompanyEmail: "",
     invitationSignerName: "",
     invitationSignerTitle: "",
+    invitationSignatureDataUrl: "",
+    invitationSignatureRotation: -90,
     validityRangeLabelEn: "Quotation Validity",
     validityRangeLabelZh: "报价有效期",
     quoteLineColumns: defaultQuoteLineColumns,
@@ -231,7 +233,7 @@
   let editingCategoryIndex = -1;
   let editingCategoryId = "";
   let quickCategoryForProduct = false;
-  let currentUser = null;
+  let currentUser = {id:'local-owner',username:'本地用户',role:'owner'};
   let passwordLoginDisabled = false;
   let activeViewName = "home";
   const internalViewHistory = [];
@@ -599,9 +601,10 @@
     const mode = displayMode();
     if (mode === "en") return en || "";
     if (mode === "zh") return zh || "";
-    if (mode === "es") return en || "";
-    if (mode === "zh-es") return [en, zh].filter(Boolean).join(separator);
-    if (mode === "zh-fr") return [en, zh].filter(Boolean).join(separator);
+    if (mode === "es") return en ? quoteEs(en) : "";
+    if (mode === "fr") return en ? quoteFr(en) : "";
+    if (mode === "zh-es") return [en ? quoteEs(en) : '', zh].filter(Boolean).join(separator);
+    if (mode === "zh-fr") return [en ? quoteFr(en) : '', zh].filter(Boolean).join(separator);
     return [en, zh].filter(Boolean).join(separator);
   }
 
@@ -627,20 +630,7 @@
     return ["owner", "admin"].includes(currentUser?.role);
   }
 
-  function ensureLoginView() {
-    if ($("view-login")) return;
-    const section = document.createElement("section");
-    section.id = "view-login";
-    section.className = "view active no-print";
-    section.innerHTML = `
-      <div class="login-required-card">
-        <h2>Login Required / 请先登录</h2>
-        <p>Only authorized users can use this quotation system. / 只有授权账号才可以使用报价系统。</p>
-        <p>Accounts must be created by the owner in Settings. / 账号必须由所有者在设置中添加。</p>
-      </div>
-    `;
-    document.querySelector(".main")?.prepend(section);
-  }
+  function ensureLoginView() {  }
 
   function toLegacyProduct(product) {
     return {
@@ -703,64 +693,13 @@
     };
   }
 
-  async function login(username, password) {
-    const data = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
-    currentUser = data.user;
-    const portal = $("login-portal")?.value || "user";
-    if (portal === "admin" && !["owner","admin"].includes(currentUser.role)) { await api("/api/auth/logout",{method:"POST"});currentUser=null;throw new Error("该账号没有管理员权限，请使用用户登录。"); }
-    localStorage.setItem("fta-portal-mode", portal === "admin" ? "admin" : "user");
-    localStorage.setItem(keys.sidebarCollapsed, "true");
-    applySidebarState();
-    renderLogin();
-    applyAuthLock();
-    await loadSharedSettings();
-    await restorePersistentStateIfNeeded();
-    await loadServerData();
-    await applyCrmCustomerFromUrl();
-    window.dispatchEvent(new CustomEvent("foreign-trade-auth-ready", { detail: currentUser }));
-    toast("Logged in successfully. / 登录成功。");
-  }
+  function login() {  }
 
-  async function logout() {
-    await api("/api/auth/logout", { method: "POST" });
-    currentUser = null;
-    renderLogin();
-    applyAuthLock();
-  }
+  function logout() {  }
 
-  function renderLogin() {
-    document.body.classList.toggle("password-login-disabled", passwordLoginDisabled);
-    $("login-status").textContent = currentUser ? `${currentUser.username} / ${currentUser.role}` : "未登录";
-    $("login-btn").hidden = !!currentUser || passwordLoginDisabled;
-    $("login-box").hidden = !!currentUser || passwordLoginDisabled;
-    $("logout-btn").hidden = passwordLoginDisabled || !currentUser;
-    $("user-info-box").hidden = !currentUser;
-    if (currentUser) {
-      $("user-info-name").textContent = currentUser.username || "-";
-      $("user-info-id").textContent = `ID: ${currentUser.id || "-"}`;
-      $("user-info-role").textContent = `权限编号: ${currentUser.role || "user"}`;
-      if ($("home-current-user")) $("home-current-user").textContent = `${currentUser.username || ""} · ${isAdmin() ? "管理员" : "用户"}`;
-    }
-  }
+  function renderLogin() {  }
 
-  function applyAuthLock() {
-    ensureLoginView();
-    document.body.classList.toggle("auth-locked", !currentUser);
-    document.body.classList.toggle("auth-ready", !!currentUser);
-    document.body.classList.toggle("is-admin", isAdmin());
-    updateAdminControls();
-    applyUserModuleVisibility();
-    document.querySelectorAll(".nav-btn, .entry-card").forEach((button) => {
-      button.disabled = !currentUser;
-    });
-    if (!currentUser) {
-      $("login-status").textContent = "未登录";
-      $("login-box").hidden = false;
-      switchView("login");
-    } else if ($("view-login")?.classList.contains("active")) {
-      switchView("home");
-    }
-  }
+  function applyAuthLock() { document.body.classList.add("auth-ready","is-admin"); updateAdminControls(); }
 
   async function checkLogin() {
     try {
@@ -822,6 +761,9 @@
     if (mode === "en") return en;
     if (mode === "zh") return zh;
     if (mode === "zh-es") return `${es} / ${zh}`;
+    const fr = d.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    if (mode === "fr") return fr;
+    if (mode === "zh-fr") return `${fr} / ${zh}`;
     return `${en} / ${zh}`;
   }
 
@@ -972,7 +914,7 @@
   function normalizeDocumentTypes() {
     const current = Array.isArray(settings.documentTypes) ? settings.documentTypes : [];
     const byKey = new Map(current.map((item) => [item.key, item]));
-    settings.documentTypes = [...defaultSettings.documentTypes, {key:"contract",labelZh:"销售合同",labelEn:"Sales Contract",visible:true,sortOrder:30}].map((item) => ({
+    settings.documentTypes = [...defaultSettings.documentTypes, {key:"contract",labelZh:"销售合同",labelEn:"Sales Contract",visible:true,sortOrder:30}, {key:"commercial",labelZh:"商业发票",labelEn:"Commercial Invoice",visible:true,sortOrder:40}, {key:"packing",labelZh:"装箱单",labelEn:"Packing List",visible:true,sortOrder:50}].map((item) => ({
       ...item,
       ...(byKey.get(item.key) || {})
     })).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
@@ -1071,6 +1013,8 @@
   };
 
   function invitationLanguages(mode) {
+    if(mode==='fr')return ['fr'];
+    if(mode==='zh-fr')return ['fr','zh'];
     if (mode === "en") return ["en"];
     if (mode === "zh") return ["zh"];
     if (mode === "es") return ["es"];
@@ -1079,6 +1023,8 @@
   }
 
   function invitationText(key, mode, custom = {}) {
+    const french={titleFallback:'Lettre d’invitation professionnelle',toPrefix:'À',date:'Date',details:'Informations sur le visiteur',name:'Nom complet',company:'Société',country:'Nationalité',gender:'Sexe',birthDate:'Date de naissance',passport:'N° de passeport',arrivalDate:'Date d’arrivée',departureDate:'Date de départ',visitPlace:'Lieu de visite',visaType:'Type de visa',relationship:'Relation commerciale',expenseSource:'Prise en charge des frais',reason:'Objet de la visite',notes:'Informations complémentaires',responsibility:'Prise en charge des frais',inviter:'Signataire',signature:'Signature autorisée',closing:'Nous vous remercions de bien vouloir examiner sa demande de visa pour cette visite professionnelle.'};
+    invitationLangPack.fr=french;
     return invitationLanguages(mode).map((lang) => {
       if (custom[lang]) return custom[lang];
       return invitationLangPack[lang]?.[key] || "";
@@ -1557,6 +1503,7 @@
     activeQuoteBusiness = mode === "vehicle" ? "vehicle" : "standard";
     localStorage.setItem("fta-quote-business", activeQuoteBusiness);
     const vehicle = activeQuoteBusiness === "vehicle";
+    document.querySelector('.quote-split-workspace')?.classList.toggle('is-vehicle', vehicle);
     $("quote-business-standard")?.classList.toggle("primary", !vehicle);
     $("quote-business-vehicle")?.classList.toggle("primary", vehicle);
     ["quote-standard-detail-panel", "quote-preview", "standard-quote-actions"].forEach(id => { if ($(id)) $(id).hidden = vehicle; });
@@ -1641,7 +1588,7 @@
   }
 
   function companyProfileData(source) {
-    return structuredClone(Object.fromEntries(Object.entries(source).filter(([key]) => /^(companyName|companyAddress|companyPhone$|companyEmail$|contactPerson$|contactFields$|bankFields$|paymentQrFields$|logoDataUrl$|logoPath$|stampDataUrl$|stampPath$|agencySignature|agencyAuthorizer|invitationCompany|businessLine)/.test(key))));
+    return structuredClone(Object.fromEntries(Object.entries(source).filter(([key]) => /^(companyName|companyAddress|companyPhone$|companyEmail$|contactPerson$|contactFields$|bankFields$|paymentQrFields$|logoDataUrl$|logoPath$|stampDataUrl$|stampPath$|agencySignature|agencyAuthorizer|invitationCompany|invitationSigner|invitationSignature|businessLine)/.test(key))));
   }
 
   function storeActiveCompany() {
@@ -1669,10 +1616,49 @@
     } catch(error){settings=previous;renderSettings();toast(`公司切换失败：${error.message}`);}
   }
 
+  function blankCompanyProfile() {
+    const fields=companyProfileData({...defaultSettings,...settings});
+    for(const key of Object.keys(fields)) fields[key]=Array.isArray(fields[key])?[]:'';
+    fields.companyNameZh='新公司';
+    fields.bankFields=(defaultSettings.bankFields||[]).map(f=>({...f,value:''}));
+    fields.paymentQrFields=(defaultSettings.paymentQrFields||[]).map(f=>({...f,value:''}));
+    fields.agencySignatureRotation=0;
+    fields.invitationSignatureRotation=0;
+    return fields;
+  }
+
+  async function changeCompanyProfiles(action) {
+    const previous=structuredClone(settings);
+    try {
+      if(!isAdmin())throw new Error('请使用管理员账号管理公司资料');
+      if(action==='delete') {
+        if((settings.companyProfiles||[]).length<=1)return toast('至少保留一家公司。可以修改当前公司资料，或先新增公司再删除。');
+        const name=settings.companyNameZh||settings.companyNameEn||'当前公司';
+        if(!confirm(`删除公司“${name}”？该公司的收款资料、公章和签名将从公司列表移除，历史单据和已导出的文件不会删除。`))return;
+        settings.companyProfiles=settings.companyProfiles.filter(p=>p.id!==settings.activeCompanyId);
+        for(const key of Object.keys(companyProfileData(settings)))delete settings[key];
+        const next=settings.companyProfiles[0];Object.assign(settings,structuredClone(next.data));settings.activeCompanyId=next.id;
+      } else {
+        collectSettingsDraft();storeActiveCompany();
+        if(action==='add') {
+          for(const key of Object.keys(companyProfileData(settings)))delete settings[key];
+          Object.assign(settings,blankCompanyProfile());settings.activeCompanyId=uid('company');storeActiveCompany();
+        } else if(!String(settings.companyNameZh||'').trim()&&!String(settings.companyNameEn||'').trim())throw new Error('请至少填写中文或英文公司名称');
+      }
+      await api('/api/settings',{method:'PUT',body:JSON.stringify(settings)});
+      save(keys.settings,settings);renderSettings();
+      if(action==='add')document.querySelector('[data-setting="companyNameZh"]')?.focus();
+      toast(action==='add'?'空白公司已新增，请填写名称、联系方式和收款资料后保存。':action==='delete'?'公司已删除，历史单据已保留。':'当前公司资料已保存。');
+    } catch(error){settings=previous;renderSettings();toast('公司操作失败：'+error.message);}
+  }
+
   function renderSettings() {
     storeActiveCompany();
     const companySelect=$('company-profile-select');
     if(companySelect){companySelect.innerHTML=settings.companyProfiles.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.data.companyNameZh||p.data.companyNameEn)}</option>`).join('');companySelect.value=settings.activeCompanyId;companySelect.onchange=()=>switchCompanyProfile(companySelect.value);}
+    for(const [id,action] of [['add-company-profile','add'],['save-company-profile','save'],['delete-company-profile','delete']]){
+      if($(id)){ $(id).onclick=()=>changeCompanyProfiles(action);$(id).disabled=!isAdmin(); }
+    }
     window.freightWorkspace?.renderSettings();
     ensureUserManagerPanel();
     ensureContactFieldsPanel();
@@ -1712,6 +1698,7 @@
     $("stamp-preview").src = settings.stampDataUrl || "";
     $("stamp-preview").hidden = !settings.stampDataUrl;
     $("stamp-preview").title = settings.stampDataUrl ? "Electronic seal uploaded / 电子公章已上传" : "No electronic seal / 未上传电子公章";
+    renderCompanySignatureSettings();
     renderContactFields();
     renderUsers();
     showSettingsSection(activeSettingsSection);
@@ -1907,6 +1894,8 @@
     const existing = Array.isArray(settings.customerQuoteFields) ? settings.customerQuoteFields : [];
     const byKey = new Map(existing.map((field) => [fieldKeyOf(field), field]));
     settings.customerQuoteFields = defaultSettings.customerQuoteFields.map((field, index) => normalizeField({ ...field, ...(byKey.get(field.fieldKey) || {}), sortOrder:byKey.get(field.fieldKey)?.sortOrder ?? field.sortOrder }, index)).sort((a,b)=>a.sortOrder-b.sortOrder);
+    const builtinKeys = new Set(defaultSettings.customerQuoteFields.map(field=>field.fieldKey));
+    settings.customerQuoteFields.push(...existing.filter(field=>!builtinKeys.has(fieldKeyOf(field))).map((field,index)=>normalizeField(field,index)));
     settings.quoteSectionTitles = { ...defaultSettings.quoteSectionTitles, ...(settings.quoteSectionTitles || {}) };
     Object.keys(defaultSettings.quoteSectionTitles).forEach((key) => settings.quoteSectionTitles[key] = { ...defaultSettings.quoteSectionTitles[key], ...(settings.quoteSectionTitles[key] || {}) });
   }
@@ -1916,6 +1905,10 @@
     if(!host)return;
     normalizeCustomerQuoteFields();
     host.innerHTML=renderFieldRows(settings.customerQuoteFields,"customer");
+    if(!document.getElementById('add-customer-basic-field')){
+      const button=document.createElement('button');button.id='add-customer-basic-field';button.type='button';button.textContent='新增报价基础字段';
+      button.onclick=()=>openFieldModal(-1,'customer');host.closest('table').before(button);
+    }
     document.querySelectorAll("[data-section-title]").forEach((input)=>{
       const [section,prop]=input.dataset.sectionTitle.split(".");
       input.value=settings.quoteSectionTitles?.[section]?.[prop] || "";
@@ -2273,48 +2266,7 @@
     renderContactFields();
   }
 
-  function ensureUserManagerPanel() {
-    if ($("user-manager-panel")) return;
-    const section = document.createElement("div");
-    section.id = "user-manager-panel";
-    section.className = "panel admin-only";
-    section.innerHTML = `
-      <div class="row-head">
-        <div>
-          <h3>User Management / 用户管理</h3>
-          <p class="hint">Username supports English letters, numbers, or email. New accounts are normal users by default. / 用户名支持英文、数字或邮箱，新账号默认是普通用户。</p>
-        </div>
-      </div>
-      <div class="form-grid">
-        <label><span>Username or Email / 用户名或邮箱</span><input id="user-username" autocomplete="off" placeholder="ethan01 or name@example.com" /></label>
-        <label><span>Password / 密码</span><input id="user-password" type="password" autocomplete="new-password" /></label>
-        <label>
-          <span>Role / 角色</span>
-          <select id="user-role">
-            <option value="user">Normal User / 普通用户</option>
-            <option value="owner">Owner / 所有者</option>
-          </select>
-        </label>
-      </div>
-      <div class="actions">
-        <button id="save-user-btn" class="primary" type="button">Add User / 新增用户</button>
-        <button id="clear-user-btn" type="button">Cancel / 取消</button>
-      </div>
-      <table class="field-table">
-        <thead>
-          <tr>
-            <th>Username / 用户名</th>
-            <th>Role / 角色</th>
-            <th>Status / 状态</th>
-            <th>Actions / 操作</th>
-          </tr>
-        </thead>
-        <tbody id="user-list"></tbody>
-      </table>
-    `;
-    const host = $("settings-users-host") || $("user-management-host") || document.querySelector(".sticky-actions");
-    host?.appendChild(section);
-  }
+  function ensureUserManagerPanel() {  }
 
   function ensureTermsSettingsPanel() {
     if ($("terms-settings-panel")) return;
@@ -2526,87 +2478,17 @@
     });
   }
 
-  function renderUsers() {
-    updateAdminControls();
-    if (!$("user-list")) return;
-    if (!isAdmin()) {
-      $("user-list").innerHTML = "";
-      return;
-    }
-    $("user-list").innerHTML = users.map((user) => `
-      <tr data-user-id="${escapeHtml(user.id)}">
-        <td>${escapeHtml(user.username)}</td>
-        <td>${escapeHtml(user.role === "owner" || user.role === "admin" ? "Owner / 所有者" : "Normal User / 普通用户")}</td>
-        <td>${escapeHtml(user.status === "Inactive" ? "Inactive / 已停用" : "Active / 启用")}</td>
-        <td class="actions">
-          <button class="reset-user-password" type="button">Change Password / 改密码</button>
-          <button class="toggle-user-status" type="button" ${user.username === "admin" ? "disabled" : ""}>${user.status === "Inactive" ? "Activate / 启用" : "Disable / 停用"}</button>
-          <button class="delete-user" type="button" ${user.username === "admin" ? "disabled" : ""}>Delete / 删除</button>
-        </td>
-      </tr>
-    `).join("") || `<tr><td colspan="4">No users / 暂无用户</td></tr>`;
-  }
+  function renderUsers() {  }
 
-  async function refreshUsers() {
-    if (!isAdmin()) return;
-    const data = await api("/api/users");
-    users = data.users || [];
-    renderUsers();
-  }
+  function refreshUsers() {  }
 
-  function clearUserForm() {
-    if (!$("user-username")) return;
-    $("user-username").value = "";
-    $("user-password").value = "";
-    $("user-role").value = "user";
-  }
+  function clearUserForm() {  }
 
-  function validUsernameInput(username) {
-    const value = String(username || "").trim();
-    if (value.includes("@")) return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value);
-    return /^[A-Za-z0-9._-]{3,50}$/.test(value);
-  }
+  function validUsernameInput() {  }
 
-  async function saveUser() {
-    const username = $("user-username").value.trim();
-    const password = $("user-password").value;
-    const role = $("user-role").value;
-    if (!username || !password) return toast("Username and password are required. / 用户名和密码不能为空。");
-    if (!validUsernameInput(username)) return toast("Use English letters/numbers or email. / 请使用英文、数字或邮箱。");
-    await api("/api/users", { method: "POST", body: JSON.stringify({ username, password, role }) });
-    clearUserForm();
-    await refreshUsers();
-    toast("Saved successfully. / 保存成功。");
-  }
+  function saveUser() {  }
 
-  async function handleUserAction(event) {
-    const row = event.target.closest("tr[data-user-id]");
-    if (!row) return;
-    const user = users.find((x) => x.id === row.dataset.userId);
-    if (!user) return;
-
-    if (event.target.matches(".reset-user-password")) {
-      const password = prompt("New Password / 新密码");
-      if (!password) return;
-      await api(`/api/users/${user.id}`, { method: "PUT", body: JSON.stringify({ role: user.role, status: user.status, password }) });
-      await refreshUsers();
-      toast("Saved successfully. / 保存成功。");
-    }
-
-    if (event.target.matches(".toggle-user-status")) {
-      const status = user.status === "Inactive" ? "Active" : "Inactive";
-      await api(`/api/users/${user.id}`, { method: "PUT", body: JSON.stringify({ role: user.role, status }) });
-      await refreshUsers();
-      toast(status === "Inactive" ? "Marked as inactive successfully. / 已成功标记为停用。" : "Saved successfully. / 保存成功。");
-    }
-
-    if (event.target.matches(".delete-user")) {
-      if (!confirm("Are you sure you want to delete this user? / 确认删除这个用户吗？")) return;
-      await api(`/api/users/${user.id}`, { method: "DELETE" });
-      await refreshUsers();
-      toast("Deleted successfully. / 账号已永久删除。");
-    }
-  }
+  function handleUserAction() {  }
 
   function renderTemplateSelect(selected) {
     $("template-select").innerHTML = settings.templates.map((t) => `<option ${t.name === selected ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("");
@@ -2906,6 +2788,7 @@
     }
     renderQuoteTerms();
     renderQuoteItems();
+    applyCustomerQuoteFieldLabels();
     renderPreview();
     toast("字段名称和显示设置已保存并应用到报价与PDF。");
   }
@@ -3079,6 +2962,7 @@
     if (!file) return;
     collectSettingsDraft();
     settings[key] = await fileToDataUrl(file);
+    storeActiveCompany();
     input.value = "";
     save(keys.settings, settings);
     if (isAdmin()) {
@@ -3093,6 +2977,7 @@
   async function clearSettingsAsset(key, message) {
     collectSettingsDraft();
     settings[key] = "";
+    storeActiveCompany();
     save(keys.settings, settings);
     if (isAdmin()) {
       try { await api("/api/settings", { method: "PUT", body: JSON.stringify(settings) }); }
@@ -4460,6 +4345,7 @@
     newQuote();
     currentQuote.customerId = Number(customer.id);
     currentQuote.buyer = {
+      ...currentQuote.buyer,
       country: customer.country || "",
       company: customer.company || customer.name || "",
       contact: customer.name || "",
@@ -4595,7 +4481,7 @@
     const zh = parts.find(hasZh) || "";
     const nonZh = parts.find((part) => !hasZh(part)) || parts[0] || "";
     if (mode === "zh") return zh || nonZh;
-    if (mode === "en" || mode === "es") return nonZh || zh;
+    if (mode === "en" || mode === "es" || mode === "fr") return raw.split(/\s+\/\s+/).filter(part=>!hasZh(part)).join(' / ') || raw;
     if (mode === "zh-es") return [nonZh, zh].filter(Boolean).join(" / ");
     if (mode === "zh-fr") return [nonZh, zh].filter(Boolean).join(" / ");
     return [nonZh, zh].filter(Boolean).join(" / ");
@@ -4611,13 +4497,15 @@
     const visitPlace = currentInvitation.visitPlace || settings.companyAddressEn || "our factory in China";
     const text = {
       en: `Due to our business cooperation and order discussion, we hereby invite ${name} from ${country}, representing ${company}, to visit ${visitPlace} for business inspection, factory visit, machinery inspection and purchase discussion. The planned entry date is ${arrival}, and the planned departure date is ${departure}.`,
-      zh: `因双方业务往来及订单洽谈需要，我司现邀请来自${countryZh}的客户${name}（${company}）来华访问${visitPlace}，进行商务考察、工厂参观、设备验机及采购合作洽谈。计划入境日期为${arrival}，计划离境日期为${departure}。`,
+      zh: `我司现邀请来自${countryZh}的客户${name}${currentInvitation.visitorCompany?`（${company}）`:''}来华访问${visitPlace}，进行商务考察、设备验机及采购合作洽谈。计划入境日期为${currentInvitation.arrivalDate}，计划离境日期为${currentInvitation.departureDate}。`,
+      fr: `Nous invitons ${name}, venant de ${String(country).split('/')[0].trim()}, à visiter ${String(visitPlace).split('/')[0].trim()} pour examiner des machines et discuter de leur achat. Son arrivée est prévue le ${currentInvitation.arrivalDate} et son départ le ${currentInvitation.departureDate}.`,
       es: `Debido a nuestra cooperación comercial y negociación de pedidos, invitamos a ${name} de ${country}, representante de ${company}, a visitar ${visitPlace} para inspección comercial, visita a la fábrica, revisión de maquinaria y conversación de compra. La fecha prevista de entrada es ${arrival}, y la fecha prevista de salida es ${departure}.`
     };
     return invitationLanguages(mode).map((lang) => text[lang]).filter(Boolean).join("\n");
   }
 
   function invitationResponsibilityParagraph(mode) {
+    if(mode==='fr'||mode==='zh-fr')return currentInvitation.expenseSource||'';
     const text = {
       en: "During the visit in China, all expenses including but not limited to international and domestic transportation, accommodation, meals, insurance, medical costs and personal expenses shall be borne by the visitor/customer. Any fines, losses, penalties or legal responsibilities caused by overstaying, delayed departure, violation of local laws or personal conduct shall be borne solely by the visitor/customer. Our company does not bear any such costs or liabilities.",
       zh: "来访人在华考察期间产生的所有费用，包括但不限于国际及境内交通、住宿、餐饮、保险、医疗及个人消费等，均由来访人/客户自行承担。如因逾期离境、延迟离境、违反当地法律法规或个人行为产生任何罚款、损失、处罚或法律责任，均由来访人/客户自行承担，我司不承担任何相关费用及责任。",
@@ -4681,6 +4569,7 @@
           </div>
           <div class="invitation-sign">
             ${settings.stampDataUrl ? `<img class="invitation-stamp" src="${settings.stampDataUrl}" alt="">` : ""}
+            ${(settings.invitationSignatureDataUrl || settings.agencySignatureDataUrl)?`<div class="invitation-electronic-signature"><img src="${escapeHtml(settings.invitationSignatureDataUrl || settings.agencySignatureDataUrl)}" alt="Signature" style="transform:rotate(${Number(settings.invitationSignatureDataUrl ? settings.invitationSignatureRotation : settings.agencySignatureRotation)||0}deg)"></div>`:''}
             <div class="signature-line"></div>
             <p><b>${escapeHtml(invitationText("signature", mode))}</b></p>
             <p>${escapeHtml(invitationText("inviter", mode))}: ${escapeHtml(currentInvitation.inviter || party.signerName || "")}</p>
@@ -5087,11 +4976,12 @@
       email: $("buyer-email").value,
       address: $("buyer-address").value
     };
-    currentQuote.terms = {};
+    document.querySelectorAll('[data-buyer-custom]').forEach(input=>currentQuote.buyer[input.dataset.buyerCustom]=input.value);
+    currentQuote.terms = {...currentQuote.terms};
     document.querySelectorAll("[data-termfield]").forEach((input) => currentQuote.terms[input.dataset.termfield] = input.value);
     const lineRows = Array.from(document.querySelectorAll(".quote-line"));
     currentQuote.items = lineRows.length ? lineRows.map((row) => {
-      const values = {};
+      const values = {...currentQuote.items.find(item=>item.id===row.dataset.id)?.values};
       row.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
       let freightSnapshot = null;
       try { freightSnapshot = row.dataset.freightSnapshot ? JSON.parse(decodeURIComponent(row.dataset.freightSnapshot)) : null; } catch { freightSnapshot = null; }
@@ -5167,6 +5057,7 @@
 
   function lineDescription(item) {
     const values = item.values || {};
+    if((item.kind||'product')!=='product')return values.description||values.itemType||'';
     const condition = values.condition || "used";
     const prefix = conditionDisplayText(condition);
     const details = condition === "new-truck"
@@ -5191,6 +5082,12 @@
     const key = escapeHtml(column.key);
     const required = column.required ? " required" : "";
     const isEquipment=(item.kind||"product")==="product";
+    if(column.key==='route'){
+      const modes=['散杂船 / Breakbulk','滚装船 / Ro-Ro','集装箱运输 / Container'];
+      const selected=values.route||'';
+      if(selected&&!modes.includes(selected))modes.push(selected);
+      return `<select data-qfield="route" aria-label="运输方式"><option value="">请选择运输方式</option>${modes.map(v=>`<option value="${escapeHtml(v)}" ${v===selected?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select>`;
+    }
     if (column.key === "itemType") { const options=[["product","设备"],["freight","海运费"],["trucking","国内运输费"],["port","港杂及报关费"],["insurance","保险费"],["handling","拆装费"],["custom","其他费用"]]; return `<select data-qfield="itemType" class="quote-item-type">${options.map(([kind,label])=>`<option value="${label}" data-kind="${kind}" ${kind===(item.kind||"product")?"selected":""}>${label}</option>`).join("")}</select>`; }
     if (column.key === "condition") return isEquipment?`<input data-qfield="condition" class="quote-condition-select" list="quote-condition-options" value="${escapeHtml(values.condition||"used")}" placeholder="选择或直接输入设备状态">`:`<span class="not-applicable">—</span>`;
     if (column.key === "description") return `<div class="description-editor"><textarea data-qfield="description"${required} placeholder="填写品牌、型号和产品描述">${escapeHtml(lineDescription(item))}</textarea><div class="new-detail-fields" ${isNewCondition(values.condition)?"":"hidden"}><input data-qfield="productionDate" type="text" value="${escapeHtml(values.productionDate||"")}" placeholder="生产年份/日期（可选）"><input data-qfield="engine" type="text" value="${escapeHtml(values.engine||"")}" placeholder="发动机（新卡车填写）" ${values.condition==="new-truck"?"":"hidden"}></div></div>`;
@@ -5422,7 +5319,9 @@
     }
     if (field.fieldKey === "payment") {
       const selected = value || "30/70";
-      return `<select data-termfield="${key}">${paymentOptions.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>`;
+      const options = paymentOptions.some(option => option.value === selected)
+        ? paymentOptions : [...paymentOptions, {value: selected, label: selected}];
+      return `<select data-termfield="${key}">${options.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>`;
     }
     if (field.fieldKey === "shipping" || field.fieldKey === "tradeTerm") {
       normalizeTradeTerms();
@@ -5573,13 +5472,15 @@
 
   function previewDescription(item) {
     const values = item.values || {};
-    if (values.description) return values.description;
+    const translation=documentTranslatedValue('item:'+item.id+':description');
+    if(translation) return translation;
+    if (values.description) return localizedSlashValue(values.description,displayMode());
     if (["freight", "trucking", "custom"].includes(item.kind || "")) {
       const skip = new Set(["qty", "unitPrice", "currency", "remark"]);
       const fields = (costTemplate(item.kind).fields || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
       const parts = fields
         .filter((field) => field.visible && !skip.has(field.fieldKey))
-        .map((field) => values[field.fieldKey] ? `${field.en || field.zh}: ${values[field.fieldKey]}` : "")
+        .map((field) => values[field.fieldKey] ? `${labelText(field.en,field.zh)}: ${values[field.fieldKey]}` : "")
         .filter(Boolean);
       return parts.join(" | ") || itemKindLabel(item.kind);
     }
@@ -5593,13 +5494,13 @@
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .filter((field) => field.visible && !skip.has(field.fieldKey) && field.fieldType !== "image" && field.fieldType !== "calculated")
-      .map((field) => values[field.fieldKey] ? `${field.en || field.zh}: ${values[field.fieldKey]}` : "")
+      .map((field) => values[field.fieldKey] ? `${labelText(field.en,field.zh)}: ${values[field.fieldKey]}` : "")
       .filter(Boolean);
     return parts.length ? parts.join(" | ") : [values.productType, values.brand, values.model, values.year].filter(Boolean).join(" ");
   }
 
   function previewRemark(item) {
-    return item.values?.remark || "";
+    return documentTranslatedValue('item:'+item.id+':remark') || item.values?.remark || "";
   }
 
   function visibleQuoteField(key) {
@@ -5609,13 +5510,22 @@
   }
 
   function quotePreviewColumns() {
-    return quoteLineColumns().map((column) => ({
+    // September quotation layout: honor the configured columns, including custom fields.
+    if((currentQuote.documentType||'quotation')==='quotation')return quoteLineColumns()
+      .filter(column=>column.key!=='image'||currentQuote.showProductPhotos!==false)
+      .map(column=>({key:column.key,en:column.labelEn||column.key,zh:column.labelZh||column.key,type:column.type}));
+    const columns = quoteLineColumns().filter(column => column.key !== 'image').map((column) => ({
       key: column.key,
       en: column.labelEn || column.key,
       zh: column.labelZh || column.key,
       type: column.type,
       visible: column.visible !== false
     }));
+    const leading = [{key:'sequence',en:'No.',zh:'序号'}, ...(currentQuote.showProductPhotos !== false ? [{key:'image',en:'Image',zh:'图片'}] : [])];
+    if(currentQuote.documentType==='commercial')return [...leading,...[['description','Description','商品说明'],['hsCode','HS Code','海关编码'],['origin','Country of origin','原产国'],['qty','Quantity','数量'],['billingUnit','Unit','单位'],['unitPrice','Unit Price','单价'],['amount','Amount','金额']].map(([key,en,zh])=>({key,en,zh}))];
+    if(currentQuote.documentType==='packing') return [...leading,{key:'description',en:'Description',zh:'商品信息'},{key:'qty',en:'Quantity',zh:'数量'},...[['packages','Packages','件数'],['netWeight','Net weight (kg)','净重（kg）'],['grossWeight','Gross weight (kg)','毛重（kg）'],['cbm','Volume (m³)','体积（m³）'],['marks','Shipping marks','唛头']].map(([key,en,zh])=>({key,en,zh}))];
+    const keys=['description','qty','billingUnit','unitPrice','amount','remark'];
+    return [...leading,...columns.filter(column=>keys.includes(column.key)||settings.quoteLineColumns.find(c=>c.key===column.key)?.system===false)];
   }
 
   function renderQuotePreviewHead() {
@@ -5643,14 +5553,17 @@
   function quotePreviewCell(item, column) {
     const values = item.values || {};
     const currency = values.currency || settings.currency;
+    if(column.key==='hsCode' && (item.kind||'product')!=='product')return '—';
     if (column.key === "itemType") return quoteItemTypeText(item);
     if (column.key === "tradeTerm") return Object.prototype.hasOwnProperty.call(values, "tradeTerm") ? values.tradeTerm : (currentQuote?.terms?.shipping || "EXW");
     if (column.key === "condition") return (item.kind||"product")==="product" ? conditionDisplayText(values.condition || "used") : "—";
     if (column.key === "type") return values.productType || itemKindLabel(item.kind || "product");
     if (column.key === "description") return previewDescription(item);
     if (column.key === "qty") return values.qty || "1";
-    if (column.key === "unitPrice") return values.unitPrice === "" || values.unitPrice == null ? "待询价" : money(values.unitPrice, currency);
-    if (column.key === "amount") return values.unitPrice === "" || values.unitPrice == null ? "待询价" : money(itemSubtotal(item), currency);
+    if (column.key === 'billingUnit') {const unit={台:['Unit','台'],吨:['Ton','吨'],柜:['Container','柜'],项:['Item','项']}[values.billingUnit];return unit?labelText(...unit):values.billingUnit||'';}
+    if(column.key==='origin')return (item.kind||'product')==='product'?(currentQuote.packing?.[item.id]?.origin||'—'):'—';
+    if (column.key === "unitPrice") return values.unitPrice === "" || values.unitPrice == null ? labelText('Pending quotation','待询价') : money(values.unitPrice, currency);
+    if (column.key === "amount") return values.unitPrice === "" || values.unitPrice == null ? labelText('Pending quotation','待询价') : money(itemSubtotal(item), currency);
     if (column.key === "currency") return currency;
     if (column.key === "image") return "";
     if (column.key === "remark") return previewRemark(item);
@@ -5660,13 +5573,15 @@
 
   function renderQuotePreviewRows() {
     const columns = quotePreviewColumns();
-    return (currentQuote.items || []).map((item) => {
+    return (currentQuote.items || []).filter(item=>currentQuote.documentType !== 'packing' || (item.kind||'product')==='product').map((item, index) => {
       return `<tr class="${item.imageDataUrl?"preview-row-with-image":""}">${columns.map((column) => {
         const label = `${column.en || column.key} / ${column.zh || column.key}`;
-        if (column.key === "image") return `<td class="preview-col-image preview-product-image" data-label="${escapeHtml(label)}">${item.imageDataUrl?`<img src="${item.imageDataUrl}" alt="产品图片">`:"<span class=\"mobile-empty-value\">未上传图片</span>"}</td>`;
+        if(column.key === 'sequence') return `<td>${index+1}</td>`;
+        if(['packages','netWeight','grossWeight','cbm','marks'].includes(column.key)) return `<td>${escapeHtml(currentQuote.packing?.[item.id]?.[column.key] ?? '—')}</td>`;
+        if (column.key === "image") return `<td class="preview-col-image preview-product-image" data-label="${escapeHtml(label)}">${(item.kind||'product')==='product'&&(item.imageDataUrl||item.additionalImages?.[0])?`<img src="${escapeHtml(item.imageDataUrl||item.additionalImages[0])}" alt="${escapeHtml(labelText('Image','图片'))}">`:'—'}</td>`;
         const value = quotePreviewCell(item, column);
-        const printMeta = column.key === "description" && (item.kind||"product") === "product"
-          ? `<span class="print-product-meta">${escapeHtml([conditionDisplayText(item.values?.condition || "used"), item.values?.hsCode ? `HS ${item.values.hsCode}` : ""].filter(Boolean).join(" · "))}</span>`
+        const printMeta = column.key === "description" && !['commercial','packing'].includes(currentQuote.documentType)
+          ? `<span class="print-product-meta">${escapeHtml(quoteLineColumns().filter(c=>!['image','description','qty','billingUnit','unitPrice','amount','currency','remark','itemType'].includes(c.key)).map(c=>{const value=quotePreviewCell(item,c);return value&&value!=='—'?labelText(c.labelEn||c.key,c.labelZh||c.key)+': '+value:'';}).filter(Boolean).join(' · '))}</span>`
           : "";
         return `<td class="preview-col-${escapeHtml(column.key)}" data-label="${escapeHtml(label)}"><span class="preview-cell-value">${escapeHtml(value)}</span>${printMeta}</td>`;
       }).join("")}</tr>`;
@@ -5674,6 +5589,8 @@
   }
 
   function displayTermValue(field) {
+    const translation=documentTranslatedValue('term:'+field.fieldKey);
+    if(translation) return translation;
     const value = currentQuote.terms[field.fieldKey] || "";
     if (["notes", "warranty", "afterSales"].includes(field.fieldKey) && ["bilingual", "zh-fr", "zh-es"].includes(displayMode())) return value;
     if (field.fieldKey === "payment") {
@@ -5717,7 +5634,14 @@
     normalizeCustomerQuoteFields();
     const ids={company:"buyer-company",country:"buyer-country",contact:"buyer-contact",phone:"buyer-phone",email:"buyer-email",address:"buyer-address"};
     const grid=$("buyer-company")?.closest(".form-grid");
+    grid?.querySelectorAll('[data-custom-buyer-label]').forEach(label=>label.remove());
     settings.customerQuoteFields.slice().sort((a,b)=>a.sortOrder-b.sortOrder).forEach((field)=>{
+      if(!ids[field.fieldKey] && grid){
+        const label=document.createElement('label');label.dataset.customBuyerLabel='true';label.hidden=!field.visible;
+        const caption=document.createElement('span');caption.textContent=`${field.zh} / ${field.en}`;
+        const input=document.createElement(field.fieldType==='textarea'?'textarea':'input');input.dataset.buyerCustom=field.fieldKey;input.value=currentQuote.buyer?.[field.fieldKey]??'';
+        label.append(caption,input);grid.append(label);return;
+      }
       const input=$(ids[field.fieldKey]); const label=input?.closest("label"); if(!label)return;
       label.hidden=!field.visible;
       const caption=label.querySelector("span"); if(caption)caption.textContent=`${field.zh} / ${field.en}${field.required?" *":""}`;
@@ -5726,6 +5650,7 @@
   }
 
   function bankValueText(field, mode = displayMode()) {
+    if(field.labelEn==='Payment Terms' && currentQuote?.terms?.payment) return paymentLabel(currentQuote.terms.payment);
     const raw = String(field.value || "");
     // Translate known boilerplate only. Never rewrite bank identifiers or custom terms.
     const copy = {
@@ -5762,14 +5687,15 @@
 
   function renderQuoteMetaPreview() {
     const rows = [];
-    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${currentQuote.documentType==='contract'?labelText('Contract No.','合同编号'):labelText("Quotation No.", "报价编号")}：${escapeHtml(currentQuote.quoteNumber)}${currentQuote.version?` V${currentQuote.version}`:""}</p>`);
+    const numberLabel=({contract:['Contract No.','合同编号'],invoice:['Invoice No.','发票编号'],commercial:['Invoice No.','发票编号'],packing:['Packing List No.','装箱单编号']})[currentQuote.documentType]||['Quotation No.','报价编号'];
+    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${labelText(...numberLabel)}：${escapeHtml(currentQuote.quoteNumber)}${currentQuote.version?` V${currentQuote.version}`:""}</p>`);
     if (settings.showQuoteDateInPdf !== false) rows.push(`<p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p>`);
-    if (currentQuote.documentType!=='contract' && settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
+    if (currentQuote.documentType === 'quotation' && settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
     return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
   }
 
   function renderValidityRangePreview() {
-    if(currentQuote.documentType==='contract')return '';
+    if(['invoice','contract','commercial','packing'].includes(currentQuote.documentType))return '';
     if (settings.showValidityRangeInPdfBottom === false) return "";
     const text = currentQuote.validityRangeText
       || [currentQuote.quoteDate, currentQuote.validUntil].filter(Boolean).join(" - ");
@@ -5780,6 +5706,14 @@
   }
 
   function validateQuoteLines() {
+    if(currentQuote.documentType==='packing') {
+      const items=currentQuote.items.filter(i=>(i.kind||'product')==='product');
+      if(!items.length){toast('装箱单至少需要一行商品');return false;}
+      for(const item of items){const p=currentQuote.packing?.[item.id]||{};
+        if(!['packages','netWeight','grossWeight','cbm'].every(k=>p[k]!=='' && p[k]!=null && Number.isFinite(Number(p[k])) && Number(p[k])>0) || !Number.isInteger(Number(p.packages)) || Number(p.grossWeight)<Number(p.netWeight)) {toast('请填写装箱件数、净重、毛重、体积；毛重不得小于净重，件数须为正整数。');return false;}
+      }
+      return true;
+    }
     const requiredColumns = quoteLineColumns().filter((column) => column.required);
     for (let rowIndex = 0; rowIndex < (currentQuote.items || []).length; rowIndex += 1) {
       const item = currentQuote.items[rowIndex];
@@ -5840,7 +5774,7 @@
       </section>
       <section class="preview-panel"><h3>${quoteSectionTitle("customer")}</h3><div class="preview-fields">${customerPreviewFields(currentQuote.buyer)}</div></section>
       <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">报价未完整：存在待询价项目，可保存草稿，但不能生成正式单据。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${money(total(), settings.currency)}</div>` : ""}</section>
-      ${showProductPhotos && currentQuote.items.some(i => (i.kind || "product") === "product" && (i.imageDataUrl || i.additionalImages?.length)) ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product").flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || `${i.values.brand || ""} ${i.values.model || ""}`.trim())}</div></article>`)).join("")}</div></section>` : ""}
+      ${showProductPhotos && currentQuote.photoAppendix ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product").flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || i.values.model || '')}</div></article>`)).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${quoteSectionTitle("terms")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
       ${['contract','invoice'].includes(currentQuote.documentType)?renderSalesContractSignatures():''}
@@ -5849,6 +5783,82 @@
       const contact=$('quote-preview').querySelector('.preview-contact-list');
       if(contact)contact.innerHTML=contact.innerHTML.replaceAll('Quotation Contact','Contract Contact').replaceAll('报价负责人','合同负责人');
     }
+    renderDocumentLayout(visibleTermFields);
+    applyDocumentWorkspacePreview();
+  }
+
+  function renderCompanySignatureSettings() {
+    const img=$('company-signature-preview');if(!img)return;
+    img.src=settings.agencySignatureDataUrl||'';img.hidden=!settings.agencySignatureDataUrl;
+    const rotation=Number(settings.agencySignatureRotation)||0;
+    img.style.transform=`rotate(${rotation}deg)`;
+    $('company-signature-status').textContent=settings.agencySignatureDataUrl?'已载入当前公司的电子签名':'当前公司未上传电子签名';
+  }
+  async function changeCompanySignature(input,remove=false) {
+    const original=structuredClone(settings);
+    try {
+      let data='';
+      if(remove){if(!confirm('删除当前公司的电子签名？已导出的PDF不会改变，历史文件快照可能仍保留旧签名。'))return;}
+      else {
+        const file=input.files?.[0];if(!file)return;
+        if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>5*1024*1024)throw new Error('请上传5MB以内的PNG、JPG或WebP签名图片');
+        data=await fileToDataUrl(file);const image=new Image();image.src=data;await image.decode();
+      }
+      collectSettingsDraft();settings.agencySignatureDataUrl=data;storeActiveCompany();
+      if(isAdmin())await api('/api/settings',{method:'PUT',body:JSON.stringify(settings)});
+      save(keys.settings,settings);renderSettings();renderPreview();toast(remove?'当前公司签名已删除':'当前公司签名已上传并保存');
+    }catch(error){settings=original;renderSettings();toast('签名保存失败：'+error.message);}
+    finally{if(input)input.value='';}
+  }
+  function renderDocumentSignature(type) {
+    const e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
+    const angle=[-90,0,90,180].includes(Number(settings.agencySignatureRotation))?Number(settings.agencySignatureRotation):0;
+    const image=settings.agencySignatureDataUrl?`<img class="document-signature-image" src="${e(settings.agencySignatureDataUrl)}" style="transform:rotate(${angle}deg);width:${Math.abs(angle)===90?60:145}px;height:${Math.abs(angle)===90?145:60}px" alt="${l('Electronic Signature','电子签名')}">`:'____________________';
+    const seller=`<div class="document-seller-signature"><h3>${l('For and on behalf of the Seller','卖方公司授权签署')}</h3><p><b>${l('Company','公司全称')}:</b> ${e(localizedText(settings.companyNameEn,settings.companyNameZh))}</p><p><b>${l('Authorized Signatory','授权签字人')}:</b> ${e(settings.agencyAuthorizer||settings.contactPerson||'')}</p><p><b>${l('Title','职务')}:</b> ${e(localizedSlashValue(settings.agencyAuthorizerTitle||'',displayMode()))}</p><div class="document-sign-assets"><div>${image}</div>${settings.stampDataUrl?`<img class="document-company-seal" src="${e(settings.stampDataUrl)}" alt="${l('Company Seal','公司公章')}">`:''}</div><p>${l('Date','日期')}: ${e(currentQuote.quoteDate)}</p></div>`;
+    const buyer=type==='contract'?`<div class="document-buyer-signature"><h3>${l('Buyer signature','买方签署')}</h3><p>${e(currentQuote.buyer.company||currentQuote.buyer.contact||'')}</p><p>${l('Authorized Signatory','授权签字人')}: ____________________</p><p>${l('Title','职务')}: ____________________</p><p>${l('Signature','签字')}: ____________________</p><p>${l('Date','日期')}: ____________________</p></div>`:'';
+    return `<section class="document-signature-block ${type==='contract'?'document-dual-signatures':''}">${seller}${buyer}</section>`;
+  }
+  function renderDocumentLayout(termFields) {
+    const host=$('quote-preview'),type=currentQuote.documentType||'quotation',e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
+    // Keep the original quotation banner, terms, seal and bank section intact.
+    // Other document types retain their dedicated layouts.
+    if(type==='quotation'){
+      host.classList.add('september-quotation');
+      $('document-show-bank').checked=true;
+      $('document-show-bank').disabled=true;
+      $('document-show-signature').checked=!!settings.stampDataUrl;
+      return;
+    }
+    $('document-show-bank').disabled=false;
+    const options=TradeDocumentLayouts.options(type,currentQuote.outputOptions?.[type]);
+    const html=selector=>host.querySelector(selector)?.outerHTML||'';
+    const block=(heading,content,cls='')=>`<section class="document-section ${cls}"><h3>${heading}</h3>${content}</section>`;
+    const detail=(en,zh,value)=>`<p><b>${l(en,zh)}</b><span>${e(value||'—')}</span></p>`;
+    const company=localizedText(settings.companyNameEn,settings.companyNameZh);
+    const seller=`<strong>${e(company)}</strong><p>${e(localizedText(settings.companyAddressEn,settings.companyAddressZh))}</p><p>${e(settings.companyPhone||'')} ${e(settings.companyEmail||'')}</p>`;
+    const buyer=`<strong>${e(currentQuote.buyer.company||currentQuote.buyer.contact||'—')}</strong><p>${e(currentQuote.buyer.address||'')}</p><p>${e(currentQuote.buyer.country||'')}</p><p>${e(currentQuote.buyer.contact||'')} ${e(currentQuote.buyer.phone||'')}</p><p>${e(currentQuote.buyer.email||'')}</p>`;
+    const d=currentQuote.shipmentDetails||{};
+    const partyHeading=['commercial','packing'].includes(type)?l('Consignee','收货人'):l('Buyer','买方');
+    const consignee=['commercial','packing'].includes(type)&&d.consignee?`<p class="preserve-lines">${e(d.consignee)}</p>`:buyer;
+    const parties=`<div class="document-parties">${block(l(type==='packing'?'Shipper':'Seller',type==='packing'?'发货人':'卖方'),seller)}${block(partyHeading,consignee)}</div>${type==='commercial'&&d.consignee?block(l('Buyer','买方'),buyer):''}`;
+    const shipment=block(l('Shipment details','货运资料'),`<div class="document-shipment-grid">${detail('Invoice reference','关联发票编号',d.invoiceReference)}${detail('Shipment date','出货日期',d.shipmentDate)}${detail('Origin Port','起运港',displayTermValue({fieldKey:'originPort'}))}${detail('Destination Port','目的港',displayTermValue({fieldKey:'port'}))}${detail('Trade Term','贸易条件',currentQuote.terms.shipping)}${detail('Named place','指定地点',d.namedPlace)}${detail('Transport mode','运输方式',d.transportMode)}${detail('Vessel / voyage','船名／航次',d.vessel)}${detail('B/L / AWB No.','提运单号',d.billNumber)}${detail('Container / seal No.','箱号／封号',d.containerNumber)}</div>`,'document-shipment');
+    const termBlock=(fields,title,cls='')=>block(title,fields.filter(f=>displayTermValue(f)).map(f=>detail(f.en,f.zh,displayTermValue(f))).join(''),cls);
+    const visibleTerms=termFields.filter(f=>displayTermValue(f));
+    const items=html('table')?host.querySelector('table').closest('.preview-panel').outerHTML:'';
+    const letterhead=`<header class="document-letterhead">${settings.logoDataUrl?`<img src="${e(settings.logoDataUrl)}" alt="Logo">`:''}<div><strong>${e(company)}</strong><p>${e(localizedText(settings.companyAddressEn,settings.companyAddressZh))}</p><p>${e(settings.companyPhone||'')} ${e(settings.companyEmail||'')}</p></div></header>`;
+    const heading=`<section class="preview-top document-heading"><h1>${e(documentTypeTitle())}</h1>${renderQuoteMetaPreview()}</section>`;
+    const parts={brandHeader:html('.preview-banner'),heading,letterhead,customer:html('.preview-panel'),parties,items,photos:html('.photo-grid')?host.querySelector('.photo-grid').closest('.preview-panel').outerHTML:'',
+      offerTerms:html('.terms-panel'),bank:options.bank?renderBankPreview():'',signature:options.signature?renderDocumentSignature(type):'',shipment,
+      proformaNotice:`<p class="proforma-notice">${l('Pro forma invoice — not a final commercial invoice.','形式发票——非最终商业发票。')}</p>`,
+      paymentTerms:termBlock(visibleTerms.filter(f=>f.fieldKey==='payment'),l('Payment instructions','付款安排'),'document-payment'),
+      deliveryTerms:termBlock(visibleTerms.filter(f=>f.fieldKey!=='payment'),l('Delivery and conditions','交付与交易条件')),
+      contractItems:block('1. '+l('Goods and contract value','货物与合同金额'),items,'contract-goods'),
+      contractClauses:visibleTerms.map((f,i)=>block(`${i+2}. ${l(f.en,f.zh)}`,`<p class="preserve-lines">${e(displayTermValue(f))}</p>`,'contract-clause')).join(''),
+      packingTotals:'',shippingNotes:d.notes?block(l('Shipment remarks','出货备注'),`<p class="preserve-lines">${e(d.notes)}</p>`):''};
+    host.classList.add('trade-layout','trade-layout-'+type);host.dataset.layout=type;
+    host.innerHTML=TradeDocumentLayouts.render(type,parts);
+    $('document-show-bank').disabled=type==='packing';$('document-show-bank').checked=options.bank;
+    $('document-show-signature').checked=options.signature;
   }
 
   function renderSalesContractSignatures() {
@@ -5928,6 +5938,8 @@
           validUntil: currentQuote.validUntil,
           validityRangeText: currentQuote.validityRangeText,
           showProductPhotos: currentQuote.showProductPhotos !== false,
+          documentExtras: Object.fromEntries(documentExtraFields.map(key=>[key,currentQuote[key]])),
+          quoteStyle: currentQuote.quoteStyle,
           settingsSnapshot: settings,
           showFreightDetailInPdf: !!currentQuote.showFreightDetailInPdf,
           items: apiItems
@@ -5949,7 +5961,8 @@
     const q=data.quotation || {}, meta=q.settingsSnapshot?._quoteMeta || {};
     return {
       id:q.id, customerId:q.customer_id || null, quoteNumber:q.quote_number || "", status:q.status || "草稿",seriesId:q.series_id||q.id,version:Number(q.version||0),isFormal:!!q.is_formal,sourceQuoteId:q.source_quote_id||"",formalizedAt:q.formalized_at||null,
-      documentType:meta.documentType || "quotation", quoteStyle:q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
+      ...meta.documentExtras,
+      documentType:meta.documentType || "quotation", quoteStyle:meta.quoteStyle || q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
       quoteDate:q.quote_date || today(), validUntil:q.valid_until || addDays(7), validityRangeText:meta.validityRangeText || "", showProductPhotos:meta.showProductPhotos !== false,
       pdfLanguage:meta.pdfLanguage || "bilingual", currency:meta.currency || "USD", buyer:q.buyer || {}, terms:q.terms || {},
       templateName:q.settingsSnapshot?.templates?.[0]?.name || settings.templates[0]?.name || "",
@@ -6164,19 +6177,11 @@
       } catch (error) { toast(error.message); }
     });
     $("global-back-btn").addEventListener("click", goBackInsideApp);
-    $("login-btn").addEventListener("click", () => login($("login-username").value.trim(), $("login-password").value));
-    ["login-username", "login-password"].forEach((id) => {
-      $(id).addEventListener("keydown", (event) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        login($("login-username").value.trim(), $("login-password").value);
-      });
-    });
-    $("logout-btn").addEventListener("click", logout);
+
     $("home-contact-btn")?.addEventListener("click", showContactInformation);
     $("close-contact-modal-btn")?.addEventListener("click", () => { $("contact-modal").hidden = true; });
     $("contact-modal")?.addEventListener("click", (event) => { if (event.target === $("contact-modal")) $("contact-modal").hidden = true; });
-    $("sidebar-toggle-btn").addEventListener("click", toggleSidebar);
+
     document.querySelectorAll(".settings-tab").forEach((button) => {
       button.addEventListener("click", () => showSettingsSection(button.dataset.settingsSection));
     });
@@ -6225,6 +6230,9 @@
     $("logo-input").addEventListener("change", e => updateSettingsAsset(e.target, "logoDataUrl", "Logo uploaded. / Logo 已上传。"));
     $("background-input").addEventListener("change", e => updateSettingsAsset(e.target, "backgroundDataUrl", "Background uploaded. / 背景图已上传。"));
     $("stamp-input").addEventListener("change", e => updateSettingsAsset(e.target, "stampDataUrl", "Electronic seal uploaded. / 电子公章已上传。"));
+    $('company-signature-input').addEventListener('change',event=>changeCompanySignature(event.target));
+    $('remove-company-signature').addEventListener('click',()=>changeCompanySignature(null,true));
+    $('company-signature-rotation').addEventListener('change',()=>{const img=$('company-signature-preview');img.style.transform=`rotate(${Number($('company-signature-rotation').value)||0}deg)`;});
     $("remove-logo-btn").addEventListener("click", () => clearSettingsAsset("logoDataUrl", "Logo removed. / Logo 已删除。"));
     $("reset-background-btn").addEventListener("click", () => clearSettingsAsset("backgroundDataUrl", "Default background restored. / 已恢复默认背景。"));
     $("remove-stamp-btn").addEventListener("click", () => clearSettingsAsset("stampDataUrl", "Electronic seal removed. / 电子公章已删除。"));
@@ -6279,7 +6287,7 @@
     $("quote-items").addEventListener("change", async e => {
       if(e.target.matches(".quote-item-type")){
         const row=e.target.closest(".quote-line"),kind=e.target.selectedOptions[0]?.dataset.kind||"product";
-        if(row){collectQuoteFromForm();const item=currentQuote.items.find(record=>record.id===row.dataset.id);if(item){item.kind=kind;item.values.itemType=e.target.value;}renderQuoteItems();renderPreview();return;}
+        if(row){collectQuoteFromForm();const item=currentQuote.items.find(record=>record.id===row.dataset.id);if(item){const oldType=item.values.itemType;item.kind=kind;item.values.itemType=e.target.value;if(kind!=='product'){if(!item.values.description||/^(used|二手|Used \/ 二手|设备|海运费|国内运输费|港杂及报关费|保险费|拆装费|其他费用)$/i.test(item.values.description.trim()))item.values.description=e.target.value;item.values.condition='';item.values.hsCode='';}}renderQuoteItems();renderPreview();return;}
       }
       if (e.target.matches(".quote-line-image-input")) {
         if (!e.target.files?.[0]) return;
@@ -6287,6 +6295,7 @@
         const row = e.target.closest(".quote-line");
         if (row) {
           row.dataset.image = img;
+          scheduleDraftRecovery();
           const preview = row.querySelector(".line-image-box img");
           if (preview) {
             preview.src = img;
@@ -6352,6 +6361,12 @@
       }
     });
     $("preview-quote-btn").addEventListener("click", renderPreview);
+    let splitPreviewFrame = 0;
+    document.querySelector('.quote-input-pane')?.addEventListener('input', event => {
+      if (!event.target.closest('#quote-common-panel, #quote-standard-terms-panel')) return;
+      cancelAnimationFrame(splitPreviewFrame);
+      splitPreviewFrame = requestAnimationFrame(() => { if (currentQuote) renderPreview(); });
+    });
     $("close-hs-code-modal-btn")?.addEventListener("click", closeHsCodeModal);
     $("cancel-hs-code-btn")?.addEventListener("click", closeHsCodeModal);
     $("save-hs-code-btn")?.addEventListener("click", saveCustomHsCode);
@@ -6513,10 +6528,224 @@
     });
   }
 
+  // Document workspace: recovery snapshots never overwrite formal quotation history.
+  let draftDatabase, draftTimer, workspaceReady = false;
+  const documentExtraFields = ['packing','photoAppendix','relatedOrderNumber','relatedOrderId','translations','outputOptions','shipmentDetails'];
+  function documentTranslatedValue(key) {
+    const mode=displayMode(),lang=mode==='bilingual'?'en':mode.replace('zh-','');
+    const value=currentQuote?.translations?.[lang]?.[key];
+    if(!value)return '';
+    const zh=currentQuote?.translations?.zh?.[key];
+    return ['bilingual','zh-fr','zh-es'].includes(mode)&&zh ? value+' / '+zh : value;
+  }
+  function renderDocumentLanguageEditor() {
+    const mode=displayMode(),lang=mode==='bilingual'?'en':mode.replace('zh-','');
+    const fields=[...(currentQuote.items||[]).filter(i=>(i.kind||'product')==='product').flatMap(i=>[['item:'+i.id+':description',(i.values.model||'商品')+' · 商品说明'],['item:'+i.id+':remark',(i.values.model||'商品')+' · 备注']]),...Object.keys(currentQuote.terms||{}).map(k=>['term:'+k,k])];
+    $('document-language-rows').innerHTML=`<p>当前文案语言：${escapeHtml(lang)}，留空使用原有内容；双语模式可分别切换纯中文和外语填写。</p>`+fields.map(([key,label])=>`<label>${escapeHtml(label)}<textarea data-document-language="${escapeHtml(lang)}" data-document-text="${escapeHtml(key)}">${escapeHtml(currentQuote.translations?.[lang]?.[key]||'')}</textarea></label>`).join('');
+  }
+  function draftKey() { return `quote:${currentUser?.id || 'local'}`; }
+  async function draftStorage(mode, value) {
+    if(!draftDatabase) draftDatabase = new Promise((resolve,reject)=>{
+      const request=indexedDB.open('fta-document-recovery',1);
+      request.onupgradeneeded=()=>request.result.createObjectStore('drafts');
+      request.onsuccess=()=>resolve(request.result); request.onerror=()=>reject(request.error);
+    });
+    const db=await draftDatabase;
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('drafts',mode==='get'?'readonly':'readwrite');
+      const request=mode==='get'?tx.objectStore('drafts').get(draftKey()):tx.objectStore('drafts').put(value,draftKey());
+      tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+    });
+  }
+  function scheduleDraftRecovery() {
+    if(!workspaceReady || !currentQuote) return;
+    clearTimeout(draftTimer);
+    const id=currentQuote.id;
+    $('quote-autosave-status').textContent='正在保存恢复草稿…';
+    draftTimer=setTimeout(async()=>{
+      if(currentQuote.id!==id) return;
+      try {
+        collectQuoteFromForm();
+        await draftStorage('put',{quote:structuredClone(currentQuote),company:settings.companyNameEn,savedAt:new Date().toISOString()});
+        $('quote-autosave-status').textContent='恢复草稿已保存 · '+new Date().toLocaleTimeString();
+      } catch(error) { $('quote-autosave-status').textContent='自动保存失败，请点击保存草稿：'+error.message; }
+    },400);
+  }
+  function renderPackingEditor() {
+    $('packing-editor-rows').innerHTML=(currentQuote.items||[]).filter(i=>(i.kind||'product')==='product').map(item=>`<fieldset><legend>${escapeHtml(item.values.description||item.values.model||'商品')}</legend><div class="form-grid">${[['packages','件数'],['netWeight','净重 kg'],['grossWeight','毛重 kg'],['cbm','体积 m³'],['marks','唛头']].map(([key,label])=>`<label>${label}<input data-packing-item="${escapeHtml(item.id)}" data-packing-key="${key}" ${key==='marks'?'type="text"':'type="number" min="0" step="any"'} value="${escapeHtml(currentQuote.packing?.[item.id]?.[key]??'')}"></label>`).join('')}</div></fieldset>`).join('');
+  }
+  function applyDocumentWorkspacePreview() {
+    syncDocumentEditor();
+    const shipment=['commercial','packing'].includes(currentQuote.documentType);
+    $('packing-editor').hidden=currentQuote.documentType!=='packing';
+    $('shipment-document-editor').hidden=!shipment;
+    $('quote-preview-image-control').hidden=true;
+    const host=$('quote-preview');
+    host.querySelectorAll('.packing-summary,.packing-route,.document-related-order').forEach(el=>el.remove());
+    const pendingPrices=currentQuote.items.some(item=>item.values?.unitPrice===''||item.values?.unitPrice==null);
+    const totalBox=host.querySelector('.preview-total');if(totalBox)totalBox.textContent=(pendingPrices?labelText('Priced items subtotal','已报价项目小计'):labelText('Total','总金额'))+': '+money(total(),currentQuote.currency||settings.currency);
+    const incompleteNotice=host.querySelector('.quote-incomplete-warning');
+    if(incompleteNotice)incompleteNotice.textContent=labelText('Draft quotation: some items are pending pricing and excluded from the subtotal.','报价草稿：部分项目价格待补，不计入小计。');
+    const warning=host.querySelector('.quote-incomplete-warning');if(warning)warning.textContent=labelText('Incomplete quotation: prices are required before formal issue.','报价未完整：正式出具前请补齐价格。');
+    const packing=currentQuote.documentType==='packing';
+    if(packing){
+      host.querySelectorAll('.preview-total,.quote-incomplete-warning,.terms-panel,.bank-panel,.pi-company-signature,.sales-contract-signatures').forEach(el=>el.remove());
+      // Bank blocks have configurable titles, so identify the final bank block structurally too.
+      const panels=[...host.querySelectorAll(':scope > .preview-panel')];
+      panels.filter(el=>el.querySelector('.bank-info,.bank-fields,.bank-preview')).forEach(el=>el.remove());
+      const summary=document.createElement('p');summary.className='packing-summary';
+      summary.textContent=[['packages','Packages','件数'],['netWeight','Net weight (kg)','净重（kg）'],['grossWeight','Gross weight (kg)','毛重（kg）'],['cbm','Volume (m³)','体积（m³）']].map(([key,en,zh])=>{
+        const rows=currentQuote.items.filter(i=>(i.kind||'product')==='product').map(i=>currentQuote.packing?.[i.id]?.[key]);
+        return labelText(en,zh)+': '+(rows.length&&rows.every(v=>v!==''&&v!=null&&Number.isFinite(Number(v)))?Number(rows.reduce((sum,v)=>sum+Number(v),0).toFixed(3)):'—');
+      }).join(' · ');host.querySelector('table')?.after(summary);
+      const route=document.createElement('p');route.className='packing-route';route.textContent=labelText('Origin Port','起运港')+': '+localizedSlashValue(currentQuote.terms.originPort||'—',displayMode())+' / '+labelText('Destination Port','目的港')+': '+localizedSlashValue(currentQuote.terms.port||'—',displayMode());host.append(route);
+    }
+    const heading=host.querySelector('table')?.closest('.preview-panel')?.querySelector('h3');
+    if(heading && ['packing','commercial'].includes(currentQuote.documentType)) heading.textContent=documentTypeTitle();
+    if(currentQuote.relatedOrderNumber){const p=document.createElement('p');p.className='document-related-order';p.textContent=labelText('Related order','关联订单')+': '+currentQuote.relatedOrderNumber;host.querySelector('.preview-meta')?.append(p);}
+    $('quote-photo-appendix').checked=!!currentQuote.photoAppendix;
+    const zoom=$('quote-preview-zoom').value;
+    const split = matchMedia('(min-width:1000px)').matches;
+    const available = Math.max(1, host.parentElement.clientWidth - 20);
+    host.style.zoom=zoom==='fit'?(split?String(Math.min(1,available/794)):''):zoom;
+    host.classList.toggle('document-actual-size',zoom!=='fit'||split);
+    const pure=['en','fr','es'].includes(displayMode());
+    $('document-language-warning').textContent=pure&&/[\u3400-\u9fff]/.test(host.innerText)?'检查提示：纯外语单据中仍有中文原始资料，请在各语言文案中补齐翻译后发送。':'';
+  }
+  function syncDocumentEditor() {
+    const type=currentQuote.documentType||'quotation';
+    const packing=type==='packing', shipping=packing||type==='commercial';
+    const panel=$('document-specific-editor');
+    panel.hidden=!shipping;
+    $('document-specific-title').textContent=packing?'装箱单填写':'商业发票出货资料';
+    $('packing-editor').hidden=!packing;
+    $('shipment-document-editor').hidden=!shipping;
+    const names={quotation:['报价基础信息','报价明细','贸易条款'],invoice:['形式发票基础信息','形式发票商品明细','付款及交付条款'],contract:['销售合同基础信息','合同商品明细','合同条款'],commercial:['商业发票基础信息','商业发票商品明细','贸易条款'],packing:['装箱单基础信息','装箱商品明细','运输条款']};
+    const titles=names[type]||names.quotation;
+    ['quote-common-panel','quote-standard-detail-panel','quote-standard-terms-panel'].forEach((id,i)=>{const h=$(id)?.querySelector('h3');if(h)h.textContent=titles[i];});
+    ['valid-until','validity-range-text'].forEach(id=>{if($(id))$(id).closest('label').hidden=type!=='quotation';});
+    $('quote-standard-terms-panel').hidden=packing;
+    // Build dedicated forms only on entering that document or changing its items.
+    const signature=JSON.stringify([type,currentQuote.id,currentQuote.items.map(i=>[i.id,i.values.description])]);
+    if(panel.dataset.renderSignature!==signature){
+      panel.dataset.renderSignature=signature;
+      if(packing)renderPackingEditor();
+      if(shipping)renderShipmentFields();
+    }
+  }
+  function shipmentFields(){return [['invoiceReference','关联商业发票编号'],['shipmentDate','实际／计划出货日期'],['namedPlace','Incoterm指定港口／地点'],['transportMode','运输方式'],['vessel','船名／航次'],['billNumber','提运单号'],['containerNumber','箱号／封号'],['consignee','收货人及地址（留空沿用客户）'],['notes','仅用于出货单证的备注（不引用报价质保条款）']];}
+  function renderShipmentFields(){
+    $('shipment-document-fields').innerHTML=shipmentFields().map(([key,name])=>`<label>${escapeHtml(name)}<${['consignee','notes'].includes(key)?'textarea':'input'} data-shipment-field="${key}" ${key==='shipmentDate'?'type="date"':''} ${!['consignee','notes'].includes(key)?`value="${escapeHtml(currentQuote.shipmentDetails?.[key]||'')}">`:`>${escapeHtml(currentQuote.shipmentDetails?.[key]||'')}</textarea>`}</label>`).join('');
+  }
+  function initTradeDocumentControls(){
+    const words={
+      'Seller':['卖方','Vendeur','Vendedor'],'Buyer':['买方','Acheteur','Comprador'],'Shipper':['发货人','Expéditeur','Expedidor'],'Consignee':['收货人','Destinataire','Consignatario'],
+      'Shipment details':['货运资料','Détails de l’expédition','Datos del envío'],'Invoice reference':['关联发票编号','Référence de facture','Referencia de factura'],'Shipment date':['出货日期','Date d’expédition','Fecha de envío'],'Named place':['指定地点','Lieu convenu','Lugar convenido'],'Transport mode':['运输方式','Mode de transport','Modo de transporte'],'Vessel / voyage':['船名／航次','Navire / voyage','Buque / viaje'],'B/L / AWB No.':['提运单号','N° de connaissement / LTA','N.º de conocimiento / guía aérea'],'Container / seal No.':['箱号／封号','N° conteneur / scellé','N.º de contenedor / precinto'],
+      'Country of origin':['原产国','Pays d’origine','País de origen'],'Shipment remarks':['出货备注','Remarques d’expédition','Notas del envío'],'Pro forma invoice — not a final commercial invoice.':['形式发票——非最终商业发票。','Facture pro forma — non définitive.','Factura proforma — no es una factura comercial definitiva.'],'Payment instructions':['付款安排','Modalités de paiement','Instrucciones de pago'],'Delivery and conditions':['交付与交易条件','Livraison et conditions','Entrega y condiciones'],'Goods and contract value':['货物与合同金额','Marchandises et montant du contrat','Mercancías e importe del contrato'],
+      'For and on behalf of the Seller':['卖方公司授权签署','Pour le compte du vendeur','En nombre del vendedor'],'Authorized Signatory':['授权签字人','Signataire autorisé','Firmante autorizado'],'Electronic Signature':['电子签名','Signature électronique','Firma electrónica'],'Company Seal':['公司公章','Cachet de la société','Sello de la empresa'],'Buyer signature':['买方签署','Signature de l’acheteur','Firma del comprador'],'Signature':['签字','Signature','Firma'],'Title':['职务','Fonction','Cargo'],'Company':['公司全称','Société','Empresa']
+    };
+    Object.entries(words).forEach(([en,[zh,fr,es]])=>{quoteFrLabels[en]=fr;quoteEsLabels[en]=es;});
+    ['bank','signature'].forEach(key=>$('document-show-'+key).addEventListener('change',()=>{
+      currentQuote.outputOptions||={};currentQuote.outputOptions[currentQuote.documentType]||={};currentQuote.outputOptions[currentQuote.documentType][key]=$('document-show-'+key).checked;renderPreview();scheduleDraftRecovery();
+    }));
+    $('shipment-document-editor').addEventListener('toggle',()=>{if($('shipment-document-editor').open)renderShipmentFields();});
+    $('shipment-document-fields').addEventListener('input',event=>{const key=event.target.dataset.shipmentField;if(!key)return;currentQuote.shipmentDetails||={};currentQuote.shipmentDetails[key]=event.target.value;renderPreview();scheduleDraftRecovery();});
+    $('document-type').addEventListener('change',()=>{if($('shipment-document-editor').open)renderShipmentFields();});
+  }
+  function initDocumentWorkspace() {
+    initTradeDocumentControls();
+    Object.assign(quoteFrLabels,{'Used construction machinery and vehicles.':'Machines de construction et véhicules d’occasion.','Incomplete quotation: prices are required before formal issue.':'Devis incomplet : veuillez renseigner les prix avant émission définitive.'});
+    Object.assign(quoteEsLabels,{'Used construction machinery and vehicles.':'Maquinaria de construcción y vehículos usados.','Incomplete quotation: prices are required before formal issue.':'Cotización incompleta: indique los precios antes de la emisión definitiva.'});
+    Object.assign(quoteFrLabels,{'Invoice No.':'N° de facture','Packing List No.':'N° de colisage','Pending quotation':'Prix à confirmer','Used':'Occasion','Brand New & Unused':'Neuf et inutilisé','New Machinery':'Machine neuve','New Truck':'Camion neuf','Unit':'Unité','Ton':'Tonne','Container':'Conteneur','Item':'Poste'});
+    Object.assign(quoteEsLabels,{'Invoice No.':'N.º de factura','Packing List No.':'N.º de empaque','Pending quotation':'Precio pendiente','Used':'Usado','Brand New & Unused':'Nuevo sin uso','New Machinery':'Maquinaria nueva','New Truck':'Camión nuevo','Unit':'Unidad','Ton':'Tonelada','Container':'Contenedor','Item':'Partida'});
+    const styles=[['burgundy','酒红商务'],['forest','森林绿'],['navy','深海蓝'],['slate','石墨灰'],['teal','青绿色'],['violet','紫罗兰']];
+    styles.forEach(([value,label])=>$('quote-style-select').add(new Option(label,value)));
+    $('pdf-language').add(new Option('Français Only / 纯法语','fr'));
+    Object.assign(quoteFrLabels,{'Commercial Invoice':'Facture commerciale','Packing List':'Liste de colisage','Sales Contract':'Contrat de vente','No.':'N°','Description':'Description','Packages':'Colis','Net weight (kg)':'Poids net (kg)','Gross weight (kg)':'Poids brut (kg)','Volume (m³)':'Volume (m³)','Shipping marks':'Marques','Related order':'Commande liée'});
+    Object.assign(quoteEsLabels,{'Commercial Invoice':'Factura comercial','Packing List':'Lista de empaque','Sales Contract':'Contrato de venta','No.':'N.º','Description':'Descripción','Packages':'Bultos','Net weight (kg)':'Peso neto (kg)','Gross weight (kg)':'Peso bruto (kg)','Volume (m³)':'Volumen (m³)','Shipping marks':'Marcas','Related order':'Pedido relacionado'});
+    $('view-quote').addEventListener('input',scheduleDraftRecovery);
+    $('view-quote').addEventListener('change',scheduleDraftRecovery);
+    $('quote-items').addEventListener('click',()=>setTimeout(scheduleDraftRecovery,0));
+    $('document-language-editor').addEventListener('toggle',()=>{if($('document-language-editor').open)renderDocumentLanguageEditor();});
+    $('pdf-language').addEventListener('change',()=>{if($('document-language-editor').open)renderDocumentLanguageEditor();});
+    $('document-language-rows').addEventListener('input',event=>{const input=event.target;if(!input.dataset.documentText)return;currentQuote.translations||={};currentQuote.translations[input.dataset.documentLanguage]||={};currentQuote.translations[input.dataset.documentLanguage][input.dataset.documentText]=input.value;renderPreview();});
+    $('quote-photo-appendix').addEventListener('change',()=>{currentQuote.photoAppendix=$('quote-photo-appendix').checked;renderPreview();});
+    $('quote-preview-zoom').addEventListener('change',applyDocumentWorkspacePreview);
+    new ResizeObserver(()=>{ if(currentQuote && $('quote-preview').offsetParent) applyDocumentWorkspacePreview(); }).observe($('quote-preview').parentElement);
+    $('packing-editor').addEventListener('toggle',()=>{if($('packing-editor').open)renderPackingEditor();});
+    $('packing-editor-rows').addEventListener('input',event=>{const input=event.target;if(!input.dataset.packingKey)return;currentQuote.packing||={};currentQuote.packing[input.dataset.packingItem]||={};currentQuote.packing[input.dataset.packingItem][input.dataset.packingKey]=input.value;renderPreview();});
+    $('restore-quote-draft').addEventListener('click',async()=>{
+      try { const saved=await draftStorage('get');if(!saved)return toast('暂无恢复草稿');
+        if(!confirm(`恢复 ${saved.quote.quoteNumber}（${saved.company||''}，${saved.savedAt}）？当前未保存内容将被替换。`))return;
+        clearTimeout(draftTimer);currentQuote=saved.quote;bindQuoteToForm();renderQuoteItems();renderPreview();renderPackingEditor();toast('已恢复上次编辑，请确认当前开票公司。');
+      }catch(error){toast('恢复失败：'+error.message);}
+    });
+    $('generate-related-document').addEventListener('click',async()=>{
+      collectQuoteFromForm();const original=structuredClone(currentQuote);
+      const selected=$('related-document-choice')?.value;
+      if(!selected)return toast('请先选择需要生成的单据类型。');
+      if(!confirm('将当前单据另存为关联草稿，保留原历史文件，是否继续？'))return;
+      currentQuote={...original,id:uid('quote'),isFormal:false,version:0,status:'草稿',sourceQuoteId:original.id,seriesId:'',relatedOrderId:original.relatedOrderId||original.id,relatedOrderNumber:original.relatedOrderNumber||original.quoteNumber,quoteNumber:nextQuoteNumber(today(),true)};
+      currentQuote.documentType=selected;
+      currentQuote.packing={};currentQuote.translations=structuredClone(original.translations||{});
+      currentQuote.items=original.items.map(item=>{
+        const id=uid('item');
+        if(original.packing?.[item.id])currentQuote.packing[id]=structuredClone(original.packing[item.id]);
+        Object.values(currentQuote.translations).forEach(texts=>{for(const field of ['description','remark']){const oldKey='item:'+item.id+':'+field;if(texts[oldKey]!=null){texts['item:'+id+':'+field]=texts[oldKey];delete texts[oldKey];}}});
+        return {...item,id};
+      });
+      bindQuoteToForm();renderQuoteItems();try{await saveQuote(false);scheduleDraftRecovery();}catch(error){toast('另存失败：'+error.message);}
+    });
+    workspaceReady=true;
+    draftStorage('get').then(saved=>{if(saved)$('quote-autosave-status').textContent='发现上次编辑的恢复草稿，点击“恢复上次编辑”继续';}).catch(()=>{$('quote-autosave-status').textContent='恢复存储不可用，请手动保存草稿';});
+    renderPreview();
+  }
+
+  function initDocumentNavigation() {
+    const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',invitation:'商务邀请函'};
+    const drafts=new Map();let sharedBuyer={};
+    function capture(){
+      if(activeViewName==='quote'){collectQuoteFromForm();sharedBuyer={...currentQuote.buyer};drafts.set(currentQuote.documentType,structuredClone(currentQuote));}
+      if(activeViewName==='invitation'){collectInvitationFromForm();sharedBuyer={...sharedBuyer,contact:currentInvitation.visitorName,company:currentInvitation.visitorCompany,country:currentInvitation.country};drafts.set('invitation',structuredClone(currentInvitation));}
+      if(activeViewName==='agency'){collectAgentAuthorizationForm();sharedBuyer={...sharedBuyer,contact:currentAgentAuthorization.agentName,country:currentAgentAuthorization.country,phone:currentAgentAuthorization.phone,email:currentAgentAuthorization.email,address:currentAgentAuthorization.address};drafts.set('authorization',structuredClone(currentAgentAuthorization));}
+    }
+    function open(type){
+      capture();
+      if(type==='invitation'){
+        if(drafts.has(type))currentInvitation=structuredClone(drafts.get(type));else{newInvitation();Object.assign(currentInvitation,{visitorName:sharedBuyer.contact||'',visitorCompany:sharedBuyer.company||'',country:sharedBuyer.country||''});}
+        bindInvitationToForm();switchView('invitation');return;
+      }
+      if(type==='authorization'){
+        if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization();Object.assign(currentAgentAuthorization,{agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
+        bindAgentAuthorizationForm();switchView('agency');return;
+      }
+      if(drafts.has(type))currentQuote=structuredClone(drafts.get(type));else{
+        const source=drafts.get('quotation');newQuote();currentQuote.documentType=type;currentQuote.buyer={...currentQuote.buyer,...sharedBuyer};
+        if(source){currentQuote.items=structuredClone(source.items).map(item=>({...item,id:uid('item')}));currentQuote.terms=structuredClone(source.terms);currentQuote.relatedOrderId=source.id;currentQuote.relatedOrderNumber=source.quoteNumber;}
+      }
+      bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();
+    }
+    const section=document.createElement('section');section.id='view-create';section.className='view no-print';
+    section.innerHTML='<header class="page-head"><h2>新建单证</h2><p>每种单证独立填写和保存，可携带同一客户资料继续制作其他单证。</p></header><div class="entry-grid">'+Object.entries(types).map(([key,label])=>`<button class="entry-card" data-create-document="${key}"><b>${label}</b><span>进入独立填写界面</span></button>`).join('')+'</div>';
+    document.querySelector('main').append(section);
+    for(const view of ['quote','invitation','agency']){
+      const bar=document.createElement('div');bar.className='document-jump-bar no-print';bar.innerHTML='<b>为当前客户制作其他单证</b><select aria-label="选择其他单证"><option value="">选择单证</option>'+Object.entries(types).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')+'</select><button type="button">进入制作</button><small>保留当前填写内容；目标单证独立保存，已有内容不自动覆盖。</small>';
+      bar.querySelector('button').onclick=()=>{const type=bar.querySelector('select').value;if(type)open(type);};
+      const batch=document.createElement('details');
+      batch.innerHTML='<summary>同时准备多份单证</summary><div class="actions">'+Object.entries(types).map(([key,label])=>`<label><input type="checkbox" value="${key}"> ${label}</label>`).join('')+'</div><button type="button">准备所选草稿</button><small>只准备独立草稿；请逐份补充资料、核对后保存，不自动签发。</small>';
+      batch.querySelector('button').onclick=()=>{const selected=[...batch.querySelectorAll('input:checked')].map(el=>el.value);if(!selected.length)return toast('请先选择单证');selected.forEach(open);open(selected[0]);toast('已准备 '+selected.length+' 份独立草稿，可用上方选择框切换核对和保存。');};
+      bar.append(batch);
+      const host=$('view-'+view);host.prepend(bar);
+    }
+    section.addEventListener('click',e=>{const type=e.target.closest('[data-create-document]')?.dataset.createDocument;if(type)open(type);});
+    document.addEventListener('click',e=>{if(e.target.closest('[data-view-target]'))capture();},true);
+    $('document-type').addEventListener('change',e=>{const target=e.target.value;if(target===currentQuote.documentType)return;e.stopImmediatePropagation();e.target.value=currentQuote.documentType;open(target);},true);
+  }
+
   async function init() {
-    $("login-username").value = "";
-    $("login-password").value = "";
+
     bindEvents();
+    initDocumentNavigation();
     setupUnifiedQuoteWorkspace();
     organizeManagementModules();
     window.freightWorkspace?.init();
@@ -6529,6 +6758,7 @@
     newQuote();
     newInvitation();
     await checkLogin();
+    initDocumentWorkspace();
     await loadCustomHsCodes();
     applyAuthLock();
   }

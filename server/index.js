@@ -1,8 +1,8 @@
 ﻿const fs = require("fs");
 const path = require("path");
 const express = require("express");
-const session = require("express-session");
-const bcrypt = require("bcryptjs");
+
+
 const { db, id, now, normalize, dbPath } = require("./db");
 const { dataDir, uploadDir, backupDir, exportDir, browserStatePath, ensureDir } = require("./paths");
 const { installVehicleQuoteRoutes } = require("./vehicle-quotes");
@@ -11,25 +11,22 @@ const { installSpecImportRoutes } = require("./spec-import");
 const app = express();
 const PORT = Number(process.env.PORT || 8765);
 const ROOT = path.resolve(__dirname, "..");
-// Temporary local-first mode: set PASSWORD_LOGIN_ENABLED=1 to restore password login.
-const PASSWORD_LOGIN_DISABLED = process.env.PASSWORD_LOGIN_ENABLED !== "1";
-
+// Desktop-only service: no password login or network-facing accounts.
+const LOCAL_USER = { id: "local-owner", username: "本地用户", role: "owner" };
 function ensureAutomaticOwner(req) {
-  if (!PASSWORD_LOGIN_DISABLED) return req.session.user || null;
-  if (req.session.user) return req.session.user;
-  const user = db.prepare("SELECT id, username, role FROM users WHERE username='admin' AND status='Active'").get();
-  if (!user) return null;
-  req.session.user = { id: user.id, username: user.username, role: user.role };
-  return req.session.user;
+  req.session ||= {};
+  req.session.user = LOCAL_USER;
+  return LOCAL_USER;
 }
-
+app.use((req,res,next)=>{
+  const host=String(req.headers.host||'').split(':')[0];
+  if(!['127.0.0.1','localhost','['].includes(host))return res.status(403).json({ok:false,message:'Local access only'});
+  const origin=req.headers.origin;
+  if(origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin))return res.status(403).json({ok:false,message:'Local origin required'});
+  ensureAutomaticOwner(req);next();
+});
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-app.use(session({
-  secret: process.env.SESSION_SECRET || "quote-assistant-local-secret",
-  resave: false,
-  saveUninitialized: false
-}));
 app.use("/uploads", express.static(uploadDir));
 app.post("/api/uploads/image", requireLogin, requireAdmin, express.raw({ type: ["image/jpeg","image/png","image/webp"], limit: "8mb" }), (req, res) => {
   const types = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
@@ -267,75 +264,9 @@ function referenced(table, column, value) {
   return false;
 }
 
-app.post("/api/auth/login", (req, res) => {
-  if (PASSWORD_LOGIN_DISABLED) {
-    const user = ensureAutomaticOwner(req);
-    if (!user) return fail(res, 500, "Automatic owner account is unavailable.", "管理员账号不可用。");
-    return ok(res, { user, passwordLoginDisabled: true, message: "Entered automatically.", zh: "已自动进入系统。" });
-  }
-  const { username, password } = req.body || {};
-  const user = db.prepare("SELECT * FROM users WHERE username = ? AND status = 'Active'").get(username);
-  if (!user || !bcrypt.compareSync(password || "", user.password_hash)) {
-    return fail(res, 401, "Invalid username or password.", "账号或密码错误。");
-  }
-  req.session.user = { id: user.id, username: user.username, role: user.role };
-  ok(res, { user: req.session.user, message: "Logged in successfully.", zh: "登录成功。" });
-});
-
-app.post("/api/auth/logout", (req, res) => {
-  req.session.destroy(() => ok(res, { message: "Logged out.", zh: "已退出登录。" }));
-});
-
-app.get("/api/auth/me", (req, res) => ok(res, { user: ensureAutomaticOwner(req), passwordLoginDisabled: PASSWORD_LOGIN_DISABLED }));
-
-app.get("/api/users", requireLogin, requireAdmin, (req, res) => {
-  const users = db.prepare("SELECT * FROM users ORDER BY created_at DESC").all().map(rowToUser);
-  ok(res, { users });
-});
-
-app.post("/api/users", requireLogin, requireAdmin, (req, res) => {
-  const payload = req.body || {};
-  const username = String(payload.username || "").trim();
-  const password = String(payload.password || "");
-  const role = payload.role === "owner" ? "owner" : "user";
-  if (!username || !password) return fail(res, 400, "Username and password are required.", "用户名和密码不能为空。");
-  if (!validUsername(username)) {
-    return fail(res, 400, "Username must use English letters/numbers or a valid email address.", "用户名必须使用英文、数字，或填写有效邮箱。");
-  }
-  if (db.prepare("SELECT id FROM users WHERE username=?").get(username)) {
-    return fail(res, 409, "Username already exists.", "用户名已存在。");
-  }
-  const userId = id("user");
-  db.prepare("INSERT INTO users (id, username, password_hash, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'Active', ?, ?)")
-    .run(userId, username, bcrypt.hashSync(password, 10), role, now(), now());
-  ok(res, { user: rowToUser(db.prepare("SELECT * FROM users WHERE id=?").get(userId)), message: "Saved successfully.", zh: "保存成功。" });
-});
-
-app.put("/api/users/:id", requireLogin, requireAdmin, (req, res) => {
-  const existing = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
-  if (!existing) return fail(res, 404, "User not found.", "用户不存在。");
-  const payload = req.body || {};
-  const role = payload.role === "owner" ? "owner" : "user";
-  const status = payload.status === "Inactive" ? "Inactive" : "Active";
-  if (existing.username === "admin" && (role !== "owner" || status !== "Active")) {
-    return fail(res, 400, "The owner account cannot be disabled or downgraded.", "所有者账号不能停用或降级。");
-  }
-  db.prepare("UPDATE users SET role=?, status=?, updated_at=? WHERE id=?").run(role, status, now(), req.params.id);
-  if (payload.password) {
-    db.prepare("UPDATE users SET password_hash=?, updated_at=? WHERE id=?").run(bcrypt.hashSync(String(payload.password), 10), now(), req.params.id);
-  }
-  ok(res, { user: rowToUser(db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id)), message: "Saved successfully.", zh: "保存成功。" });
-});
-
-app.delete("/api/users/:id", requireLogin, requireAdmin, (req, res) => {
-  const existing = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
-  if (!existing) return fail(res, 404, "User not found.", "用户不存在。");
-  if (existing.username === "admin" || existing.id === req.session.user.id) {
-    return fail(res, 400, "This account cannot be deleted.", "该账号不能删除。");
-  }
-  db.prepare("DELETE FROM users WHERE id=?").run(req.params.id);
-  ok(res, { mode: "deleted", message: "Deleted successfully.", zh: "账号已永久删除。" });
-});
+// Compatibility identity endpoint for the desktop UI and CRM; no account credentials.
+app.get("/api/auth/me", (req,res)=>ok(res,{user:LOCAL_USER,passwordLoginDisabled:true,localOnly:true}));
+app.get("/api/users", (req,res)=>ok(res,{users:[]}));
 
 app.get("/api/admin/overview", requireLogin, requireAdmin, (req, res) => {
   const count = table => db.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count;
@@ -830,7 +761,7 @@ app.post("/api/quotations", requireLogin, (req, res) => {
   const items = q.items || [];
   const totalMachinePrice = items.reduce((sum, item) => sum + Number(item.machineAmount || 0), 0);
   const totalFreight = items.reduce((sum, item) => sum + (item.includeFreightInTotal === false ? 0 : Number(item.freightSnapshot?.freightAmount || 0)), 0);
-  const settingsSnapshot = { ...(q.settingsSnapshot || {}), _quoteMeta:{ documentType:q.documentType || "quotation", pdfLanguage:q.pdfLanguage || "bilingual", currency:q.currency || "USD", validityRangeText:q.validityRangeText || "", showProductPhotos:q.showProductPhotos !== false } };
+  const settingsSnapshot = { ...(q.settingsSnapshot || {}), _quoteMeta:{ documentType:q.documentType || "quotation", pdfLanguage:q.pdfLanguage || "bilingual", currency:q.currency || "USD", validityRangeText:q.validityRangeText || "", showProductPhotos:q.showProductPhotos !== false, quoteStyle:q.quoteStyle || q.settingsSnapshot?.quoteStyle || 'classic', documentExtras:q.documentExtras || {} } };
   db.prepare(`INSERT OR REPLACE INTO quotations (id, customer_id, quote_number, status, buyer_json, settings_snapshot_json, terms_json, total_machine_price, total_freight, total_amount, include_freight_in_total, show_freight_detail_in_pdf, quote_date, valid_until, series_id, version, is_formal, source_quote_id, formalized_at, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM quotations WHERE id=?), ?), ?)`)
     .run(quoteId, q.customerId || null, q.quoteNumber, formal?"Formal":(q.status || "Draft"), JSON.stringify(q.buyer || {}), JSON.stringify(settingsSnapshot), JSON.stringify(q.terms || {}), totalMachinePrice, totalFreight, totalMachinePrice + totalFreight, q.includeFreightInTotal === false ? 0 : 1, q.showFreightDetailInPdf ? 1 : 0, q.quoteDate || now().slice(0, 10), q.validUntil || "", seriesId, version, formal?1:0,q.sourceQuoteId||"",formal?now():null,quoteId,now(),now());
@@ -1093,7 +1024,7 @@ app.get("/", (req, res) => res.sendFile(path.join(ROOT, "index.html")));
 
 function startServer(port = PORT) {
   return new Promise((resolve) => {
-    const server = app.listen(port, "0.0.0.0", () => resolve(server));
+    const server = app.listen(port, "127.0.0.1", () => resolve(server));
   });
 }
 

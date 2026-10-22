@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>外贸助手</title>
-    <link rel="stylesheet" href="./styles.css?v=20260906-stage22" />
+    <link rel="stylesheet" href="./styles.css?v=20261012-documents" />
   </head>
   <body>
     <datalist id="quote-condition-options">
@@ -18,36 +18,6 @@
       <option value="84295200">360°回转挖掘机 / Excavator with 360° revolving superstructure</option><option value="84295100">前端铲装载机、滑移装载机 / Front-end shovel loader</option><option value="84295900">其他机械铲、挖掘机 / Other excavating machinery</option><option value="84291100">履带式推土机 / Track-laying bulldozer</option><option value="84292000">平地机 / Grader</option><option value="84294000">压路机 / Road roller</option><option value="84272000">其他机动叉车、伸缩臂叉装车 / Other self-propelled works truck</option><option value="84304100">自行式钻探机械、旋挖钻机 / Self-propelled boring machinery</option><option value="87051091">汽车起重机（最大起重量≤50吨）/ Truck crane ≤50t</option><option value="87051092">汽车起重机（50吨＜最大起重量≤100吨）/ Truck crane 50–100t</option><option value="87051093">汽车起重机（最大起重量＞100吨）/ Truck crane &gt;100t</option><option value="84264100">轮胎式自行起重机 / Self-propelled crane on tyres</option><option value="84264900">其他自行式起重机、履带吊 / Other self-propelled crane</option><option value="87042300">豪沃等柴油公路自卸卡车（车辆总重量&gt;20吨）/ Diesel dump truck GVW &gt;20t</option><option value="87041090">其他非公路用货运自卸车 / Other off-highway dumper</option><option value="87012000">半挂车用公路牵引车 / Road tractor for semi-trailer</option><option value="87059091">混凝土泵车 / Concrete pump truck</option><option value="87054000">混凝土搅拌车 / Concrete-mixer lorry</option><option value="87059000">其他特殊用途车辆 / Other special-purpose motor vehicle</option><option value="84742000">破碎或研磨机器 / Crushing or grinding machine</option><option value="84743200">沥青或矿物材料混合机器 / Mineral substance mixing machine</option><option value="84743100">自上料小型混凝土搅拌车、混凝土或砂浆搅拌机 / Self-loading concrete mixer</option>
     </datalist>
     <div class="app-shell">
-      <aside class="sidebar no-print">
-        <h1>外贸助手</h1>
-        <p>客户跟进与报价系统</p>
-        <button id="sidebar-toggle-btn" class="sidebar-toggle" type="button" aria-label="隐藏侧边栏" title="隐藏侧边栏"><span class="sidebar-toggle-text">隐藏侧边栏</span><span class="sidebar-toggle-arrow">☰</span></button>
-        <div id="login-box" class="login-box">
-          <select id="login-portal"><option value="user">用户登录</option><option value="admin">管理员登录</option><option value="partner">物流合作伙伴登录</option></select>
-          <input id="login-username" placeholder="用户名" />
-          <input id="login-password" placeholder="密码" type="password" />
-          <button id="login-btn" class="primary" type="button">登录</button>
-          <small id="login-status">未登录</small>
-        </div>
-        <div id="user-info-box" class="user-info-box" hidden>
-          <small>当前用户</small>
-          <b id="user-info-name">-</b>
-          <span id="user-info-id">ID: -</span>
-          <span id="user-info-role">权限编号: -</span>
-          <button id="logout-btn" type="button">退出</button>
-        </div>
-        <nav>
-          <button class="nav-btn active" data-view="home">首页</button>
-          <button class="nav-btn" id="crm-module-btn" type="button">客户跟进</button>
-          <button class="nav-btn" data-view="quote">新建</button>
-          <button class="nav-btn" data-view="invitation">邀请函</button>
-          <button class="nav-btn" data-view="agency">代理授权</button>
-          <button class="nav-btn" data-view="history">历史记录</button>
-          <button class="nav-btn" data-view="products">产品库</button>
-          <button class="nav-btn" data-view="freight">运费查询</button>
-          <button class="nav-btn" data-view="settings">设置</button>
-        </nav>
-      </aside>
 
       <main class="main">
         <button id="global-back-btn" class="global-back-btn no-print" type="button" hidden aria-label="返回上一页">‹ <span>返回</span></button>
@@ -58,23 +28,14 @@
           </header>
           <div class="entry-grid">
             <button class="entry-card" id="crm-entry-btn" type="button"><i>👥</i><b>客户跟进</b><span>查看今日提醒、重点客户与跟进记录</span></button>
-            <button class="entry-card" data-view-target="quote"><i>📝</i><b>新建</b><span>创建报价单或形式发票、添加产品、预览导出</span></button>
-            <button class="entry-card" data-view-target="invitation"><i>✉️</i><b>邀请函</b><span>制作来华考察邀请函，支持保存和导出 PDF</span></button>
-            <button class="entry-card" data-view-target="agency"><i>🤝</i><b>代理授权</b><span>制作国家代理授权书、佣金条款并导出 PDF</span></button>
+            <button class="entry-card" data-view-target="create"><i>📝</i><b>新建</b><span>选择报价、发票、合同、装箱单、授权书或邀请函</span></button>
             <button class="entry-card" data-view-target="history"><i>🗂️</i><b>历史记录</b><span>统一查看历史报价、授权书和邀请函</span></button>
             <button class="entry-card" data-view-target="products"><i>🚜</i><b>产品库</b><span>维护二手机械、新车产品和常用图片</span></button>
-            <button class="entry-card" data-view-target="freight"><i>🚢</i><b>运费查询</b><span>常用航线、运费试算并导入报价</span></button>
-            <button class="entry-card" data-view-target="settings"><i>⚙️</i><b>设置</b><span>公司信息、报价设置、用户管理和管理后台</span></button>
+            <button class="entry-card" data-view-target="freight"><i>🚢</i><b>运费中心</b><span>常用航线、运费试算并导入报价</span></button>
+            <button class="entry-card" data-view-target="settings"><i>⚙️</i><b>设置</b><span>公司资料、单证设置与本地备份</span></button>
           </div>
         </section>
 
-        <section id="view-users" class="view no-print admin-only">
-          <header class="page-head">
-            <h2>用户管理</h2>
-            <p>管理可登录本系统的账号、密码和权限。</p>
-          </header>
-          <div id="user-management-host"></div>
-        </section>
 
         <section id="view-data" class="view no-print admin-only">
           <header class="page-head">
@@ -106,20 +67,9 @@
             <button class="settings-tab" data-settings-section="quote-settings" type="button">报价设置</button>
             <button class="settings-tab" data-settings-section="invitation" type="button">邀请函设置</button>
             <button class="settings-tab admin-only" data-settings-section="freight-settings" type="button">国家、港口与运费设置</button>
-            <button class="settings-tab admin-only" data-settings-section="permissions" type="button">用户端展示</button>
-            <button class="settings-tab admin-only" data-settings-section="users" type="button">用户管理</button>
             <button class="settings-tab admin-only" data-settings-section="data" type="button">管理后台</button>
           </div>
-          <div class="panel admin-only" data-settings-panel="permissions">
-            <h3>用户端功能展示</h3>
-            <p class="hint">管理员勾选普通用户登录后可以看到的功能。用户管理、管理后台和权限设置始终只对管理员开放。</p>
-            <div id="user-module-visibility" class="permission-grid"></div>
-          </div>
           <div class="admin-only" data-settings-panel="freight-settings" id="settings-freight-host"></div>
-          <div class="panel admin-only settings-management-link" data-settings-panel="users">
-            <h3>用户管理</h3><p>新增、删除、停用账号和修改权限。</p>
-            <div id="settings-users-host"></div>
-          </div>
           <div class="panel admin-only settings-management-link" data-settings-panel="data">
             <h3>管理后台</h3><p>管理数据库、备份恢复、审计记录和员工使用情况。</p>
             <div id="settings-data-host"></div>
@@ -128,13 +78,15 @@
             <div class="modal-card small-modal contact-card" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title">
               <header><h3 id="contact-modal-title">联系我们</h3><button id="close-contact-modal-btn" type="button">关闭</button></header>
               <p><b>Ethan</b></p>
-              <p>WhatsApp：<a href="https://wa.me/861855540395" target="_blank" rel="noopener">+86 185 5540 395</a></p>
-              <p>邮箱：<a href="mailto:60839992@gmail.com">60839992@gmail.com</a></p>
+              <p>电话：15209867156</p><p>微信：18555403955</p>
+              <p>邮箱：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p>
             </div>
           </div>
           <div class="panel" data-settings-panel="company">
             <h3>公司与联系人信息</h3>
             <label><span>选择公司（地址、收款账户和公章一起切换）</span><select id="company-profile-select"></select></label>
+            <div class="actions"><button type="button" id="add-company-profile">新增公司</button><button type="button" id="save-company-profile" class="primary">保存当前公司</button><button type="button" id="delete-company-profile">删除当前公司</button></div>
+            <p class="hint">下方名称可直接修改。新增公司为空白资料，不复制当前公司的账户、公章或签名；删除公司不会删除历史单据。至少保留一家公司。</p>
             <div class="form-grid">
               <label><span>英文公司名</span><input data-setting="companyNameEn" /></label>
               <label><span>中文公司名</span><input data-setting="companyNameZh" /></label>
@@ -169,6 +121,19 @@
             </div>
           </div>
 
+          <div class="panel" data-settings-panel="company" id="company-signature-settings">
+            <h3>公司授权签署与电子签名</h3>
+            <p class="hint">沿用当前公司的签名，不与其他公司混用。签名图片不等同于数字证书签名；是否接受请按客户、银行和目的国要求确认。</p>
+            <div class="form-grid">
+              <label>签署人姓名<input data-setting="agencyAuthorizer" placeholder="Ethan"></label>
+              <label>签署人职务<input data-setting="agencyAuthorizerTitle" placeholder="General Manager, Africa / 非洲区总经理"></label>
+              <label>签名方向<select data-setting="agencySignatureRotation" id="company-signature-rotation"><option value="0">原方向</option><option value="-90">逆时针90°</option><option value="90">顺时针90°</option><option value="180">旋转180°</option></select></label>
+            </div>
+            <div class="actions"><label class="file-btn">上传／替换电子签名<input id="company-signature-input" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="remove-company-signature" type="button">删除电子签名</button></div>
+            <div class="company-signature-preview-box"><img id="company-signature-preview" alt="当前公司电子签名" hidden></div>
+            <p id="company-signature-status" class="hint" role="status"></p>
+            <p class="hint">上传、删除自动保存；姓名、职务、方向调整后点击“保存设置”。删除不修改已经导出的PDF。</p>
+          </div>
           <div class="panel" data-settings-panel="invitation">
             <h3>邀请函设置</h3>
             <div class="form-grid">
@@ -448,6 +413,9 @@
             <div class="actions"><button id="quote-business-standard" class="primary" type="button">二手/常规设备报价</button><button id="quote-business-vehicle" type="button">新车组合报价</button></div>
           </div>
 
+          <div class="quote-split-workspace">
+          <div class="quote-input-pane no-print" aria-label="填写报价">
+          <div class="split-pane-title">填写信息 <span>修改后下方预览实时更新</span></div>
           <div id="unified-quote-editor" class="no-print quote-editor">
             <div id="quote-common-panel" class="panel">
               <h3>报价基础信息</h3>
@@ -496,7 +464,27 @@
           <div id="quote-preview-image-control" class="preview-image-control">
             <b>产品图片输出</b><span id="quote-image-output-status">已开启：图片会显示在页面预览和PDF中</span>
           </div>
-          <article id="quote-preview" class="quote-preview"></article>
+          <div id="document-workspace-tools" class="panel no-print">
+            <div class="actions"><span id="quote-autosave-status" role="status">草稿自动保存已就绪</span><button id="restore-quote-draft" type="button">恢复上次编辑</button></div>
+            <details><summary>需要时生成其他单证</summary><p class="hint">引用当前客户和商品，另存为独立草稿，原报价不变。商业发票、装箱单请在确认订单并进入出货阶段后制作。</p><div class="actions"><select id="related-document-choice"><option value="">选择单据类型</option><option value="invoice">形式发票（PI）</option><option value="contract">销售合同</option><option value="commercial">商业发票（出货阶段）</option><option value="packing">装箱单（出货阶段）</option></select><button id="generate-related-document" type="button">生成关联单证草稿</button></div></details>
+            <details><summary>高级选项：输出与语言</summary>
+            <div class="actions"><label><input id="quote-photo-appendix" type="checkbox">附加详细照片</label><label>预览缩放 <select id="quote-preview-zoom"><option value="fit">适合宽度</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option></select></label><span>PDF自动按A4分页，缩放仅影响屏幕预览。</span></div>
+            <details id="document-language-editor"><summary>各语言商品及条款文案（保留原文，按输出语言调用）</summary><p class="hint">系统字段自动切换语言。自行填写的设备说明、质保等不会擅自翻译；请在这里补充对应语言的准确文案。</p><div id="document-language-rows"></div></details>
+            <div class="actions"><label><input id="document-show-bank" type="checkbox">当前单据显示收款信息</label><label><input id="document-show-signature" type="checkbox">当前单据显示公司授权签署（签名／公章）</label></div>
+            </details>
+            <section id="document-specific-editor" hidden>
+              <h3 id="document-specific-title">单据专用资料</h3>
+              <details id="packing-editor" hidden open><summary>装箱资料（重量和体积填写本行合计）</summary><div id="packing-editor-rows"></div></details>
+              <details id="shipment-document-editor" hidden open><summary>出货资料</summary><p class="hint">按实际出货填写，缺少的资料不会从报价中虚构。可保存未完整草稿。</p><div id="shipment-document-fields" class="form-grid"></div></details>
+            </section>
+            <p id="document-language-warning" class="hint" role="status"></p>
+          </div>
+          </div>
+          <div class="quote-output-pane" aria-label="报价实时预览">
+          <div class="split-pane-title no-print">实时预览 <span>仅改变系统布局，PDF格式不变</span></div>
+          <div class="quote-preview-viewport"><article id="quote-preview" class="quote-preview"></article></div>
+          </div>
+          </div>
           <div id="vehicle-quote-workspace-host"></div>
         </section>
 
@@ -548,7 +536,7 @@
               <h3>邀请函信息</h3>
               <div class="form-grid">
                 <label class="wide"><span>致中国大使馆/使领馆</span><input id="invitation-embassy" placeholder="Embassy of the People's Republic of China in South Africa" /></label>
-                <label><span>语言版本</span><select id="invitation-language"><option value="bilingual">中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="es">Español Only / 纯西班牙语</option><option value="zh-es">中文+西班牙语</option></select></label>
+                <label><span>语言版本</span><select id="invitation-language"><option value="bilingual">中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="es">Español Only / 纯西班牙语</option><option value="zh-es">中文+西班牙语</option><option value="fr">纯法语</option><option value="zh-fr">中法双语</option></select></label>
                 <label><span>邀请函样式</span><select id="invitation-style"><option value="classic">商务金色</option><option value="black-gold">黑金典雅</option><option value="blue-white">蓝白商务</option></select></label>
                 <label><span>制作日期</span><input id="invitation-date" type="date" /></label>
                 <label><span>客户姓名</span><input id="invitation-name" /></label>
@@ -925,7 +913,8 @@
     <script src="./assets/price-lists/machinery-price-products.js"></script>
     <script src="./assets/freight-workspace.js?v=20260912"></script>
     <script src="./assets/agency-documents.js?v=20261007"></script>
-    <script src="./app.js?v=20261007"></script>
+    <script src="./assets/trade-document-layouts.js?v=20261012"></script>
+    <script src="./app.js?v=20261012-document-layouts"></script>
     <script src="./vehicle-catalog.js?v=20260906-stage22"></script>
     <script src="./vehicle-quotes.js?v=20260827-stage9"></script>
   </body>

@@ -1,5 +1,4 @@
 const Database = require("better-sqlite3");
-const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 const { dbPath, dataDir } = require("./paths");
@@ -320,14 +319,6 @@ function id(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function upgradeDefaultAdminPassword() {
-  const admin = db.prepare("SELECT * FROM users WHERE username='admin'").get();
-  if (!admin) return;
-  if (bcrypt.compareSync("admin123", admin.password_hash)) {
-    db.prepare("UPDATE users SET password_hash=?, role='owner', status='Active', updated_at=? WHERE username='admin'")
-      .run(bcrypt.hashSync("Aa1234//", 10), now());
-  }
-}
 
 function seedDefaultPorts() {
   const rows = [
@@ -461,16 +452,7 @@ function seedDefaultPorts() {
 }
 
 function seed() {
-  const userCount = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
-  if (!userCount) {
-    const passwordHash = bcrypt.hashSync("Aa1234//", 10);
-    const stmt = db.prepare("INSERT INTO users (id, username, password_hash, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    stmt.run("user-admin", "admin", passwordHash, "owner", "Active", now(), now());
-  }
-
-  db.prepare("UPDATE users SET role='owner', updated_at=? WHERE username='admin' AND role='admin'").run(now());
-  upgradeDefaultAdminPassword();
-  db.prepare("UPDATE users SET status='Inactive', updated_at=? WHERE username='staff' AND id='user-staff'").run(now());
+  // Historical user rows remain for old audit records only. Local mode creates no accounts.
 
   const settingsCount = db.prepare("SELECT COUNT(*) AS count FROM company_settings").get().count;
   if (!settingsCount) {

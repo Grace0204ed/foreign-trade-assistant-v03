@@ -1,0 +1,37 @@
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
+const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
+(async()=>{
+ process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-local-flow-'));
+ const server=await require('../server/index').startServer(0);
+ const browser=await chromium.launch({executablePath:process.env.TEST_BROWSER,headless:true});
+ try{
+  assert.equal(server.address().address,'127.0.0.1');
+  const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+  const base=`http://127.0.0.1:${server.address().port}`;
+  await page.goto(base+'/index.html');await page.waitForTimeout(1500);if(errors.length)throw new Error(errors.join('\n'));await page.waitForFunction(()=>document.querySelector('#pdf-language option[value="fr"]'));
+  assert.equal(await page.locator('aside.sidebar').count(),0);
+  assert.equal((await(await page.request.get(base+'/api/auth/me')).json()).localOnly,true);
+  assert.equal((await page.request.post(base+'/api/auth/login',{data:{}})).status(),404);
+  await page.click('[data-view-target="create"]');
+  await page.click('[data-create-document="quotation"]');
+  await page.fill('#buyer-company','Workflow test company');await page.fill('#buyer-contact','Buyer Test');
+  await page.locator('[data-qfield="description"]').first().fill('Excavator');
+  await page.locator('[data-qfield="unitPrice"]').first().fill('10000');
+  const jump=async(view,type)=>{await page.locator(`#view-${view} .document-jump-bar select`).selectOption(type);await page.locator(`#view-${view} .document-jump-bar > button`).click();};
+  await jump('quote','invitation');assert.equal(await page.inputValue('#invitation-name'),'Buyer Test');assert.equal(await page.inputValue('#invitation-company'),'Workflow test company');
+  await jump('invitation','authorization');assert.equal(await page.inputValue('#agency-agent-name'),'Buyer Test');
+  await jump('agency','packing');assert.equal(await page.inputValue('#buyer-company'),'Workflow test company');assert.equal(await page.locator('#packing-editor').isVisible(),true);
+  await jump('quote','quotation');assert.equal(await page.locator('#packing-editor').isVisible(),false);assert.equal(await page.locator('[data-qfield="unitPrice"]').first().inputValue(),'10000');
+  await page.locator('[data-qfield="description"]').first().fill('Used / 二手');
+  await page.locator('[data-qfield="itemType"]').first().selectOption('海运费');
+  assert.equal(await page.locator('[data-qfield="description"]').first().inputValue(),'海运费');
+  assert.equal(await page.locator('[data-qfield="condition"]').count(),0,'cost row has no equipment condition');
+  if(await page.locator('[data-qfield="route"]').count())assert.equal(await page.locator('[data-qfield="route"]').first().locator('option').count(),4);
+  await page.click('#save-quote-btn');await page.waitForTimeout(600);
+  const saved=await(await page.request.get(base+'/api/quotations?includeInactive=1')).json();
+  assert.ok(saved.quotations.some(q=>JSON.stringify(q).includes('Workflow test company')),'local document saves without accounts');
+  await page.screenshot({path:path.join(process.env.QUOTE_DATA_DIR,'workflow.png'),fullPage:true});
+  assert.deepEqual(errors,[]);console.log('PASS local-only server, no login/sidebar, independent documents, shared buyer, draft return. '+process.env.QUOTE_DATA_DIR);
+ }finally{await browser.close();await new Promise(r=>server.close(r));require('../server/db').db.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

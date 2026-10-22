@@ -83,11 +83,9 @@ function installChineseMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label:"设置", submenu:[
       { label:"系统设置", click:()=>sendMenuAction("settings") },
-      { label:"用户管理", click:()=>sendMenuAction("users") },
       { label:"管理后台", click:()=>sendMenuAction("data") },
       { type:"separator" },
       { label:"使用说明", click:()=>sendMenuAction("help") },
-      { label:"退出登录", click:()=>sendMenuAction("logout") },
       { type:"separator" },
       { role:"quit", label:"退出软件" }
     ] },
