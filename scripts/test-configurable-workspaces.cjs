@@ -1,0 +1,10 @@
+const assert=require('assert');
+const designer=require('../assets/document-designer');
+const template=designer.normalize({name:'A',documentType:'quotation',preset:'modern',modules:[{name:'items',visible:false}]});
+assert.equal(template.documentType,'quotation');
+assert.equal(template.style.accent,'#a6192e');
+assert.equal(template.modules.find(x=>x.name==='items').visible,false);
+assert.ok(template.modules.find(x=>x.name==='bank'));
+const dbText=require('fs').readFileSync(require('path').join(__dirname,'../server/db.js'),'utf8');
+for(const column of ['group_name','labels_json','custom_fields_json'])assert.ok(dbText.includes(column));
+console.log('configurable workspace tests passed');

@@ -1,11 +1,11 @@
 {
   "name": "foreign-trade-assistant",
-  "version": "0.5.0",
-  "description": "外贸助手：客户跟进、报价、产品与运费管理系统",
+  "version": "0.6.0",
+  "description": "外贸助手：客户跟进、产品、报价与外贸单证桌面系统",
   "main": "electron/main.js",
   "private": true,
   "scripts": {
-    "test": "node scripts/test-agency-documents.js && node scripts/test-history-actions.js && node scripts/test-procurement.js",
+    "test": "node scripts/test-agency-documents.js && node scripts/test-history-actions.js && node scripts/test-procurement.js && node scripts/test-global-freight-calculator.cjs && node scripts/test-configurable-workspaces.cjs && node scripts/test-update-selection.cjs",
     "server": "node server/index.js",
     "electron": "electron .",
     "dev": "node server/index.js",
@@ -13,12 +13,13 @@
     "rebuild:node": "npm rebuild better-sqlite3",
     "rebuild:electron": "electron-builder install-app-deps",
     "build:win": "electron-builder --win nsis",
-    "check": "node --check server/index.js && node --check server/vehicle-quotes.js && node --check electron/main.js && node --check app.js && node --check vehicle-catalog.js && node --check vehicle-quotes.js && node --check crm/crm.js && node --check scripts/ensure-node-sqlite.js"
+    "check": "node --check server/index.js && node --check server/vehicle-quotes.js && node --check electron/main.js && node --check app.js && node --check vehicle-catalog.js && node --check vehicle-quotes.js && node --check crm/crm.js && node --check assets/global-freight-calculator.js && node --check assets/document-designer.js && node --check scripts/ensure-node-sqlite.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",
-    "express": "^5.2.1",
-    "multer": "^2.2.0",
+    "electron-updater": "^6.8.9",
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
     "pdf-parse": "^2.4.5",
     "xlsx": "^0.18.5"
   },
@@ -61,6 +62,14 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Grace0204ed",
+        "repo": "foreign-trade-assistant-v03",
+        "releaseType": "release"
+      }
+    ]
   }
 }

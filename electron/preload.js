@@ -6,6 +6,15 @@ contextBridge.exposeInMainWorld("quotationDesktop", {
   openDataDir: () => ipcRenderer.invoke("open-data-dir"),
   selectRestoreDb: () => ipcRenderer.invoke("select-restore-db"),
   selectImportJson: () => ipcRenderer.invoke("select-import-json"),
+  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("download-update"),
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+  onUpdateState: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on("app-update-state", listener);
+    return () => ipcRenderer.removeListener("app-update-state", listener);
+  },
   onMenuAction: (callback) => {
     const listener = (_event, action) => callback(action);
     ipcRenderer.on("desktop-menu-action", listener);

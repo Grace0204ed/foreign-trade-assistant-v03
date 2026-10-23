@@ -1,0 +1,35 @@
+name: Build and publish Windows release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify release tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $expected = "v$((Get-Content package.json | ConvertFrom-Json).version)"
+          if ("${{ github.ref_name }}" -ne $expected) { throw "Tag ${{ github.ref_name }} does not match package version $expected" }
+      - run: npm run ensure:sqlite
+      - run: npm run check
+      - run: npm test
+      - name: Build and publish installer and update metadata
+        run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

@@ -1,7 +1,7 @@
 const Database = require("better-sqlite3");
 const fs = require("fs");
 const path = require("path");
-const { dbPath, dataDir } = require("./paths");
+const { dbPath, dataDir, backupDir } = require("./paths");
 
 const pendingRestorePath = path.join(dataDir, "restore-pending.sqlite");
 if (fs.existsSync(pendingRestorePath)) {
@@ -19,6 +19,31 @@ function now() {
 
 function normalize(text) {
   return String(text || "").toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g, "");
+}
+
+function retireLegacyVehicleQuotesAndFreight() {
+  db.exec("CREATE TABLE IF NOT EXISTS app_migrations (migration_key TEXT PRIMARY KEY, applied_at TEXT NOT NULL, note TEXT DEFAULT '')");
+  const key="0.6.0-retire-vehicle-quotes-and-freight";
+  const applied=db.prepare("SELECT 1 FROM app_migrations WHERE migration_key=?").get(key);
+  const hasLegacyData=["quote_vehicle_items","quote_versions","quote_series","freight_rates","country_route_links","logistics_calculations","logistics_partners"].some(table=>{
+    try{return Number(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count)>0;}catch{return false;}
+  });
+  if(!applied&&hasLegacyData){
+    db.pragma("wal_checkpoint(FULL)");
+    const stamp=new Date().toISOString().replace(/[:.]/g,"-");
+    fs.copyFileSync(dbPath,path.join(backupDir,`before-0.6.0-retirement-${stamp}.sqlite`));
+  }
+  const transaction=db.transaction(()=>{
+    db.prepare("DELETE FROM quote_vehicle_items").run();
+    db.prepare("DELETE FROM quote_versions").run();
+    db.prepare("DELETE FROM quote_series").run();
+    db.prepare("DELETE FROM freight_rates").run();
+    db.prepare("DELETE FROM country_route_links").run();
+    db.prepare("DELETE FROM logistics_calculations").run();
+    db.prepare("DELETE FROM logistics_partners").run();
+    db.prepare("INSERT OR IGNORE INTO app_migrations (migration_key,applied_at,note) VALUES (?,?,?)").run(key,now(),"User requested removal; automatic backup created before first cleanup when legacy rows existed.");
+  });
+  transaction();
 }
 
 function runSchema() {
@@ -274,6 +299,7 @@ function runSchema() {
     for (const [name, definition] of definitions) if (!columns.includes(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
   };
   addColumns("vehicle_types", [["image_path","TEXT DEFAULT ''"],["description_zh","TEXT DEFAULT ''"],["description_en","TEXT DEFAULT ''"],["quote_fields_json","TEXT DEFAULT '[]'"]]);
+  addColumns("customers", [["group_name","TEXT DEFAULT ''"],["labels_json","TEXT DEFAULT '[]'"],["custom_fields_json","TEXT DEFAULT '{}'"]]);
   addColumns("chassis", [["length","REAL DEFAULT 0"],["width","REAL DEFAULT 0"],["height","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'mm'"],["factory_price","REAL DEFAULT 0"]]);
   addColumns("superstructures", [["length","REAL DEFAULT 0"],["width","REAL DEFAULT 0"],["height","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'mm'"],["factory_price","REAL DEFAULT 0"]]);
   addColumns("compatibility_rules", [["transport_length","REAL DEFAULT 0"],["transport_width","REAL DEFAULT 0"],["transport_height","REAL DEFAULT 0"],["transport_cbm","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'meter'"],["transport_method","TEXT DEFAULT 'Bulk Cargo'"]]);
@@ -487,12 +513,6 @@ function seed() {
   }
   seedDefaultPorts();
 
-  const ensureKnownFreightRate = db.prepare(`INSERT OR IGNORE INTO freight_rates
-    (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, billing_mode, container_type, remark, status, search_text, created_at, updated_at)
-    VALUES (?, 'port-shanghai', 'port-durban', 'Shanghai Port / 上海港, China / 中国', 'Durban Port / 德班港, South Africa / 南非', 'South Africa', ?, ?, 'USD', ?, '2026-09', '', '', '', ?, ?, ?, 'Active', ?, ?, ?)`);
-  ensureKnownFreightRate.run("freight-sha-durban-bulk-202609", "Bulk Cargo", 80, "USD/CBM", "cbm", "", "全包参考价 / All inclusive", normalize("上海 德班 南非 Durban Bulk Cargo 散杂 80 USD 全包 2026-09"), now(), now());
-  ensureKnownFreightRate.run("freight-sha-durban-40hq-202609", "Container", 5600, "USD/Container", "container", "40HQ", "40HQ高柜全包参考价 / 40HQ all inclusive", normalize("上海 德班 南非 Durban Container 40HQ 高柜 5600 USD 全包 2026-09"), now(), now());
-
   if (!db.prepare("SELECT COUNT(*) AS count FROM products").get().count) {
     const products = [
       ["product-sany-215c", "Excavator", "SANY", "SANY 215C", "三一215, 三一215C, 31215, 31215C, SANY215, SANY 215C, SY215, SY215C, 215C", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Transport dimension required", "", "Active"],
@@ -506,18 +526,6 @@ function seed() {
     products.forEach((p) => stmt.run(...p, normalize(p.join(" ")), now(), now()));
   }
   db.prepare("UPDATE products SET transport_cbm=85, dimension_unit='meter', updated_at=? WHERE id='product-cat-320c' AND (transport_cbm IS NULL OR transport_cbm<=0)").run(now());
-
-  if (!db.prepare("SELECT COUNT(*) AS count FROM freight_rates").get().count) {
-    const rates = [
-      ["freight-sha-tanga-202606", "port-shanghai", "port-tanga", "Shanghai Port, China", "Tanga Port, Tanzania", "Tanzania", "Bulk Cargo", 112, "USD", "USD/CBM", "2026-06", "2026-06-01", "2026-06-30", "", "Reference rate only", "Active"],
-      ["freight-sha-beira-202606", "port-shanghai", "port-beira", "Shanghai Port, China", "Beira Port, Mozambique", "Mozambique", "Bulk Cargo", 120, "USD", "USD/CBM", "2026-06", "2026-06-01", "2026-06-30", "", "For Zimbabwe cargo via Beira Port", "Active"],
-      ["freight-sha-dar-202606", "port-shanghai", "port-dar", "Shanghai Port, China", "Dar es Salaam Port, Tanzania", "Tanzania", "Bulk Cargo", 115, "USD", "USD/CBM", "2026-06", "2026-06-01", "2026-06-30", "", "Reference rate only", "Active"]
-    ];
-    const stmt = db.prepare(`INSERT INTO freight_rates
-      (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, remark, status, search_text, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    rates.forEach((r) => stmt.run(...r, normalize(r.join(" ")), now(), now()));
-  }
 
   if (!db.prepare("SELECT COUNT(*) AS count FROM vehicle_types").get().count) {
     const rows = [["truck-crane","随车吊","Truck-mounted crane"],["garbage-compactor","垃圾压缩车","Garbage compactor truck"],["sewer-cleaner","清洗吸污车","Sewer cleaning truck"],["sprinkler","洒水车","Water sprinkler truck"],["fuel-tanker","油罐车","Fuel tanker truck"],["aerial-platform","高空作业车","Aerial work platform"]];
@@ -540,5 +548,6 @@ function seed() {
 
 runSchema();
 seed();
+retireLegacyVehicleQuotesAndFreight();
 
 module.exports = { db, id, now, normalize, dbPath };

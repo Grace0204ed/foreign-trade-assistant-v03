@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
+const { autoUpdater } = require("electron-updater");
 
 let localServer;
 let desktopPort = 18765;
@@ -10,7 +11,7 @@ const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 app.on("second-instance", () => {
   const win=BrowserWindow.getAllWindows()[0];
-  if(win){if(win.isMinimized())win.restore();win.focus();}
+  if(win){if(win.isMinimized())win.restore();if(!win.isVisible())win.show();win.focus();}
 });
 function dataDir() { return app.getPath("userData"); }
 
@@ -34,7 +35,23 @@ async function createWindow() {
     webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false}
   });
   win.once("ready-to-show",()=>win.show());
+  win.webContents.once("did-finish-load",()=>{if(!win.isVisible())win.show();});
   await win.loadURL(`http://127.0.0.1:${desktopPort}/index.html`);
+}
+
+function publishUpdateState(payload) {
+  BrowserWindow.getAllWindows().forEach(win=>{if(!win.isDestroyed())win.webContents.send("app-update-state",payload);});
+}
+function configureUpdater() {
+  autoUpdater.autoDownload=false;
+  autoUpdater.autoInstallOnAppQuit=true;
+  autoUpdater.allowPrerelease=false;
+  autoUpdater.on("checking-for-update",()=>publishUpdateState({status:"checking",message:"正在检查更新…"}));
+  autoUpdater.on("update-available",info=>publishUpdateState({status:"available",version:info.version,message:`发现新版本 ${info.version}`}));
+  autoUpdater.on("update-not-available",info=>publishUpdateState({status:"current",version:info.version,message:"当前已是最新正式版"}));
+  autoUpdater.on("download-progress",progress=>publishUpdateState({status:"downloading",percent:Math.round(progress.percent||0),transferred:progress.transferred,total:progress.total,message:`正在下载 ${Math.round(progress.percent||0)}%`}));
+  autoUpdater.on("update-downloaded",info=>publishUpdateState({status:"downloaded",version:info.version,message:"更新已下载，可以重启安装"}));
+  autoUpdater.on("error",error=>publishUpdateState({status:"error",message:`更新失败：${error.message}`}));
 }
 function startupError(error){
   fs.mkdirSync(dataDir(),{recursive:true});
@@ -68,7 +85,7 @@ function installChineseMenu() {
   ]));
 }
 
-if(ownsInstance)app.whenReady().then(() => { installChineseMenu(); return createWindow(); }).catch(startupError);
+if(ownsInstance)app.whenReady().then(() => { installChineseMenu();configureUpdater();return createWindow(); }).catch(startupError);
 
 app.on("window-all-closed", () => {
   if (localServer) { localServer.close(); localServer=null; }
@@ -142,4 +159,13 @@ ipcMain.handle("select-import-json", async () => {
   });
   return result.canceled ? null : result.filePaths[0];
 });
+
+ipcMain.handle("get-app-version",()=>({version:app.getVersion(),platform:process.platform,arch:process.arch,packaged:app.isPackaged}));
+ipcMain.handle("check-for-updates",async()=>{
+  if(!app.isPackaged)return {status:"development",message:"开发模式不执行在线更新"};
+  try { const result=await autoUpdater.checkForUpdates();return {status:"checked",version:result?.updateInfo?.version||""}; }
+  catch(error){publishUpdateState({status:"error",message:`检查更新失败：${error.message}`});throw error;}
+});
+ipcMain.handle("download-update",async()=>{if(!app.isPackaged)throw new Error("开发模式不能下载安装包");await autoUpdater.downloadUpdate();return true;});
+ipcMain.handle("install-update",()=>{if(!app.isPackaged)throw new Error("开发模式不能安装更新");setImmediate(()=>autoUpdater.quitAndInstall(false,true));return true;});
 

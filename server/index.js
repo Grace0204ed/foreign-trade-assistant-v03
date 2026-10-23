@@ -65,7 +65,9 @@ function parseCustomer(row) {
   return {
     ...row,
     project_tags: JSON.parse(row.project_tags || "[]"),
-    equipment_tags: JSON.parse(row.equipment_tags || "[]")
+    equipment_tags: JSON.parse(row.equipment_tags || "[]"),
+    labels: JSON.parse(row.labels_json || "[]"),
+    custom_fields: JSON.parse(row.custom_fields_json || "{}")
   };
 }
 
@@ -968,13 +970,13 @@ app.post("/api/customers", requireLogin, (req, res) => {
   if (!String(body.name || "").trim()) return res.status(400).json({ error: "客户名称不能为空" });
   const timestamp = now();
   const result = db.prepare(`INSERT INTO customers
-    (name,company,phone,country,buyer_type,stage,grade,project_tags,equipment_tags,requirement,arrival_precision,arrival_value,next_follow_up,next_follow_purpose,whatsapp_number,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    (name,company,phone,country,buyer_type,stage,grade,project_tags,equipment_tags,requirement,arrival_precision,arrival_value,next_follow_up,next_follow_purpose,whatsapp_number,group_name,labels_json,custom_fields_json,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       String(body.name).trim(), body.company || "", body.phone || "", body.country || "", body.buyer_type || "公司买家",
       body.stage || "需求确认中", body.grade || "B", JSON.stringify(body.project_tags || []),
       JSON.stringify(body.equipment_tags || []), body.requirement || "", body.arrival_precision || "none",
       body.arrival_value || "", body.next_follow_up || "", body.next_follow_purpose || "",
-      String(body.phone || "").replace(/\D/g, ""), timestamp, timestamp
+      String(body.phone || "").replace(/\D/g, ""), body.group_name||"", JSON.stringify(body.labels||[]), JSON.stringify(body.custom_fields||{}), timestamp, timestamp
     );
   res.json({ id: Number(result.lastInsertRowid) });
 });

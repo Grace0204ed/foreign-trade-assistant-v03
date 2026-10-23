@@ -24,7 +24,7 @@
         <button id="global-back-btn" class="global-back-btn no-print" type="button" hidden aria-label="返回上一页">‹ <span>返回</span></button>
         <section id="view-home" class="view active no-print">
           <header class="page-head home-head">
-            <div><h2>外贸助手</h2><p>统一管理客户跟进、提醒、报价单、产品和运费。</p></div>
+            <div><h2>外贸助手</h2><p>统一管理客户、产品、报价与外贸单证。</p></div>
             <div class="home-account-actions"><button id="home-contact-btn" type="button">联系我们</button></div>
           </header>
           <div class="entry-grid">
@@ -32,7 +32,6 @@
             <button class="entry-card" data-view-target="create"><i>📝</i><b>新建</b><span>选择报价、发票、合同、装箱单、授权书或邀请函</span></button>
             <button class="entry-card" data-view-target="history"><i>🗂️</i><b>历史记录</b><span>统一查看历史报价、授权书和邀请函</span></button>
             <button class="entry-card" data-view-target="products"><i>🚜</i><b>产品库</b><span>维护二手机械、新车产品和常用图片</span></button>
-            <button class="entry-card" data-view-target="freight"><i>🚢</i><b>运费中心</b><span>常用航线、运费试算并导入报价</span></button>
             <button class="entry-card" data-view-target="settings"><i>⚙️</i><b>设置</b><span>公司资料、单证设置与本地备份</span></button>
           </div>
         </section>
@@ -67,10 +66,16 @@
             <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
             <button class="settings-tab" data-settings-section="quote-settings" type="button">报价设置</button>
             <button class="settings-tab" data-settings-section="invitation" type="button">邀请函设置</button>
-            <button class="settings-tab admin-only" data-settings-section="freight-settings" type="button">国家、港口与运费设置</button>
+            <button class="settings-tab" data-settings-section="product-config" type="button">产品模板</button>
+            <button class="settings-tab" data-settings-section="customer-config" type="button">客户管理配置</button>
+            <button class="settings-tab" data-settings-section="document-designer" type="button">单证设计器</button>
+            <button class="settings-tab" data-settings-section="software-update" type="button">软件更新</button>
             <button class="settings-tab admin-only" data-settings-section="data" type="button">管理后台</button>
           </div>
-          <div class="admin-only" data-settings-panel="freight-settings" id="settings-freight-host"></div>
+          <div data-settings-panel="product-config" id="settings-product-config-host"></div>
+          <div data-settings-panel="customer-config" id="settings-customer-config-host"></div>
+          <div data-settings-panel="document-designer" id="settings-document-designer-host"></div>
+          <div data-settings-panel="software-update" id="settings-software-update-host"></div>
           <div class="panel admin-only settings-management-link" data-settings-panel="data">
             <h3>管理后台</h3><p>管理数据库、备份恢复、审计记录和员工使用情况。</p>
             <div id="settings-data-host"></div>
@@ -255,17 +260,11 @@
             <p>所有新机、二手机和常用设备统一保存在这里，可按分类或关键词快速查询和修改价格。</p>
           </header>
           <div class="product-library-tabs">
-            <button class="active" data-product-library="legacy">普通/二手设备</button>
+            <button class="active" data-product-library="legacy">产品资料</button>
             <button data-product-library="machinery-reference">机械价格参考表</button>
-            <button class="admin-only" data-product-library="vehicle-types">新车车型</button>
-            <button class="admin-only" data-product-library="chassis">底盘</button>
-            <button class="admin-only" data-product-library="superstructures">上装</button>
-            <button class="admin-only" data-product-library="options">选装件</button>
-            <button class="admin-only" data-product-library="attachments">属具/工具头</button>
-            <button class="admin-only" data-product-library="compatibility">兼容组合</button>
           </div>
 
-          <div class="panel" data-settings-panel="quote-settings" id="vehicle-field-settings-panel">
+          <div class="panel" data-settings-panel="quote-settings" id="vehicle-field-settings-panel" hidden>
             <div class="row-head"><div><h3>按车型设置新车报价字段</h3><p class="hint">选择车型后，自由添加底盘、上装、尺寸、容量、吨位、发动机等字段。保存后新车组合报价会自动显示。</p></div><button id="vehicle-field-add" type="button">＋ 新增字段</button></div>
             <label><span>车辆类型</span><select id="vehicle-field-type"></select></label>
             <div class="field-table-wrap"><table class="field-table"><thead><tr><th>排序</th><th>中文名</th><th>英文名</th><th>字段标识</th><th>类型</th><th>必填</th><th>操作</th></tr></thead><tbody id="vehicle-field-list"></tbody></table></div>
@@ -382,12 +381,11 @@
           <header class="page-head"><h2>使用说明</h2><p>外贸助手的客户、报价、产品和手机端使用方法。</p></header>
           <div class="help-grid">
             <article class="panel"><h3>1. 客户跟进</h3><p>先在“客户跟进”建立客户，填写国家、WhatsApp、客户等级、阶段和下一次跟进日期。到期未跟进的客户会进入提醒。</p></article>
-            <article class="panel"><h3>2. 新建报价或形式发票</h3><p>进入“新建”，先选择二手/常规设备或新车，再选择“报价单”或“形式发票”。两种业务共用客户、公司信息、银行账户和报价条款。</p></article>
-            <article class="panel"><h3>3. 二手/常规设备</h3><p>从产品库选择机器或手工填写品牌、型号、数量、单价、图片和运费，页面下方可预览，确认后保存历史或导出 PDF。</p></article>
-            <article class="panel"><h3>4. 新车报价</h3><p>依次选择车型、兼容底盘、上装和选装件，填写该车型专属参数。系统计算价格后预览，保存到统一历史报价或生成正式单据。</p></article>
-            <article class="panel"><h3>5. 历史报价复用</h3><p>历史报价一行显示客户、国家、目的港、机器型号、金额和状态。点击“复制”即可沿用相似报价，不会覆盖原记录。</p></article>
-            <article class="panel"><h3>6. 产品及报价设置</h3><p>产品库维护二手机械、新车车型、底盘、上装、选装件和兼容关系。“设置 → 报价设置”统一维护通用条款、二手字段排序和不同新车车型字段。</p></article>
-            <article class="panel"><h3>7. iPhone 使用</h3><p>手机与主机连接同一 Wi‑Fi，用 Safari 打开主机地址，登录后点击“分享 → 添加到主屏幕”。电脑关机或服务停止时手机无法访问。</p></article>
+            <article class="panel"><h3>2. 新建业务单证</h3><p>进入“新建”选择报价单、形式发票或合同；公司、客户、产品和条款资料可以共用。</p></article>
+            <article class="panel"><h3>3. 产品与费用</h3><p>从产品库选择或手工填写产品、数量、单价和图片。右侧悬浮运费计算器可随时计算并经确认填入当前单证。</p></article>
+            <article class="panel"><h3>4. 历史报价复用</h3><p>历史报价显示客户、国家、目的港、产品、金额和状态。点击“复制”即可沿用相似报价，不会覆盖原记录。</p></article>
+            <article class="panel"><h3>5. 模板设置</h3><p>在设置中维护产品字段、客户字段、单证样式及多语言标题；已有业务数据不会因字段隐藏而删除。</p></article>
+            <article class="panel"><h3>6. 本地桌面使用</h3><p>业务数据保存在本机。升级或更换电脑前请先备份数据，安装新版后可继续使用原有客户、产品和历史单证。</p></article>
             <article class="panel help-contact"><h3>需要帮助</h3><p>使用中遇到问题可以联系我：</p><p><b>Ethan</b><br>电话：15209867156<br>微信：18555403955<br>Email：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p></article>
           </div>
         </section>
@@ -409,7 +407,7 @@
 
           <div class="panel no-print quote-business-choice">
             <div><b>选择报价业务</b><p class="hint">二手/常规设备保持原流程；新车进入车型、底盘、上装和选装组合流程。</p></div>
-            <div class="actions"><button id="quote-business-standard" class="primary" type="button">二手/常规设备报价</button><button id="quote-business-vehicle" type="button">新车组合报价</button></div>
+            <div class="actions"><button id="quote-business-standard" class="primary" type="button">标准产品报价</button></div>
           </div>
 
           <div class="quote-split-workspace">
@@ -908,11 +906,13 @@
       </div>
     </div>
     <script src="./assets/price-lists/machinery-price-products.js"></script>
-    <script src="./assets/freight-workspace.js?v=20260912"></script>
     <script src="./assets/agency-documents.js?v=20261007"></script>
     <script src="./assets/trade-document-layouts.js?v=20261012"></script>
+    <script src="./assets/document-designer.js?v=20261023"></script>
+    <script src="./assets/global-freight-calculator.js?v=20261023"></script>
     <script src="./assets/customer-text-parser.js"></script>
     <script src="./app.js?v=20261012-document-layouts"></script>
+    <script src="./assets/configurable-workspaces.js?v=20261023"></script>
     <script src="./vehicle-catalog.js?v=20260906-stage22"></script>
     <script src="./vehicle-quotes.js?v=20260827-stage9"></script>
   </body>

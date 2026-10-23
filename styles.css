@@ -51,6 +51,15 @@
   .quote-input-pane, .split-pane-title { display:none!important; }
 }
 
+/* Global freight helper: independent from the retired freight-center page. */
+.global-freight-calculator{position:fixed;right:18px;top:92px;z-index:1200;font-family:TradeOffline,Arial,sans-serif}.freight-fab{display:flex;gap:7px;align-items:center;border:0;border-radius:24px;background:#0f4c81;color:#fff;padding:11px 15px;box-shadow:0 8px 24px #0b294b3b}.freight-float-panel{width:360px;max-height:calc(100vh - 125px);overflow:auto;margin-top:8px;padding:16px;background:#fff;border:1px solid #cbd9e6;border-radius:14px;box-shadow:0 18px 42px #0b294b35}.global-freight-calculator.collapsed .freight-float-panel{display:none}.freight-float-panel header{display:flex;justify-content:space-between;gap:12px}.freight-float-panel header small{display:block;color:#68798a;margin-top:3px}.freight-tabs,.freight-mode-row,.freight-float-panel footer{display:flex;gap:8px;margin:12px 0}.freight-tabs button.active{background:#0f4c81;color:#fff}.freight-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.freight-grid label{display:grid;gap:4px;font-size:12px}.freight-result{display:grid;gap:5px;margin:12px 0;padding:12px;border-radius:9px;background:#f1f6fa}.freight-result b{font-size:20px;color:#0f4c81}.freight-result span{font-size:12px;color:#526578}.freight-error{min-height:20px;color:#b42318}.freight-float-panel input,.freight-float-panel select{width:100%}
+
+.config-template-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}.config-template-tabs button.active{background:#0f4c81;color:#fff}.config-table{width:100%;border-collapse:collapse;margin:12px 0}.config-table th,.config-table td{border:1px solid #dce5ed;padding:5px;vertical-align:middle}.config-table input:not([type=checkbox]),.config-table select{width:100%;min-width:72px}.config-chip-editor{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.config-chip-editor label{display:flex;gap:6px}.config-chip-editor input{flex:1}.designer-canvas-shell{height:650px;overflow:auto;background:#e9eef3;padding:20px;margin:14px 0}.document-designer-canvas{position:relative;width:794px;min-height:1123px;transform-origin:top left;background:#fff;box-shadow:0 4px 20px #23384c2b}.designer-module{position:absolute;box-sizing:border-box;border:1px dashed #3d79ac!important;background:#eef7ff!important;cursor:move;overflow:hidden}.designer-module small{display:block;color:#567}.designer-resize{position:absolute;right:0;bottom:0;width:14px;height:14px;background:#0f4c81;cursor:nwse-resize}.update-progress{height:8px;background:#e8eef4;border-radius:8px;overflow:hidden;margin:12px 0}.update-progress i{display:block;height:100%;width:0;background:#1677c8;transition:width .2s}
+
+.quote-preview{--designer-accent:#153b65;--designer-font-size:12px;--designer-page-padding:28px;--designer-gap:12px;font-size:var(--designer-font-size)}.quote-preview>.preview-panel{margin-bottom:var(--designer-gap)}.quote-preview .preview-top h2,.quote-preview .preview-panel h3{color:var(--designer-accent)}
+
+@media(max-width:700px){.global-freight-calculator{right:8px;top:70px}.freight-float-panel{width:min(340px,calc(100vw - 16px))}.freight-fab span{display:none}}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
@@ -1571,13 +1580,11 @@ textarea { min-height: 86px; resize: vertical; }
   .quote-preview thead { display:table-header-group; }
   .quote-preview tr, .quote-preview img { break-inside:avoid; page-break-inside:avoid; }
   .quote-preview th, .quote-preview td { padding:4px 3px; overflow-wrap:anywhere; word-break:normal; }
-  .quote-preview .preview-col-tradeTerm,
-  .quote-preview .preview-col-condition,
-  .quote-preview .preview-col-currency,
-  .quote-preview .preview-col-remark { display:none !important; }
-  .quote-preview .preview-col-description { width:36%; text-align:left; }
-  .quote-preview .preview-col-hsCode { width:14%; }
-  .quote-preview .preview-col-qty { width:7%; }
+  .quote-preview .preview-col-extra { display:none !important; }
+  .quote-preview .preview-col-description { width:32%; text-align:left; }
+  .quote-preview .preview-col-hsCode { width:12%; }
+  .quote-preview .preview-col-qty { width:6%; }
+  .quote-preview .preview-col-billingUnit { width:7%; }
   .quote-preview .preview-col-unitPrice,
   .quote-preview .preview-col-amount { width:14%; }
   .quote-preview .preview-col-image { width:15%; min-width:0; }
@@ -1611,6 +1618,21 @@ textarea { min-height: 86px; resize: vertical; }
   .vehicle-document-preview .bank-grid { gap:1mm; }
   .vehicle-document-preview .bank-grid p { line-height:1.25; break-inside:avoid; page-break-inside:avoid; }
 }
+
+/* Electron PDF export receives an explicit class so editor controls never leak into the document. */
+body.printing-standard .no-print,
+body.printing-standard .global-freight-calculator,
+body.printing-standard .split-pane-title,
+body.printing-standard #document-workspace-tools,
+body.printing-standard #document-workspace-tools *,
+body.printing-standard #quote-autosave-status,
+body.printing-standard #restore-quote-draft,
+body.printing-standard #document-output-options { display:none !important; visibility:hidden !important; }
+body.printing-standard { background:#fff !important; }
+body.printing-standard .main { padding:0 !important; }
+body.printing-standard .quote-split-workspace,
+body.printing-standard .quote-output-pane { display:block !important; height:auto !important; overflow:visible !important; border:0 !important; background:none !important; }
+body.printing-standard .quote-preview { margin:0 auto !important; }
 
 /* Centered home launcher and compact collapsed-sidebar handle */
 #view-home .page-head { text-align:center; }
