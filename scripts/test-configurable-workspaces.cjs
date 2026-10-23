@@ -16,7 +16,11 @@ assert.ok(appText.includes('dualMoneyText'),'dual currency renderer is missing')
 assert.ok(appText.includes("data-basic-custom"),'custom basic fields are not wired to the document');
 assert.ok(workspaceText.includes('data-quote-template-config'),'quote settings cannot switch business templates');
 assert.ok(workspaceText.includes('第三级选项'),'dictionary configuration is missing');
+assert.ok(workspaceText.includes('draggable="true"')&&workspaceText.includes('ondrop'),'drag sorting is missing');
 assert.ok(indexText.includes('settings-invoice-config-host')&&indexText.includes('settings-packing-config-host'),'document-specific settings are missing');
 assert.ok(indexText.includes('quote-secondary-currency')&&indexText.includes('quote-fx-rate'),'dual currency controls are missing');
+assert.ok(indexText.includes('quote-preview-mode')&&appText.includes("event.ctrlKey"),'preview modes or Ctrl+wheel zoom are missing');
+assert.ok(appText.includes('showBankControl'),'per-document bank control visibility is missing');
+assert.ok(appText.includes('is-quarter-turn'),'rotated signature preview sizing is missing');
 assert.ok(!serverText.includes('installVehicleQuoteRoutes'),'retired vehicle quote routes are still installed');
 console.log('configurable workspace tests passed');

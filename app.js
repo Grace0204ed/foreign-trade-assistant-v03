@@ -5951,6 +5951,7 @@
     img.src=settings.agencySignatureDataUrl||'';img.hidden=!settings.agencySignatureDataUrl;
     const rotation=Number(settings.agencySignatureRotation)||0;
     img.style.transform=`rotate(${rotation}deg)`;
+    img.classList.toggle('is-quarter-turn',Math.abs(rotation)===90);
     $('company-signature-status').textContent=settings.agencySignatureDataUrl?'已载入当前公司的电子签名':'当前公司未上传电子签名';
   }
   async function changeCompanySignature(input,remove=false) {
@@ -5979,6 +5980,8 @@
   }
   function renderDocumentLayout(termFields) {
     const host=$('quote-preview'),type=currentQuote.documentType||'quotation',e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
+    const bankControl=activeDocumentConfig(type)?.blocks?.layout?.find(field=>field.fieldKey==='showBankControl');
+    const bankToggle=$('document-show-bank')?.closest('label');if(bankToggle)bankToggle.hidden=bankControl?.visible===false||bankControl?.active===false;
     // Keep the original quotation banner, terms, seal and bank section intact.
     // Other document types retain their dedicated layouts.
     if(type==='quotation'){
@@ -6379,7 +6382,7 @@
     $("stamp-input").addEventListener("change", e => updateSettingsAsset(e.target, "stampDataUrl", "Electronic seal uploaded. / 电子公章已上传。"));
     $('company-signature-input').addEventListener('change',event=>changeCompanySignature(event.target));
     $('remove-company-signature').addEventListener('click',()=>changeCompanySignature(null,true));
-    $('company-signature-rotation').addEventListener('change',()=>{const img=$('company-signature-preview');img.style.transform=`rotate(${Number($('company-signature-rotation').value)||0}deg)`;});
+    $('company-signature-rotation').addEventListener('change',()=>{settings.agencySignatureRotation=Number($('company-signature-rotation').value)||0;renderCompanySignatureSettings();});
     $("remove-logo-btn").addEventListener("click", () => clearSettingsAsset("logoDataUrl", "Logo removed. / Logo 已删除。"));
     $("reset-background-btn").addEventListener("click", () => clearSettingsAsset("backgroundDataUrl", "Default background restored. / 已恢复默认背景。"));
     $("remove-stamp-btn").addEventListener("click", () => clearSettingsAsset("stampDataUrl", "Electronic seal removed. / 电子公章已删除。"));
@@ -6795,8 +6798,19 @@
     $('shipment-document-editor').addEventListener('toggle',()=>{if($('shipment-document-editor').open)renderShipmentFields();});
     $('shipment-document-fields').addEventListener('input',event=>{const key=event.target.dataset.shipmentField;if(!key)return;currentQuote.shipmentDetails||={};currentQuote.shipmentDetails[key]=event.target.value;renderPreview();scheduleDraftRecovery();});
   }
+  function initPreviewControls(){
+    const viewport=$('quote-preview')?.closest('.quote-preview-viewport'),preview=$('quote-preview'),mode=$('quote-preview-mode'),scaleOutput=$('quote-preview-scale'),reset=$('quote-preview-reset');
+    if(!viewport||!preview||!mode||!scaleOutput||!reset)return;
+    let scale=1;
+    const apply=()=>{viewport.dataset.previewMode=mode.value;if(mode.value==='fit'){preview.style.zoom='1';preview.style.width='100%';scaleOutput.value='适应宽度';}else{preview.style.width='210mm';preview.style.zoom=String(scale);scaleOutput.value=`${Math.round(scale*100)}%`;}};
+    mode.addEventListener('change',()=>{scale=1;apply();});
+    reset.addEventListener('click',()=>{mode.value='center';scale=1;apply();});
+    viewport.addEventListener('wheel',event=>{if(!event.ctrlKey)return;event.preventDefault();mode.value='center';scale=Math.min(2,Math.max(.4,Math.round((scale+(event.deltaY<0?.1:-.1))*10)/10));apply();},{passive:false});
+    apply();
+  }
   function initDocumentWorkspace() {
     initTradeDocumentControls();
+    initPreviewControls();
     Object.assign(quoteFrLabels,{'Used construction machinery and vehicles.':'Machines de construction et véhicules d’occasion.','Incomplete quotation: prices are required before formal issue.':'Devis incomplet : veuillez renseigner les prix avant émission définitive.'});
     Object.assign(quoteEsLabels,{'Used construction machinery and vehicles.':'Maquinaria de construcción y vehículos usados.','Incomplete quotation: prices are required before formal issue.':'Cotización incompleta: indique los precios antes de la emisión definitiva.'});
     Object.assign(quoteFrLabels,{'Invoice No.':'N° de facture','Packing List No.':'N° de colisage','Pending quotation':'Prix à confirmer','Used':'Occasion','Brand New & Unused':'Neuf et inutilisé','New Machinery':'Machine neuve','New Truck':'Camion neuf','Unit':'Unité','Ton':'Tonne','Container':'Conteneur','Item':'Poste'});
