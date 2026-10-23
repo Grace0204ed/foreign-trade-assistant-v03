@@ -5,7 +5,6 @@ const express = require("express");
 
 const { db, id, now, normalize, dbPath } = require("./db");
 const { dataDir, uploadDir, backupDir, exportDir, browserStatePath, ensureDir } = require("./paths");
-const { installVehicleQuoteRoutes } = require("./vehicle-quotes");
 const { installSpecImportRoutes } = require("./spec-import");
 
 const app = express();
@@ -981,7 +980,6 @@ app.post("/api/customers", requireLogin, (req, res) => {
   res.json({ id: Number(result.lastInsertRowid) });
 });
 
-installVehicleQuoteRoutes(app, { db, requireLogin, requireAdmin, ok, fail });
 require("./history-actions").installHistoryActions(app, { db, requireLogin, ok, fail });
 installSpecImportRoutes(app, { requireLogin, requireAdmin, ok, fail });
 

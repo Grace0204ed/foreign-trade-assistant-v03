@@ -47,8 +47,6 @@
             <div class="actions">
               <button id="backup-db-btn" type="button">备份数据库</button>
               <button id="restore-db-btn" type="button">恢复数据库</button>
-              <button id="export-data-btn" type="button">导出全部数据</button>
-              <button id="import-data-btn" type="button">导入数据</button>
               <button id="open-data-dir-btn" type="button">打开数据目录</button>
             </div>
           </div>
@@ -64,20 +62,29 @@
           </header>
           <div class="settings-tabs">
             <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
-            <button class="settings-tab" data-settings-section="quote-settings" type="button">报价设置</button>
-            <button class="settings-tab" data-settings-section="invitation" type="button">邀请函设置</button>
             <button class="settings-tab" data-settings-section="product-config" type="button">产品模板</button>
+            <button class="settings-tab" data-settings-section="quotation-config" type="button">报价单设置</button>
+            <button class="settings-tab" data-settings-section="invoice-config" type="button">PI／形式发票设置</button>
+            <button class="settings-tab" data-settings-section="contract-config" type="button">销售合同设置</button>
+            <button class="settings-tab" data-settings-section="commercial-config" type="button">商业发票设置</button>
+            <button class="settings-tab" data-settings-section="packing-config" type="button">装箱单设置</button>
+            <button class="settings-tab" data-settings-section="invitation" type="button">邀请函设置</button>
+            <button class="settings-tab" data-settings-section="agency-config" type="button">授权书设置</button>
             <button class="settings-tab" data-settings-section="customer-config" type="button">客户管理配置</button>
-            <button class="settings-tab" data-settings-section="document-designer" type="button">单证设计器</button>
             <button class="settings-tab" data-settings-section="software-update" type="button">软件更新</button>
             <button class="settings-tab admin-only" data-settings-section="data" type="button">管理后台</button>
           </div>
           <div data-settings-panel="product-config" id="settings-product-config-host"></div>
+          <div data-settings-panel="quotation-config" id="settings-quotation-config-host"></div>
+          <div data-settings-panel="invoice-config" id="settings-invoice-config-host"></div>
+          <div data-settings-panel="contract-config" id="settings-contract-config-host"></div>
+          <div data-settings-panel="commercial-config" id="settings-commercial-config-host"></div>
+          <div data-settings-panel="packing-config" id="settings-packing-config-host"></div>
+          <div data-settings-panel="agency-config" id="settings-agency-config-host"></div>
           <div data-settings-panel="customer-config" id="settings-customer-config-host"></div>
-          <div data-settings-panel="document-designer" id="settings-document-designer-host"></div>
           <div data-settings-panel="software-update" id="settings-software-update-host"></div>
           <div class="panel admin-only settings-management-link" data-settings-panel="data">
-            <h3>管理后台</h3><p>管理数据库、备份恢复、审计记录和员工使用情况。</p>
+            <h3>管理后台</h3><p>管理本机数据库、备份恢复、应用锁和操作记录。</p>
             <div id="settings-data-host"></div>
           </div>
           <div id="contact-modal" class="modal" hidden>
@@ -159,7 +166,7 @@
             <p class="hint">邀请函默认使用公司信息设置里的公司、Logo 和电子公章；这里填写后只覆盖邀请函，不影响报价单。签字位置默认留空，方便打印后手写签字。</p>
           </div>
 
-          <div class="panel" data-settings-panel="quote-settings">
+          <div class="panel legacy-quote-settings" data-settings-panel="legacy-quote-settings" hidden>
             <h3>产品分类与报价字段</h3>
             <p class="hint">先维护一级、二级产品分类，再为每个分类分别设置通用、新机或二手机需要展示的产品字段。无需创建或命名报价模板。</p>
             <div class="category-manager">
@@ -374,7 +381,7 @@
             </div>
             <p class="hint">“导入全部数据”用于整套系统迁移或恢复，不用于导入产品。产品 Excel 请在“产品库”中导入。</p>
           </div>
-          <div class="panel admin-only"><div class="row-head"><div><h3>系统数据与使用记录</h3><p class="hint">查看客户、产品、报价、跟进、运费数据量及最近操作。</p></div><button id="refresh-admin-overview-btn" type="button">刷新</button></div><div id="admin-data-counts" class="admin-stats"></div><div class="history-table-wrap"><table class="history-table"><thead><tr><th>时间</th><th>用户</th><th>操作</th><th>业务对象</th><th>原因</th></tr></thead><tbody id="admin-audit-list"></tbody></table></div></div>
+          <div class="panel admin-only"><div class="row-head"><div><h3>系统数据与使用记录</h3><p class="hint">查看客户、产品、普通报价、跟进记录及最近操作。</p></div><button id="refresh-admin-overview-btn" type="button">刷新</button></div><div id="admin-data-counts" class="admin-stats"></div><div class="history-table-wrap"><table class="history-table"><thead><tr><th>时间</th><th>操作</th><th>业务对象</th><th>原因</th></tr></thead><tbody id="admin-audit-list"></tbody></table></div></div>
         </section>
 
         <section id="view-help" class="view no-print">
@@ -405,11 +412,6 @@
             </div>
           </div>
 
-          <div class="panel no-print quote-business-choice">
-            <div><b>选择报价业务</b><p class="hint">二手/常规设备保持原流程；新车进入车型、底盘、上装和选装组合流程。</p></div>
-            <div class="actions"><button id="quote-business-standard" class="primary" type="button">标准产品报价</button></div>
-          </div>
-
           <div class="quote-split-workspace">
           <div class="quote-input-pane no-print" aria-label="填写报价">
           <div class="split-pane-title">填写信息 <span>修改后下方预览实时更新</span></div>
@@ -418,17 +420,17 @@
               <h3>报价基础信息</h3>
               <div class="customer-paste-box"><label><span>粘贴客户信息自动识别</span><textarea id="customer-paste-text" placeholder="粘贴 WhatsApp 签名、名片文字或客户资料，例如：Company / Contact / Phone / Email / Country / Address"></textarea></label><div><button id="recognize-customer-text-btn" type="button">识别并填入客户资料</button><p id="customer-recognize-result" class="hint">只在本机识别，不会发送到第三方。</p></div></div>
               <div class="form-grid">
-                <label><span>关联客户</span><select id="quote-customer"><option value="">自动匹配/暂不关联</option></select></label>
                 <label><span>单据样式</span><select id="quote-style-select"><option value="classic">商务金色</option><option value="black-gold">黑金典雅</option><option value="blue-white">蓝白商务</option></select></label>
-                <label><span>报价类型</span><select id="quote-template"></select></label>
+                <label><span>报价模板</span><select id="quote-template"></select></label>
                 <label><span>报价编号</span><input id="quote-number" /></label>
                 <label><span>报价日期</span><input id="quote-date" type="date" /></label>
                 <label><span>报价有效期</span><input id="valid-until" type="date" /></label>
                 <label><span>PDF语言</span><select id="pdf-language"><option value="bilingual">English + 中文 / 中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="es">Español Only / 纯西班牙语</option><option value="zh-es">中文 + Español / 中文+西班牙语</option><option value="zh-fr">中文 + Français / 中法双语</option></select></label>
-                <label><span>报价币种</span><select id="quote-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
-                <label><span>外币费用币种</span><select id="quote-fx-source"><option value="">与报价币种一致</option><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
-                <label><span>换算汇率</span><input id="quote-fx-rate" type="number" min="0" step="0.000001" placeholder="1外币 = ? 报价币种"></label>
-                <label class="wide"><span>底部有效期说明</span><input id="validity-range-text" placeholder="留空则自动显示：报价日期 - 截止日期" /></label>
+                <label><span>主报价币种</span><select id="quote-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
+                <label><span>价格显示方式</span><select id="quote-currency-display"><option value="single">仅显示主币种</option><option value="dual">同时显示第二币种</option></select></label>
+                <label><span>第二显示币种</span><select id="quote-secondary-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
+                <label><span>换算汇率</span><input id="quote-fx-rate" type="number" min="0" step="0.000001" placeholder="1 主币种 = ? 第二币种"></label>
+                <p class="wide hint" id="quote-fx-hint">汇率会随单据保存为快照，历史报价不会因以后汇率变化而改变。</p>
                 <label><span>客户国家</span><input id="buyer-country" list="country-options" placeholder="Tanzania / 坦桑尼亚" /><datalist id="country-options"></datalist></label>
                 <label><span>客户公司</span><input id="buyer-company" /></label>
                 <label><span>负责人姓名</span><input id="buyer-contact" /></label>
@@ -457,16 +459,9 @@
             </div>
           </div>
 
-          <div id="quote-preview-image-control" class="preview-image-control">
-            <b>产品图片输出</b><span id="quote-image-output-status">已开启：图片会显示在页面预览和PDF中</span>
-          </div>
           <div id="document-workspace-tools" class="no-print">
             <div class="actions"><span id="quote-autosave-status" role="status">草稿自动保存已就绪</span><button id="restore-quote-draft" type="button">恢复上次编辑</button></div>
-            <details id="document-output-options"><summary>预览与输出设置</summary>
-            <div class="actions"><label><input id="quote-photo-appendix" type="checkbox">附加详细照片</label><label>预览缩放 <select id="quote-preview-zoom"><option value="fit">适合宽度</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option></select></label><span>PDF自动按A4分页，缩放仅影响屏幕预览。</span></div>
-            <details id="document-language-editor"><summary>各语言商品及条款文案（保留原文，按输出语言调用）</summary><p class="hint">系统字段自动切换语言。自行填写的设备说明、质保等不会擅自翻译；请在这里补充对应语言的准确文案。</p><div id="document-language-rows"></div></details>
-            <div class="actions"><label><input id="document-show-bank" type="checkbox">当前单据显示收款信息</label><label><input id="document-show-signature" type="checkbox">当前单据显示公司授权签署（签名／公章）</label></div>
-            </details>
+            <div class="actions document-simple-options"><label><input id="quote-photo-appendix" type="checkbox">附加详细照片</label><label><input id="document-show-bank" type="checkbox">当前单据显示收款信息</label><label><input id="document-show-signature" type="checkbox">当前单据显示公司授权签署（签名／公章）</label></div>
             <section id="document-specific-editor" hidden>
               <h3 id="document-specific-title">单据专用资料</h3>
               <details id="packing-editor" hidden open><summary>装箱资料（重量和体积填写本行合计）</summary><div id="packing-editor-rows"></div></details>
@@ -912,9 +907,8 @@
     <script src="./assets/global-freight-calculator.js?v=20261023"></script>
     <script src="./assets/customer-text-parser.js"></script>
     <script src="./app.js?v=20261012-document-layouts"></script>
+    <script src="./assets/app-lock.js?v=20261023"></script>
     <script src="./assets/configurable-workspaces.js?v=20261023"></script>
-    <script src="./vehicle-catalog.js?v=20260906-stage22"></script>
-    <script src="./vehicle-quotes.js?v=20260827-stage9"></script>
   </body>
 </html>
 

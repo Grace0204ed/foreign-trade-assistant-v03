@@ -160,7 +160,6 @@
 
   const defaultQuoteLineColumns = [
     { key: "itemType", labelZh: "条目类型", labelEn: "Item Type", type: "itemType", visible: true, required: true, system: true, sortOrder: 10 },
-    { key: "condition", labelZh: "设备状态", labelEn: "Condition", type: "condition", visible: true, required: true, system: true, sortOrder: 15 },
     { key: "description", labelZh: "商品信息 / 产品描述", labelEn: "Product Description", type: "textarea", visible: true, required: true, system: true, sortOrder: 20 },
     { key: "route", labelZh: "路线/运输方式", labelEn: "Route / Method", type: "text", visible: true, required: false, system: true, sortOrder: 22 },
     { key: "hsCode", labelZh: "海关编码", labelEn: "HS CODE", type: "text", visible: true, required: false, system: true, sortOrder: 25 },
@@ -212,7 +211,7 @@
     showQuoteNumberInPdf: true,
     showQuoteDateInPdf: true,
     showValidUntilInPdfTop: true,
-    showValidityRangeInPdfBottom: true,
+    showValidityRangeInPdfBottom: false,
     documentTypes: [
       { key: "quotation", labelZh: "报价单", labelEn: "Quotation", visible: true, sortOrder: 10 },
       { key: "invoice", labelZh: "形式发票", labelEn: "Proforma Invoice", visible: true, sortOrder: 20 }
@@ -264,6 +263,9 @@
       labels:["建筑项目","路桥项目","采矿项目","环卫项目","特殊需求"]
     },
     documentDesignerTemplates: [],
+    documentConfigs: {},
+    quoteTemplateConfigs: {},
+    applicationLock: { enabled:false, autoLockMinutes:15, pinHash:"" },
     logoDataUrl: "",
     backgroundDataUrl: "",
     stampDataUrl: "",
@@ -1199,7 +1201,10 @@
       fieldType: fieldTypeOf(field),
       required: !!field.required,
       visible: visibleOf(field),
-      sortOrder: Number(field.sortOrder ?? (index + 1) * 10)
+      sortOrder: Number(field.sortOrder ?? (index + 1) * 10),
+      active: field.active !== false,
+      system: !!field.system,
+      options: Array.isArray(field.options) ? field.options : []
     };
   }
 
@@ -1217,8 +1222,11 @@
       if (field.fieldKey === "originPort") field.fieldType = "select";
     });
     return {
+      id: tpl.id || `product-template-${normalize(tpl.name || Date.now())}`,
       name: tpl.name,
       desc: tpl.desc || "",
+      productMode: tpl.productMode || "linked",
+      productTemplateId: tpl.productTemplateId || "",
       fields: (tpl.fields || [])
         .map(normalizeField)
         .filter((field) => !["freight", "truckingToPort"].includes(field.fieldKey))
@@ -1371,18 +1379,10 @@
       [document.querySelector(".country-route-panel"), document.querySelector(".freight-port-admin"), document.querySelector(".freight-rate-admin"), document.querySelector(".freight-text-import")]
         .filter(Boolean).forEach((panel) => freightSettingsHost.appendChild(panel));
     }
-    const tabs = document.querySelector(".product-library-tabs");
-    if (tabs && $("admin-catalog-host")) {
-      tabs.querySelectorAll('[data-product-library="legacy"], [data-product-library="machinery-reference"]').forEach(button => button.remove());
-      $("admin-catalog-host").insertAdjacentHTML("afterbegin", '<div class="panel admin-catalog-intro"><h3>新车组合基础数据</h3><p class="hint">车型、底盘、上装、选装件、属具和兼容关系属于管理员主数据，不在普通产品库中展示。</p></div>');
-      $("admin-catalog-host").appendChild(tabs);
-    }
-    if ($("unified-vehicle-product-editor") && $("admin-catalog-host")) {
-      $("admin-catalog-host").appendChild($("unified-vehicle-product-editor"));
-      $("unified-vehicle-product-editor").hidden = false;
-    }
+    document.querySelector(".product-library-tabs")?.remove();
+    $("unified-vehicle-product-editor")?.remove();
     $("machinery-reference-editor")?.remove();
-    if ($("vehicle-field-settings-panel") && $("vehicle-field-settings-host")) $("vehicle-field-settings-host").appendChild($("vehicle-field-settings-panel"));
+    $("vehicle-field-settings-panel")?.remove();
     const overview = $("admin-data-counts")?.closest(".panel");
     if (overview && $("admin-overview-host")) $("admin-overview-host").appendChild(overview);
   }
@@ -1606,7 +1606,7 @@
   }
   window.quoteBusiness = { show:setQuoteBusiness, open:openQuoteBusiness, newShared:newSharedQuote, get active(){ return activeQuoteBusiness; } };
 
-  async function renderAdminOverview(){if(!isAdmin()||!$("admin-data-counts"))return;try{const data=await api("/api/admin/overview"),labels={users:"用户",customers:"客户",products:"产品",quotations:"普通报价",vehicleQuotes:"新车报价版本",followUps:"跟进记录",freightRates:"运费报价"};$("admin-data-counts").innerHTML=Object.entries(data.counts||{}).map(([k,v])=>`<div><b>${Number(v).toLocaleString()}</b><span>${labels[k]||k}</span></div>`).join("");$("admin-audit-list").innerHTML=(data.audits||[]).map(x=>`<tr><td>${escapeHtml(x.created_at||"")}</td><td>${escapeHtml(x.username||x.user_id||"系统")}</td><td>${escapeHtml(x.action||"")}</td><td>${escapeHtml(`${x.entity_type||""} ${x.entity_id||""}`)}</td><td>${escapeHtml(x.reason||"")}</td></tr>`).join("")||'<tr><td colspan="5">暂无审计记录</td></tr>';}catch(e){toast(e.message);}}
+  async function renderAdminOverview(){if(!isAdmin()||!$("admin-data-counts"))return;try{const data=await api("/api/admin/overview"),labels={customers:"客户",products:"产品",quotations:"普通报价",followUps:"跟进记录"},allowed=Object.keys(labels);$("admin-data-counts").innerHTML=Object.entries(data.counts||{}).filter(([key])=>allowed.includes(key)).map(([key,value])=>`<div><b>${Number(value).toLocaleString()}</b><span>${labels[key]}</span></div>`).join("");$("admin-audit-list").innerHTML=(data.audits||[]).map(x=>`<tr><td>${escapeHtml(x.created_at||"")}</td><td>${escapeHtml(x.action||"")}</td><td>${escapeHtml(`${x.entity_type||""} ${x.entity_id||""}`)}</td><td>${escapeHtml(x.reason||"")}</td></tr>`).join("")||'<tr><td colspan="4">暂无审计记录</td></tr>';}catch(e){toast(e.message);}}
 
   function switchView(name, options = {}) {
     if (name === "vehicle-quote") {
@@ -4382,6 +4382,9 @@
       showProductPhotos: true,
       pdfLanguage: "bilingual",
       currency: settings.currency || "USD",
+      currencyDisplay: "single",
+      secondaryCurrency: (settings.currency || "USD") === "CNY" ? "USD" : "CNY",
+      exchangeRate: { sourceCurrency:settings.currency || "USD", targetCurrency:(settings.currency || "USD") === "CNY" ? "USD" : "CNY", rate:0, capturedAt:"" },
       buyer: {},
       customerId: null,
       templateName: settings.templates[0]?.name || "",
@@ -4426,6 +4429,8 @@
       email: "",
       address: ""
     };
+    currentQuote.basicFields = {...(currentQuote.basicFields||{})};
+    document.querySelectorAll('[data-basic-custom]').forEach(input=>currentQuote.basicFields[input.dataset.basicCustom]=input.type==='checkbox'?input.checked:input.value);
     bindQuoteToForm();
     switchView("quote");
     history.replaceState({}, "", "/");
@@ -4989,6 +4994,34 @@
     return settings.templates.find((t) => t.name === $("quote-template").value) || settings.templates[0];
   }
 
+  function activeDocumentConfig(type = currentQuote?.documentType || "quotation") {
+    if(type === "quotation") {
+      normalizeTemplates();
+      const selected = settings.templates.find((item) => item.name === (currentQuote?.templateName || $("quote-template")?.value));
+      const key = selected?.id || selected?.name;
+      if(key && settings.quoteTemplateConfigs?.[key]) return settings.quoteTemplateConfigs[key];
+    }
+    return settings.documentConfigs?.[type] || settings.documentConfigs?.quotation || null;
+  }
+
+  function configuredBlockFields(block, fallback = []) {
+    const snapshotKey={customer:"customerFields",items:"itemFields",terms:"termFields"}[block];
+    const snapshotted=currentQuote?.isFormal && snapshotKey ? currentQuote.templateSnapshot?.[snapshotKey] : null;
+    const configured = snapshotted || activeDocumentConfig()?.blocks?.[block];
+    return (Array.isArray(configured) && configured.length ? configured : fallback)
+      .map(normalizeField)
+      .filter((field) => field.visible !== false && field.active !== false)
+      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  }
+
+  function quoteProductTemplate() {
+    normalizeTemplates();
+    if(currentQuote?.isFormal && currentQuote.templateSnapshot?.productTemplate)return currentQuote.templateSnapshot.productTemplate;
+    const config = activeDocumentConfig("quotation");
+    if (!config || config.productMode !== "linked") return template();
+    return settings.templates.find((item) => (item.id || item.name) === config.productTemplateId) || template();
+  }
+
   function bindQuoteToForm() {
     $("quote-template").value = currentQuote.templateName || settings.templates[0]?.name || "";
     renderDocumentTypes();
@@ -4997,12 +5030,11 @@
     $("quote-number").value = currentQuote.quoteNumber || "";
     $("quote-date").value = currentQuote.quoteDate || today();
     $("valid-until").value = currentQuote.validUntil || addDays(7);
-    $("validity-range-text").value = currentQuote.validityRangeText || "";
     $("pdf-language").value = currentQuote.pdfLanguage || "bilingual";
     if ($("quote-currency")) $("quote-currency").value = currentQuote.currency || settings.currency || "USD";
-    if($("quote-fx-source"))$("quote-fx-source").value=currentQuote.exchangeRate?.sourceCurrency||"";
+    if($("quote-currency-display"))$("quote-currency-display").value=currentQuote.currencyDisplay||"single";
+    if($("quote-secondary-currency"))$("quote-secondary-currency").value=currentQuote.secondaryCurrency||"USD";
     if($("quote-fx-rate"))$("quote-fx-rate").value=currentQuote.exchangeRate?.rate||"";
-    if ($("quote-customer")) $("quote-customer").value = currentQuote.customerId ? String(currentQuote.customerId) : "";
     $("buyer-country").value = currentQuote.buyer.country || "";
     $("buyer-company").value = currentQuote.buyer.company || "";
     $("buyer-contact").value = currentQuote.buyer.contact || "";
@@ -5011,15 +5043,14 @@
     $("buyer-address").value = currentQuote.buyer.address || "";
     renderQuoteTerms();
     applyCustomerQuoteFieldLabels();
+    applyDocumentBasicFields();
   }
 
   function renderQuoteTerms() {
     const tpl = template();
     const values = currentQuote.terms || {};
-    const fields = (tpl.termFields || defaultTermFields)
-      .slice()
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
+    const fields = configuredBlockFields("terms", tpl.termFields || defaultTermFields)
+      .filter((field) => field.fieldType !== "calculated" && field.fieldType !== "image");
     $("quote-terms").innerHTML = fields.map((field) => `
       <label class="${field.fieldType === "textarea" ? "wide" : ""}">
         <span>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}${field.required ? " *" : ""}</span>
@@ -5035,12 +5066,13 @@
     currentQuote.quoteNumber = $("quote-number").value;
     currentQuote.quoteDate = $("quote-date").value;
     currentQuote.validUntil = $("valid-until").value;
-    currentQuote.validityRangeText = $("validity-range-text").value.trim();
     currentQuote.showProductPhotos = $("quote-show-product-images")?.checked !== false;
     currentQuote.pdfLanguage = $("pdf-language").value || "bilingual";
     currentQuote.currency = $("quote-currency")?.value || settings.currency || "USD";
-    currentQuote.exchangeRate={sourceCurrency:$("quote-fx-source")?.value||"",targetCurrency:currentQuote.currency,rate:Number($("quote-fx-rate")?.value||0)};
-    currentQuote.customerId = $("quote-customer")?.value || null;
+    currentQuote.currencyDisplay=$("quote-currency-display")?.value||"single";
+    currentQuote.secondaryCurrency=$("quote-secondary-currency")?.value||"USD";
+    currentQuote.exchangeRate={sourceCurrency:currentQuote.currency,targetCurrency:currentQuote.secondaryCurrency,rate:Number($("quote-fx-rate")?.value||0),capturedAt:new Date().toISOString()};
+    currentQuote.customerId = null;
     currentQuote.buyer = {
       country: $("buyer-country").value,
       company: $("buyer-company").value,
@@ -5144,10 +5176,23 @@
 
   function quoteLineColumns() {
     normalizeQuoteLineColumns();
-    return settings.quoteLineColumns
+    const linked = quoteProductTemplate();
+    const config = activeDocumentConfig();
+    const aliases={productType:"description",totalAmount:"amount",productImage:"image"};
+    const source = config?.productMode === "linked" && linked?.fields?.length
+      ? linked.fields.map((field) => {
+          const key=aliases[field.fieldKey]||field.fieldKey;
+          return { key, labelZh:key==="description"?"商品信息 / 产品描述":field.zh, labelEn:key==="description"?"Product Description":field.en, type:field.fieldType, ...field, fieldKey:key };
+        }).filter((field,index,array)=>array.findIndex(item=>item.fieldKey===field.fieldKey)===index)
+      : configuredBlockFields("items", settings.quoteLineColumns).map((field) => ({ key:field.fieldKey, labelZh:field.zh, labelEn:field.en, type:field.fieldType, ...field }));
+    const requiredSystem = defaultQuoteLineColumns.filter((field) => ["itemType","description","qty","billingUnit","unitPrice","amount","image","remark"].includes(field.key));
+    const merged = [...source];
+    requiredSystem.forEach((field) => { if (!merged.some((item) => (item.key || item.fieldKey) === field.key)) merged.push({...field}); });
+    return merged
       .slice()
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
-      .filter((column) => column.visible !== false);
+      .filter((column) => column.visible !== false && column.active !== false && (column.key || column.fieldKey) !== "condition")
+      .map((column) => ({...column,key:column.key || column.fieldKey,labelZh:column.labelZh || column.zh,labelEn:column.labelEn || column.en,type:column.type || column.fieldType}));
   }
 
   function renderQuoteLineInput(column, item) {
@@ -5169,9 +5214,15 @@
     if (column.key === "qty") return `<input data-qfield="qty" type="number" min="0" step="1" value="${escapeHtml(values.qty || "1")}"${required} />`;
     if (column.key === "unitPrice") return `<input data-qfield="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(values.unitPrice ?? "")}"${required} />`;
     if (column.key === "currency") return renderCurrencySelect("currency", values.currency || settings.currency);
-    if (column.key === "amount") return `<span class="line-amount">${values.unitPrice===""||values.unitPrice==null?"待询价":escapeHtml(money(itemSubtotal(item), values.currency || settings.currency))}</span>`;
+    if (column.key === "amount") return `<span class="line-amount">${values.unitPrice===""||values.unitPrice==null?"待询价":escapeHtml(dualMoneyText(itemSubtotal(item), values.currency || currentQuote.currency || settings.currency))}</span>`;
     if (column.key === "image") return `<div class="line-image-box"><img src="${item.imageDataUrl || ""}" alt=""${item.imageDataUrl ? "" : " hidden"} /><span${item.imageDataUrl ? " hidden" : ""}>尚未上传</span></div>`;
     if (column.key === "remark") return `<input data-qfield="remark" value="${escapeHtml(values.remark || "")}"${required} />`;
+    if (["select","dictionary"].includes(column.fieldType || column.type) && Array.isArray(column.options)) {
+      const options=column.options.filter(option=>option.visible!==false);
+      return `<select data-qfield="${key}"${required}><option value="">请选择</option>${options.map(option=>{const value=String(option.value??option.labelZh??option.zh??"");const label=labelText(option.labelEn||option.en||value,option.labelZh||option.zh||value);return `<option value="${escapeHtml(value)}"${String(values[column.key]??"")===value?" selected":""}>${escapeHtml(label)}</option>`;}).join("")}</select>`;
+    }
+    if ((column.fieldType || column.type) === "textarea") return `<textarea data-qfield="${key}"${required}>${escapeHtml(values[column.key] || "")}</textarea>`;
+    if (["number","money"].includes(column.fieldType || column.type)) return `<input data-qfield="${key}" type="number" step="any" value="${escapeHtml(values[column.key] ?? "")}"${required} />`;
     return `<input data-qfield="${key}" value="${escapeHtml(values[column.key] || "")}"${required} />`;
   }
 
@@ -5266,7 +5317,7 @@
       const unitPrice = Number(row.querySelector("[data-qfield='unitPrice']")?.value || 0);
       const currency = row.querySelector("[data-qfield='currency']")?.value || settings.currency;
       const target = row.querySelector(".line-amount");
-      if (target) target.textContent = row.querySelector("[data-qfield='unitPrice']")?.value === "" ? "待询价" : money(qty * unitPrice, currency);
+      if (target) target.textContent = row.querySelector("[data-qfield='unitPrice']")?.value === "" ? "待询价" : dualMoneyText(qty * unitPrice, currency);
     });
   }
 
@@ -5484,7 +5535,7 @@
   function quoteTotal(quote) {
     const tpl = quoteTemplate(quote);
     const target=quote?.currency||settings.currency,fx=quote?.exchangeRate||{};
-    return (quote?.items || []).reduce((sum, item) => {const amount=itemSubtotal(item,tpl),source=item.values?.currency||target;if(source===target)return sum+amount;if(fx.sourceCurrency===source&&fx.targetCurrency===target&&Number(fx.rate)>0)return sum+amount*Number(fx.rate);return sum;}, 0);
+    return (quote?.items || []).reduce((sum, item) => {const amount=itemSubtotal(item,tpl),source=item.values?.currency||target;if(source===target)return sum+amount;if(fx.sourceCurrency===source&&fx.targetCurrency===target&&Number(fx.rate)>0)return sum+amount*Number(fx.rate);if(fx.sourceCurrency===target&&fx.targetCurrency===source&&Number(fx.rate)>0)return sum+amount/Number(fx.rate);return sum;}, 0);
   }
 
   function extraMoneyFields(tpl = template()) {
@@ -5612,13 +5663,35 @@
     if (column.key === "qty") return values.qty || "1";
     if (column.key === 'billingUnit') {const unit={台:['Unit','台'],吨:['Ton','吨'],柜:['Container','柜'],项:['Item','项']}[values.billingUnit];return unit?labelText(...unit):values.billingUnit||'';}
     if(column.key==='origin')return (item.kind||'product')==='product'?(currentQuote.packing?.[item.id]?.origin||'—'):'—';
-    if (column.key === "unitPrice") return values.unitPrice === "" || values.unitPrice == null ? labelText('Pending quotation','待询价') : money(values.unitPrice, currency);
-    if (column.key === "amount") return values.unitPrice === "" || values.unitPrice == null ? labelText('Pending quotation','待询价') : money(itemSubtotal(item), currency);
+    if (column.key === "unitPrice") return values.unitPrice === "" || values.unitPrice == null ? labelText('Pending quotation','待询价') : dualMoneyText(values.unitPrice, currency);
+    if (column.key === "amount") return values.unitPrice === "" || values.unitPrice == null ? labelText('Pending quotation','待询价') : dualMoneyText(itemSubtotal(item), currency);
     if (column.key === "currency") return currency;
     if (column.key === "image") return "";
     if (column.key === "remark") return previewRemark(item);
     if (values[column.key]) return values[column.key];
     return "";
+  }
+
+  function dualCurrencyEnabled() {
+    return currentQuote?.currencyDisplay === "dual"
+      && currentQuote.secondaryCurrency
+      && currentQuote.secondaryCurrency !== currentQuote.currency
+      && Number(currentQuote.exchangeRate?.rate) > 0;
+  }
+
+  function convertToQuoteCurrency(amount, sourceCurrency) {
+    const value=Number(amount||0),main=currentQuote?.currency||settings.currency||"USD",rate=Number(currentQuote?.exchangeRate?.rate||0);
+    if(!sourceCurrency||sourceCurrency===main)return value;
+    if(currentQuote?.exchangeRate?.sourceCurrency===sourceCurrency&&currentQuote.exchangeRate?.targetCurrency===main&&rate>0)return value*rate;
+    if(currentQuote?.exchangeRate?.sourceCurrency===main&&currentQuote.exchangeRate?.targetCurrency===sourceCurrency&&rate>0)return value/rate;
+    return value;
+  }
+
+  function dualMoneyText(amount, sourceCurrency) {
+    const main=currentQuote?.currency||settings.currency||"USD";
+    const mainAmount=convertToQuoteCurrency(amount,sourceCurrency||main);
+    if(!dualCurrencyEnabled())return money(mainAmount,main);
+    return `${money(mainAmount,main)} / ${money(mainAmount*Number(currentQuote.exchangeRate.rate),currentQuote.secondaryCurrency)}`;
   }
 
   function renderQuotePreviewRows() {
@@ -5678,7 +5751,7 @@
 
   function customerPreviewFields(buyer = {}) {
     normalizeCustomerQuoteFields();
-    return settings.customerQuoteFields.filter((field)=>field.visible).sort((a,b)=>a.sortOrder-b.sortOrder).map((field)=>`<p>${labelText(field.en,field.zh)}：${escapeHtml(buyer[field.fieldKey] || "")}</p>`).join("");
+    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p>${labelText(field.en,field.zh)}：${escapeHtml(buyer[field.fieldKey] || "")}</p>`).join("");
   }
 
   function applyCustomerQuoteFieldLabels() {
@@ -5686,7 +5759,7 @@
     const ids={company:"buyer-company",country:"buyer-country",contact:"buyer-contact",phone:"buyer-phone",email:"buyer-email",address:"buyer-address"};
     const grid=$("buyer-company")?.closest(".form-grid");
     grid?.querySelectorAll('[data-custom-buyer-label]').forEach(label=>label.remove());
-    settings.customerQuoteFields.slice().sort((a,b)=>a.sortOrder-b.sortOrder).forEach((field)=>{
+    configuredBlockFields("customer",settings.customerQuoteFields).forEach((field)=>{
       if(!ids[field.fieldKey] && grid){
         const label=document.createElement('label');label.dataset.customBuyerLabel='true';label.hidden=!field.visible;
         const caption=document.createElement('span');caption.textContent=`${field.zh} / ${field.en}`;
@@ -5697,6 +5770,28 @@
       label.hidden=!field.visible;
       const caption=label.querySelector("span"); if(caption)caption.textContent=`${field.zh} / ${field.en}${field.required?" *":""}`;
       if(grid)grid.appendChild(label);
+    });
+  }
+
+  function applyDocumentBasicFields() {
+    const grid=$("quote-number")?.closest(".form-grid");
+    if(!grid)return;
+    grid.querySelectorAll('[data-custom-basic-label]').forEach(label=>label.remove());
+    const ids={quoteNumber:"quote-number",quoteDate:"quote-date",validUntil:"valid-until",pdfLanguage:"pdf-language"};
+    configuredBlockFields("basic",[]).forEach(field=>{
+      if(ids[field.fieldKey]){
+        const input=$(ids[field.fieldKey]),label=input?.closest('label');
+        if(label){label.hidden=false;const caption=label.querySelector('span');if(caption)caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;grid.appendChild(label);}
+        return;
+      }
+      const label=document.createElement('label');label.dataset.customBasicLabel='true';
+      const caption=document.createElement('span');caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;
+      let input;
+      if(['select','dictionary'].includes(field.fieldType)){
+        input=document.createElement('select');(field.options||[]).filter(o=>o.visible!==false).sort((a,b)=>Number(a.sortOrder||0)-Number(b.sortOrder||0)).forEach(option=>{const el=document.createElement('option');el.value=option.value??'';el.textContent=option.labelZh||option.labelEn||option.value||'';input.appendChild(el);});
+      }else if(field.fieldType==='textarea') input=document.createElement('textarea');
+      else {input=document.createElement('input');input.type=field.fieldType==='date'?'date':field.fieldType==='checkbox'?'checkbox':field.fieldType==='number'||field.fieldType==='money'?'number':'text';}
+      input.dataset.basicCustom=field.fieldKey;const value=currentQuote.basicFields?.[field.fieldKey];if(input.type==='checkbox')input.checked=!!value;else input.value=value??'';label.append(caption,input);grid.append(label);
     });
   }
 
@@ -5742,18 +5837,15 @@
     if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${labelText(...numberLabel)}：${escapeHtml(currentQuote.quoteNumber)}${currentQuote.version?` V${currentQuote.version}`:""}</p>`);
     if (settings.showQuoteDateInPdf !== false) rows.push(`<p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p>`);
     if (currentQuote.documentType === 'quotation' && settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
+    configuredBlockFields("basic",[]).filter(field=>!['quoteNumber','quoteDate','validUntil','pdfLanguage'].includes(field.fieldKey)).forEach(field=>{
+      const value=currentQuote.basicFields?.[field.fieldKey];
+      if(value!==''&&value!=null&&value!==false)rows.push(`<p>${labelText(field.en,field.zh)}：${escapeHtml(value===true?'Yes':value)}</p>`);
+    });
     return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
   }
 
   function renderValidityRangePreview() {
-    if(['invoice','contract','commercial','packing'].includes(currentQuote.documentType))return '';
-    if (settings.showValidityRangeInPdfBottom === false) return "";
-    const text = currentQuote.validityRangeText
-      || [currentQuote.quoteDate, currentQuote.validUntil].filter(Boolean).join(" - ");
-    if (!text) return "";
-    const labelEn = settings.validityRangeLabelEn || "Quotation Validity";
-    const labelZh = settings.validityRangeLabelZh || "报价有效期";
-    return `<p><b>${labelText(labelEn, labelZh)}：</b>${escapeHtml(text)}</p>`;
+    return "";
   }
 
   function validateQuoteLines() {
@@ -5775,7 +5867,7 @@
         return false;
       }
       const itemCurrency=item.values?.currency||currentQuote.currency;
-      if(itemCurrency!==currentQuote.currency && !(currentQuote.exchangeRate?.sourceCurrency===itemCurrency&&Number(currentQuote.exchangeRate?.rate)>0)) { toast(`第 ${rowIndex+1} 行币种为 ${itemCurrency}，请填写换算为 ${currentQuote.currency} 的明确汇率。`); return false; }
+      if(itemCurrency!==currentQuote.currency && !(Number(currentQuote.exchangeRate?.rate)>0 && [currentQuote.exchangeRate?.sourceCurrency,currentQuote.exchangeRate?.targetCurrency].includes(itemCurrency) && [currentQuote.exchangeRate?.sourceCurrency,currentQuote.exchangeRate?.targetCurrency].includes(currentQuote.currency))) { toast(`第 ${rowIndex+1} 行币种为 ${itemCurrency}，请填写与 ${currentQuote.currency} 之间的明确汇率。`); return false; }
       for (const column of requiredColumns) {
         if ((item.kind || "product") !== "product" && ["condition","hsCode"].includes(column.key)) continue;
         if (column.key === "amount") continue;
@@ -5825,7 +5917,7 @@
         ${renderQuoteMetaPreview()}
       </section>
       <section class="preview-panel"><h3>${quoteSectionTitle("customer")}</h3><div class="preview-fields">${customerPreviewFields(currentQuote.buyer)}</div></section>
-      <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">报价未完整：存在待询价项目，可保存草稿，但不能生成正式单据。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${money(total(), settings.currency)}</div>` : ""}</section>
+      <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">报价未完整：存在待询价项目，可保存草稿，但不能生成正式单据。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${escapeHtml(dualMoneyText(total(), currentQuote.currency))}</div>` : ""}</section>
       ${showProductPhotos && currentQuote.photoAppendix ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product").flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || i.values.model || '')}</div></article>`)).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${quoteSectionTitle("terms")}</h3>${visibleTermFields.map((field) => `<p>${labelText(field.en, field.zh)}：${escapeHtml(displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
@@ -5947,6 +6039,17 @@
     if (!currentQuote.createdAt) currentQuote.createdAt = nowIso;
     currentQuote.updatedAt = nowIso;
     currentQuote.savedAt = nowIso;
+    currentQuote.templateSnapshot = structuredClone({
+      productTemplate: quoteProductTemplate(),
+      documentConfig: activeDocumentConfig(),
+      customerFields: configuredBlockFields("customer", settings.customerQuoteFields),
+      itemFields: quoteLineColumns(),
+      termFields: configuredBlockFields("terms", template().termFields || defaultTermFields),
+      currency: currentQuote.currency,
+      secondaryCurrency: currentQuote.secondaryCurrency,
+      currencyDisplay: currentQuote.currencyDisplay,
+      exchangeRate: currentQuote.exchangeRate
+    });
     if (!(formal && currentQuote.isFormal)) {
       const idx = quotes.findIndex((q) => q.id === currentQuote.id);
       if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
@@ -6267,8 +6370,8 @@
     $("save-settings-btn").addEventListener("click", saveSettings);
     $("backup-db-btn").addEventListener("click", backupDatabase);
     $("restore-db-btn").addEventListener("click", restoreDatabase);
-    $("export-data-btn").addEventListener("click", exportAllData);
-    $("import-data-btn").addEventListener("click", importData);
+    $("export-data-btn")?.addEventListener("click", exportAllData);
+    $("import-data-btn")?.addEventListener("click", importData);
     $("open-data-dir-btn").addEventListener("click", openDataFolder);
     $("refresh-admin-overview-btn")?.addEventListener("click", renderAdminOverview);
     $("logo-input").addEventListener("change", e => updateSettingsAsset(e.target, "logoDataUrl", "Logo uploaded. / Logo 已上传。"));
@@ -6317,7 +6420,8 @@
     $("buyer-country").addEventListener("change", applyBuyerCountryDialCode);
     $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
     $("buyer-phone").addEventListener("paste", pastePlainTextIntoInput);
-    $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); currentQuote.items = []; renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
+    $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); applyDocumentBasicFields(); applyCustomerQuoteFieldLabels(); renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
+    ["quote-currency","quote-currency-display","quote-secondary-currency","quote-fx-rate"].forEach(id=>$(id)?.addEventListener("change",()=>{collectQuoteFromForm();renderQuoteItems();renderPreview();}));
     $("quote-show-product-images")?.addEventListener("change", renderPreview);
     $("quote-items").addEventListener("input", (event) => {
       const row=event.target.closest(".quote-line");
@@ -6580,6 +6684,7 @@
     return ['bilingual','zh-fr','zh-es'].includes(mode)&&zh ? value+' / '+zh : value;
   }
   function renderDocumentLanguageEditor() {
+    if(!$('document-language-rows'))return;
     const mode=displayMode(),lang=mode==='bilingual'?'en':mode.replace('zh-','');
     const fields=[...(currentQuote.items||[]).filter(i=>(i.kind||'product')==='product').flatMap(i=>[['item:'+i.id+':description',(i.values.model||'商品')+' · 商品说明'],['item:'+i.id+':remark',(i.values.model||'商品')+' · 备注']]),...Object.keys(currentQuote.terms||{}).map(k=>['term:'+k,k])];
     $('document-language-rows').innerHTML=`<p>当前文案语言：${escapeHtml(lang)}，留空使用原有内容；双语模式可分别切换纯中文和外语填写。</p>`+fields.map(([key,label])=>`<label>${escapeHtml(label)}<textarea data-document-language="${escapeHtml(lang)}" data-document-text="${escapeHtml(key)}">${escapeHtml(currentQuote.translations?.[lang]?.[key]||'')}</textarea></label>`).join('');
@@ -6620,11 +6725,11 @@
     const shipment=['commercial','packing'].includes(currentQuote.documentType);
     $('packing-editor').hidden=currentQuote.documentType!=='packing';
     $('shipment-document-editor').hidden=!shipment;
-    $('quote-preview-image-control').hidden=true;
+    if($('quote-preview-image-control'))$('quote-preview-image-control').hidden=true;
     const host=$('quote-preview');
     host.querySelectorAll('.packing-summary,.packing-route,.document-related-order').forEach(el=>el.remove());
     const pendingPrices=currentQuote.items.some(item=>item.values?.unitPrice===''||item.values?.unitPrice==null);
-    const totalBox=host.querySelector('.preview-total');if(totalBox)totalBox.textContent=(pendingPrices?labelText('Priced items subtotal','已报价项目小计'):labelText('Total','总金额'))+': '+money(total(),currentQuote.currency||settings.currency);
+    const totalBox=host.querySelector('.preview-total');if(totalBox)totalBox.textContent=(pendingPrices?labelText('Priced items subtotal','已报价项目小计'):labelText('Total','总金额'))+': '+dualMoneyText(total(),currentQuote.currency||settings.currency);
     const incompleteNotice=host.querySelector('.quote-incomplete-warning');
     if(incompleteNotice)incompleteNotice.textContent=labelText('Draft quotation: some items are pending pricing and excluded from the subtotal.','报价草稿：部分项目价格待补，不计入小计。');
     const warning=host.querySelector('.quote-incomplete-warning');if(warning)warning.textContent=labelText('Incomplete quotation: prices are required before formal issue.','报价未完整：正式出具前请补齐价格。');
@@ -6645,13 +6750,11 @@
     if(heading && ['packing','commercial'].includes(currentQuote.documentType)) heading.textContent=documentTypeTitle();
     if(currentQuote.relatedOrderNumber){const p=document.createElement('p');p.className='document-related-order';p.textContent=labelText('Related order','关联订单')+': '+currentQuote.relatedOrderNumber;host.querySelector('.preview-meta')?.append(p);}
     $('quote-photo-appendix').checked=!!currentQuote.photoAppendix;
-    const zoom=$('quote-preview-zoom').value;
-    const split = matchMedia('(min-width:1000px)').matches;
     const available = Math.max(1, host.parentElement.clientWidth - 20);
-    host.style.zoom=zoom==='fit'?(split?String(Math.min(1,available/794)):''):zoom;
-    host.classList.toggle('document-actual-size',zoom!=='fit'||split);
+    host.style.zoom=String(Math.min(1,available/794));
+    host.classList.add('document-actual-size');
     const pure=['en','fr','es'].includes(displayMode());
-    $('document-language-warning').textContent=pure&&/[\u3400-\u9fff]/.test(host.innerText)?'检查提示：纯外语单据中仍有中文原始资料，请在各语言文案中补齐翻译后发送。':'';
+    if($('document-language-warning'))$('document-language-warning').textContent=pure&&/[\u3400-\u9fff]/.test(host.innerText)?'检查提示：纯外语单据中仍有中文原始资料，请在对应单证设置或正文中补齐翻译后发送。':'';
   }
   function syncDocumentEditor() {
     const type=currentQuote.documentType||'quotation';
@@ -6706,11 +6809,10 @@
     $('view-quote').addEventListener('input',scheduleDraftRecovery);
     $('view-quote').addEventListener('change',scheduleDraftRecovery);
     $('quote-items').addEventListener('click',()=>setTimeout(scheduleDraftRecovery,0));
-    $('document-language-editor').addEventListener('toggle',()=>{if($('document-language-editor').open)renderDocumentLanguageEditor();});
-    $('pdf-language').addEventListener('change',()=>{if($('document-language-editor').open)renderDocumentLanguageEditor();});
-    $('document-language-rows').addEventListener('input',event=>{const input=event.target;if(!input.dataset.documentText)return;currentQuote.translations||={};currentQuote.translations[input.dataset.documentLanguage]||={};currentQuote.translations[input.dataset.documentLanguage][input.dataset.documentText]=input.value;renderPreview();});
+    $('document-language-editor')?.addEventListener('toggle',()=>{if($('document-language-editor').open)renderDocumentLanguageEditor();});
+    $('pdf-language').addEventListener('change',()=>{if($('document-language-editor')?.open)renderDocumentLanguageEditor();});
+    $('document-language-rows')?.addEventListener('input',event=>{const input=event.target;if(!input.dataset.documentText)return;currentQuote.translations||={};currentQuote.translations[input.dataset.documentLanguage]||={};currentQuote.translations[input.dataset.documentLanguage][input.dataset.documentText]=input.value;renderPreview();});
     $('quote-photo-appendix').addEventListener('change',()=>{currentQuote.photoAppendix=$('quote-photo-appendix').checked;renderPreview();});
-    $('quote-preview-zoom').addEventListener('change',applyDocumentWorkspacePreview);
     new ResizeObserver(()=>{ if(currentQuote && $('quote-preview').offsetParent) applyDocumentWorkspacePreview(); }).observe($('quote-preview').parentElement);
     $('packing-editor').addEventListener('toggle',()=>{if($('packing-editor').open)renderPackingEditor();});
     $('packing-editor-rows').addEventListener('input',event=>{const input=event.target;if(!input.dataset.packingKey)return;currentQuote.packing||={};currentQuote.packing[input.dataset.packingItem]||={};currentQuote.packing[input.dataset.packingItem][input.dataset.packingKey]=input.value;renderPreview();});
@@ -6770,7 +6872,7 @@
     const status=$('quote-autosave-status').parentElement;
     status.classList.add('quote-draft-toolbar');
     document.querySelector('#view-quote .page-head').after(status);
-    document.querySelector('.quote-output-pane .split-pane-title').after($('document-output-options'));
+    // Output controls stay with the editor; preview uses all available width.
   }
 
   async function init() {
@@ -6792,6 +6894,7 @@
     initDocumentWorkspace();
     await loadCustomHsCodes();
     applyAuthLock();
+    window.AppLock?.configure(settings.applicationLock || defaultSettings.applicationLock);
     window.GlobalFreightCalculator?.mount?.({getTarget:activeFreightTarget,apply:applyFreightResult});
   }
 
