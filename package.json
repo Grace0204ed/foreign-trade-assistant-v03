@@ -42,7 +42,6 @@
       "crm/**/*",
       "assets/**/*",
       "server/**/*",
-      "!server/vehicle-quotes.js",
       "electron/**/*",
       "package.json"
     ],

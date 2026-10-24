@@ -1195,6 +1195,8 @@
     const en = field.en || field.englishName || field.labelEn || `Field ${index + 1}`;
     const zh = field.zh || field.chineseName || field.labelZh || en;
     return {
+      id: field.id || `field-${fieldKeyOf(field)}`,
+      parentId: field.parentId || "",
       zh,
       en,
       fieldKey: fieldKeyOf(field),
@@ -1204,7 +1206,9 @@
       sortOrder: Number(field.sortOrder ?? (index + 1) * 10),
       active: field.active !== false,
       system: !!field.system,
-      options: Array.isArray(field.options) ? field.options : []
+      defaultValue: field.defaultValue ?? "",
+      options: Array.isArray(field.options) ? field.options : [],
+      deletedAt: field.deletedAt || ""
     };
   }
 
@@ -1229,7 +1233,7 @@
       productTemplateId: tpl.productTemplateId || "",
       fields: (tpl.fields || [])
         .map(normalizeField)
-        .filter((field) => !["freight", "truckingToPort"].includes(field.fieldKey))
+        .filter((field) => !field.deletedAt && !["freight", "truckingToPort"].includes(field.fieldKey))
         .sort((a, b) => a.sortOrder - b.sortOrder),
       termFields: termFields.sort((a, b) => a.sortOrder - b.sortOrder)
     };
@@ -1273,7 +1277,7 @@
 
   const userModules = [
     ["home","首页"],["crm","客户跟进"],["quote","新建报价"],["invitation","邀请函"],["agency","授权代理"],
-    ["history","历史记录"],["products","产品库"],["freight","运费查询"],["help","帮助"]
+    ["history","历史记录"],["products","产品库"],["help","帮助"]
   ];
 
   const hsCodeLibrary = [
@@ -1369,6 +1373,13 @@
   }
 
   function organizeManagementModules() {
+    // Retired fixed new-vehicle quotation/category interfaces are removed from
+    // the live application. Historical standard documents remain readable.
+    document.querySelector('.legacy-quote-settings')?.remove();
+    $("category-modal")?.remove();
+    $("view-vehicle-quote")?.remove();
+    $("view-vehicle-admin")?.remove();
+    $("vehicle-quote-workspace-host")?.remove();
     const oldDataView = $("view-data");
     const settingsDataHost = $("settings-data-host");
     if (oldDataView && settingsDataHost) {
@@ -1557,62 +1568,15 @@
     return !!category && !costIds.has(category.id) && !costIds.has(category.parentId);
   }
 
-  // The fixed new-vehicle editor is retained only for rendering historical records.
-  let activeQuoteBusiness = "standard";
-
-  function setupUnifiedQuoteWorkspace() {
-    const vehicleView = $("view-vehicle-quote");
-    const host = $("vehicle-quote-workspace-host");
-    if (vehicleView && host && vehicleView.parentElement !== host) {
-      host.appendChild(vehicleView);
-      vehicleView.classList.add("embedded-vehicle-quote");
-    }
-    if(vehicleView) vehicleView.hidden=true;
-    if(host) host.hidden=true;
-    localStorage.setItem("fta-quote-business","standard");
-  }
-
-  function setQuoteBusiness(mode = "standard") {
-    setupUnifiedQuoteWorkspace();
-    activeQuoteBusiness = "standard";
-    localStorage.setItem("fta-quote-business", activeQuoteBusiness);
-    const vehicle = activeQuoteBusiness === "vehicle";
-    document.querySelector('.quote-split-workspace')?.classList.toggle('is-vehicle', vehicle);
-    $("quote-business-standard")?.classList.toggle("primary", !vehicle);
-    $("quote-business-vehicle")?.classList.toggle("primary", vehicle);
-    ["quote-standard-detail-panel", "quote-preview", "standard-quote-actions"].forEach(id => { if ($(id)) $(id).hidden = vehicle; });
-    if ($("quote-standard-terms-panel")) $("quote-standard-terms-panel").hidden = false;
-    if ($("vehicle-quote-workspace-host")) $("vehicle-quote-workspace-host").hidden = !vehicle;
-    if ($("view-vehicle-quote")) {
-      $("view-vehicle-quote").classList.toggle("active", vehicle);
-      $("view-vehicle-quote").hidden = !vehicle;
-    }
-    if ($("vq-common-panel")) $("vq-common-panel").hidden = true;
-    if ($("vq-terms-panel")) $("vq-terms-panel").hidden = true;
-    const templateLabel = $("quote-template")?.closest("label");
-    if (templateLabel) templateLabel.hidden = vehicle;
-    if (vehicle) window.vehicleQuoteApp?.importShared?.();
-    else renderQuoteEditor();
-  }
-
-  function openQuoteBusiness(mode = "standard") {
-    activeQuoteBusiness = mode === "vehicle" ? "vehicle" : "standard";
-    switchView("quote");
-  }
   function newSharedQuote() {
-    const mode = activeQuoteBusiness;
     newQuote(true, currentQuote?.documentType || "quotation");
-    setQuoteBusiness(mode);
   }
-  window.quoteBusiness = { show:setQuoteBusiness, open:openQuoteBusiness, newShared:newSharedQuote, get active(){ return activeQuoteBusiness; } };
+  window.quoteBusiness = { newShared:newSharedQuote };
 
   async function renderAdminOverview(){if(!isAdmin()||!$("admin-data-counts"))return;try{const data=await api("/api/admin/overview"),labels={customers:"客户",products:"产品",quotations:"普通报价",followUps:"跟进记录"},allowed=Object.keys(labels);$("admin-data-counts").innerHTML=Object.entries(data.counts||{}).filter(([key])=>allowed.includes(key)).map(([key,value])=>`<div><b>${Number(value).toLocaleString()}</b><span>${labels[key]}</span></div>`).join("");$("admin-audit-list").innerHTML=(data.audits||[]).map(x=>`<tr><td>${escapeHtml(x.created_at||"")}</td><td>${escapeHtml(x.action||"")}</td><td>${escapeHtml(`${x.entity_type||""} ${x.entity_id||""}`)}</td><td>${escapeHtml(x.reason||"")}</td></tr>`).join("")||'<tr><td colspan="4">暂无审计记录</td></tr>';}catch(e){toast(e.message);}}
 
   function switchView(name, options = {}) {
-    if (name === "vehicle-quote") {
-      name = "quote";
-      activeQuoteBusiness = "vehicle";
-    }
+    if (name === "vehicle-quote") name = "quote";
     if (!currentUser && name !== "login") {
       ensureLoginView();
       name = "login";
@@ -1643,7 +1607,6 @@
     if (name === "data") renderAdminOverview();
     if (name === "quote") {
       renderQuoteEditor();
-      setQuoteBusiness(activeQuoteBusiness);
     }
     if (name === "invitation") renderInvitationEditor();
     if (name === "agency") renderAgentAuthorizationEditor();
@@ -1737,9 +1700,8 @@
     ensureUserManagerPanel();
     ensureContactFieldsPanel();
     ensureBankFieldsPanel();
-    ensureQuoteLineSettingsPanel();
-    ensureCustomerQuoteSettingsPanel();
-    ensureTermsSettingsPanel();
+    // Field, customer and trade-term configuration now lives inside each
+    // document's own settings page. Do not recreate the retired shared panels.
     normalizeContactFields();
     normalizeBankFields();
     normalizeCustomerQuoteFields();
@@ -1756,7 +1718,6 @@
       if (input.type === "checkbox") input.checked = settings[input.dataset.setting] !== false;
       else input.value = settings[input.dataset.setting] || "";
     });
-    renderCategoryList();
     renderBankFields();
     renderCustomerQuoteFields();
     renderPaymentQrFields();
@@ -1764,8 +1725,6 @@
     renderCurrencies();
     renderTradeTerms();
     renderDocumentTypes();
-    renderTemplateSelect();
-    fillTemplateForm(settings.templates[0]?.name);
     $("logo-preview").src = settings.logoDataUrl || "";
     $("logo-preview").hidden = !settings.logoDataUrl;
     $("background-preview").src = settings.backgroundDataUrl || defaultBg;
@@ -2054,8 +2013,7 @@
         <tbody id="contact-field-list"></tbody>
       </table>
     `;
-    const companyPanel = document.querySelector("#view-settings .panel");
-    companyPanel?.after(panel);
+    $("company-profile-panel")?.after(panel);
   }
 
   function ensureBankFieldsPanel() {
@@ -3097,7 +3055,7 @@
       .filter((c) => c.visible !== false && isProductCategory(c))
       .map((c) => `<option value="${escapeHtml(categoryLabel(c))}">${escapeHtml(categoryFullLabel(c))}</option>`)
       .join("");
-    $("product-category").innerHTML = catOptions;
+    if($("product-category")) $("product-category").innerHTML = catOptions;
     if ($("product-template")) {
       $("product-template").innerHTML = settings.templates.map((tpl) => `<option value="${escapeHtml(tpl.name)}">${escapeHtml(tpl.name)}</option>`).join("");
       if (!editingProductId && $("product-dynamic-fields")) renderProductDynamicFields();
@@ -3142,9 +3100,6 @@
       }
       renderAllSelectors();
       renderProducts();
-      renderPorts();
-      renderFreightRates();
-      renderCountryRoutes();
     } catch (error) {
       toast(error.message);
     }
@@ -3703,7 +3658,7 @@
     const manual=manualFreightSnapshot();
     if(manual&&(!lastFreightCalculation||looseNumber($("calc-amount").value)!==Number(lastFreightCalculation.freightAmount)))lastFreightCalculation=manual;
     if (!lastFreightCalculation) return toast("请先自动计算运费，或者直接在“海运费”框中输入总金额。");
-    $("freight-import-modal").hidden=false;
+    if(confirm(`确认把 ${lastFreightCalculation.currency||"USD"} ${Number(lastFreightCalculation.freightAmount||0).toLocaleString()} 填入当前单证的海运费字段？`)) importFreightToUsed();
   }
   function importFreightToUsed(){
     if(!lastFreightCalculation)return;
@@ -3844,7 +3799,7 @@
     const fields = (tpl?.fields || [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .filter((field) => field.visible && field.fieldType !== "calculated" && field.fieldType !== "image");
+      .filter((field) => !field.deletedAt && field.active !== false && field.fieldType !== "calculated" && field.fieldType !== "image");
     host.innerHTML = fields.map((field) => `
       <label class="${field.fieldType === "textarea" ? "wide" : ""}">
         <span>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}${field.required ? " *" : ""}</span>
@@ -3860,6 +3815,17 @@
     if (field.fieldType === "textarea") return `<textarea data-product-field="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-product-field="${key}" type="date" value="${val}" />`;
     if (field.fieldType === "number" || field.fieldType === "money") return `<input data-product-field="${key}" type="number" value="${val}" />`;
+    if (field.fieldType === "checkbox") return `<input data-product-field="${key}" type="checkbox" ${value===true||value==='true'?'checked':''} />`;
+    if (["select","dictionary","hierarchy"].includes(field.fieldType)) {
+      const options=(field.options||[]).filter(option=>option.active!==false);
+      const optionDepth=(option)=>{let depth=0,parent=option.parentId,guard=0;while(parent&&guard++<20){depth+=1;parent=options.find(item=>item.id===parent)?.parentId||'';}return depth;};
+      return `<select data-product-field="${key}"><option value="">请选择</option>${options.map(option=>`<option value="${escapeHtml(option.value)}" ${String(value)===String(option.value)?'selected':''}>${'　'.repeat(optionDepth(option))}${escapeHtml(option.labelZh||option.value)} / ${escapeHtml(option.labelEn||option.value)}</option>`).join('')}</select>`;
+    }
+    if (field.fieldType === "combobox") {
+      const listId=`product-options-${key}`;
+      return `<input data-product-field="${key}" list="${listId}" value="${val}" /><datalist id="${listId}">${(field.options||[]).filter(option=>option.active!==false).map(option=>`<option value="${escapeHtml(option.value)}">${escapeHtml(option.labelZh||option.value)}</option>`).join('')}</datalist>`;
+    }
+    if (field.fieldType === "multiselect") return `<select data-product-field="${key}" multiple>${(field.options||[]).filter(option=>option.active!==false).map(option=>`<option value="${escapeHtml(option.value)}" ${String(value).split(',').includes(String(option.value))?'selected':''}>${escapeHtml(option.labelZh||option.value)}</option>`).join('')}</select>`;
     return `<input data-product-field="${key}" type="text" value="${val}" />`;
   }
 
@@ -3919,10 +3885,10 @@
 
   function collectProductForm() {
     const values = {};
-    document.querySelectorAll("[data-product-field]").forEach((input) => values[input.dataset.productField] = input.value);
+    document.querySelectorAll("[data-product-field]").forEach((input) => values[input.dataset.productField] = input.multiple?[...input.selectedOptions].map(option=>option.value).join(','):input.type==='checkbox'?input.checked:input.value);
     return {
       id: editingProductId || uid("product"),
-      category: $("product-category").value,
+      category: $("product-template")?.value || "",
       templateName: $("product-template")?.value || settings.templates[0]?.name || "",
       values,
       brand: values.brand || "",
@@ -3976,7 +3942,7 @@
     if (!p) return;
     normalizeCategories();
     editingProductId = p.id;
-    $("product-category").value = p.category || categoryLabel(settings.categories[0]);
+    if($("product-category")) $("product-category").value = p.category || categoryLabel(settings.categories[0]);
     if ($("product-template")) $("product-template").value = p.templateName || settings.templates[0]?.name || "";
     renderProductDynamicFields(p);
     $("product-image-preview").src = p.imageDataUrl || "";
@@ -4413,7 +4379,7 @@
     if (!currentUser) return;
     if (quoteId) {
       currentQuote=serverQuotationToLocal(await api(`/api/quotations/${quoteId}`));
-      switchView("quote");setQuoteBusiness("standard");bindQuoteToForm();renderQuoteItems();renderPreview();
+      switchView("quote");bindQuoteToForm();renderQuoteItems();renderPreview();
       history.replaceState({},"","/");toast(`已打开报价：${currentQuote.quoteNumber}`);return;
     }
     if (!customerId) return;
@@ -5008,9 +4974,9 @@
     const snapshotKey={customer:"customerFields",items:"itemFields",terms:"termFields"}[block];
     const snapshotted=currentQuote?.isFormal && snapshotKey ? currentQuote.templateSnapshot?.[snapshotKey] : null;
     const configured = snapshotted || activeDocumentConfig()?.blocks?.[block];
-    return (Array.isArray(configured) && configured.length ? configured : fallback)
+    return (Array.isArray(configured) ? configured : fallback)
       .map(normalizeField)
-      .filter((field) => field.visible !== false && field.active !== false)
+      .filter((field) => !field.deletedAt && field.visible !== false && field.active !== false)
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
   }
 
@@ -5081,13 +5047,21 @@
       email: $("buyer-email").value,
       address: $("buyer-address").value
     };
+    currentQuote.basicFields = {...(currentQuote.basicFields || {})};
+    document.querySelectorAll('[data-basic-custom]').forEach((input) => {
+      currentQuote.basicFields[input.dataset.basicCustom] = input.type === 'checkbox' ? input.checked : input.value;
+    });
     document.querySelectorAll('[data-buyer-custom]').forEach(input=>currentQuote.buyer[input.dataset.buyerCustom]=input.value);
     currentQuote.terms = {...currentQuote.terms};
     document.querySelectorAll("[data-termfield]").forEach((input) => currentQuote.terms[input.dataset.termfield] = input.value);
     const lineRows = Array.from(document.querySelectorAll(".quote-line"));
     currentQuote.items = lineRows.length ? lineRows.map((row) => {
       const values = {...currentQuote.items.find(item=>item.id===row.dataset.id)?.values};
-      row.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
+      row.querySelectorAll("[data-qfield]").forEach((input) => {
+        values[input.dataset.qfield] = input.multiple
+          ? [...input.selectedOptions].map((option) => option.value).join(",")
+          : input.type === "checkbox" ? input.checked : input.value;
+      });
       let freightSnapshot = null;
       try { freightSnapshot = row.dataset.freightSnapshot ? JSON.parse(decodeURIComponent(row.dataset.freightSnapshot)) : null; } catch { freightSnapshot = null; }
       return {
@@ -5100,7 +5074,11 @@
       };
     }) : Array.from(document.querySelectorAll(".quote-item")).map((card) => {
       const values = {};
-      card.querySelectorAll("[data-qfield]").forEach((input) => values[input.dataset.qfield] = input.value);
+      card.querySelectorAll("[data-qfield]").forEach((input) => {
+        values[input.dataset.qfield] = input.multiple
+          ? [...input.selectedOptions].map((option) => option.value).join(",")
+          : input.type === "checkbox" ? input.checked : input.value;
+      });
       let freightSnapshot = null;
       try { freightSnapshot = card.dataset.freightSnapshot ? JSON.parse(decodeURIComponent(card.dataset.freightSnapshot)) : null; } catch { freightSnapshot = null; }
       return { id: card.dataset.id, kind: card.dataset.kind || "product", additionalImages: currentQuote.items.find(item => item.id === card.dataset.id)?.additionalImages || [], values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
@@ -5185,10 +5163,7 @@
           return { key, labelZh:key==="description"?"商品信息 / 产品描述":field.zh, labelEn:key==="description"?"Product Description":field.en, type:field.fieldType, ...field, fieldKey:key };
         }).filter((field,index,array)=>array.findIndex(item=>item.fieldKey===field.fieldKey)===index)
       : configuredBlockFields("items", settings.quoteLineColumns).map((field) => ({ key:field.fieldKey, labelZh:field.zh, labelEn:field.en, type:field.fieldType, ...field }));
-    const requiredSystem = defaultQuoteLineColumns.filter((field) => ["itemType","description","qty","billingUnit","unitPrice","amount","image","remark"].includes(field.key));
-    const merged = [...source];
-    requiredSystem.forEach((field) => { if (!merged.some((item) => (item.key || item.fieldKey) === field.key)) merged.push({...field}); });
-    return merged
+    return source
       .slice()
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
       .filter((column) => column.visible !== false && column.active !== false && (column.key || column.fieldKey) !== "condition")
@@ -5217,10 +5192,15 @@
     if (column.key === "amount") return `<span class="line-amount">${values.unitPrice===""||values.unitPrice==null?"待询价":escapeHtml(dualMoneyText(itemSubtotal(item), values.currency || currentQuote.currency || settings.currency))}</span>`;
     if (column.key === "image") return `<div class="line-image-box"><img src="${item.imageDataUrl || ""}" alt=""${item.imageDataUrl ? "" : " hidden"} /><span${item.imageDataUrl ? " hidden" : ""}>尚未上传</span></div>`;
     if (column.key === "remark") return `<input data-qfield="remark" value="${escapeHtml(values.remark || "")}"${required} />`;
-    if (["select","dictionary"].includes(column.fieldType || column.type) && Array.isArray(column.options)) {
-      const options=column.options.filter(option=>option.visible!==false);
-      return `<select data-qfield="${key}"${required}><option value="">请选择</option>${options.map(option=>{const value=String(option.value??option.labelZh??option.zh??"");const label=labelText(option.labelEn||option.en||value,option.labelZh||option.zh||value);return `<option value="${escapeHtml(value)}"${String(values[column.key]??"")===value?" selected":""}>${escapeHtml(label)}</option>`;}).join("")}</select>`;
+    if (["select","dictionary","hierarchy"].includes(column.fieldType || column.type) && Array.isArray(column.options)) {
+      const options=column.options.filter(option=>option.active!==false);
+      const optionDepth=(option)=>{let depth=0,parent=option.parentId,guard=0;while(parent&&guard++<20){depth+=1;parent=options.find(item=>item.id===parent)?.parentId||'';}return depth;};
+      return `<select data-qfield="${key}"${required}><option value="">请选择</option>${options.map(option=>{const value=String(option.value??option.labelZh??option.zh??"");const label=labelText(option.labelEn||option.en||value,option.labelZh||option.zh||value);return `<option value="${escapeHtml(value)}"${String(values[column.key]??"")===value?" selected":""}>${'　'.repeat(optionDepth(option))}${escapeHtml(label)}</option>`;}).join("")}</select>`;
     }
+    if ((column.fieldType || column.type) === "combobox") { const listId=`quote-options-${escapeHtml(item.id)}-${key}`; return `<input data-qfield="${key}" list="${listId}" value="${escapeHtml(values[column.key]||"")}"${required}><datalist id="${listId}">${(column.options||[]).filter(option=>option.active!==false).map(option=>`<option value="${escapeHtml(option.value??option.labelZh??"")}">${escapeHtml(option.labelZh||option.value||"")}</option>`).join("")}</datalist>`; }
+    if ((column.fieldType || column.type) === "multiselect") { const selected=Array.isArray(values[column.key])?values[column.key]:String(values[column.key]||"").split(',').filter(Boolean); return `<select data-qfield="${key}" multiple${required}>${(column.options||[]).filter(option=>option.active!==false).map(option=>{const value=String(option.value??option.labelZh??"");return `<option value="${escapeHtml(value)}"${selected.includes(value)?" selected":""}>${escapeHtml(labelText(option.labelEn||value,option.labelZh||value))}</option>`;}).join("")}</select>`; }
+    if ((column.fieldType || column.type) === "checkbox") return `<input data-qfield="${key}" type="checkbox" ${values[column.key]===true||values[column.key]==='true'?'checked':''}${required}>`;
+    if ((column.fieldType || column.type) === "date") return `<input data-qfield="${key}" type="date" value="${escapeHtml(values[column.key]||"")}"${required}>`;
     if ((column.fieldType || column.type) === "textarea") return `<textarea data-qfield="${key}"${required}>${escapeHtml(values[column.key] || "")}</textarea>`;
     if (["number","money"].includes(column.fieldType || column.type)) return `<input data-qfield="${key}" type="number" step="any" value="${escapeHtml(values[column.key] ?? "")}"${required} />`;
     return `<input data-qfield="${key}" value="${escapeHtml(values[column.key] || "")}"${required} />`;
@@ -5324,16 +5304,13 @@
   function renderFieldInput(field, value) {
     const key = escapeHtml(field.fieldKey);
     const val = escapeHtml(value);
-    if (field.fieldKey === "productType") return renderCategorySelect(field.fieldKey, value);
     if (field.fieldType === "textarea") return `<textarea data-qfield="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-qfield="${key}" type="date" value="${val}" />`;
     if (field.fieldType === "number" || field.fieldType === "money") return `<input data-qfield="${key}" type="number" value="${val}" />`;
-    if (field.fieldType === "select") {
-      const options = field.fieldKey === "currency"
-        ? settings.currencies
-        : ["Option 1", "Option 2"];
-      return `<select data-qfield="${key}">${options.map((option) => `<option value="${option}"${option === value ? " selected" : ""}>${option}</option>`).join("")}</select>`;
-    }
+    if (["select","dictionary","hierarchy"].includes(field.fieldType)) { const options=field.fieldKey==='currency'?(settings.currencies||[]).map(item=>({value:item,labelZh:item,labelEn:item})):(field.options||[]).filter(option=>option.active!==false); const optionDepth=(option)=>{let depth=0,parent=option.parentId,guard=0;while(parent&&guard++<20){depth+=1;parent=options.find(item=>item.id===parent)?.parentId||'';}return depth;}; return `<select data-qfield="${key}"><option value="">请选择</option>${options.map(option=>{const optionValue=String(option.value??option);return `<option value="${escapeHtml(optionValue)}"${optionValue===String(value)?' selected':''}>${'　'.repeat(optionDepth(option))}${escapeHtml(option.labelZh||optionValue)}</option>`;}).join('')}</select>`; }
+    if (field.fieldType === "combobox") { const listId=`field-options-${key}`; return `<input data-qfield="${key}" list="${listId}" value="${val}"><datalist id="${listId}">${(field.options||[]).filter(option=>option.active!==false).map(option=>`<option value="${escapeHtml(option.value)}">${escapeHtml(option.labelZh||option.value)}</option>`).join('')}</datalist>`; }
+    if (field.fieldType === "multiselect") { const selected=String(value||'').split(',').filter(Boolean); return `<select data-qfield="${key}" multiple>${(field.options||[]).filter(option=>option.active!==false).map(option=>`<option value="${escapeHtml(option.value)}"${selected.includes(String(option.value))?' selected':''}>${escapeHtml(option.labelZh||option.value)}</option>`).join('')}</select>`; }
+    if (field.fieldType === "checkbox") return `<input data-qfield="${key}" type="checkbox" ${value===true||value==='true'?'checked':''}>`;
     return `<input data-qfield="${key}" type="text" value="${val}" />`;
   }
 
@@ -5759,6 +5736,7 @@
     const ids={company:"buyer-company",country:"buyer-country",contact:"buyer-contact",phone:"buyer-phone",email:"buyer-email",address:"buyer-address"};
     const grid=$("buyer-company")?.closest(".form-grid");
     grid?.querySelectorAll('[data-custom-buyer-label]').forEach(label=>label.remove());
+    Object.values(ids).forEach((id)=>{const label=$(id)?.closest('label');if(label)label.hidden=true;});
     configuredBlockFields("customer",settings.customerQuoteFields).forEach((field)=>{
       if(!ids[field.fieldKey] && grid){
         const label=document.createElement('label');label.dataset.customBuyerLabel='true';label.hidden=!field.visible;
@@ -5778,6 +5756,7 @@
     if(!grid)return;
     grid.querySelectorAll('[data-custom-basic-label]').forEach(label=>label.remove());
     const ids={quoteNumber:"quote-number",quoteDate:"quote-date",validUntil:"valid-until",pdfLanguage:"pdf-language"};
+    Object.values(ids).forEach((id)=>{const label=$(id)?.closest('label');if(label)label.hidden=true;});
     configuredBlockFields("basic",[]).forEach(field=>{
       if(ids[field.fieldKey]){
         const input=$(ids[field.fieldKey]),label=input?.closest('label');
@@ -5833,12 +5812,9 @@
 
   function renderQuoteMetaPreview() {
     const rows = [];
-    const numberLabel=({contract:['Contract No.','合同编号'],invoice:['Invoice No.','发票编号'],commercial:['Invoice No.','发票编号'],packing:['Packing List No.','装箱单编号']})[currentQuote.documentType]||['Quotation No.','报价编号'];
-    if (settings.showQuoteNumberInPdf !== false) rows.push(`<p>${labelText(...numberLabel)}：${escapeHtml(currentQuote.quoteNumber)}${currentQuote.version?` V${currentQuote.version}`:""}</p>`);
-    if (settings.showQuoteDateInPdf !== false) rows.push(`<p>${labelText("Date", "日期")}：${escapeHtml(currentQuote.quoteDate)}</p>`);
-    if (currentQuote.documentType === 'quotation' && settings.showValidUntilInPdfTop !== false) rows.push(`<p>${labelText("Valid Until", "有效期至")}：${escapeHtml(currentQuote.validUntil)}</p>`);
-    configuredBlockFields("basic",[]).filter(field=>!['quoteNumber','quoteDate','validUntil','pdfLanguage'].includes(field.fieldKey)).forEach(field=>{
-      const value=currentQuote.basicFields?.[field.fieldKey];
+    const values={quoteNumber:currentQuote.quoteNumber,quoteDate:currentQuote.quoteDate,validUntil:currentQuote.validUntil,...(currentQuote.basicFields||{})};
+    configuredBlockFields("basic",[]).filter(field=>field.fieldKey!=='pdfLanguage').forEach(field=>{
+      const value=values[field.fieldKey];
       if(value!==''&&value!=null&&value!==false)rows.push(`<p>${labelText(field.en,field.zh)}：${escapeHtml(value===true?'Yes':value)}</p>`);
     });
     return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
@@ -5929,8 +5905,18 @@
     }
     renderDocumentLayout(visibleTermFields);
     applyDocumentWorkspacePreview();
-    const designer=(settings.documentDesignerTemplates||[]).find(item=>item.documentType===currentQuote.documentType&&item.active!==false);
+    const designer=activeDocumentConfig()?.designer||(settings.documentDesignerTemplates||[]).find(item=>item.documentType===currentQuote.documentType&&item.active!==false);
     if(designer) window.DocumentDesigner?.apply?.($("quote-preview"),designer);
+    const design=(currentQuote?.isFormal?currentQuote.templateSnapshot?.documentConfig:null)?.design||activeDocumentConfig()?.design||{};
+    const preview=$("quote-preview");
+    preview.dataset.pageOrientation=design.orientation||'portrait';
+    preview.classList.toggle('document-landscape',design.orientation==='landscape');
+    if(design.backgroundDataUrl){
+      const opacity=Math.max(0,Math.min(1,Number(design.backgroundOpacity??.12))),overlay=Math.max(0,Math.min(1,Number(design.overlay??.82)));
+      preview.style.backgroundImage=`linear-gradient(rgba(255,255,255,${overlay}),rgba(255,255,255,${overlay})),url("${String(design.backgroundDataUrl).replaceAll('"','%22')}")`;
+      preview.style.backgroundSize=design.backgroundMode==='stretch'?'100% 100%':design.backgroundMode||'cover';
+      preview.style.backgroundRepeat='repeat-y';preview.style.backgroundPosition='top center';preview.style.setProperty('--document-background-opacity',String(opacity));
+    }else{preview.style.backgroundImage='';preview.style.backgroundSize='';preview.style.backgroundRepeat='';preview.style.backgroundPosition='';}
   }
 
   function activeFreightTarget() {
@@ -6152,7 +6138,6 @@
   async function editQuote(id) {
     currentQuote = serverQuotationToLocal(await api(`/api/quotations/${id}`));
     switchView("quote");
-    setQuoteBusiness("standard");
     bindQuoteToForm();
     renderQuoteItems();
     closeProductPicker();
@@ -6180,7 +6165,6 @@
     q.savedAt = "";
     currentQuote = q;
     switchView("quote");
-    setQuoteBusiness("standard");
     bindQuoteToForm();
     renderQuoteItems();
     renderPreview();
@@ -6296,15 +6280,8 @@
   }
 
   function bindEvents() {
-    window.addEventListener("wheel", (event) => {
-      if (!event.ctrlKey || !window.quotationDesktop?.adjustZoom) return;
-      event.preventDefault();
-      window.quotationDesktop.adjustZoom(event.deltaY < 0 ? 1 : -1);
-    }, { passive: false });
     document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
     document.querySelectorAll("[data-view-target]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.viewTarget)));
-    $("quote-business-standard")?.addEventListener("click", () => setQuoteBusiness("standard"));
-    $("quote-business-vehicle")?.addEventListener("click", () => setQuoteBusiness("vehicle"));
     $("recognize-customer-text-btn")?.addEventListener("click",recognizeCustomerText);
     $("quote-customer")?.addEventListener("change", async () => {
       const id = $("quote-customer").value;
@@ -6323,7 +6300,6 @@
         Object.entries(values).forEach(([field, value]) => { if ($(field)) $(field).value = value || ""; });
         collectQuoteFromForm();
         renderPreview();
-        window.vehicleQuoteApp?.importShared?.();
       } catch (error) { toast(error.message); }
     });
     $("global-back-btn").addEventListener("click", goBackInsideApp);
@@ -6335,7 +6311,7 @@
     document.querySelectorAll(".settings-tab").forEach((button) => {
       button.addEventListener("click", () => showSettingsSection(button.dataset.settingsSection));
     });
-    $("template-select").addEventListener("change", () => fillTemplateForm());
+    $("template-select")?.addEventListener("change", () => fillTemplateForm());
     $("category-config-select")?.addEventListener("change", () => fillTemplateForm());
     $("category-condition-select")?.addEventListener("change", () => fillTemplateForm());
     $("category-field-library")?.addEventListener("click", (event) => {
@@ -6348,29 +6324,29 @@
       }
       resequenceFields(fields); renderFieldList(); renderCategoryFieldLibrary();
     });
-    $("save-template-btn").addEventListener("click", saveTemplate);
-    $("delete-template-btn").addEventListener("click", deleteTemplate);
-    $("add-category-btn").addEventListener("click", () => openCategoryModal(-1));
+    $("save-template-btn")?.addEventListener("click", saveTemplate);
+    $("delete-template-btn")?.addEventListener("click", deleteTemplate);
+    $("add-category-btn")?.addEventListener("click", () => openCategoryModal(-1));
     $("quick-add-product-category")?.addEventListener("click",()=>{quickCategoryForProduct=true;openCategoryModal(-1);});
-    $("close-category-modal-btn").addEventListener("click", closeCategoryModal);
-    $("save-category-btn").addEventListener("click", saveCategoryFromModal);
-    $("category-list").addEventListener("click", handleCategoryListClick);
-    $("category-list").addEventListener("dragstart", handleCategoryDragStart);
-    $("category-list").addEventListener("dragover", (e) => e.preventDefault());
-    $("category-list").addEventListener("drop", handleCategoryDrop);
-    $("add-field-btn").addEventListener("click", () => openFieldModal(-1));
-    $("add-term-field-btn").addEventListener("click", () => openFieldModal(-1, "terms"));
-    $("close-field-modal-btn").addEventListener("click", closeFieldModal);
-    $("save-field-btn").addEventListener("click", saveFieldFromModal);
-    $("template-field-list").addEventListener("click", handleFieldListClick);
-    $("template-field-list").addEventListener("dragstart", handleFieldDragStart);
-    $("template-field-list").addEventListener("dragover", (e) => e.preventDefault());
-    $("template-field-list").addEventListener("drop", handleFieldDrop);
-    $("template-term-field-list").addEventListener("click", handleFieldListClick);
-    $("template-term-field-list").addEventListener("dragstart", handleFieldDragStart);
-    $("template-term-field-list").addEventListener("dragover", (e) => e.preventDefault());
-    $("template-term-field-list").addEventListener("drop", handleFieldDrop);
-    $("save-settings-btn").addEventListener("click", saveSettings);
+    $("close-category-modal-btn")?.addEventListener("click", closeCategoryModal);
+    $("save-category-btn")?.addEventListener("click", saveCategoryFromModal);
+    $("category-list")?.addEventListener("click", handleCategoryListClick);
+    $("category-list")?.addEventListener("dragstart", handleCategoryDragStart);
+    $("category-list")?.addEventListener("dragover", (e) => e.preventDefault());
+    $("category-list")?.addEventListener("drop", handleCategoryDrop);
+    $("add-field-btn")?.addEventListener("click", () => openFieldModal(-1));
+    $("add-term-field-btn")?.addEventListener("click", () => openFieldModal(-1, "terms"));
+    $("close-field-modal-btn")?.addEventListener("click", closeFieldModal);
+    $("save-field-btn")?.addEventListener("click", saveFieldFromModal);
+    $("template-field-list")?.addEventListener("click", handleFieldListClick);
+    $("template-field-list")?.addEventListener("dragstart", handleFieldDragStart);
+    $("template-field-list")?.addEventListener("dragover", (e) => e.preventDefault());
+    $("template-field-list")?.addEventListener("drop", handleFieldDrop);
+    $("template-term-field-list")?.addEventListener("click", handleFieldListClick);
+    $("template-term-field-list")?.addEventListener("dragstart", handleFieldDragStart);
+    $("template-term-field-list")?.addEventListener("dragover", (e) => e.preventDefault());
+    $("template-term-field-list")?.addEventListener("drop", handleFieldDrop);
+    $("save-settings-btn")?.addEventListener("click", saveSettings);
     $("backup-db-btn").addEventListener("click", backupDatabase);
     $("restore-db-btn").addEventListener("click", restoreDatabase);
     $("export-data-btn")?.addEventListener("click", exportAllData);
@@ -6578,58 +6554,6 @@
       const map={quotes:"history-quotes-panel",agency:"history-agency-panel",invitations:"history-invitations-panel"};
       Object.entries(map).forEach(([key,id])=>{if($(id))$(id).hidden=key!==button.dataset.historyKind;});
     }));
-    $("refresh-ports-btn").addEventListener("click", renderPorts);
-    $("port-region-tabs")?.addEventListener("click",e=>{const b=e.target.closest("[data-region]");if(!b)return;$("port-region-tabs").dataset.active=b.dataset.region;renderPorts();});
-    $("save-port-btn").addEventListener("click", savePort);
-    $("clear-port-btn").addEventListener("click", clearPortForm);
-    $("port-list").addEventListener("click", handlePortAction);
-    $("refresh-freight-btn").addEventListener("click", renderFreightRates);
-    $("save-freight-btn").addEventListener("click", saveFreightRate);
-    $("clear-freight-btn").addEventListener("click", clearFreightForm);
-    $("freight-list").addEventListener("click", handleFreightAction);
-    $("common-freight-routes")?.addEventListener("click", (event) => {
-      const card = event.target.closest("[data-common-route]");
-      if (!card) return;
-      setPortInputValue("calc-origin", "port-shanghai");
-      setPortInputValue("calc-destination", card.dataset.commonRoute);
-      const rate = freightRates.filter((r) => r.originPortId === "port-shanghai" && r.destinationPortId === card.dataset.commonRoute && r.shippingMethod === "Bulk Cargo")
-        .sort((a, b) => String(b.effectiveMonth).localeCompare(String(a.effectiveMonth)))[0];
-      $("calc-method").value = rate?.shippingMethod || "Bulk Cargo";
-      $("calc-rate").value = rate?.rate || "";
-      if ($("calc-currency")) $("calc-currency").value = rate?.currency || "USD";
-      syncFreightCalculationMode();
-      $("calc-product-search").focus();
-    });
-    $("search-country-routes-btn")?.addEventListener("click", renderCountryRoutes);
-    $("route-country-search")?.addEventListener("input", renderCountryRoutes);
-    $("country-route-results")?.addEventListener("click", handleCountryRoute);
-    $("save-country-route-btn")?.addEventListener("click", saveCountryRoute);
-    $("calc-product").addEventListener("change", () => {
-      const product = products.find((p) => p.id === $("calc-product").value);
-      $("calc-cbm").value = product?.transportCbm || "";
-      if($("calc-weight"))$("calc-weight").value=product?.weight||"";
-    });
-    $("calc-product-search")?.addEventListener("input", renderCalcProductSuggestions);
-    $("calc-product-search")?.addEventListener("input", () => { $("calc-product").value = ""; });
-    $("calc-product-suggestions")?.addEventListener("mousedown", (event) => {
-      const button = event.target.closest("[data-calc-product-id]");
-      if (!button) return;
-      event.preventDefault();
-      chooseCalcProduct(button.dataset.calcProductId);
-    });
-    $("calc-product-search")?.addEventListener("blur", () => setTimeout(() => { if ($("calc-product-suggestions")) $("calc-product-suggestions").hidden = true; }, 120));
-    $("calc-method")?.addEventListener("change", syncFreightCalculationMode);
-    $("save-volume-product-btn")?.addEventListener("click", saveVolumeProduct);
-    $("volume-product-search")?.addEventListener("input", renderVolumeProducts);
-    $("volume-product-list")?.addEventListener("click", handleVolumeProductAction);
-    $("auto-calc-freight-btn").addEventListener("click", autoCalculateFreight);
-    $("add-logistics-fee-btn")?.addEventListener("click",()=>addLogisticsFee("其他费用",""));
-    $("logistics-fee-list")?.addEventListener("click",e=>{if(e.target.matches("[data-remove-fee]"))e.target.closest(".logistics-fee-row").remove();});
-    $("copy-freight-amount-btn").addEventListener("click", copyFreightAmount);
-    $("use-freight-in-quote-btn").addEventListener("click", useFreightInQuotation);
-    $("freight-to-used-btn")?.addEventListener("click",()=>{$("freight-import-modal").hidden=true;importFreightToUsed();});
-    $("freight-to-new-btn")?.addEventListener("click",()=>{$("freight-import-modal").hidden=true;window.vehicleQuoteApp?.importLogistics?.(structuredClone(lastFreightCalculation));switchView("vehicle-quote");});
-    $("freight-import-cancel")?.addEventListener("click",()=>$("freight-import-modal").hidden=true);
     window.addEventListener("beforeprint", applyPrintTitle);
     document.addEventListener("click", (event) => {
       if (event.target.id === "save-user-btn") saveUser();
@@ -6893,7 +6817,6 @@
 
     bindEvents();
     initDocumentNavigation();
-    setupUnifiedQuoteWorkspace();
     organizeManagementModules();
     window.freightWorkspace?.init();
     window.quotationDesktop?.onMenuAction?.(handleDesktopMenuAction);

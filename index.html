@@ -37,7 +37,7 @@
         </section>
 
 
-        <section id="view-data" class="view no-print admin-only">
+        <section id="view-data" class="view no-print">
           <header class="page-head">
             <h2>数据管理</h2>
             <p>管理本地数据库备份、恢复、导入导出和数据目录。</p>
@@ -72,7 +72,7 @@
             <button class="settings-tab" data-settings-section="agency-config" type="button">授权书设置</button>
             <button class="settings-tab" data-settings-section="customer-config" type="button">客户管理配置</button>
             <button class="settings-tab" data-settings-section="software-update" type="button">软件更新</button>
-            <button class="settings-tab admin-only" data-settings-section="data" type="button">管理后台</button>
+            <button class="settings-tab" data-settings-section="data" type="button">管理后台</button>
           </div>
           <div data-settings-panel="product-config" id="settings-product-config-host"></div>
           <div data-settings-panel="quotation-config" id="settings-quotation-config-host"></div>
@@ -83,7 +83,7 @@
           <div data-settings-panel="agency-config" id="settings-agency-config-host"></div>
           <div data-settings-panel="customer-config" id="settings-customer-config-host"></div>
           <div data-settings-panel="software-update" id="settings-software-update-host"></div>
-          <div class="panel admin-only settings-management-link" data-settings-panel="data">
+          <div class="panel settings-management-link" data-settings-panel="data">
             <h3>管理后台</h3><p>管理本机数据库、备份恢复、应用锁和操作记录。</p>
             <div id="settings-data-host"></div>
           </div>
@@ -95,7 +95,7 @@
               <p>邮箱：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p>
             </div>
           </div>
-          <div class="panel" data-settings-panel="company">
+          <div class="panel" data-settings-panel="company" id="company-profile-panel">
             <h3>公司与联系人信息</h3>
             <label><span>选择公司（地址、收款账户和公章一起切换）</span><select id="company-profile-select"></select></label>
             <div class="actions"><button type="button" id="add-company-profile">新增公司</button><button type="button" id="save-company-profile" class="primary">保存当前公司</button><button type="button" id="delete-company-profile">删除当前公司</button></div>
@@ -110,7 +110,7 @@
             </div>
           </div>
 
-          <div class="panel" data-settings-panel="company">
+          <div class="panel" data-settings-panel="company" id="company-assets-panel">
             <h3>Logo、背景图与样式</h3>
             <div class="asset-row">
               <div>
@@ -166,96 +166,6 @@
             <p class="hint">邀请函默认使用公司信息设置里的公司、Logo 和电子公章；这里填写后只覆盖邀请函，不影响报价单。签字位置默认留空，方便打印后手写签字。</p>
           </div>
 
-          <div class="panel legacy-quote-settings" data-settings-panel="legacy-quote-settings" hidden>
-            <h3>产品分类与报价字段</h3>
-            <p class="hint">先维护一级、二级产品分类，再为每个分类分别设置通用、新机或二手机需要展示的产品字段。无需创建或命名报价模板。</p>
-            <div class="category-manager">
-              <div class="actions">
-                <button id="add-category-btn" type="button">新增分类</button>
-              </div>
-              <table class="field-table">
-                <thead>
-                  <tr>
-                    <th>排序</th>
-                    <th>一级分类</th>
-                    <th>英文分类</th>
-                    <th>中文分类</th>
-                    <th>显示</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="category-list"></tbody>
-              </table>
-            </div>
-
-            <div class="form-grid category-config-picker">
-              <label>
-                <span>编辑哪个产品分类</span>
-                <select id="category-config-select"></select>
-              </label>
-              <label>
-                <span>产品状态</span>
-                <select id="category-condition-select"><option value="general">通用字段</option><option value="new">新机字段</option><option value="used">二手机字段</option></select>
-              </label>
-            </div>
-            <div class="actions">
-              <button id="save-template-btn" type="button">保存当前分类字段</button>
-              <button id="delete-template-btn" type="button">恢复默认字段</button>
-              <select id="template-select" hidden></select>
-              <input id="template-name-input" hidden />
-              <input id="template-desc-input" hidden />
-              <button id="add-field-btn" class="primary" type="button">新增字段</button>
-            </div>
-            <div id="category-field-library" class="field-library"></div>
-            <div class="field-manager">
-              <table class="field-table">
-                <thead>
-                  <tr>
-                    <th>排序</th>
-                    <th>中文字段名</th>
-                    <th>英文字段名</th>
-                    <th>fieldKey</th>
-                    <th>字段类型</th>
-                    <th>必填</th>
-                    <th>报价单显示</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="template-field-list"></tbody>
-              </table>
-            </div>
-            <div class="field-manager">
-              <div class="row-head">
-                <div><h3>贸易条款设置</h3><p class="hint">付款方式、贸易方式、交货时间、起运港、目的港、质保和售后统一在这里维护，所有产品分类共用。</p></div>
-                <button id="add-term-field-btn" class="primary" type="button">新增条款字段</button>
-              </div>
-              <table class="field-table">
-                <thead>
-                  <tr>
-                    <th>排序</th>
-                    <th>中文字段名</th>
-                    <th>英文字段名</th>
-                    <th>fieldKey</th>
-                    <th>字段类型</th>
-                    <th>必填</th>
-                    <th>报价单显示</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="template-term-field-list"></tbody>
-              </table>
-            </div>
-            <div class="field-manager">
-              <div class="row-head">
-                <div>
-                  <h3>费用设置</h3>
-                  <p class="hint">海运费、陆路运输费和其他费用分别设置。年份、工时、底盘等产品信息不在费用字段中重复出现。</p>
-                </div>
-              </div>
-              <div id="cost-field-template-list"></div>
-            </div>
-            <div id="vehicle-field-settings-host"></div>
-          </div>
           <div class="actions sticky-actions">
             <button id="save-settings-btn" class="primary" type="button">保存设置</button>
           </div>
@@ -271,19 +181,6 @@
             <button data-product-library="machinery-reference">机械价格参考表</button>
           </div>
 
-          <div class="panel" data-settings-panel="quote-settings" id="vehicle-field-settings-panel" hidden>
-            <div class="row-head"><div><h3>按车型设置新车报价字段</h3><p class="hint">选择车型后，自由添加底盘、上装、尺寸、容量、吨位、发动机等字段。保存后新车组合报价会自动显示。</p></div><button id="vehicle-field-add" type="button">＋ 新增字段</button></div>
-            <label><span>车辆类型</span><select id="vehicle-field-type"></select></label>
-            <div class="field-table-wrap"><table class="field-table"><thead><tr><th>排序</th><th>中文名</th><th>英文名</th><th>字段标识</th><th>类型</th><th>必填</th><th>操作</th></tr></thead><tbody id="vehicle-field-list"></tbody></table></div>
-            <div class="actions"><button id="vehicle-field-save" class="primary" type="button">保存该车型字段</button></div>
-            <hr>
-            <div class="row-head"><div><h3>一键识别厂家参数</h3><p class="hint">支持粘贴文字或上传 TXT、CSV、Excel、文字版 PDF。识别后先预览和勾选，不会自动覆盖产品资料。</p></div></div>
-            <label class="wide"><span>粘贴厂家参数</span><textarea id="supplier-spec-text" rows="5" placeholder="例如：品牌：徐工&#10;型号：SQ12&#10;额定起重量：12吨&#10;臂节：五节臂"></textarea></label>
-            <div class="actions"><label class="file-btn">选择厂家文件<input id="supplier-spec-file" type="file" accept=".txt,.csv,.xlsx,.xls,.pdf"></label><button id="supplier-spec-analyze" type="button">开始自动识别</button></div>
-            <div id="supplier-spec-status" class="hint"></div>
-            <div class="field-table-wrap"><table id="supplier-spec-table" class="field-table" hidden><thead><tr><th>采用</th><th>报价字段</th><th>英文名</th><th>识别值（可修改）</th><th>可信度</th></tr></thead><tbody id="supplier-spec-candidates"></tbody></table></div>
-            <div class="actions"><button id="supplier-spec-apply" class="primary" type="button" hidden>把勾选项加入该车型报价字段</button></div>
-          </div>
           <div id="legacy-product-editor" class="legacy-product-area">
           <div class="panel machinery-import-panel">
             <div>
@@ -304,19 +201,17 @@
               <div id="product-smart-preview" class="smart-import-preview"></div>
             </div>
             <div class="form-grid">
-              <label><span>分类</span><span class="inline-select-action"><select id="product-category"></select><button id="quick-add-product-category" type="button">＋新建分类</button></span></label>
               <label><span>资料模板</span><select id="product-template"></select></label>
               <label><span>资料类型</span><select id="product-record-type"><option value="model">通用车型资料</option><option value="inventory">具体库存设备</option></select></label>
               <label><span>引用通用车型</span><select id="product-model-reference"><option value="">不引用</option></select></label>
               <label><span>库存编号</span><input id="product-inventory-code" placeholder="同型号多台设备分别编号"></label>
-              <label><span>设备状态</span><input id="product-condition" list="product-condition-values" placeholder="二手 / 翻新 / 全新未使用"><datalist id="product-condition-values"><option>二手</option><option>翻新</option><option>全新未使用</option></datalist></label>
               <label><span>年份</span><input id="product-year" inputmode="numeric"></label>
               <label><span>工作小时数</span><input id="product-working-hours" type="number" min="0"></label>
               <label><span>具体设备价格</span><input id="product-specific-price" type="number" min="0" step="0.01" placeholder="留空显示待询价"></label>
               <label><span>币种</span><select id="product-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select></label>
               <div id="product-dynamic-fields" class="wide product-dynamic-fields"></div>
               <fieldset class="wide product-logistics-fields">
-                <legend>运输资料（产品库、报价和运费查询共用）</legend>
+                <legend>运输资料（产品库、报价与悬浮运费计算器共用）</legend>
                 <label><span>运输长</span><input id="product-transport-length" type="number" min="0" step="0.001"></label>
                 <label><span>运输宽</span><input id="product-transport-width" type="number" min="0" step="0.001"></label>
                 <label><span>运输高</span><input id="product-transport-height" type="number" min="0" step="0.001"></label>
@@ -341,8 +236,6 @@
           <div class="panel">
             <div class="search-row">
               <input id="product-search" placeholder="输入品牌、型号或产品名称，例如：装载机、柳工、856H" />
-              <select id="product-category-filter"><option value="">全部分类</option></select>
-              <select id="product-condition-filter"><option value="">全部状态</option><option value="both">新机/二手机均有</option><option value="new">全新设备</option><option value="used">二手设备</option><option value="unspecified">未标注状态</option></select>
             </div>
             <div id="product-filter-summary" class="product-filter-summary"></div>
             <div id="product-list" class="list"></div>
@@ -364,24 +257,7 @@
             <div id="price-import-result" class="import-result"></div>
           </div>
           </div>
-          <div id="unified-vehicle-product-editor" hidden>
-            <div id="va-notice-unified"></div>
-            <div class="panel"><form id="va-form-unified" class="form-grid"></form><div class="actions"><button id="va-save-unified" class="primary" type="button">保存到产品库</button><button id="va-clear-unified" type="button">清空</button></div></div>
-            <div id="va-list-unified" class="list"></div>
-          </div>
-          <div id="machinery-reference-editor" hidden>
-            <div class="panel machinery-reference-card">
-              <h3>机械价格参考表已接入产品库</h3>
-              <p class="hint">这里使用产品库数据，不再单独维护 Excel。先点击“导入/更新”，然后在普通/二手设备列表里搜索机型并编辑价格范围。</p>
-              <div class="actions">
-                <button id="import-machinery-reference-tab-btn" class="primary" type="button">导入/更新到产品库</button>
-                <button id="export-product-catalog-pdf-tab-btn" type="button">导出产品目录 PDF</button>
-              </div>
-              <div id="machinery-reference-tab-result" class="import-result"></div>
-            </div>
-            <p class="hint">“导入全部数据”用于整套系统迁移或恢复，不用于导入产品。产品 Excel 请在“产品库”中导入。</p>
-          </div>
-          <div class="panel admin-only"><div class="row-head"><div><h3>系统数据与使用记录</h3><p class="hint">查看客户、产品、普通报价、跟进记录及最近操作。</p></div><button id="refresh-admin-overview-btn" type="button">刷新</button></div><div id="admin-data-counts" class="admin-stats"></div><div class="history-table-wrap"><table class="history-table"><thead><tr><th>时间</th><th>操作</th><th>业务对象</th><th>原因</th></tr></thead><tbody id="admin-audit-list"></tbody></table></div></div>
+          <div class="panel"><div class="row-head"><div><h3>系统数据与使用记录</h3><p class="hint">查看客户、产品、普通报价、跟进记录及最近操作。</p></div><button id="refresh-admin-overview-btn" type="button">刷新</button></div><div id="admin-data-counts" class="admin-stats"></div><div class="history-table-wrap"><table class="history-table"><thead><tr><th>时间</th><th>操作</th><th>业务对象</th><th>原因</th></tr></thead><tbody id="admin-audit-list"></tbody></table></div></div>
         </section>
 
         <section id="view-help" class="view no-print">
@@ -475,36 +351,6 @@
           <div class="quote-preview-viewport"><article id="quote-preview" class="quote-preview"></article></div>
           </div>
           </div>
-          <div id="vehicle-quote-workspace-host"></div>
-        </section>
-
-        <section id="view-vehicle-quote" class="view no-print">
-          <header class="page-head row-head"><div><h2>新车报价</h2><p>与二手设备共用公司、客户、银行、预览、历史和导出规则；车辆配置按兼容关系计算。</p></div><div class="actions"><button id="vq-preview-btn">刷新预览</button><button id="vq-save-btn">保存到历史</button><button id="vq-pdf-btn">导出PDF</button><button id="vq-new-btn">新建空白</button><button id="vq-formal-btn" class="primary">生成正式单据</button></div></header>
-          <div id="vq-notice"></div><div class="vehicle-quote-layout">
-            <div id="vq-common-panel" class="panel"><h3>客户与报价信息</h3><div class="form-grid">
-              <label><span>单据类型</span><select id="vq-document-type"><option value="quotation">报价单 / Quotation</option><option value="proforma">形式发票 / Proforma Invoice</option></select></label>
-              <label><span>关联客户</span><select id="vq-customer"><option value="">自动匹配/暂不关联</option></select></label>
-              <label><span>客户公司</span><input id="vq-company"></label><label><span>联系人</span><input id="vq-contact"></label>
-              <label><span>电话/WhatsApp</span><input id="vq-phone"></label><label><span>国家</span><input id="vq-country"></label>
-              <label><span>目的港</span><input id="vq-destination-port" placeholder="Dar es Salaam Port / 达累斯萨拉姆港"></label>
-              <label><span>报价币种</span><select id="vq-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
-              <label><span>报价编号</span><input id="vq-number" placeholder="保存时自动生成"></label>
-              <label><span>报价日期</span><input id="vq-date" type="date"></label><label><span>有效期至</span><input id="vq-valid" type="date"></label>
-              <label><span>PDF语言</span><select id="vq-language"><option value="bilingual">English + 中文 / 中英双语</option><option value="en">English Only / 纯英文</option><option value="zh">中文 Only / 纯中文</option><option value="zh-fr">中文 + Français / 中法双语</option></select></label>
-              <label><span>负责人邮箱</span><input id="vq-email" type="email"></label>
-              <label class="wide"><span>客户公司地址</span><input id="vq-address"></label>
-            </div></div>
-            <div id="vq-detail-panel" class="panel"><div class="row-head"><div><h3>车辆配置</h3><p>一份报价可添加多种不同配置。</p></div><button id="vq-add-item">＋ 添加车辆</button></div><div id="vq-items"></div></div>
-            <div id="vq-terms-panel" class="panel"><h3>贸易条款与费用</h3><div class="fee-grid" id="vq-fees"></div><div class="form-grid"><label><span>付款方式</span><input id="vq-payment"></label><label><span>交货时间</span><input id="vq-delivery"></label><label><span>起运港</span><input id="vq-origin-port"></label><label><span>目的港</span><input id="vq-term-destination-port"></label><label class="wide"><span>售后说明</span><textarea id="vq-after-sales"></textarea></label><label class="wide"><span>质保说明</span><textarea id="vq-warranty"></textarea></label><label class="wide"><span>其他贸易条款</span><textarea id="vq-terms"></textarea></label></div></div>
-          </div>
-          <aside class="vehicle-summary"><span>车辆小计 <b id="vq-subtotal">USD 0.00</b></span><span>运费 <b id="vq-freight-total">0.00</b></span><span>税费 <b id="vq-tax-total">0.00</b></span><span>服务费 <b id="vq-service-total">0.00</b></span><span>折扣 <b id="vq-discount-total">0.00</b></span><strong>最终报价 <b id="vq-total">USD 0.00</b></strong></aside>
-          <article id="vq-preview" class="quote-preview vehicle-document-preview"></article>
-        </section>
-
-        <section id="view-vehicle-admin" class="view no-print">
-          <header class="page-head"><h2>新车产品与兼容关系</h2><p>管理员逐项维护。未建立兼容关系的配置无法生成正式报价。</p></header>
-          <div id="va-notice"></div><div class="admin-tabs"><button data-va-tab="vehicle-types">车型</button><button data-va-tab="chassis" class="active">底盘</button><button data-va-tab="superstructures">上装</button><button data-va-tab="options">选装件</button><button data-va-tab="compatibility">兼容组合</button></div>
-          <div class="panel"><form id="va-form" class="form-grid"></form><div class="actions"><button id="va-save" class="primary">保存</button><button id="va-clear">清空</button></div></div><div id="va-list" class="list"></div>
         </section>
 
         <section id="view-invitation" class="view">
@@ -651,156 +497,8 @@
           <div id="history-invitations-panel" hidden><div id="invitation-history-list" class="list compact-list"></div></div>
         </section>
 
-        <section id="view-freight" class="view no-print">
-          <header class="page-head">
-            <h2>运费查询</h2>
-            <p>先选常用航线，再输入或引用产品体积，自动计算并导入当前报价单或形式发票。</p>
-          </header>
-
-          <div class="panel freight-common-panel">
-            <div class="row-head"><div><h3>常用港口与历史运价</h3><p class="hint">优先显示上海至德班、拉各斯、贝拉等常用线路；点击即可带入下方计算。</p></div></div>
-            <div id="common-freight-routes" class="freight-route-cards"></div>
-          </div>
-
-          <div class="panel country-route-panel admin-only">
-            <div class="row-head"><div><h3>按客户目的国查询路线</h3><p class="hint">客户目的国与实际卸货国家分开；内陆国家可关联邻国港口、口岸或铁路站点。</p></div></div>
-            <div class="form-grid">
-              <input id="route-country-search" list="country-options" placeholder="客户目的国，如 Zimbabwe / 津巴布韦" />
-              <button id="search-country-routes-btn" class="primary" type="button">查询常用路线</button>
-            </div>
-            <div id="country-route-results" class="freight-route-cards"></div>
-            <details id="country-route-admin"><summary>维护国家与路线关联（管理员）</summary>
-              <div class="form-grid route-admin-grid">
-                <input id="route-customer-country" list="country-options" placeholder="客户目的国" />
-                <input id="route-discharge-country" list="country-options" placeholder="实际卸货国家" />
-                <input id="route-destination" list="freight-destination-options" placeholder="目的港、口岸或铁路站点" />
-                <label class="check"><input id="route-favorite" type="checkbox" /> 常用国家/路线置顶</label>
-                <input id="route-sort" type="number" value="0" placeholder="排序" />
-                <input id="route-remark" placeholder="备注" />
-              </div>
-              <div class="actions"><button id="save-country-route-btn" class="primary" type="button">保存关联</button></div>
-            </details>
-          </div>
-
-          <div class="panel freight-port-admin admin-only">
-            <div class="row-head">
-              <div><h3>常用国家与港口</h3><p class="hint">维护经营市场、港口和别名；国家与邻国港口的推荐关系在上方维护。</p></div>
-              <div class="actions">
-                <input id="port-search" placeholder="Search port / 搜索港口" />
-                <button id="refresh-ports-btn" type="button">Search / 搜索</button>
-              </div>
-            </div>
-            <div id="port-region-tabs" class="region-tabs"></div>
-            <div class="form-grid">
-              <input id="port-country" placeholder="Country / 国家" />
-              <input id="port-country-zh" placeholder="Country Chinese Name / 国家中文名" />
-              <input id="port-country-code" placeholder="Country Code / 国家代码" />
-              <input id="port-name" placeholder="Port Name / 港口名称" />
-              <input id="port-name-zh" placeholder="Port Chinese Name / 港口中文名" />
-              <input id="port-locode" placeholder="UN/LOCODE / 港口代码" />
-              <input id="port-aliases" class="wide" placeholder="Port Alias / 港口别名" />
-            </div>
-            <div class="actions">
-              <button id="save-port-btn" class="primary" type="button">Save / 保存</button>
-              <button id="clear-port-btn" type="button">Cancel / 取消</button>
-            </div>
-            <div id="port-list" class="list compact-list"></div>
-          </div>
-
-          <div class="panel freight-rate-admin admin-only">
-            <div class="row-head">
-              <h3>Freight Rate Library / 运费库</h3>
-              <div class="actions">
-                <input id="freight-search" placeholder="Search freight / 搜索运费" />
-                <button id="refresh-freight-btn" type="button">Search / 搜索</button>
-              </div>
-            </div>
-            <div class="form-grid">
-              <input id="freight-origin" list="freight-origin-options" placeholder="起运港，可选择或手动输入" />
-              <datalist id="freight-origin-options"></datalist>
-              <input id="freight-destination" list="freight-destination-options" placeholder="目的港，可选择或手动输入" />
-              <datalist id="freight-destination-options"></datalist>
-              <select id="freight-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="RORO">滚装运输 / RORO</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select>
-              <select id="freight-container-type"><option value="">非集装箱/请选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select>
-              <input id="freight-rate" type="number" placeholder="运费单价，留空表示待询价" />
-              <select id="freight-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select>
-              <select id="freight-billing-mode"><option value="cbm">每立方</option><option value="ton">每吨</option><option value="unit">每台</option><option value="container">每柜</option></select>
-              <input id="freight-month" type="month" />
-              <input id="freight-quote-date" type="date" placeholder="报价日期" />
-              <input id="freight-valid-until" type="date" placeholder="有效期" />
-              <input id="freight-agent" placeholder="Freight Forwarder / 货代" />
-              <input id="freight-transit-days" placeholder="预计运输时间（选填）" />
-              <input id="freight-cargo-limit" class="wide" placeholder="设备尺寸/重量限制" />
-              <input id="freight-included" class="wide" placeholder="费用包含项目，用逗号分隔" />
-              <input id="freight-excluded" class="wide" placeholder="费用不包含项目，用逗号分隔" />
-              <input id="freight-remark" class="wide" placeholder="Remark / 备注" />
-            </div>
-            <div class="actions">
-              <button id="save-freight-btn" class="primary" type="button">Save / 保存</button>
-              <button id="clear-freight-btn" type="button">Cancel / 取消</button>
-            </div>
-            <div id="freight-list" class="list compact-list"></div>
-          </div>
-
-          <div class="panel freight-text-import admin-only">
-            <div class="row-head"><div><h3>货代运价文字识别与批量更新</h3><p class="hint">把模板发给货代，收到后原样粘贴。系统先匹配国家、港口和运价，确认后才更新。</p></div><button id="copy-freight-text-template-btn" type="button">复制货代填写模板</button></div>
-            <textarea id="freight-text-import-input" rows="8" placeholder="每行一条运价，可直接粘贴货代回复"></textarea>
-            <div class="actions"><button id="preview-freight-text-btn" class="primary" type="button">识别并预览</button><button id="confirm-freight-text-btn" type="button" hidden>确认批量更新</button></div>
-            <div id="freight-text-import-status" class="hint"></div>
-            <div id="freight-text-preview" class="history-table-wrap"></div>
-          </div>
-
-          <div class="panel freight-calculator-panel">
-              <div><h3>计算运费</h3><p class="hint">散杂和框架运输按立方计算；集装箱按柜数计算。</p></div>
-            <div class="form-grid">
-              <label class="wide"><span>客户目的国</span><input id="calc-country" list="country-options" placeholder="例如：Zimbabwe / 津巴布韦" /></label>
-              <datalist id="country-options"></datalist>
-              <div id="calc-country-routes" class="freight-route-cards wide"></div>
-              <label class="wide freight-product-search-field"><span>货物型号（可搜索历史，也可直接手动输入）</span><input id="calc-product-search" autocomplete="off" placeholder="例如：CAT 320C" /><div id="calc-product-suggestions" class="freight-product-suggestions" hidden></div></label>
-              <select id="calc-product" hidden></select>
-              <label><span>起运港 / 起运地</span><input id="calc-origin" list="calc-origin-options" placeholder="可选择或手动输入" /></label>
-              <datalist id="calc-origin-options"></datalist>
-              <label><span>目的港 / 口岸 / 站点</span><input id="calc-destination" list="calc-destination-options" placeholder="可选择或手动输入" /></label>
-              <datalist id="calc-destination-options"></datalist>
-              <label><span>运输方式</span><select id="calc-method"><option value="Bulk Cargo">散杂运输 / Bulk Cargo</option><option value="RORO">滚装运输 / RORO</option><option value="Flat Rack">框架运输 / Flat Rack</option><option value="Container">集装箱运输 / Container</option></select></label>
-              <label><span>计费方式</span><select id="calc-billing-mode"><option value="cbm">按方计费 / Per CBM</option><option value="ton">按吨计费 / Per Ton</option><option value="unit">按台计费 / Per Unit</option><option value="container">按柜计费 / Per Container</option><option value="fixed">固定包干价 / Fixed Total</option></select></label>
-              <label><span>柜型</span><select id="calc-container-type"><option value="">选择柜型</option><option>20GP</option><option>40GP</option><option>40HQ</option><option>20FR</option><option>40FR</option></select></label>
-              <label><span>集装箱数量（柜）</span><input id="calc-container-count" type="number" value="1" min="0" step="1" /></label>
-              <label><span>货物数量（台）</span><input id="calc-qty" type="number" value="1" /></label>
-              <label><span>运输体积（m³）</span><input id="calc-cbm" type="text" inputmode="decimal" autocomplete="off" placeholder="可手动输入数字" /></label>
-              <label><span>运输重量（吨）</span><input id="calc-weight" type="text" inputmode="decimal" autocomplete="off" placeholder="可手动输入数字" /></label>
-              <label><span>运费单价</span><input id="calc-rate" type="text" inputmode="decimal" autocomplete="off" placeholder="可手动输入数字" /></label>
-              <label><span>币种</span><select id="calc-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select></label>
-              <label><span>海运费总额</span><input id="calc-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="自动计算或手动输入" /></label>
-            </div>
-            <div class="row-head"><div><h4>附加费用明细</h4><p class="hint">报关、清关、保险、港杂等费用会随物流快照导入报价。</p></div><button id="add-logistics-fee-btn" type="button">＋ 添加费用</button></div>
-            <div id="logistics-fee-list" class="logistics-fees"></div>
-            <datalist id="logistics-fee-name-options">
-              <option value="国内运输费"></option><option value="港杂费"></option><option value="报关费"></option><option value="清关费"></option><option value="保险费"></option><option value="拆装费"></option><option value="目的地内陆转运费"></option><option value="装卸费"></option><option value="仓储费"></option><option value="其他费用"></option>
-            </datalist>
-            <div class="actions">
-              <button id="auto-calc-freight-btn" class="primary" type="button">Auto Calculate / 自动计算</button>
-              <button id="copy-freight-amount-btn" type="button">Copy / 复制</button>
-              <button id="use-freight-in-quote-btn" type="button">Use in Quotation / 导入报价单</button>
-            </div>
-            <div id="calc-result" class="import-result"></div>
-          </div>
-
-          <div class="panel freight-volume-panel">
-            <div class="row-head"><div><h3>常用货物体积</h3><p class="hint">这里保存的数据与产品库共用；下次可直接按品牌或型号搜索引用。</p></div></div>
-            <div class="form-grid freight-volume-form">
-              <input id="volume-brand" placeholder="品牌，如 CAT / 卡特" />
-              <input id="volume-model" placeholder="型号，如 320C" />
-              <input id="volume-cbm" type="number" min="0" step="0.01" placeholder="运输体积（立方米）" />
-              <button id="save-volume-product-btn" class="primary" type="button">保存到产品库</button>
-            </div>
-            <input id="volume-product-search" placeholder="搜索已保存的品牌或型号" />
-            <div id="volume-product-list" class="list compact-list"></div>
-          </div>
-        </section>
       </main>
 
-      <div id="freight-import-modal" class="modal" hidden><div class="modal-card"><h3>导入物流费用</h3><p>运费快照会保存到当前单据，可用于报价单或形式发票。</p><div class="actions"><button id="freight-to-used-btn" class="primary" type="button">导入当前报价单/形式发票</button><button id="freight-to-new-btn" type="button">导入当前新车单据</button><button id="freight-import-cancel" type="button">取消</button></div></div></div>
 
       <div id="toast" class="toast no-print"></div>
     </div>
@@ -834,37 +532,6 @@
         </div>
         <footer class="actions">
           <button id="save-field-btn" class="primary" type="button">保存字段</button>
-        </footer>
-      </div>
-    </div>
-
-    <div id="category-modal" class="modal no-print" hidden>
-      <div class="modal-card small-modal">
-        <header>
-          <h3 id="category-modal-title">新增分类</h3>
-          <button id="close-category-modal-btn" type="button">关闭</button>
-        </header>
-        <label>
-          <span>一级分类 / Parent Category</span>
-          <select id="category-parent-input"></select>
-        </label>
-        <label>
-          <span>英文分类名 / English Name</span>
-          <input id="category-en-input" placeholder="Used Excavator" autocomplete="off" />
-        </label>
-        <label>
-          <span>中文分类名 / 中文名称</span>
-          <input id="category-zh-input" placeholder="二手挖掘机" autocomplete="off" />
-        </label>
-        <label>
-          <span>是否显示 / Show</span>
-          <select id="category-visible-input">
-            <option value="true">Show / 显示</option>
-            <option value="false">Hide / 隐藏</option>
-          </select>
-        </label>
-        <footer class="actions">
-          <button id="save-category-btn" class="primary" type="button">保存分类</button>
         </footer>
       </div>
     </div>

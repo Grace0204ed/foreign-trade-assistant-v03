@@ -272,7 +272,7 @@ app.get("/api/users", (req,res)=>ok(res,{users:[]}));
 app.get("/api/admin/overview", requireLogin, requireAdmin, (req, res) => {
   const count = table => db.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count;
   const audits = db.prepare("SELECT a.*,u.username FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 100").all();
-  ok(res, { counts:{ users:count("users"),customers:count("customers"),products:count("products"),quotations:count("quotations"),vehicleQuotes:count("quote_versions"),followUps:count("follow_ups"),freightRates:count("freight_rates") }, audits });
+  ok(res, { counts:{ customers:count("customers"),products:count("products"),quotations:count("quotations"),followUps:count("follow_ups") }, audits });
 });
 app.get("/api/products", requireLogin, (req, res) => {
   const q = normalize(req.query.keyword || "");
