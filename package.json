@@ -1,6 +1,6 @@
 {
   "name": "foreign-trade-assistant",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "外贸助手：客户跟进、产品、报价与外贸单证桌面系统",
   "main": "electron/main.js",
   "private": true,
