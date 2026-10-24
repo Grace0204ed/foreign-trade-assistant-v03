@@ -19,13 +19,27 @@
       <option value="84295200">360°回转挖掘机 / Excavator with 360° revolving superstructure</option><option value="84295100">前端铲装载机、滑移装载机 / Front-end shovel loader</option><option value="84295900">其他机械铲、挖掘机 / Other excavating machinery</option><option value="84291100">履带式推土机 / Track-laying bulldozer</option><option value="84292000">平地机 / Grader</option><option value="84294000">压路机 / Road roller</option><option value="84272000">其他机动叉车、伸缩臂叉装车 / Other self-propelled works truck</option><option value="84304100">自行式钻探机械、旋挖钻机 / Self-propelled boring machinery</option><option value="87051091">汽车起重机（最大起重量≤50吨）/ Truck crane ≤50t</option><option value="87051092">汽车起重机（50吨＜最大起重量≤100吨）/ Truck crane 50–100t</option><option value="87051093">汽车起重机（最大起重量＞100吨）/ Truck crane &gt;100t</option><option value="84264100">轮胎式自行起重机 / Self-propelled crane on tyres</option><option value="84264900">其他自行式起重机、履带吊 / Other self-propelled crane</option><option value="87042300">豪沃等柴油公路自卸卡车（车辆总重量&gt;20吨）/ Diesel dump truck GVW &gt;20t</option><option value="87041090">其他非公路用货运自卸车 / Other off-highway dumper</option><option value="87012000">半挂车用公路牵引车 / Road tractor for semi-trailer</option><option value="87059091">混凝土泵车 / Concrete pump truck</option><option value="87054000">混凝土搅拌车 / Concrete-mixer lorry</option><option value="87059000">其他特殊用途车辆 / Other special-purpose motor vehicle</option><option value="84742000">破碎或研磨机器 / Crushing or grinding machine</option><option value="84743200">沥青或矿物材料混合机器 / Mineral substance mixing machine</option><option value="84743100">自上料小型混凝土搅拌车、混凝土或砂浆搅拌机 / Self-loading concrete mixer</option>
     </datalist>
     <div class="app-shell">
+      <aside class="desktop-rail no-print" aria-label="主导航">
+        <button class="rail-brand nav-btn active" data-view="home" type="button" aria-label="工作台"><b>贸</b><span>工作台</span></button>
+        <nav class="rail-primary">
+          <button class="nav-btn" data-view="create" type="button"><i>＋</i><span>新建单证</span></button>
+          <button class="nav-btn" data-view="history" type="button"><i>▤</i><span>历史记录</span></button>
+          <button class="nav-btn" data-view="products" type="button"><i>◇</i><span>产品库</span></button>
+          <button class="nav-btn" id="crm-module-btn" type="button"><i>◎</i><span>客户跟进</span></button>
+          <button class="nav-btn" data-view="settings" type="button"><i>⚙</i><span>设置</span></button>
+        </nav>
+        <nav class="rail-secondary">
+          <button class="nav-btn" id="sidebar-lock-btn" type="button" title="快捷锁定 Ctrl+Shift+L"><i>⌾</i><span>应用锁 Ctrl+Shift+L</span></button>
+          <button class="nav-btn" data-view="help" type="button"><i>?</i><span>使用说明</span></button>
+          <button class="nav-btn" id="sidebar-contact-btn" type="button"><i>✆</i><span>联系我们</span></button>
+        </nav>
+      </aside>
 
       <main class="main">
         <button id="global-back-btn" class="global-back-btn no-print" type="button" hidden aria-label="返回上一页">‹ <span>返回</span></button>
         <section id="view-home" class="view active no-print">
           <header class="page-head home-head">
             <div><h2>外贸助手</h2><p>统一管理客户、产品、报价与外贸单证。</p></div>
-            <div class="home-account-actions"><button id="home-contact-btn" type="button">联系我们</button></div>
           </header>
           <div class="entry-grid">
             <button class="entry-card" id="crm-entry-btn" type="button"><i>👥</i><b>客户跟进</b><span>查看今日提醒、重点客户与跟进记录</span></button>

@@ -12,6 +12,7 @@ const indexText=require('fs').readFileSync(require('path').join(__dirname,'../in
 const workspaceText=require('fs').readFileSync(require('path').join(__dirname,'../assets/configurable-workspaces.js'),'utf8');
 const serverText=require('fs').readFileSync(require('path').join(__dirname,'../server/index.js'),'utf8');
 const crmText=require('fs').readFileSync(require('path').join(__dirname,'../crm/crm.js'),'utf8');
+const electronMainText=require('fs').readFileSync(require('path').join(__dirname,'../electron/main.js'),'utf8');
 assert.ok(appText.includes('quoteTemplateConfigs'),'per-quotation-template settings are missing');
 assert.ok(appText.includes('dualMoneyText'),'dual currency renderer is missing');
 assert.ok(appText.includes('currencyDisplay: currentQuote.currencyDisplay')&&appText.includes('secondaryCurrency: currentQuote.secondaryCurrency')&&appText.includes('exchangeRate: currentQuote.exchangeRate'),'dual currency values are not sent to persistence');
@@ -37,6 +38,9 @@ assert.ok(appText.includes('input.multiple')&&appText.includes("input.type === \
 for(const marker of ['Commercial Invoice No.','Packing List No.','Invitation Date','Authorization No.'])assert.ok(workspaceText.includes(marker),`document-specific preset is missing: ${marker}`);
 assert.ok(workspaceText.includes('getLicenseStatus')&&workspaceText.includes('永久使用')&&workspaceText.includes('剩余 ${days} 天'),'license status panel is missing');
 assert.ok(!crmText.includes('crmCustomer')&&!crmText.includes('为客户新建报价'),'retired CRM create-quotation entry remains');
+assert.ok(indexText.includes('desktop-rail')&&indexText.includes('sidebar-contact-btn')&&indexText.includes('sidebar-lock-btn'),'desktop navigation rail is incomplete');
+assert.ok(appText.includes('applicationLock?.shortcut')&&workspaceText.includes('data-lock-shortcut'),'configurable application-lock shortcut is missing');
+assert.ok(electronMainText.includes('Menu.setApplicationMenu(null)')&&electronMainText.includes('reloadIgnoringCache'),'desktop menu removal or hidden F5 refresh is missing');
 for(const retired of ['导入当前新车单据','vehicle-quote-workspace-host','unified-vehicle-product-editor','machinery-reference-editor'])assert.ok(!indexText.includes(retired),`retired interface remains: ${retired}`);
 assert.ok(indexText.indexOf('company-profile-panel')<indexText.indexOf('company-assets-panel'),'company settings block order is incorrect');
 assert.ok(crmText.includes('customerFieldKey')&&crmText.includes('customer_custom_'),'configured customer fields are not wired to CRM entry');

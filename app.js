@@ -6305,6 +6305,31 @@
     $("global-back-btn").addEventListener("click", goBackInsideApp);
 
     $("home-contact-btn")?.addEventListener("click", showContactInformation);
+    $("sidebar-contact-btn")?.addEventListener("click", showContactInformation);
+    $("sidebar-lock-btn")?.addEventListener("click", () => {
+      if (settings.applicationLock?.enabled) return window.AppLock?.lock();
+      openSettingsSection("data");
+      toast("请先在管理后台开启应用锁并设置 PIN。");
+    });
+    if ($("sidebar-lock-btn")) {
+      const shortcut=settings.applicationLock?.shortcut||"Ctrl+Shift+L";
+      $("sidebar-lock-btn").title=`快捷锁定 ${shortcut}`;
+      $("sidebar-lock-btn").querySelector("span").textContent=`应用锁 ${shortcut}`;
+    }
+    document.addEventListener("keydown", (event) => {
+      const shortcut=settings.applicationLock?.shortcut||"Ctrl+Shift+L";
+      const parts=shortcut.toLowerCase().split("+").map(part=>part.trim()).filter(Boolean);
+      const key=parts.find(part=>!["ctrl","alt","shift","meta"].includes(part));
+      const pressed=!!key
+        && event.ctrlKey===parts.includes("ctrl")
+        && event.altKey===parts.includes("alt")
+        && event.shiftKey===parts.includes("shift")
+        && event.metaKey===parts.includes("meta")
+        && event.key.toLowerCase()===key;
+      if(!pressed)return;
+      event.preventDefault();
+      if(settings.applicationLock?.enabled)window.AppLock?.lock();else{openSettingsSection("data");toast("请先开启应用锁。")}
+    });
     $("close-contact-modal-btn")?.addEventListener("click", () => { $("contact-modal").hidden = true; });
     $("contact-modal")?.addEventListener("click", (event) => { if (event.target === $("contact-modal")) $("contact-modal").hidden = true; });
 
