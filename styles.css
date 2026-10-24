@@ -9,6 +9,18 @@
   --accent: #d78a18;
   --danger: #b42318;
 }
+
+.license-status-card { border-left:4px solid #1f6f4a; }
+.license-status-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.license-status-head h3,.license-status-head p { margin:0; }
+.license-status-badge { display:inline-flex; align-items:center; border-radius:999px; padding:6px 12px; font-weight:700; }
+.license-status-badge.is-active { background:#e7f6ee; color:#16613f; }
+.license-status-badge.is-inactive { background:#fff0f0; color:#a22b2b; }
+.license-status-value { margin-top:16px; font-size:26px; font-weight:800; color:#173b63; }
+.license-status-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:16px; }
+.license-status-grid span { display:flex; flex-direction:column; gap:4px; padding:12px; border:1px solid #d8e3ef; border-radius:10px; background:#f8fbfe; color:#5a6b7d; }
+.license-status-grid b { color:#172b3f; overflow-wrap:anywhere; }
+@media (max-width:800px) { .license-status-grid { grid-template-columns:1fr; } }
 /* Local desktop shell: no legacy sidebar, including the first paint. */
 .app-shell { display:block!important; grid-template-columns:1fr!important; }
 .main { margin-left:0!important; width:100%; }

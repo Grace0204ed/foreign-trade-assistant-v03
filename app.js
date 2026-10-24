@@ -781,7 +781,7 @@
         await loadSharedSettings();
         await restorePersistentStateIfNeeded();
         await loadServerData();
-        await applyCrmCustomerFromUrl();
+        await applyQuoteFromUrl();
         window.dispatchEvent(new CustomEvent("foreign-trade-auth-ready", { detail: currentUser }));
       }
     } catch {
@@ -4373,34 +4373,15 @@
     renderPreview();
   }
 
-  async function applyCrmCustomerFromUrl() {
+  async function applyQuoteFromUrl() {
     const params=new URLSearchParams(window.location.search);
-    const quoteId=params.get("quote"), customerId=params.get("crmCustomer");
+    const quoteId=params.get("quote");
     if (!currentUser) return;
     if (quoteId) {
       currentQuote=serverQuotationToLocal(await api(`/api/quotations/${quoteId}`));
       switchView("quote");bindQuoteToForm();renderQuoteItems();renderPreview();
       history.replaceState({},"","/");toast(`已打开报价：${currentQuote.quoteNumber}`);return;
     }
-    if (!customerId) return;
-    const customer = await api(`/api/customers/${customerId}`);
-    newQuote();
-    currentQuote.customerId = Number(customer.id);
-    currentQuote.buyer = {
-      ...currentQuote.buyer,
-      country: customer.country || "",
-      company: customer.company || customer.name || "",
-      contact: customer.name || "",
-      phone: customer.phone || "",
-      email: "",
-      address: ""
-    };
-    currentQuote.basicFields = {...(currentQuote.basicFields||{})};
-    document.querySelectorAll('[data-basic-custom]').forEach(input=>currentQuote.basicFields[input.dataset.basicCustom]=input.type==='checkbox'?input.checked:input.value);
-    bindQuoteToForm();
-    switchView("quote");
-    history.replaceState({}, "", "/");
-    toast(`已载入客户：${customer.name}`);
   }
 
   function newInvitation() {

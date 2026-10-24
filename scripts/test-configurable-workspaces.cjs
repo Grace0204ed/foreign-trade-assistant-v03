@@ -23,7 +23,7 @@ assert.ok(workspaceText.includes('历史产品模板')&&workspaceText.includes('
 assert.ok(workspaceText.includes('data-field-edit')&&workspaceText.includes('data-field-child'),'hierarchical field editing is missing');
 assert.ok(!indexText.includes('id="product-condition"'),'retired fixed equipment condition input is still visible');
 assert.ok(workspaceText.includes('draggable="true"')&&workspaceText.includes('ondrop'),'drag sorting is missing');
-assert.ok(indexText.includes('settings-invoice-config-host')&&indexText.includes('settings-packing-config-host'),'document-specific settings are missing');
+for(const host of ['quotation','invoice','contract','commercial','packing','invitation','agency'])assert.ok(indexText.includes(`settings-${host}-config-host`),`${host} document-specific settings are missing`);
 assert.ok(indexText.includes('quote-secondary-currency')&&indexText.includes('quote-fx-rate'),'dual currency controls are missing');
 assert.ok(serverText.includes('currencyDisplay:q.currencyDisplay')&&serverText.includes('secondaryCurrency:q.secondaryCurrency')&&serverText.includes('exchangeRate:q.exchangeRate'),'server quote metadata does not persist dual currency settings');
 assert.ok(serverText.includes('convertToMain'),'server totals are not normalized into the primary currency');
@@ -34,7 +34,9 @@ assert.ok(!serverText.includes('installVehicleQuoteRoutes'),'retired vehicle quo
 assert.ok(!require('fs').existsSync(require('path').join(__dirname,'../server/vehicle-quotes.js')),'retired vehicle quote server module still exists');
 assert.ok(!appText.includes('const requiredSystem = defaultQuoteLineColumns'),'document templates still force legacy quotation columns');
 assert.ok(appText.includes('input.multiple')&&appText.includes("input.type === \"checkbox\""),'dynamic multi-select or checkbox values are not persisted');
-assert.ok(workspaceText.includes("type!=='quotation'")&&workspaceText.includes("field.fieldKey==='validUntil'"),'PI and other documents still inherit quotation validity');
+for(const marker of ['Commercial Invoice No.','Packing List No.','Invitation Date','Authorization No.'])assert.ok(workspaceText.includes(marker),`document-specific preset is missing: ${marker}`);
+assert.ok(workspaceText.includes('getLicenseStatus')&&workspaceText.includes('永久使用')&&workspaceText.includes('剩余 ${days} 天'),'license status panel is missing');
+assert.ok(!crmText.includes('crmCustomer')&&!crmText.includes('为客户新建报价'),'retired CRM create-quotation entry remains');
 for(const retired of ['导入当前新车单据','vehicle-quote-workspace-host','unified-vehicle-product-editor','machinery-reference-editor'])assert.ok(!indexText.includes(retired),`retired interface remains: ${retired}`);
 assert.ok(indexText.indexOf('company-profile-panel')<indexText.indexOf('company-assets-panel'),'company settings block order is incorrect');
 assert.ok(crmText.includes('customerFieldKey')&&crmText.includes('customer_custom_'),'configured customer fields are not wired to CRM entry');
