@@ -14,6 +14,8 @@ const serverText=require('fs').readFileSync(require('path').join(__dirname,'../s
 const crmText=require('fs').readFileSync(require('path').join(__dirname,'../crm/crm.js'),'utf8');
 assert.ok(appText.includes('quoteTemplateConfigs'),'per-quotation-template settings are missing');
 assert.ok(appText.includes('dualMoneyText'),'dual currency renderer is missing');
+assert.ok(appText.includes('currencyDisplay: currentQuote.currencyDisplay')&&appText.includes('secondaryCurrency: currentQuote.secondaryCurrency')&&appText.includes('exchangeRate: currentQuote.exchangeRate'),'dual currency values are not sent to persistence');
+assert.ok(appText.includes('currencyDisplay:meta.currencyDisplay')&&appText.includes('secondaryCurrency:meta.secondaryCurrency')&&appText.includes('exchangeRate:meta.exchangeRate'),'saved dual currency values are not restored');
 assert.ok(appText.includes("data-basic-custom"),'custom basic fields are not wired to the document');
 assert.ok(workspaceText.includes('data-quote-template-config'),'quote settings cannot switch business templates');
 assert.ok(workspaceText.includes('多级选项')&&workspaceText.includes('parentId'),'hierarchical option configuration is missing');
@@ -23,6 +25,8 @@ assert.ok(!indexText.includes('id="product-condition"'),'retired fixed equipment
 assert.ok(workspaceText.includes('draggable="true"')&&workspaceText.includes('ondrop'),'drag sorting is missing');
 assert.ok(indexText.includes('settings-invoice-config-host')&&indexText.includes('settings-packing-config-host'),'document-specific settings are missing');
 assert.ok(indexText.includes('quote-secondary-currency')&&indexText.includes('quote-fx-rate'),'dual currency controls are missing');
+assert.ok(serverText.includes('currencyDisplay:q.currencyDisplay')&&serverText.includes('secondaryCurrency:q.secondaryCurrency')&&serverText.includes('exchangeRate:q.exchangeRate'),'server quote metadata does not persist dual currency settings');
+assert.ok(serverText.includes('convertToMain'),'server totals are not normalized into the primary currency');
 assert.ok(indexText.includes('quote-preview-mode')&&appText.includes("event.ctrlKey"),'preview modes or Ctrl+wheel zoom are missing');
 assert.ok(appText.includes('showBankControl'),'per-document bank control visibility is missing');
 assert.ok(appText.includes('is-quarter-turn'),'rotated signature preview sizing is missing');

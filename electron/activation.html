@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>激活外贸助手</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#eef4fb,#dfeaf6);font-family:"Microsoft YaHei",Segoe UI,sans-serif;color:#17324d;min-height:100vh;display:grid;place-items:center}.card{width:min(660px,calc(100vw - 48px));background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(31,67,105,.18);padding:34px}.brand{font-size:14px;color:#52708f;font-weight:700;letter-spacing:.12em}.title{font-size:30px;margin:10px 0 8px}.sub{color:#64788e;line-height:1.7;margin-bottom:24px}.label{font-size:13px;font-weight:700;margin:16px 0 8px}.machine{display:flex;gap:10px}.code,textarea{width:100%;border:1px solid #c8d7e7;border-radius:10px;background:#f7fafe;padding:13px;font:600 15px Consolas,monospace;color:#17324d}.code{user-select:all}.copy{white-space:nowrap}.btn{border:0;border-radius:10px;padding:12px 18px;font-weight:700;cursor:pointer}.primary{width:100%;background:#115c96;color:#fff;margin-top:14px}.secondary{background:#e7f0f8;color:#174c75}.status{min-height:24px;margin-top:12px;font-size:14px}.error{color:#b42318}.ok{color:#067647}.help{font-size:12px;color:#73869a;line-height:1.6;margin-top:18px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">JINWANWA · FOREIGN TRADE ASSISTANT</div>
+    <h1 class="title">激活外贸助手</h1>
+    <div class="sub">这是一次性离线激活。复制本机机器码发给销售方，收到对应授权码后粘贴到下方即可使用。</div>
+    <div class="label">本机机器码</div>
+    <div class="machine"><div id="machine" class="code">正在读取…</div><button id="copy" class="btn secondary">复制机器码</button></div>
+    <div class="label">授权码</div>
+    <textarea id="activation" rows="6" placeholder="请粘贴销售方提供的完整授权码"></textarea>
+    <button id="activate" class="btn primary">验证并激活</button>
+    <div id="status" class="status"></div>
+    <div class="help">同一台电脑卸载重装后可以继续使用原授权码。重装 Windows 或更换主板后机器码可能变化，需要联系销售方重新签发。</div>
+  </main>
+  <script>
+    const machine=document.getElementById('machine'),status=document.getElementById('status');
+    async function init(){const data=await window.quotationDesktop.getLicenseStatus();machine.textContent=data.machineId||'读取失败';}
+    document.getElementById('copy').onclick=async()=>{await navigator.clipboard.writeText(machine.textContent);status.className='status ok';status.textContent='机器码已复制。';};
+    document.getElementById('activate').onclick=async()=>{status.className='status';status.textContent='正在验证…';const result=await window.quotationDesktop.activateLicense(document.getElementById('activation').value);if(!result.ok){status.className='status error';status.textContent=result.message||'激活失败';return;}status.className='status ok';status.textContent='激活成功，正在进入外贸助手…';await window.quotationDesktop.completeActivation();};
+    init().catch(error=>{status.className='status error';status.textContent=error.message;});
+  </script>
+</body>
+</html>

@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const { getMachineId, getLicenseStatus, activateLicense } = require("./license");
 
 let localServer;
 let desktopPort = 18765;
@@ -16,7 +17,11 @@ app.on("second-instance", () => {
 function dataDir() { return app.getPath("userData"); }
 
 async function startLocalServer() {
-  if(localServer)return;
+  if(localServer?.listening){
+    const currentAddress=localServer.address();
+    if(currentAddress){desktopPort=currentAddress.port;return;}
+  }
+  localServer=null;
   process.env.QUOTE_DATA_DIR=dataDir();
   const {startServer}=require("../server/index");
   try { localServer=await startServer(desktopPort); }
@@ -25,7 +30,14 @@ async function startLocalServer() {
     // Never load an older service accidentally when a development copy is still running.
     localServer=await startServer(0);
   }
-  desktopPort=localServer.address().port;
+  let address=localServer?.address();
+  if(!localServer?.listening||!address){
+    try{localServer?.close();}catch(_){/* ignore stale server */}
+    localServer=await startServer(0);
+    address=localServer.address();
+  }
+  if(!address)throw new Error("本地服务启动后未能取得监听端口");
+  desktopPort=address.port;
 }
 async function createWindow() {
   await startLocalServer();
@@ -37,6 +49,25 @@ async function createWindow() {
   win.once("ready-to-show",()=>win.show());
   win.webContents.once("did-finish-load",()=>{if(!win.isVisible())win.show();});
   await win.loadURL(`http://127.0.0.1:${desktopPort}/index.html`);
+}
+
+async function createActivationWindow() {
+  const win = new BrowserWindow({
+    width:760,height:680,resizable:false,maximizable:false,
+    title:"激活外贸助手",show:false,icon:path.join(__dirname,"../assets/app-icon.png"),
+    webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false}
+  });
+  win.once("ready-to-show",()=>win.show());
+  await win.loadFile(path.join(__dirname,"activation.html"));
+}
+
+function developmentLicenseBypass() {
+  return !app.isPackaged && process.env.FTA_LICENSE_BYPASS === "1";
+}
+
+async function openLicensedApplication() {
+  if (developmentLicenseBypass() || getLicenseStatus(dataDir(), app.getVersion()).licensed) return createWindow();
+  return createActivationWindow();
 }
 
 function publishUpdateState(payload) {
@@ -85,7 +116,7 @@ function installChineseMenu() {
   ]));
 }
 
-if(ownsInstance)app.whenReady().then(() => { installChineseMenu();configureUpdater();return createWindow(); }).catch(startupError);
+if(ownsInstance)app.whenReady().then(() => { installChineseMenu();configureUpdater();return openLicensedApplication(); }).catch(startupError);
 
 app.on("window-all-closed", () => {
   if (localServer) { localServer.close(); localServer=null; }
@@ -93,7 +124,21 @@ app.on("window-all-closed", () => {
 });
 
 app.on("activate", () => {
-  if (ownsInstance && BrowserWindow.getAllWindows().length === 0) createWindow().catch(startupError);
+  if (ownsInstance && BrowserWindow.getAllWindows().length === 0) openLicensedApplication().catch(startupError);
+});
+
+ipcMain.handle("get-license-status",()=>getLicenseStatus(dataDir(),app.getVersion()));
+ipcMain.handle("activate-license",(_event,activationCode)=>{
+  try { return {ok:true,...activateLicense(dataDir(),app.getVersion(),activationCode)}; }
+  catch(error){return {ok:false,machineId:getMachineId(),message:error.message};}
+});
+ipcMain.handle("complete-activation",async(event)=>{
+  const status=getLicenseStatus(dataDir(),app.getVersion());
+  if(!status.licensed)throw new Error(status.message||"授权验证失败");
+  const activationWindow=BrowserWindow.fromWebContents(event.sender);
+  await createWindow();
+  if(activationWindow&&!activationWindow.isDestroyed())activationWindow.close();
+  return true;
 });
 
 ipcMain.handle("select-pdf-path", async () => {

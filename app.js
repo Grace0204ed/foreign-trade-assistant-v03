@@ -4997,10 +4997,13 @@
     $("quote-date").value = currentQuote.quoteDate || today();
     $("valid-until").value = currentQuote.validUntil || addDays(7);
     $("pdf-language").value = currentQuote.pdfLanguage || "bilingual";
+    const quoteCurrencies=[...new Set([...(settings.currencies||[]),currentQuote.currency,currentQuote.secondaryCurrency].filter(Boolean).map(value=>String(value).toUpperCase()))];
+    ["quote-currency","quote-secondary-currency"].forEach(id=>{if($(id))$(id).innerHTML=quoteCurrencies.map(currency=>`<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`).join("");});
     if ($("quote-currency")) $("quote-currency").value = currentQuote.currency || settings.currency || "USD";
     if($("quote-currency-display"))$("quote-currency-display").value=currentQuote.currencyDisplay||"single";
-    if($("quote-secondary-currency"))$("quote-secondary-currency").value=currentQuote.secondaryCurrency||"USD";
+    if($("quote-secondary-currency"))$("quote-secondary-currency").value=currentQuote.secondaryCurrency||quoteCurrencies.find(currency=>currency!==currentQuote.currency)||"USD";
     if($("quote-fx-rate"))$("quote-fx-rate").value=currentQuote.exchangeRate?.rate||"";
+    syncDualCurrencyControls();
     $("buyer-country").value = currentQuote.buyer.country || "";
     $("buyer-company").value = currentQuote.buyer.company || "";
     $("buyer-contact").value = currentQuote.buyer.contact || "";
@@ -5084,6 +5087,15 @@
       return { id: card.dataset.id, kind: card.dataset.kind || "product", additionalImages: currentQuote.items.find(item => item.id === card.dataset.id)?.additionalImages || [], values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
     });
     currentQuote.updatedAt = new Date().toISOString();
+  }
+
+  function syncDualCurrencyControls() {
+    const main=$("quote-currency")?.value||settings.currency||"USD",display=$("quote-currency-display")?.value||"single",secondary=$("quote-secondary-currency"),rate=$("quote-fx-rate"),hint=$("quote-fx-hint");
+    const dual=display==="dual";
+    if(dual&&secondary&&secondary.value===main){const alternative=[...(settings.currencies||[]),"USD","CNY","EUR","GBP"].map(value=>String(value).toUpperCase()).find(value=>value!==main);if(alternative){if(![...secondary.options].some(option=>option.value===alternative))secondary.add(new Option(alternative,alternative));secondary.value=alternative;}}
+    if(secondary)secondary.disabled=!dual;
+    if(rate)rate.disabled=!dual;
+    if(hint)hint.textContent=dual?`请输入明确汇率：1 ${main} = ? ${secondary?.value||"第二币种"}。单价、金额和总计会同时显示两种货币；该汇率随单据保存。`:'当前仅显示主报价币种。选择“同时显示第二币种”后填写汇率。';
   }
 
   function itemKindLabel(kind) {
@@ -5825,6 +5837,7 @@
   }
 
   function validateQuoteLines() {
+    if(currentQuote.currencyDisplay==="dual"&&(!currentQuote.secondaryCurrency||currentQuote.secondaryCurrency===currentQuote.currency||!(Number(currentQuote.exchangeRate?.rate)>0))){toast("双币种单据必须选择不同的第二币种，并填写大于0的明确汇率。");return false;}
     if(currentQuote.documentType==='packing') {
       const items=currentQuote.items.filter(i=>(i.kind||'product')==='product');
       if(!items.length){toast('装箱单至少需要一行商品');return false;}
@@ -6091,6 +6104,9 @@
           documentType: currentQuote.documentType,
           pdfLanguage: currentQuote.pdfLanguage,
           currency: currentQuote.currency || settings.currency,
+          currencyDisplay: currentQuote.currencyDisplay || "single",
+          secondaryCurrency: currentQuote.secondaryCurrency || "",
+          exchangeRate: currentQuote.exchangeRate || null,
           buyer: currentQuote.buyer,
           terms: currentQuote.terms,
           quoteDate: currentQuote.quoteDate,
@@ -6123,7 +6139,10 @@
       ...meta.documentExtras,
       documentType:meta.documentType || "quotation", quoteStyle:meta.quoteStyle || q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
       quoteDate:q.quote_date || today(), validUntil:q.valid_until || addDays(7), validityRangeText:meta.validityRangeText || "", showProductPhotos:meta.showProductPhotos !== false,
-      pdfLanguage:meta.pdfLanguage || "bilingual", currency:meta.currency || "USD", buyer:q.buyer || {}, terms:q.terms || {},
+      pdfLanguage:meta.pdfLanguage || "bilingual", currency:meta.currency || "USD",
+      currencyDisplay:meta.currencyDisplay || "single", secondaryCurrency:meta.secondaryCurrency || ((meta.currency || "USD") === "CNY" ? "USD" : "CNY"),
+      exchangeRate:meta.exchangeRate || {sourceCurrency:meta.currency || "USD",targetCurrency:meta.secondaryCurrency || ((meta.currency || "USD") === "CNY" ? "USD" : "CNY"),rate:0,capturedAt:""},
+      buyer:q.buyer || {}, terms:q.terms || {},
       templateName:q.settingsSnapshot?.templates?.[0]?.name || settings.templates[0]?.name || "",
       items:(data.items || []).map(item=>{
         const additionalImages=Array.isArray(item.productSnapshot?.additionalImages)?item.productSnapshot.additionalImages:[];
@@ -6400,7 +6419,8 @@
     $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
     $("buyer-phone").addEventListener("paste", pastePlainTextIntoInput);
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); applyDocumentBasicFields(); applyCustomerQuoteFieldLabels(); renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
-    ["quote-currency","quote-currency-display","quote-secondary-currency","quote-fx-rate"].forEach(id=>$(id)?.addEventListener("change",()=>{collectQuoteFromForm();renderQuoteItems();renderPreview();}));
+    ["quote-currency","quote-currency-display","quote-secondary-currency"].forEach(id=>$(id)?.addEventListener("change",()=>{syncDualCurrencyControls();collectQuoteFromForm();renderQuoteItems();renderPreview();}));
+    $("quote-fx-rate")?.addEventListener("input",()=>{collectQuoteFromForm();renderQuoteItems();renderPreview();});
     $("quote-show-product-images")?.addEventListener("change", renderPreview);
     $("quote-items").addEventListener("input", (event) => {
       const row=event.target.closest(".quote-line");

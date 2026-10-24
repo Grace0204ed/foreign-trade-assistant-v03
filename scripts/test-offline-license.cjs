@@ -1,0 +1,16 @@
+const assert=require("assert");
+const crypto=require("crypto");
+const fs=require("fs");
+const path=require("path");
+const source=fs.readFileSync(path.join(__dirname,"../electron/license.js"),"utf8");
+const main=fs.readFileSync(path.join(__dirname,"../electron/main.js"),"utf8");
+const preload=fs.readFileSync(path.join(__dirname,"../electron/preload.js"),"utf8");
+assert.ok(source.includes('crypto.verify('),'offline license must use digital signature verification');
+assert.ok(source.includes('payload.machineId')&&source.includes('getMachineId()'),'license must be bound to the current machine');
+assert.ok(main.includes('createActivationWindow')&&main.includes('openLicensedApplication'),'desktop startup must be guarded by activation');
+assert.ok(preload.includes('activateLicense')&&preload.includes('getLicenseStatus'),'activation bridge is missing');
+const {publicKey,privateKey}=crypto.generateKeyPairSync('ed25519');
+const payloadText=Buffer.from(JSON.stringify({v:1,product:'foreign-trade-assistant',machineId:'TEST'})).toString('base64url');
+const signature=crypto.sign(null,Buffer.from(payloadText),privateKey);
+assert.ok(crypto.verify(null,Buffer.from(payloadText),publicKey,signature),'Ed25519 smoke test failed');
+console.log('Offline license tests passed.');
