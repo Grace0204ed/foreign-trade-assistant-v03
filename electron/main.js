@@ -1,11 +1,14 @@
 const fs = require("fs");
 const path = require("path");
+const { spawn } = require("child_process");
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { getMachineId, getLicenseStatus, activateLicense } = require("./license");
 
 let localServer;
 let desktopPort = 18765;
+let downloadedUpdateFile = "";
+let latestUpdateState = { status: "idle", message: "尚未检查更新" };
 // Keep installed upgrades on the same local data directory as the existing desktop app.
 app.setPath("userData", process.env.QUOTE_DATA_DIR || path.join(app.getPath("appData"), "foreign-trade-assistant"));
 const ownsInstance = app.requestSingleInstanceLock();
@@ -77,6 +80,11 @@ async function openLicensedApplication() {
 }
 
 function publishUpdateState(payload) {
+  latestUpdateState = { ...latestUpdateState, ...payload, updatedAt: new Date().toISOString() };
+  try {
+    fs.mkdirSync(dataDir(), { recursive: true });
+    fs.appendFileSync(path.join(dataDir(), "update.log"), `${latestUpdateState.updatedAt} ${JSON.stringify(latestUpdateState)}\n`);
+  } catch (_) { /* update logging must never block the application */ }
   BrowserWindow.getAllWindows().forEach(win=>{if(!win.isDestroyed())win.webContents.send("app-update-state",payload);});
 }
 function configureUpdater() {
@@ -87,8 +95,24 @@ function configureUpdater() {
   autoUpdater.on("update-available",info=>publishUpdateState({status:"available",version:info.version,message:`发现新版本 ${info.version}`}));
   autoUpdater.on("update-not-available",info=>publishUpdateState({status:"current",version:info.version,message:"当前已是最新正式版"}));
   autoUpdater.on("download-progress",progress=>publishUpdateState({status:"downloading",percent:Math.round(progress.percent||0),transferred:progress.transferred,total:progress.total,message:`正在下载 ${Math.round(progress.percent||0)}%`}));
-  autoUpdater.on("update-downloaded",info=>publishUpdateState({status:"downloaded",version:info.version,message:"更新已下载，可以重启安装"}));
+  autoUpdater.on("update-downloaded",info=>{
+    downloadedUpdateFile=String(info?.downloadedFile||"");
+    publishUpdateState({status:"downloaded",version:info.version,downloadedFile:downloadedUpdateFile,message:"更新已下载，可以重启安装"});
+  });
   autoUpdater.on("error",error=>publishUpdateState({status:"error",message:`更新失败：${error.message}`}));
+}
+
+function installDownloadedUpdate() {
+  if (downloadedUpdateFile && fs.existsSync(downloadedUpdateFile)) {
+    publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});
+    const child=spawn(downloadedUpdateFile,["/S"],{detached:true,stdio:"ignore",windowsHide:true});
+    child.unref();
+    setTimeout(()=>app.quit(),500);
+    return { method:"verified-installer" };
+  }
+  publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});
+  setImmediate(()=>autoUpdater.quitAndInstall(false,true));
+  return { method:"electron-updater" };
 }
 function startupError(error){
   fs.mkdirSync(dataDir(),{recursive:true});
@@ -196,11 +220,19 @@ ipcMain.handle("select-import-json", async () => {
 });
 
 ipcMain.handle("get-app-version",()=>({version:app.getVersion(),platform:process.platform,arch:process.arch,packaged:app.isPackaged}));
+ipcMain.handle("get-update-state",()=>latestUpdateState);
 ipcMain.handle("check-for-updates",async()=>{
   if(!app.isPackaged)return {status:"development",message:"开发模式不执行在线更新"};
   try { const result=await autoUpdater.checkForUpdates();return {status:"checked",version:result?.updateInfo?.version||""}; }
   catch(error){publishUpdateState({status:"error",message:`检查更新失败：${error.message}`});throw error;}
 });
-ipcMain.handle("download-update",async()=>{if(!app.isPackaged)throw new Error("开发模式不能下载安装包");await autoUpdater.downloadUpdate();return true;});
-ipcMain.handle("install-update",()=>{if(!app.isPackaged)throw new Error("开发模式不能安装更新");setImmediate(()=>autoUpdater.quitAndInstall(false,true));return true;});
+ipcMain.handle("download-update",async()=>{
+  if(!app.isPackaged)throw new Error("开发模式不能下载安装包");
+  try { await autoUpdater.downloadUpdate();return true; }
+  catch(error){publishUpdateState({status:"error",message:`下载更新失败：${error.message}`});throw error;}
+});
+ipcMain.handle("install-update",()=>{
+  if(!app.isPackaged)throw new Error("开发模式不能安装更新");
+  return installDownloadedUpdate();
+});
 
