@@ -36,17 +36,39 @@
       </aside>
 
       <main class="main">
+        <header class="desktop-topbar no-print">
+          <div class="desktop-topbar-title">
+            <strong id="desktop-page-title">工作台</strong>
+            <small id="desktop-page-subtitle">本地离线使用 · 数据仅保存在本机</small>
+          </div>
+          <span class="desktop-user-avatar" aria-label="当前使用者 Ethan">E</span>
+        </header>
         <button id="global-back-btn" class="global-back-btn no-print" type="button" hidden aria-label="返回上一页">‹ <span>返回</span></button>
         <section id="view-home" class="view active no-print">
-          <header class="page-head home-head">
-            <div><h2>外贸助手</h2><p>统一管理客户、产品、报价与外贸单证。</p></div>
-          </header>
-          <div class="entry-grid">
-            <button class="entry-card" id="crm-entry-btn" type="button"><i>👥</i><b>客户跟进</b><span>查看今日提醒、重点客户与跟进记录</span></button>
-            <button class="entry-card" data-view-target="create"><i>📝</i><b>新建</b><span>选择报价、发票、合同、装箱单、授权书或邀请函</span></button>
-            <button class="entry-card" data-view-target="history"><i>🗂️</i><b>历史记录</b><span>统一查看历史报价、授权书和邀请函</span></button>
-            <button class="entry-card" data-view-target="products"><i>🚜</i><b>产品库</b><span>维护二手机械、新车产品和常用图片</span></button>
-            <button class="entry-card" data-view-target="settings"><i>⚙️</i><b>设置</b><span>公司资料、单证设置与本地备份</span></button>
+          <div class="home-dashboard">
+            <div class="home-welcome"><div><h1>早上好，Ethan</h1><p>今天可以从新建单证或最近文件继续工作。</p></div><button class="primary" data-view-target="create">＋ 新建单证</button></div>
+            <div class="home-stats">
+              <article><i>文</i><div><b id="home-document-count">0</b><span>全部单证</span></div></article>
+              <article><i>客</i><div><b id="home-customer-count">0</b><span>客户资料</span></div></article>
+              <article><i>品</i><div><b id="home-product-count">0</b><span>产品资料</span></div></article>
+              <article><i>稿</i><div><b id="home-draft-count">0</b><span>草稿单证</span></div></article>
+            </div>
+            <div class="home-workspace-grid">
+              <section class="home-card home-documents-card"><header><h3>常用单证</h3><button type="button" data-home-settings="quotation-config">管理模板</button></header><div class="home-document-grid">
+                <button type="button" data-view-target="create"><i>报</i><span><b>报价单</b><small>Quotation</small></span></button>
+                <button type="button" data-view-target="create"><i>PI</i><span><b>形式发票</b><small>Proforma Invoice</small></span></button>
+                <button type="button" data-view-target="create"><i>合</i><span><b>销售合同</b><small>Sales Contract</small></span></button>
+                <button type="button" data-view-target="create"><i>票</i><span><b>商业发票</b><small>Commercial Invoice</small></span></button>
+                <button type="button" data-view-target="create"><i>箱</i><span><b>装箱单</b><small>Packing List</small></span></button>
+                <button type="button" data-view-target="create"><i>函</i><span><b>邀请函</b><small>Invitation Letter</small></span></button>
+              </div><header class="recent-heading"><h3>最近文件</h3><button type="button" data-view-target="history">查看全部</button></header><div id="home-recent-documents" class="home-recent-list"><p>暂无历史文件</p></div></section>
+              <aside class="home-card home-quick-card"><header><h3>快捷操作</h3></header><div class="home-quick-actions">
+                <button type="button" data-home-settings="company"><span>公司与签章设置</span><b>›</b></button>
+                <button type="button" data-home-settings="quotation-config"><span>单证模板设置</span><b>›</b></button>
+                <button type="button" data-home-settings="data"><span>备份本机数据</span><b>›</b></button>
+                <button type="button" data-home-settings="software-update"><span>检查软件更新</span><b>›</b></button>
+              </div><p class="home-independent-note">客户跟进保持独立：只管理客户与跟进记录，不向单证页面传值，也不提供“为客户新建报价”。</p></aside>
+            </div>
           </div>
         </section>
 

@@ -1575,6 +1575,39 @@
 
   async function renderAdminOverview(){if(!isAdmin()||!$("admin-data-counts"))return;try{const data=await api("/api/admin/overview"),labels={customers:"客户",products:"产品",quotations:"普通报价",followUps:"跟进记录"},allowed=Object.keys(labels);$("admin-data-counts").innerHTML=Object.entries(data.counts||{}).filter(([key])=>allowed.includes(key)).map(([key,value])=>`<div><b>${Number(value).toLocaleString()}</b><span>${labels[key]}</span></div>`).join("");$("admin-audit-list").innerHTML=(data.audits||[]).map(x=>`<tr><td>${escapeHtml(x.created_at||"")}</td><td>${escapeHtml(x.action||"")}</td><td>${escapeHtml(`${x.entity_type||""} ${x.entity_id||""}`)}</td><td>${escapeHtml(x.reason||"")}</td></tr>`).join("")||'<tr><td colspan="4">暂无审计记录</td></tr>';}catch(e){toast(e.message);}}
 
+  async function renderHomeDashboard(){
+    if(!$("view-home"))return;
+    const issuedAgency=agentAuthorizations.filter(item=>!item.isTemplate);
+    const allDocuments=[...quotes,...invitations,...issuedAgency];
+    const drafts=quotes.filter(item=>String(item.status||"").toLowerCase().includes("draft")||item.isFormal===false);
+    if($("home-document-count"))$("home-document-count").textContent=allDocuments.length.toLocaleString();
+    if($("home-product-count"))$("home-product-count").textContent=products.length.toLocaleString();
+    if($("home-draft-count"))$("home-draft-count").textContent=drafts.length.toLocaleString();
+    try{const customers=await api("/api/customers");if($("home-customer-count"))$("home-customer-count").textContent=customers.length.toLocaleString();}catch(_){if($("home-customer-count"))$("home-customer-count").textContent="—";}
+    const labels={quotation:"报价单",invoice:"形式发票",contract:"销售合同",commercial:"商业发票",packing:"装箱单"};
+    const recent=[...quotes].sort((a,b)=>String(b.updatedAt||b.createdAt||b.quoteDate||"").localeCompare(String(a.updatedAt||a.createdAt||a.quoteDate||""))).slice(0,5);
+    if($("home-recent-documents"))$("home-recent-documents").innerHTML=recent.length?recent.map(item=>`<button type="button" class="home-recent-row" data-home-quote="${escapeHtml(item.id)}"><b>${escapeHtml(item.quoteNumber||"未编号")}</b><span>${escapeHtml(item.buyer?.company||item.buyer?.contact||"未填写客户")}</span><em>${escapeHtml(labels[item.documentType]||"报价单")}</em><i>${escapeHtml(item.status||"已保存")}</i></button>`).join(""):'<p class="home-empty">暂无历史文件</p>';
+  }
+
+  const desktopViewMeta={
+    home:["工作台","本地离线使用 · 数据仅保存在本机"],
+    create:["新建单证","选择需要制作的单证类型"],
+    quote:["新建单证","填写业务资料并实时预览"],
+    invitation:["商务邀请函","填写来华访问资料并生成正式邀请函"],
+    agency:["授权与佣金文件","制作授权书、佣金协议及结算单"],
+    history:["历史记录","查找、打开和复用已保存的业务文件"],
+    products:["产品库","维护可在单证中直接引用的产品资料"],
+    settings:["设置","公司、模板、单证与本机功能设置"],
+    data:["管理后台","本机数据、应用锁与使用记录"],
+    help:["使用说明","外贸助手功能与本地数据说明"]
+  };
+
+  function updateDesktopTopbar(name){
+    const [title,subtitle]=desktopViewMeta[name]||["外贸助手","本地离线使用 · 数据仅保存在本机"];
+    if($("desktop-page-title"))$("desktop-page-title").textContent=title;
+    if($("desktop-page-subtitle"))$("desktop-page-subtitle").textContent=subtitle;
+  }
+
   function switchView(name, options = {}) {
     if (name === "vehicle-quote") name = "quote";
     if (!currentUser && name !== "login") {
@@ -1595,9 +1628,11 @@
       if (internalViewHistory.length > 30) internalViewHistory.shift();
     }
     activeViewName = name;
+    updateDesktopTopbar(name);
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
     if (name === "history") { renderHistory(); renderInvitationHistory(); loadAgentAuthorizations(); }
+    if (name === "home") renderHomeDashboard();
     if (name === "products") { renderProducts(); window.dispatchEvent(new Event("product-library-opened")); }
     if (name === "settings") renderSettings();
     if (name === "users") {
@@ -6306,6 +6341,8 @@
 
     $("home-contact-btn")?.addEventListener("click", showContactInformation);
     $("sidebar-contact-btn")?.addEventListener("click", showContactInformation);
+    document.querySelectorAll("[data-home-settings]").forEach(button=>button.addEventListener("click",()=>openSettingsSection(button.dataset.homeSettings)));
+    $("home-recent-documents")?.addEventListener("click",event=>{const button=event.target.closest("[data-home-quote]");if(button)editQuote(button.dataset.homeQuote);});
     $("sidebar-lock-btn")?.addEventListener("click", () => {
       if (settings.applicationLock?.enabled) return window.AppLock?.lock();
       openSettingsSection("data");

@@ -39,6 +39,11 @@ for(const marker of ['Commercial Invoice No.','Packing List No.','Invitation Dat
 assert.ok(workspaceText.includes('getLicenseStatus')&&workspaceText.includes('永久使用')&&workspaceText.includes('剩余 ${days} 天'),'license status panel is missing');
 assert.ok(!crmText.includes('crmCustomer')&&!crmText.includes('为客户新建报价'),'retired CRM create-quotation entry remains');
 assert.ok(indexText.includes('desktop-rail')&&indexText.includes('sidebar-contact-btn')&&indexText.includes('sidebar-lock-btn'),'desktop navigation rail is incomplete');
+for(const marker of ['desktop-topbar','desktop-page-title','home-document-count','home-recent-documents'])assert.ok(indexText.includes(marker),`approved desktop workbench is missing: ${marker}`);
+const styleText=require('fs').readFileSync(require('path').join(__dirname,'../styles.css'),'utf8');
+for(const marker of ['Approved desktop demo system','quote-split-workspace','view-products.active','view-settings.active'])assert.ok(styleText.includes(marker),`shared demo UI layer is missing: ${marker}`);
+assert.ok(crmText.includes('mainAppUrl')&&crmText.includes("new URL('../index.html',window.location.href)"),'CRM does not use an app.asar-safe return URL');
+assert.ok(!crmText.includes('location.href="/"')&&!crmText.includes("location.href='/'"),'CRM still uses the broken root return path');
 assert.ok(appText.includes('applicationLock?.shortcut')&&workspaceText.includes('data-lock-shortcut'),'configurable application-lock shortcut is missing');
 assert.ok(electronMainText.includes('Menu.setApplicationMenu(null)')&&electronMainText.includes('reloadIgnoringCache'),'desktop menu removal or hidden F5 refresh is missing');
 for(const retired of ['导入当前新车单据','vehicle-quote-workspace-host','unified-vehicle-product-editor','machinery-reference-editor'])assert.ok(!indexText.includes(retired),`retired interface remains: ${retired}`);
