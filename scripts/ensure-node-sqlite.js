@@ -18,9 +18,13 @@ if (sqliteWorks()) {
   process.exit(0);
 }
 
-const result = spawnSync("npm", ["rebuild", "better-sqlite3"], {
+const command = process.platform === "win32" ? process.env.ComSpec : "npm";
+const args = process.platform === "win32"
+  ? ["/d", "/s", "/c", "npm rebuild better-sqlite3"]
+  : ["rebuild", "better-sqlite3"];
+const result = spawnSync(command, args, {
   stdio: "inherit",
-  shell: true
+  shell: false
 });
 
 if (result.status !== 0) {
