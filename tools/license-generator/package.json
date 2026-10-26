@@ -1,0 +1,27 @@
+{
+  "name": "foreign-trade-license-generator",
+  "version": "1.0.1",
+  "description": "外贸助手离线授权码生成器",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "39.8.10",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.jinwanwa.foreigntradeassistant.licensegenerator",
+    "productName": "外贸助手授权码生成器",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "index.html", "package.json"],
+    "asar": true,
+    "win": {
+      "target": "portable",
+      "signExecutable": false,
+      "artifactName": "外贸助手授权码生成器-${version}.${ext}"
+    }
+  }
+}
