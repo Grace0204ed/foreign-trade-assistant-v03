@@ -9,15 +9,27 @@ let localServer;
 let desktopPort = 18765;
 let downloadedUpdateFile = "";
 let latestUpdateState = { status: "idle", message: "尚未检查更新" };
+const packagedSelfTest = process.env.FTA_PACKAGED_SELF_TEST === "1";
 // Keep installed upgrades on the same local data directory as the existing desktop app.
 app.setPath("userData", process.env.QUOTE_DATA_DIR || path.join(app.getPath("appData"), "foreign-trade-assistant"));
-const ownsInstance = app.requestSingleInstanceLock();
+const ownsInstance = packagedSelfTest || app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 app.on("second-instance", () => {
   const win=BrowserWindow.getAllWindows()[0];
   if(win){if(win.isMinimized())win.restore();if(!win.isVisible())win.show();win.focus();}
 });
 function dataDir() { return app.getPath("userData"); }
+
+function runPackagedSelfTest() {
+  const Database = require("better-sqlite3");
+  const probe = new Database(":memory:");
+  const result = probe.prepare("SELECT 1 AS ok").get();
+  probe.close();
+  if (result?.ok !== 1) throw new Error("SQLite packaged runtime returned an invalid result");
+  require("express");
+  require("electron-updater");
+  console.log(`FTA_PACKAGED_SELF_TEST_OK electron=${process.versions.electron} modules=${process.versions.modules} arch=${process.arch}`);
+}
 
 async function startLocalServer() {
   if(localServer?.listening){
@@ -130,7 +142,21 @@ function installChineseMenu() {
   Menu.setApplicationMenu(null);
 }
 
-if(ownsInstance)app.whenReady().then(() => { installChineseMenu();configureUpdater();return openLicensedApplication(); }).catch(startupError);
+if(ownsInstance)app.whenReady().then(() => {
+  if (packagedSelfTest) {
+    runPackagedSelfTest();
+    app.exit(0);
+    return;
+  }
+  installChineseMenu();configureUpdater();return openLicensedApplication();
+}).catch(error=>{
+  if (packagedSelfTest) {
+    console.error("FTA_PACKAGED_SELF_TEST_FAILED", error?.stack || error);
+    app.exit(1);
+    return;
+  }
+  startupError(error);
+});
 
 app.on("window-all-closed", () => {
   if (localServer) { localServer.close(); localServer=null; }
