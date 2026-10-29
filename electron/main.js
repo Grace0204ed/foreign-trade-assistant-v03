@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, Menu, net } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { getMachineId, getLicenseStatus, activateLicense } = require("./license");
 // Some office networks interrupt GitHub release downloads over HTTP/2.
@@ -10,6 +10,33 @@ app.commandLine.appendSwitch("disable-http2");
 let localServer;
 let desktopPort = 18765;
 let downloadedUpdateFile = "";
+let fallbackRelease = null;
+async function githubUpdateFallback(download=false) {
+  const base="https://api.github.com/repos/Grace0204ed/foreign-trade-assistant-v03";
+  const headers={"User-Agent":"ForeignTradeAssistant","Accept":"application/vnd.github+json"};
+  if(!fallbackRelease){
+    const response=await net.fetch(`${base}/releases/latest`,{headers});
+    if(!response.ok)throw new Error(`更新备用连接返回 ${response.status}`);
+    const release=await response.json();
+    const version=String(release.tag_name||'').replace(/^v/,'');
+    const semver=require('semver');
+    if(!semver.valid(version)||!semver.gt(version,app.getVersion())||release.prerelease||release.draft){publishUpdateState({status:'current',message:'当前已是最新正式版'});return {status:'current'};}
+    const asset=release.assets.find(a=>a.name===`Foreign-Trade-Assistant-Setup-${version}-${process.arch}.exe`);
+    if(process.platform!=='win32'||!asset||!/^sha256:[a-f0-9]{64}$/.test(asset.digest||''))throw new Error('没有兼容且可校验的更新文件');
+    fallbackRelease={version,asset};
+  }
+  if(!download){publishUpdateState({status:'available',version:fallbackRelease.version,message:`发现新版本 ${fallbackRelease.version}（备用连接）`});return {status:'checked',version:fallbackRelease.version};}
+  const {asset,version}=fallbackRelease;
+  const response=await net.fetch(asset.url,{headers:{...headers,Accept:'application/octet-stream'}});
+  if(!response.ok)throw new Error(`更新下载返回 ${response.status}`);
+  const folder=path.join(dataDir(),'updates');fs.mkdirSync(folder,{recursive:true});
+  const target=path.join(folder,asset.name),partial=target+'.partial';
+  const handle=fs.openSync(partial,'w'),hash=require('crypto').createHash('sha256');let bytes=0;
+  try {for await(const chunk of response.body){fs.writeSync(handle,chunk);hash.update(chunk);bytes+=chunk.length;publishUpdateState({status:'downloading',version,percent:Math.min(99,Math.round(bytes/asset.size*100)),message:`正在下载 ${Math.min(99,Math.round(bytes/asset.size*100))}%`});}} finally {fs.closeSync(handle);}
+  if(bytes!==asset.size||`sha256:${hash.digest('hex')}`!==asset.digest)throw new Error('更新文件校验失败，请重新下载');
+  fs.renameSync(partial,target);downloadedUpdateFile=target;
+  publishUpdateState({status:'downloaded',version,percent:100,message:'更新已下载并通过校验，可以重启安装'});return true;
+}
 let latestUpdateState = { status: "idle", message: "尚未检查更新" };
 const packagedSelfTest = process.env.FTA_PACKAGED_SELF_TEST === "1";
 // Keep installed upgrades on the same local data directory as the existing desktop app.
@@ -253,15 +280,16 @@ ipcMain.handle("get-update-state",()=>latestUpdateState);
 ipcMain.handle("check-for-updates",async()=>{
   if(!app.isPackaged)return {status:"development",message:"开发模式不执行在线更新"};
   try { const result=await autoUpdater.checkForUpdates();return {status:"checked",version:result?.updateInfo?.version||""}; }
-  catch(error){publishUpdateState({status:"error",message:`检查更新失败：${error.message}`});throw error;}
+  catch(error){try{return await githubUpdateFallback();}catch(fallbackError){publishUpdateState({status:"error",message:`检查更新失败：${fallbackError.message}`});throw fallbackError;}}
 });
 ipcMain.handle("download-update",async()=>{
   if(!app.isPackaged)throw new Error("开发模式不能下载安装包");
+  if(fallbackRelease)return githubUpdateFallback(true);
   try {
     for(let attempt=1;attempt<=3;attempt++){
       try { await autoUpdater.downloadUpdate();return true; }
       catch(error){
-        if(attempt===3)throw error;
+        if(attempt===3){await githubUpdateFallback();return githubUpdateFallback(true);}
         publishUpdateState({status:"downloading",message:`下载连接中断，正在重试（${attempt}/3）…`});
         await new Promise(resolve=>setTimeout(resolve,1000*attempt));
       }
