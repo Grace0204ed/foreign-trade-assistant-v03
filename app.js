@@ -5674,7 +5674,7 @@
     if((currentQuote.documentType||'quotation')==='quotation')return quoteLineColumns()
       .filter(column=>column.key!=='image'||currentQuote.showProductPhotos!==false)
       .map(column=>({key:column.key,en:column.labelEn||column.key,zh:column.labelZh||column.key,type:column.type}));
-    const columns = quoteLineColumns().filter(column => column.key !== 'image').map((column) => ({
+    const columns = quoteLineColumns().filter(column => column.key !== 'image'||currentQuote.showProductPhotos!==false).map((column) => ({
       key: column.key,
       en: column.labelEn || column.key,
       zh: column.labelZh || column.key,
@@ -5800,6 +5800,10 @@
   }
 
   function quoteSectionTitle(key) {
+    if(currentQuote.documentType==='invoice') {
+      const titles={items:['Proforma Invoice Items','形式发票商品明细'],terms:['Payment and Delivery Terms','付款及交付条款']};
+      if(titles[key])return labelText(...titles[key]);
+    }
     if(currentQuote.documentType==='contract' && key==='items')return labelText('Contract Items','合同明细');
     normalizeCustomerQuoteFields();
     const title=settings.quoteSectionTitles[key] || defaultSettings.quoteSectionTitles[key];
@@ -5808,7 +5812,7 @@
 
   function customerPreviewFields(buyer = {}) {
     normalizeCustomerQuoteFields();
-    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p>${labelText(field.en,field.zh)}：${escapeHtml(buyer[field.fieldKey] || "")}</p>`).join("");
+    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <span>${escapeHtml(buyer[field.fieldKey] ?? "")}</span></p>`).join("");
   }
 
   function applyCustomerQuoteFieldLabels() {
@@ -6103,7 +6107,7 @@
     const detail=(en,zh,value)=>`<p><b>${l(en,zh)}</b><span>${e(value||'—')}</span></p>`;
     const company=localizedText(settings.companyNameEn,settings.companyNameZh);
     const seller=`<strong>${e(company)}</strong><p>${e(localizedText(settings.companyAddressEn,settings.companyAddressZh))}</p><p>${e(settings.companyPhone||'')} ${e(settings.companyEmail||'')}</p>`;
-    const buyer=`<strong>${e(currentQuote.buyer.company||currentQuote.buyer.contact||'—')}</strong><p>${e(currentQuote.buyer.address||'')}</p><p>${e(currentQuote.buyer.country||'')}</p><p>${e(currentQuote.buyer.contact||'')} ${e(currentQuote.buyer.phone||'')}</p><p>${e(currentQuote.buyer.email||'')}</p>`;
+    const buyer=customerPreviewFields(currentQuote.buyer);
     const d=currentQuote.shipmentDetails||{};
     const partyHeading=['commercial','packing'].includes(type)?l('Consignee','收货人'):l('Buyer','买方');
     const consignee=['commercial','packing'].includes(type)&&d.consignee?`<p class="preserve-lines">${e(d.consignee)}</p>`:buyer;

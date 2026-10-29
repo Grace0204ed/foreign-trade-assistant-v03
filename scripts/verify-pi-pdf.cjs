@@ -44,10 +44,14 @@ app.whenReady().then(async()=>{
       const hsIndex=data.headers.indexOf('HS CODE');
       assert(hsIndex>=0,'HS column missing');
       for(const row of data.rows)assert(/^\d{8}$|^—$|^$/.test(row[hsIndex]),'HS cell is misaligned: '+row[hsIndex]);
-      const desktop=process.env.USERPROFILE?path.join(process.env.USERPROFILE,'Desktop'):app.getPath('desktop');
+      const customerFields=await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('#quote-preview .document-customer-field')).map(el=>({key:el.dataset.fieldKey,label:el.querySelector('b')?.textContent,value:el.querySelector('span')?.textContent}))`);
+      for(const key of ['company','country','contact','phone','email','address'])assert(customerFields.some(field=>field.key===key&&field.label?.endsWith(':')),key+' customer label missing');
+      const desktop=process.env.FTA_PDF_QA_DIR||(process.env.USERPROFILE?path.join(process.env.USERPROFILE,'Desktop'):app.getPath('desktop'));
+      fs.mkdirSync(desktop,{recursive:true});
       const file=path.join(desktop,`2026-10-29 ${record.buyer.company} ${number}-修正版.pdf`);
       const pdf=await win.webContents.printToPDF({printBackground:true,pageSize:'A4'});
       fs.writeFileSync(file,pdf);
+      const screenshot=await win.webContents.capturePage();fs.writeFileSync(path.join(desktop,number+'-preview.png'),screenshot.toPNG());
       console.log(JSON.stringify({number,file,headers:data.headers,rows:data.rows,signature:data.signature,seal:data.seal}));
       win.destroy();
     }

@@ -1637,11 +1637,17 @@ textarea { min-height: 86px; resize: vertical; }
   @page { size:A4 portrait; margin:0; }
   html, body { width:210mm !important; max-width:210mm !important; overflow-x:hidden !important; }
   .quote-preview { width:209mm !important; max-width:209mm !important; min-width:0 !important; overflow:visible !important; padding:6mm !important; font-size:9.5px; }
-  .quote-preview table { min-width:0 !important; width:100% !important; table-layout:fixed; font-size:9px; }
+  .quote-preview table { min-width:0 !important; width:100% !important; table-layout:auto; font-size:9px; }
+  .quote-preview table th, .quote-preview table td { width:auto !important; min-width:0 !important; overflow-wrap:normal; word-break:normal; }
+  .quote-preview table .preview-col-description { width:28% !important; }
+  .quote-preview table .preview-col-sequence { width:4% !important; }
+  .quote-preview table .preview-col-image { width:12% !important; }
+  .quote-preview table th { white-space:normal; overflow-wrap:normal; }
   .quote-preview thead { display:table-header-group; }
   .quote-preview tr, .quote-preview img { break-inside:avoid; page-break-inside:avoid; }
   .quote-preview th, .quote-preview td { padding:4px 3px; overflow-wrap:anywhere; word-break:normal; }
-  .quote-preview .preview-col-extra { display:none !important; }
+  /* Configured columns must remain identical in preview and PDF. */
+  .quote-preview .preview-col-extra { display:table-cell !important; }
   .quote-preview .preview-col-description { width:32%; text-align:left; }
   .quote-preview .preview-col-hsCode { width:12%; }
   .quote-preview .preview-col-qty { width:6%; }
@@ -1651,7 +1657,7 @@ textarea { min-height: 86px; resize: vertical; }
   .quote-preview .preview-col-image { width:15%; min-width:0; }
   .quote-preview .preview-product-image img { width:100%; max-width:28mm; height:22mm; }
   .quote-preview:not(.vehicle-document-preview) .preview-row-with-image td { height:28mm; }
-  .quote-preview .print-product-meta { display:block; margin-top:1mm; color:#64748b; font-size:7.5px; line-height:1.25; }
+  .quote-preview .print-product-meta { display:none; }
   .quote-preview .terms-panel { grid-template-columns:minmax(0,1fr) 38mm; gap:5mm; align-items:start; }
   .quote-preview .terms-content p { margin:0; padding:1.3mm 0; line-height:1.35; }
   .quote-preview .preview-total { margin-top:2mm; font-size:17px; }

@@ -23,3 +23,22 @@ assert(row.includes('84295100'));
 context.renderPreviewWithCompany=()=>{throw Error('render failed');};
 assert.throws(()=>context.renderPreview());assert.equal(context.settings,live,'Restore global company even after render failure');
 console.log('PI print regression passed: aligned headers/cells and isolated company/payment/signature snapshot.');
+const customerContext=vm.createContext({
+  normalizeCustomerQuoteFields:()=>{},settings:{customerQuoteFields:[]},
+  configuredBlockFields:()=>[{fieldKey:'country',en:'Buyer Country',zh:'买方国家'},{fieldKey:'company',en:'Buyer Company',zh:'买方公司'},{fieldKey:'reference',en:'Reference',zh:'内部编号'}],
+  labelText:en=>en,escapeHtml:value=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+});
+vm.runInContext(extract('customerPreviewFields'),customerContext);
+const customer=customerContext.customerPreviewFields({company:'Arby',country:'Kenya',reference:'REF-01',phone:'HIDDEN'});
+assert(customer.includes('Buyer Country:</b> <span>Kenya'));
+assert(customer.indexOf('Kenya')<customer.indexOf('Arby'));
+assert(customer.includes('Reference:</b> <span>REF-01'));
+assert(!customer.includes('HIDDEN'));
+assert(source.includes('const buyer=customerPreviewFields(currentQuote.buyer)'),'Dedicated document layouts must use configured customer fields');
+const layouts=require('../assets/trade-document-layouts.js');
+for(const type of ['invoice','contract','commercial','packing'])assert(layouts.render(type,{parties:customer}).includes(customer));
+assert(layouts.render('invoice',{offerTerms:'TERMS',paymentTerms:'LEGACY-PAYMENT',deliveryTerms:'LEGACY-DELIVERY'}).includes('TERMS'));
+assert(!layouts.render('invoice',{offerTerms:'TERMS',paymentTerms:'LEGACY-PAYMENT'}).includes('LEGACY-PAYMENT'));
+const css=fs.readFileSync(require('node:path').join(__dirname,'../styles.css'),'utf8');
+assert(!/\.preview-col-extra\s*\{\s*display:none/.test(css),'PDF must not hide configured columns');
+console.log('Configured customer labels, custom fields, order, shared PI terms and print column visibility passed.');

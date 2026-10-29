@@ -3,7 +3,7 @@
   // Each document has a different information hierarchy, not merely a new title.
   const layouts={
     quotation:p=>`${p.letterhead}${p.heading}${p.customer}${p.items}${p.photos}${p.offerTerms}${p.bank}${p.signature}`,
-    invoice:p=>`${p.letterhead}${p.heading}${p.proformaNotice}${p.parties}${p.items}<div class="pi-payment-layout">${p.paymentTerms}${p.bank}</div>${p.deliveryTerms}${p.photos}${p.signature}`,
+    invoice:p=>`${p.letterhead}${p.heading}${p.proformaNotice}${p.parties}${p.items}${p.offerTerms}${p.bank}${p.photos}${p.signature}`,
     contract:p=>`${p.letterhead}${p.heading}${p.parties}${p.contractItems}${p.contractClauses}${p.bank}${p.photos}${p.signature}`,
     commercial:p=>`${p.letterhead}${p.heading}${p.parties}${p.shipment}${p.items}${p.shippingNotes}${p.bank}${p.signature}`,
     packing:p=>`${p.letterhead}${p.heading}${p.parties}${p.shipment}${p.items}${p.packingTotals}${p.shippingNotes}${p.signature}`
