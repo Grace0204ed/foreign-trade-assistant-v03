@@ -2,6 +2,7 @@ const {app,BrowserWindow}=require('electron');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
 process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-pdf-qa-'));
 const output=path.resolve('output/release-qa/pdfs');fs.mkdirSync(output,{recursive:true});
+fs.mkdirSync(path.join(process.env.QUOTE_DATA_DIR,'electron-profile'),{recursive:true});app.setPath('userData',path.join(process.env.QUOTE_DATA_DIR,'electron-profile'));
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;
@@ -30,6 +31,7 @@ app.whenReady().then(async()=>{
    await run('document.fonts.ready');
    fs.writeFileSync(path.join(output,type+'-preview.png'),(await win.webContents.capturePage()).toPNG());
    await run(`document.body.classList.add('${cls}')`);
+   if(type==='invitation')fs.writeFileSync(path.join(output,'invitation-layout.json'),JSON.stringify(await run(`['.invitation-sheet','.invitation-info-grid','.invitation-info-grid p:nth-child(5)','.invitation-footer'].map(s=>{const e=document.querySelector(s),c=getComputedStyle(e),r=e.getBoundingClientRect();return {s,width:r.width,height:r.height,font:c.fontSize,gridColumn:c.gridColumn,margin:c.margin,padding:c.padding}})`),null,2));
    fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4'}));
    await run(`document.body.classList.remove('${cls}')`);
   }
@@ -40,6 +42,6 @@ app.whenReady().then(async()=>{
   await run(`window.quoteSettingsContext.save({companyNameEn:'OTHER QA COMPANY',agencyAuthorizer:'WRONG SIGNER',stampDataUrl:''})`);
   await run("document.querySelector('#document-show-signature').click();document.querySelector('#document-show-signature').click()");
   assert(!await run("document.querySelector('.document-signature-block').textContent.includes('WRONG SIGNER')"),'company isolation');
-  assert.equal(errors.length,0,errors.join('\n'));console.log('PASS real Electron A4 export: nine document types, signer refresh and company isolation; '+output);
+  assert.equal(errors.length,0,errors.join('\n'));console.log('PASS real Electron A4 export: ten document types, signer refresh and company isolation; '+output);
  }finally{win.destroy();server.close();app.quit();}
 }).catch(e=>{console.error(e);app.exit(1);});

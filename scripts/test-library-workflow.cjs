@@ -1,6 +1,7 @@
 const {app,BrowserWindow}=require('electron');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
 process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-library-flow-'));
+fs.mkdirSync(path.join(process.env.QUOTE_DATA_DIR,'electron-profile'),{recursive:true});app.setPath('userData',path.join(process.env.QUOTE_DATA_DIR,'electron-profile'));
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;

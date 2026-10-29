@@ -1,5 +1,5 @@
 /* Only the explicitly chosen table-header colour affects printed documents. */
-.quote-preview.custom-table-header table thead th{background:var(--document-table-color)!important;color:#fff!important;border-color:var(--document-table-color)!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+.quote-preview.custom-table-header table thead th{background:var(--document-table-color)!important;color:var(--document-header-text,#fff)!important;border-color:var(--document-table-color)!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
 @media screen {
   [hidden]{display:none!important}
   .desktop-rail{background:#fff;color:#334155;box-shadow:none;border-right:1px solid #e5e7ef}

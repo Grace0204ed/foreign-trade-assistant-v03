@@ -1,12 +1,12 @@
 {
   "name": "foreign-trade-assistant",
-  "version": "0.11.7",
+  "version": "0.11.8",
   "description": "外贸助手：客户跟进、产品、报价与外贸单证桌面系统",
   "main": "electron/main.js",
   "private": true,
   "scripts": {
     "test": "node scripts/run-tests-with-sqlite-targets.cjs",
-    "test:node": "node scripts/test-github-update.cjs && node scripts/test-pi-print-regression.cjs && node scripts/test-agency-documents.js && node scripts/test-history-actions.js && node scripts/test-procurement.js && node scripts/test-global-freight-calculator.cjs && node scripts/test-configurable-workspaces.cjs && node scripts/test-update-selection.cjs && node scripts/test-offline-license.cjs && node scripts/check-no-private-key.cjs && node scripts/test-business-overview.cjs && node scripts/test-release-publication.cjs",
+    "test:node": "node scripts/test-github-update.cjs && node scripts/test-pi-print-regression.cjs && node scripts/test-agency-documents.js && node scripts/test-history-actions.js && node scripts/test-procurement.js && node scripts/test-global-freight-calculator.cjs && node scripts/test-configurable-workspaces.cjs && node scripts/test-update-selection.cjs && node scripts/test-offline-license.cjs && node scripts/check-no-private-key.cjs && node scripts/test-business-overview.cjs && node scripts/test-release-publication.cjs && node scripts/test-option-presentation.cjs",
     "server": "npm run ensure:sqlite && node server/index.js",
     "electron": "npm run rebuild:electron && electron .",
     "dev": "npm run ensure:sqlite && node server/index.js",
@@ -14,11 +14,11 @@
     "rebuild:node": "npm rebuild better-sqlite3",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "build:win": "npm run rebuild:electron && electron-builder --win nsis --publish never",
-    "check": "node --check server/index.js && node --check electron/main.js && node --check electron/license.js && node --check app.js && node --check crm/crm.js && node --check assets/global-freight-calculator.js && node --check assets/document-designer.js && node --check assets/configurable-workspaces.js && node --check assets/app-lock.js && node --check scripts/ensure-node-sqlite.js && node --check scripts/run-tests-with-sqlite-targets.cjs && node --check scripts/check-electron-sqlite.cjs && node --check assets/business-overview.js && node --check assets/item-types.js && node --check scripts/test-packing-link.cjs && node --check scripts/test-library-workflow.cjs && node --check scripts/verify-release-pdfs.cjs",
+    "check": "node --check server/index.js && node --check electron/main.js && node --check electron/license.js && node --check app.js && node --check crm/crm.js && node --check assets/global-freight-calculator.js && node --check assets/document-designer.js && node --check assets/configurable-workspaces.js && node --check assets/app-lock.js && node --check scripts/ensure-node-sqlite.js && node --check scripts/run-tests-with-sqlite-targets.cjs && node --check scripts/check-electron-sqlite.cjs && node --check assets/business-overview.js && node --check assets/item-types.js && node --check scripts/test-packing-link.cjs && node --check scripts/test-library-workflow.cjs && node --check scripts/verify-release-pdfs.cjs && node --check assets/option-catalog.js && node --check assets/option-manager.js && node --check assets/document-presentation.js && node --check scripts/verify-option-presentation.cjs && node --check scripts/audit-exported-pdfs.cjs",
     "check:electron-sqlite": "electron scripts/check-electron-sqlite.cjs",
     "check:no-private-key": "node scripts/check-no-private-key.cjs",
     "test:ui": "electron scripts/test-packing-link.cjs && electron scripts/test-library-workflow.cjs && electron scripts/verify-library-ui.cjs",
-    "test:pdf": "electron scripts/verify-release-pdfs.cjs"
+    "test:pdf": "electron scripts/verify-release-pdfs.cjs && electron scripts/verify-option-presentation.cjs && node scripts/audit-exported-pdfs.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

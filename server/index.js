@@ -1,6 +1,7 @@
 ﻿const fs = require("fs");
 const path = require("path");
 const express = require("express");
+const OptionCatalog = require('../assets/option-catalog');
 
 
 const { db, id, now, normalize, dbPath } = require("./db");
@@ -140,6 +141,7 @@ function rowToPort(row) {
     isDestinationPort: !!row.is_destination_port,
     status: row.status || "Active",
     remark: row.remark || "",
+    sortOrder: Number(row.sort_order||0),
     displayName: portDisplay(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -459,7 +461,7 @@ app.delete("/api/products/:id", requireLogin, requireAdmin, (req, res) => {
 
 app.get("/api/ports", requireLogin, (req, res) => {
   const q = normalize(req.query.keyword || "");
-  let rows = db.prepare("SELECT * FROM ports ORDER BY country_name, port_name").all();
+  let rows = db.prepare("SELECT * FROM ports ORDER BY sort_order, country_name, port_name").all();
   if (req.query.includeInactive !== "true") rows = rows.filter((row) => row.status !== "Inactive");
   if (q) rows = rows.filter((row) => normalize(row.search_text).includes(q));
   ok(res, { ports: rows.map(rowToPort) });
@@ -469,6 +471,7 @@ app.post("/api/ports", requireLogin, requireAdmin, (req, res) => {
   const p = req.body || {};
   const portId = p.id || id("port");
   const payload = {
+    sortOrder: Number(p.sortOrder)||0,
     countryName: p.countryName || "",
     countryChineseName: p.countryChineseName || "",
     countryCode: p.countryCode || "",
@@ -481,8 +484,9 @@ app.post("/api/ports", requireLogin, requireAdmin, (req, res) => {
     status: p.status || "Active",
     remark: p.remark || ""
   };
-  db.prepare(`INSERT INTO ports (id, country_name, country_chinese_name, country_code, port_name, port_chinese_name, un_locode, aliases, is_origin_port, is_destination_port, status, remark, search_text, created_at, updated_at)
-    VALUES (@id, @countryName, @countryChineseName, @countryCode, @portName, @portChineseName, @unLocode, @aliases, @isOriginPort, @isDestinationPort, @status, @remark, @searchText, @createdAt, @updatedAt)`)
+  if(!payload.countryName.trim()||!payload.portName.trim())return fail(res,400,"Invalid port.","国家和港口名称不能为空。");
+  db.prepare(`INSERT INTO ports (sort_order, id, country_name, country_chinese_name, country_code, port_name, port_chinese_name, un_locode, aliases, is_origin_port, is_destination_port, status, remark, search_text, created_at, updated_at)
+    VALUES (@sortOrder, @id, @countryName, @countryChineseName, @countryCode, @portName, @portChineseName, @unLocode, @aliases, @isOriginPort, @isDestinationPort, @status, @remark, @searchText, @createdAt, @updatedAt)`)
     .run({ id: portId, ...payload, searchText: portSearchText(payload), createdAt: now(), updatedAt: now() });
   ok(res, { port: rowToPort(db.prepare("SELECT * FROM ports WHERE id=?").get(portId)), message: "Saved successfully.", zh: "保存成功。" });
 });
@@ -492,6 +496,7 @@ app.put("/api/ports/:id", requireLogin, requireAdmin, (req, res) => {
   if (!existing) return fail(res, 404, "Port not found.", "港口不存在。");
   const p = req.body || {};
   const payload = {
+    sortOrder: p.sortOrder===undefined?existing.sort_order:(Number(p.sortOrder)||0),
     countryName: p.countryName ?? existing.country_name,
     countryChineseName: p.countryChineseName ?? existing.country_chinese_name,
     countryCode: p.countryCode ?? existing.country_code,
@@ -504,7 +509,8 @@ app.put("/api/ports/:id", requireLogin, requireAdmin, (req, res) => {
     status: p.status ?? existing.status,
     remark: p.remark ?? existing.remark
   };
-  db.prepare(`UPDATE ports SET country_name=@countryName, country_chinese_name=@countryChineseName, country_code=@countryCode,
+  if(!String(payload.countryName).trim()||!String(payload.portName).trim())return fail(res,400,"Invalid port.","国家和港口名称不能为空。");
+  db.prepare(`UPDATE ports SET sort_order=@sortOrder, country_name=@countryName, country_chinese_name=@countryChineseName, country_code=@countryCode,
     port_name=@portName, port_chinese_name=@portChineseName, un_locode=@unLocode, aliases=@aliases, is_origin_port=@isOriginPort,
     is_destination_port=@isDestinationPort, status=@status, remark=@remark, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
     .run({ id: req.params.id, ...payload, searchText: portSearchText(payload), updatedAt: now() });
@@ -512,7 +518,7 @@ app.put("/api/ports/:id", requireLogin, requireAdmin, (req, res) => {
 });
 
 app.delete("/api/ports/:id", requireLogin, requireAdmin, (req, res) => {
-  if (referenced("ports", "originPortId", req.params.id) || referenced("ports", "destinationPortId", req.params.id)) {
+  if (db.prepare("SELECT COUNT(*) AS n FROM quotations").get().n || db.prepare("SELECT COUNT(*) AS n FROM freight_rates WHERE origin_port_id=? OR destination_port_id=?").get(req.params.id,req.params.id).n || db.prepare("SELECT COUNT(*) AS n FROM country_route_links WHERE destination_port_id=?").get(req.params.id).n || referenced("ports", "originPortId", req.params.id) || referenced("ports", "destinationPortId", req.params.id)) {
     db.prepare("UPDATE ports SET status='Inactive', updated_at=? WHERE id=?").run(now(), req.params.id);
     return ok(res, { mode: "inactive", message: "Marked as inactive successfully.", zh: "已成功标记为停用。" });
   }
@@ -725,8 +731,29 @@ app.get("/api/settings", requireLogin, (req, res) => {
 });
 
 app.put("/api/settings", requireLogin, requireAdmin, (req, res) => {
-  db.prepare("UPDATE company_settings SET data_json=?, updated_at=? WHERE id=1").run(JSON.stringify(req.body || {}), now());
-  ok(res, { message: "Saved successfully.", zh: "保存成功。" });
+  try {
+    const previous=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json);
+    const settings=OptionCatalog.reconcile(req.body||{},previous);
+    if(Array.isArray(settings.categories))OptionCatalog.validate(settings.categories.map(c=>({...c,value:c.id,sortOrder:c.sortOrder||0})));
+    // Field option IDs and values remain stable in all document/product templates.
+    const walk=(next,old)=>{
+      if(!next||typeof next!=='object')return;
+      if(Array.isArray(next.options)){
+        const normalizeOptions=rows=>rows.map((raw,i)=>{const r=typeof raw==='object'?raw:{value:String(raw)};return {...r,id:r.id||'option:'+String(next.fieldKey||next.key||'field')+':'+String(r.value),value:String(r.value??''),parentId:r.parentId||'',sortOrder:r.sortOrder??(i+1)*10};});
+        next.options=normalizeOptions(next.options);
+        const prior=normalizeOptions(Array.isArray(old?.options)?old.options:[]);
+        for(const option of next.options){const prev=prior.find(p=>p.id===option.id);if(prev&&prev.value!==option.value)throw Error('已有字段选项的代码不可更改，请停用后新增');}
+        for(const prev of prior)if(!next.options.some(o=>o.id===prev.id))next.options.push({...prev,active:false,deletedAt:now()});
+        OptionCatalog.validate(next.options);
+      }
+      for(const [key,value] of Object.entries(next))if(key!=='options'&&value&&typeof value==='object'){
+        if(Array.isArray(value))value.forEach((v,i)=>walk(v,Array.isArray(old?.[key])?old[key].find(o=>o?.id&&o.id===v?.id)||old[key][i]:undefined));else walk(value,old?.[key]);
+      }
+    };
+    walk(settings,previous);
+    db.prepare("UPDATE company_settings SET data_json=?, updated_at=? WHERE id=1").run(JSON.stringify(settings), now());
+    ok(res, { settings, message: "Saved successfully.", zh: "保存成功。" });
+  } catch(error) { fail(res,400,'Invalid option settings.',error.message); }
 });
 
 app.get("/api/hs-codes", requireLogin, (req, res) => {
@@ -888,9 +915,9 @@ app.post("/api/system/import", requireLogin, requireAdmin, (req, res) => {
       data.products.forEach((row) => stmt.run(row));
     }
     if (Array.isArray(data.ports)) {
-      const stmt = db.prepare(`INSERT OR REPLACE INTO ports (id, country_name, country_chinese_name, country_code, port_name, port_chinese_name, un_locode, aliases, is_origin_port, is_destination_port, status, remark, search_text, created_at, updated_at)
-        VALUES (@id, @country_name, @country_chinese_name, @country_code, @port_name, @port_chinese_name, @un_locode, @aliases, @is_origin_port, @is_destination_port, @status, @remark, @search_text, @created_at, @updated_at)`);
-      data.ports.forEach((row) => stmt.run(row));
+      const stmt = db.prepare(`INSERT OR REPLACE INTO ports (sort_order, id, country_name, country_chinese_name, country_code, port_name, port_chinese_name, un_locode, aliases, is_origin_port, is_destination_port, status, remark, search_text, created_at, updated_at)
+        VALUES (@sort_order, @id, @country_name, @country_chinese_name, @country_code, @port_name, @port_chinese_name, @un_locode, @aliases, @is_origin_port, @is_destination_port, @status, @remark, @search_text, @created_at, @updated_at)`);
+      data.ports.forEach((row) => stmt.run({...row,sort_order:Number(row.sort_order)||0}));
     }
     if (Array.isArray(data.freightRates)) {
       const stmt = db.prepare(`INSERT OR REPLACE INTO freight_rates (id, origin_port_id, destination_port_id, origin_display_name, destination_display_name, destination_country, shipping_method, rate, currency, rate_unit, effective_month, effective_start_date, effective_end_date, freight_forwarder, remark, status, search_text, created_at, updated_at)

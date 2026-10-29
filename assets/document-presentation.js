@@ -1,0 +1,21 @@
+(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.DocumentPresentation=factory();})(typeof window!=='undefined'?window:globalThis,function(){
+  'use strict';
+  const paymentShipping={
+    en:"Payment and Shipping Terms: Upon receipt of the 30% deposit, we will arrange the export customs declaration and required export documents, clean the equipment, and complete the pre-delivery inspection (PDI). We will then book shipping space and coordinate low-bed truck transportation to the port. The remaining 70% balance must be paid in full before the equipment is loaded onto the vessel. When making payment, please ensure that the beneficiary company's full legal name is entered correctly and completely. The bank address must be entered as Hong Kong, China. Please carefully verify the BIC/SWIFT code against our official bank details before making the transfer. Incorrect or incomplete payment details may result in the transfer being rejected or delayed.",
+    zh:'付款及运输条款：收到30%订金后，我方将办理出口报关及所需出口文件，完成设备清洁和完整的发货前检查（PDI）。随后安排订舱，并协调板车将设备运输至港口。设备装船前，买方必须付清剩余70%的尾款。付款时，请务必准确、完整地填写收款公司的法定全称，银行地址填写为中国香港，并在汇款前仔细核对我方正式收款资料中的BIC/SWIFT代码。付款信息填写错误或不完整可能导致汇款被拒收或延迟到账。'
+  };
+  const regions=['title','tableHeader','product','body','notes','footer'];
+  function typography(value={}){const result={};for(const region of regions){const source=value[region]||{};result[region]={};if(region==='product')Object.assign(result[region],{fontWeight:700,color:'#172033',fontSize:12,lineHeight:1.5});for(const key of ['fontFamily','fontSize','fontWeight','color','lineHeight','letterSpacing']){const v=source[key];if(key==='color'&&/^#[0-9a-f]{6}$/i.test(v))result[region][key]=v;else if(key==='fontFamily'&&typeof v==='string'&&/^[\w\s,'"\u3400-\u9fff-]{1,100}$/.test(v))result[region][key]=v;else if(['fontSize','fontWeight','lineHeight','letterSpacing'].includes(key)&&Number.isFinite(Number(v))){const limits={fontSize:[8,32],fontWeight:[100,900],lineHeight:[1,2.5],letterSpacing:[0,5]}[key];result[region][key]=Math.max(limits[0],Math.min(limits[1],Number(v)));}}}return result;}
+  function contrast(hex){const n=hex.slice(1).match(/../g).map(x=>parseInt(x,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return n[0]*.2126+n[1]*.7152+n[2]*.0722>.179?'#111111':'#ffffff';}
+  function apply(host,doc){if(!host)return;const color=/^#[0-9a-f]{6}$/i.test(doc.tableHeaderColor||'')?doc.tableHeaderColor:'';host.classList.toggle('custom-table-header',!!color);host.style.setProperty('--document-table-color',color||'inherit');host.style.setProperty('--document-header-text',color?contrast(color):'#ffffff');host.style.setProperty('--document-heading-color',color&&contrast(color)==='#ffffff'?color:'#172033');host.style.setProperty('--trade-ink',color?(contrast(color)==='#ffffff'?color:'#172033'):'var(--doc-accent,var(--primary))');
+    const selectors={title:'.document-heading h1,.preview-title h2,.invitation-title,.agency-sheet h1',tableHeader:'thead th',product:'tbody .preview-col-description,tbody .preview-col-productType,tbody .preview-col-brand,tbody .preview-col-model',body:'.preview-fields,.document-parties,.document-shipment',notes:'.terms-content,.shipping-notes,.contract-clause',footer:'.document-footer'};
+    const config=typography(doc.documentTypography);for(const [region,selector] of Object.entries(selectors))host.querySelectorAll(selector).forEach(node=>{for(const key of ['fontFamily','fontSize','fontWeight','color','lineHeight','letterSpacing']){const v=config[region][key];if(v!=null)node.style.setProperty(key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),typeof v==='number'&&['fontSize','letterSpacing'].includes(key)?v+'px':String(v),'important');}});
+  }
+  function terms(language){return language==='en'?paymentShipping.en:language==='zh'?paymentShipping.zh:paymentShipping.en+'\n'+paymentShipping.zh;}
+  function localizeTerms(value,language){
+    const source=String(value||''),{en,zh}=paymentShipping;
+    if(source.includes(en)&&source.includes(zh))return source.replace(en,language==='zh'?'':en).replace(zh,language==='en'?'':zh).trim();
+    return source.replace(source.includes(en)?en:zh,terms(language));
+  }
+  return {paymentShipping,typography,contrast,apply,terms,localizeTerms};
+});

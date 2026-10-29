@@ -1,5 +1,6 @@
 const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
-const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fta-library-qa-'));process.env.QUOTE_DATA_DIR=dir;app.on('window-all-closed',()=>{});
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fta-library-qa-'));process.env.QUOTE_DATA_DIR=dir;fs.mkdirSync(path.join(process.env.QUOTE_DATA_DIR,'electron-profile'),{recursive:true});app.setPath('userData',path.join(process.env.QUOTE_DATA_DIR,'electron-profile'));
+app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{const {startServer}=require('../server');const server=await startServer(0),base='http://127.0.0.1:'+server.address().port;try{
  await fetch(base+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:'工程机械',brand:'CAT',model:'320D',params:'2017年 / 标准配置',referencePrice:26500,currency:'USD',status:'Active'})});
  const win=new BrowserWindow({show:false,width:1440,height:1040,webPreferences:{contextIsolation:true}});const errors=[];win.webContents.on('console-message',(_e,level,msg)=>{if(level===3)errors.push(msg);});

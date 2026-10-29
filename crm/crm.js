@@ -1,9 +1,10 @@
 const app = document.getElementById("app");
 let STAGES=["需求确认中","待报价","报价评估中","计划来华","采购确认中","已采购","长期培育","沉默客户","无效客户"];
 const GRADES=["S","A","B","C"];
-const BUYERS=["个人买家","公司买家","在华中介","海外中介","暂未确认"];
+let BUYERS=["个人买家","公司买家","在华中介","海外中介","暂未确认"];
 let PROJECTS=["建筑项目","路桥项目","采矿项目","环卫项目","特殊需求"];
-const EQUIPMENT=["挖掘机","装载机","推土机","压路机","平地机","起重机","叉车","伸缩臂叉装车","滑移装载机","环卫设备"];
+let EQUIPMENT=["挖掘机","装载机","推土机","压路机","平地机","起重机","叉车","伸缩臂叉装车","滑移装载机","环卫设备"];
+let contactTypes=["WhatsApp","电话","见面","邮件","其他"],contactOutcomes=["未回复","未接通","客户忙，稍后联系","联系方式有误"];
 let customers=[],selected=null,filter="全部客户",query="",mobileView="home",dashboard={completed:0,pending:0,total:0,progress:100},customerConfig={fields:[],groups:[],statuses:STAGES,labels:PROJECTS};
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const customerFields=()=> (customerConfig.fields||[]).filter(field=>!field.deletedAt&&field.active!==false&&field.visible!==false);
@@ -22,7 +23,7 @@ const tags=a=>(a||[]).map(x=>`<span>${esc(x)}</span>`).join("")||"<small>待补�
 function arrival(c){if(!c.arrival_value||c.arrival_precision==="none")return"暂无来华计划";let[y,m,d]=c.arrival_value.split("-"),x={month:"",month_start:"月初",month_mid:"月中",month_end:"月底",date:d?`${+d}日`:""};return`${y}年${+m}月${x[c.arrival_precision]||""}`}
 function qdate(n){let d=new Date();if(n==="monday")d.setDate(d.getDate()+(((8-d.getDay())%7)||7));else d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
 async function api(url,opt){let r=await fetch(url,opt),j=await r.json();if(!r.ok)throw Error(j.error||"操作失败");return j}
-async function load(){const [customerRows,dashboardData,settings]=await Promise.all([api("/api/customers"),api("/api/dashboard"),api("/api/settings")]);customers=customerRows;dashboard=dashboardData;customerConfig=settings.customerWorkspace||customerConfig;STAGES=customerConfig.statuses?.length?customerConfig.statuses:STAGES;PROJECTS=customerConfig.labels?.length?customerConfig.labels:PROJECTS;if(selected){let hit=customers.find(x=>x.id===selected.id);if(hit)selected=await api(`/api/customers/${selected.id}`)}render()}
+async function load(){const [customerRows,dashboardData,settings]=await Promise.all([api("/api/customers"),api("/api/dashboard"),api("/api/settings")]);customers=customerRows;dashboard=dashboardData;const shared=settings.settings||settings;customerConfig=shared.customerWorkspace||customerConfig;BUYERS=OptionCatalog.values(shared,'buyerTypes');EQUIPMENT=OptionCatalog.values(shared,'equipmentTags');contactTypes=OptionCatalog.values(shared,'contactTypes');contactOutcomes=OptionCatalog.values(shared,'contactOutcomes');STAGES=customerConfig.statuses?.length?customerConfig.statuses:STAGES;PROJECTS=customerConfig.labels?.length?customerConfig.labels:PROJECTS;if(selected){let hit=customers.find(x=>x.id===selected.id);if(hit)selected=await api(`/api/customers/${selected.id}`)}render()}
 async function choose(id){selected=await api(`/api/customers/${id}`);render()}
 function visible(c){let text=[c.name,c.phone,c.country,c.buyer_type,c.stage,...c.project_tags,...c.equipment_tags].join(" ").toLowerCase();if(!text.includes(query.toLowerCase()))return false;if(filter==="逾期未跟进")return due(c.next_follow_up)==="overdue";if(filter==="今日待跟进")return due(c.next_follow_up)==="today";if(filter==="重点客户")return["S","A"].includes(c.grade);if(["计划来华","待报价","报价评估中","长期培育","沉默客户"].includes(filter))return c.stage===filter;return true}
 function suggest(c){return c.stage==="计划来华"?"确认来华日期、需要查看的设备和行程安排。":c.stage==="报价评估中"?"询问客户或终端买家对报价的反馈和当前顾虑。":c.stage==="待报价"?"尽快准备车辆资料与正式报价，避免客户等待。":c.stage==="长期培育"?"保持低频联系，确认项目时间是否变化。":c.stage==="沉默客户"?"低频尝试唤醒；仍无回复时延长跟进间隔。":"继续确认设备、数量、预算和采购时间。"}
@@ -31,7 +32,7 @@ function render(){
  let list=customers.filter(visible);
  app.innerHTML=`<main class="app-shell">
  <aside class="sidebar"><div class="brand"><span class="brand-mark">贸</span><div><strong>外贸助手</strong><small>报价系统 · 客户跟进</small></div></div><nav>
- ${[...new Set(["全部客户","逾期未跟进","今日待跟进","重点客户",...STAGES])].map(x=>`<button data-filter="${x}" class="${filter===x?"active":""}"><span>${x}</span>${x==="逾期未跟进"&&counts.overdue?`<b>${counts.overdue}</b>`:""}</button>`).join("")}
+ ${[...new Set(["全部客户","逾期未跟进","今日待跟进","重点客户",...STAGES])].map(x=>`<button data-filter="${esc(x)}" class="${filter===x?"active":""}"><span>${esc(x)}</span>${x==="逾期未跟进"&&counts.overdue?`<b>${counts.overdue}</b>`:""}</button>`).join("")}
  </nav><div class="sidebar-bottom"><button id="quote-home">返回报价系统</button><button id="backup">备份数据</button><small>外贸助手共用同一份数据</small></div></aside>
  <section class="workspace"><header class="topbar"><div><h1>今天先跟谁</h1><p>${new Date().toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"})}</p></div><div class="top-actions"><label class="search"><span>⌕</span><input id="search" value="${esc(query)}" placeholder="搜索客户、国家、设备"></label><button class="primary add">＋ 新增客户</button></div></header>
  <div id="notice"></div><div class="summary-grid">
@@ -68,7 +69,7 @@ function mobilePages(counts){
   <section class="mobile-page ${mobileView==="customers"?"active":""}" data-page="customers">
    <div class="mobile-page-head compact"><div><small>客户中心</small><h1>全部客户</h1><p>按等级、阶段和标签管理</p></div><button class="round-add add">＋</button></div>
    <label class="mobile-search"><span>⌕</span><input id="mobile-search" value="${esc(query)}" placeholder="搜索客户、国家、设备"></label>
-   <div class="mobile-filter-row">${["全部客户","重点客户","计划来华","待报价","长期培育"].map(x=>`<button data-filter="${x}" class="${filter===x?"active":""}">${x}</button>`).join("")}</div>
+   <div class="mobile-filter-row">${["全部客户","重点客户","计划来华","待报价","长期培育"].map(x=>`<button data-filter="${esc(x)}" class="${filter===x?"active":""}">${x}</button>`).join("")}</div>
    <div class="mobile-list">${all.length?all.map(c=>mobileRow(c)).join(""):'<div class="mobile-empty">没有符合条件的客户</div>'}</div>
   </section>
   <section class="mobile-page ${mobileView==="reminders"?"active":""}" data-page="reminders">
@@ -107,11 +108,11 @@ function bind(){
  for(let id of["backup","mobile-backup"]){let b=document.getElementById(id);if(b)b.onclick=backup}
 }
 function modal(html){let d=document.createElement("div");d.className="modal-backdrop";d.innerHTML=html;document.body.appendChild(d);d.querySelectorAll(".close").forEach(x=>x.onclick=()=>d.remove());return d}
-function chips(values,name){return`<div class="chips">${values.map(v=>`<button type="button" data-chip="${name}" data-value="${v}">${v}</button>`).join("")}</div>`}
+function chips(values,name){return`<div class="chips">${values.map(v=>`<button type="button" data-chip="${name}" data-value="${esc(v)}">${esc(v)}</button>`).join("")}</div>`}
 function addModal(){
  let d=modal(`<form class="modal"><div class="modal-head"><div><h2>新增客户</h2><p>需求不清楚的内容可以稍后补充</p></div><button type="button" class="close">×</button></div><div class="form-grid">
  ${customerFieldEnabled('name')?`<label>${esc(customerFieldTitle('name','客户名称'))}<input required name="name" placeholder="例如 Ahmed"></label>`:'<input type="hidden" name="name" value="未命名客户">'}${customerFieldEnabled('company')?`<label>${esc(customerFieldTitle('company','公司名称'))}<input name="company"></label>`:''}${customerFieldEnabled('phone')?`<label>${esc(customerFieldTitle('phone','WhatsApp号码'))}<input name="phone" placeholder="+20..."></label>`:''}${customerFieldEnabled('country')?`<label>${esc(customerFieldTitle('country','国家/地区'))}<input name="country" placeholder="例如 埃及"></label>`:''}
- <label>买家身份<select name="buyer_type">${BUYERS.map(x=>`<option>${x}</option>`)}</select></label><label>客户等级<select name="grade">${GRADES.map(x=>`<option ${x==="B"?"selected":""}>${x}</option>`)}</select></label><label>当前阶段<select name="stage">${STAGES.map(x=>`<option>${x}</option>`)}</select></label><label>客户分组<select name="group_name"><option value="">未分组</option>${(customerConfig.groups||[]).map(x=>`<option>${esc(x)}</option>`)}</select></label></div>
+ <label>买家身份<select name="buyer_type">${BUYERS.map(x=>`<option>${esc(x)}</option>`)}</select></label><label>客户等级<select name="grade">${GRADES.map(x=>`<option ${x==="B"?"selected":""}>${esc(x)}</option>`)}</select></label><label>当前阶段<select name="stage">${STAGES.map(x=>`<option>${esc(x)}</option>`)}</select></label><label>客户分组<select name="group_name"><option value="">未分组</option>${(customerConfig.groups||[]).map(x=>`<option>${esc(x)}</option>`)}</select></label></div>
  <fieldset><legend>应用项目（可多选）</legend>${chips(PROJECTS,"project_tags")}</fieldset><fieldset><legend>设备需求（可多选）</legend>${chips(EQUIPMENT,"equipment_tags")}</fieldset>
  <fieldset><legend>客户标签（可多选）</legend>${chips(customerConfig.labels||[],"labels")}</fieldset>${customerFieldEnabled('requirement')?`<label class="wide">${esc(customerFieldTitle('requirement','需求说明'))}<textarea name="requirement" placeholder="数量、规格、预算、最终买家等"></textarea></label>`:''}${customCustomerFields().map(f=>{const key=customerFieldKey(f);return `<label class="wide">${esc(customerFieldLabel(f))}<input name="customer_custom_${esc(key)}" ${f.required?'required':''}></label>`;}).join('')}<div class="form-grid"><label>来华时间精度<select name="arrival_precision"><option value="none">暂无计划</option><option value="month">只有月份</option><option value="month_start">月初</option><option value="month_mid">月中</option><option value="month_end">月底</option><option value="date">具体日期</option></select></label><label>来华月份<input type="month" name="arrival_value"></label></div><p class="form-error" hidden></p><div class="modal-actions"><button type="button" class="close">取消</button><button class="primary">创建客户</button></div></form>`);
  let chosen={project_tags:[],equipment_tags:[],labels:[]};d.querySelectorAll("[data-chip]").forEach(b=>b.onclick=()=>{let k=b.dataset.chip,v=b.dataset.value;b.classList.toggle("selected");chosen[k]=b.classList.contains("selected")?[...chosen[k],v]:chosen[k].filter(x=>x!==v)});
@@ -119,9 +120,9 @@ function addModal(){
 }
 function followModal(){
  let c=selected,d=modal(`<form class="modal follow-modal"><div class="modal-head"><div><h2>完成本次跟进</h2><p>${esc(c.name)} · 保存时自动生成更新时间</p></div><button type="button" class="close">×</button></div><div class="form-grid">
- <label>沟通方式<select name="contact_type"><option>WhatsApp</option><option>电话</option><option>见面</option><option>邮件</option><option>其他</option></select></label><label>未联系成功原因<select name="outcome"><option value="">已正常沟通</option><option>未回复</option><option>未接通</option><option>客户忙，稍后联系</option><option>联系方式有误</option></select></label></div>
+ <label>沟通方式<select name="contact_type">${contactTypes.map(v=>`<option>${esc(v)}</option>`).join('')}</select></label><label>未联系成功原因<select name="outcome"><option value="">已正常沟通</option>${contactOutcomes.map(v=>`<option>${esc(v)}</option>`).join('')}</select></label></div>
  <label class="wide">本次跟进内容<textarea class="large" name="content" placeholder="记录客户最新反馈、需求变化、计划时间等"></textarea></label><div class="change-box"><h3>本次更新结果</h3><div class="form-grid">
- <label>客户阶段 <small>原：${c.stage}</small><select name="stage">${STAGES.map(x=>`<option ${x===c.stage?"selected":""}>${x}</option>`)}</select></label><label>客户等级 <small>原：${c.grade}级</small><select name="grade">${GRADES.map(x=>`<option ${x===c.grade?"selected":""}>${x}</option>`)}</select></label>
+ <label>客户阶段 <small>原：${c.stage}</small><select name="stage">${STAGES.map(x=>`<option ${x===c.stage?"selected":""}>${esc(x)}</option>`)}</select></label><label>客户等级 <small>原：${c.grade}级</small><select name="grade">${GRADES.map(x=>`<option ${x===c.grade?"selected":""}>${esc(x)}</option>`)}</select></label>
  <label>来华时间<select name="arrival_precision"><option value="none">暂无计划</option><option value="month">只有月份</option><option value="month_start">月初</option><option value="month_mid">月中</option><option value="month_end">月底</option><option value="date">具体日期</option></select></label><label>月份/日期<input type="month" name="arrival_value" value="${esc(c.arrival_value)}"></label></div></div>
  <div class="next-box"><h3>下次跟进</h3><div class="quick-dates">${[["明天",1],["3天后",3],["5天后",5],["7天后",7],["下周一","monday"]].map(x=>`<button type="button" data-days="${x[1]}">${x[0]}</button>`).join("")}</div><div class="form-grid"><label>自定义日期<input type="date" name="next_follow_up"></label><label>跟进目的<input name="next_follow_purpose" placeholder="例如：确认来华行程"></label></div></div><p class="form-error" hidden></p><div class="modal-actions"><button type="button" class="close">取消</button><button class="primary">保存并完成跟进</button></div></form>`);
  d.querySelector('[name="arrival_precision"]').value=c.arrival_precision;d.querySelectorAll("[data-days]").forEach(b=>b.onclick=()=>d.querySelector('[name="next_follow_up"]').value=qdate(b.dataset.days==="monday"?"monday":+b.dataset.days));

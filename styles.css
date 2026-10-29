@@ -2060,7 +2060,7 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
   .document-free-designer{display:block}
   .designer-module-toggles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px}
 }
-.password-with-eye{display:flex;align-items:center;gap:6px}.password-with-eye input{flex:1;min-width:0}.password-with-eye button{min-width:42px;padding:8px}.designer-module small{display:block;margin-top:8px;color:#65758a;line-height:1.5}.designer-sample-table{display:block;padding:8px;border-top:1px solid #dfe6ef;border-bottom:1px solid #dfe6ef;color:#334a64}
+.password-with-eye{display:flex;align-items:center;gap:6px;width:100%;min-width:0}.password-with-eye input{flex:1;min-width:0}.password-with-eye button{order:-1;flex:0 0 44px;width:44px;min-width:44px;min-height:44px;padding:8px}.app-lock-card .password-with-eye{margin:16px 0}.app-lock-card .password-with-eye input{width:0;min-height:50px;margin:0;padding:12px 8px}.app-lock-card .password-with-eye button{width:44px;min-height:50px}.app-lock-settings .password-with-eye input{min-height:44px}.designer-module small{display:block;margin-top:8px;color:#65758a;line-height:1.5}.designer-sample-table{display:block;padding:8px;border-top:1px solid #dfe6ef;border-bottom:1px solid #dfe6ef;color:#334a64}
 
 /* Keep configured columns within the same A4 geometry in preview and export. */
 .quote-preview.trade-layout table { table-layout:fixed; }
@@ -2069,6 +2069,37 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
 .quote-preview.trade-layout table .preview-col-sequence { width:4%; }
 .quote-preview.trade-layout table .preview-col-image { width:12%; }
 .quote-preview .document-signature-block { break-inside:avoid; }
+.document-appearance-toolbar input[type=color]{width:100%;min-height:42px;padding:4px}
+.dictionary-modal td input,.dictionary-modal td select{min-width:110px;width:100%}
+.dictionary-modal td:first-child input{min-width:65px;width:75px}
+.dictionary-modal [data-error]{color:#b42318}
+.quote-preview.custom-table-header table thead th{background:var(--document-table-color)!important;color:var(--document-header-text)!important}
+.quote-preview.custom-table-header table thead th *{color:inherit!important}
+.quote-preview.trade-layout table .preview-col-itemType{width:8%}
+.quote-preview.trade-layout table .preview-col-unitPrice,.quote-preview.trade-layout table .preview-col-amount{width:13%}
+.quote-preview.trade-layout table .preview-col-hsCode{width:11%}
+.quote-preview.custom-table-header .document-heading h1,.quote-preview.custom-table-header .preview-title h2{color:var(--document-heading-color)!important}
+.quote-preview .preview-col-description{white-space:normal;overflow:visible;line-height:1.5}
+.quote-preview .terms-content p,.quote-preview .shipping-notes p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;break-inside:auto}
+.app-lock-card input[type=password]{-webkit-text-security:disc}
+.app-lock-card input[type=text]{-webkit-text-security:none}
+.custom-table-header:is(#invitation-preview,#agency-preview) h1,.custom-table-header:is(#invitation-preview,#agency-preview) h2{color:var(--document-heading-color)!important;border-color:var(--document-table-color)!important}
+.custom-table-header:is(#invitation-preview,#agency-preview) thead th{background:var(--document-table-color)!important;color:var(--document-header-text)!important}
+.custom-table-header:is(#invitation-preview,#agency-preview) .invitation-topline{background:var(--document-table-color)!important}
+/* Keep ordinary invitation details and the signature together on A4. */
+.invitation-sheet{padding:28px 36px}
+.invitation-sheet h1{font-size:32px;margin:18px 0 8px}
+.invitation-header{padding-bottom:12px}
+.invitation-date{margin-bottom:14px}
+.invitation-to{font-size:16px;margin:12px 0}
+.invitation-paragraph{font-size:13px;line-height:1.6}
+.invitation-info{margin:16px 0;padding:14px}
+.invitation-info-grid{gap:4px 16px;font-size:13px}
+.invitation-info-grid p:nth-child(n+5){grid-column:auto}
+.invitation-info-grid p:last-child{grid-column:1 / -1}
+.invitation-footer{margin-top:20px;break-inside:avoid}
+.invitation-sign{min-height:110px}
+.invitation-sign-assets:not(:has(img)){min-height:20px}
 @media print {
   body.auth-ready .desktop-rail,body .desktop-page-bar,body .global-back-btn,body .document-jump-bar { display:none!important; }
   body.auth-ready .app-shell { display:block!important; grid-template-columns:none!important; }

@@ -298,6 +298,7 @@ function runSchema() {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name);
     for (const [name, definition] of definitions) if (!columns.includes(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
   };
+  addColumns("ports", [["sort_order","INTEGER DEFAULT 0"]]);
   addColumns("vehicle_types", [["image_path","TEXT DEFAULT ''"],["description_zh","TEXT DEFAULT ''"],["description_en","TEXT DEFAULT ''"],["quote_fields_json","TEXT DEFAULT '[]'"]]);
   addColumns("customers", [["group_name","TEXT DEFAULT ''"],["labels_json","TEXT DEFAULT '[]'"],["custom_fields_json","TEXT DEFAULT '{}'"]]);
   addColumns("chassis", [["length","REAL DEFAULT 0"],["width","REAL DEFAULT 0"],["height","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'mm'"],["factory_price","REAL DEFAULT 0"]]);
