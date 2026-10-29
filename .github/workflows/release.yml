@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: windows-release-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: windows-latest
@@ -28,8 +32,11 @@ jobs:
       - run: npm run ensure:sqlite
       - run: npm run check
       - run: npm test
-      - name: Build and publish installer and update metadata
-        run: npm run rebuild:electron && npx electron-builder --win nsis --publish always
+      - name: Build installer without concurrent release creation
+        run: npm run rebuild:electron && npx electron-builder --win nsis --publish never
+      - name: Publish one complete release atomically
+        run: node scripts/publish-release.cjs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
 

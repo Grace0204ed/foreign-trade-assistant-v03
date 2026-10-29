@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');
+const {compatibleRelease,discoverRelease}=require('../electron/github-update');
+const exe={name:'Foreign-Trade-Assistant-Setup-0.11.5-x64.exe',state:'uploaded',size:123,digest:'sha256:'+'a'.repeat(64)};
+const complete={id:1,tag_name:'v0.11.5',assets:[exe,{name:'latest.yml',state:'uploaded',size:100}]};
+const incomplete={...complete,id:2,assets:[]};
+(async()=>{
+  assert.equal(compatibleRelease(complete,'0.11.3','win32','x64').version,'0.11.5');
+  assert.equal(compatibleRelease(complete,'0.11.5','win32','x64'),null);
+  assert.equal(compatibleRelease(complete,'0.11.3','win32','arm64'),null);
+  assert.equal(compatibleRelease({...complete,prerelease:true},'0.11.3','win32','x64'),null);
+  assert.equal(compatibleRelease({...complete,assets:[{...exe,digest:null},complete.assets[1]]},'0.11.3','win32','x64'),null);
+  const options=['0.11.3','win32','x64'];
+  const result=await discoverRelease(async url=>url.endsWith('/latest')?incomplete:complete,'https://api.example',...options);
+  assert.equal(result.version,'0.11.5','Must recover complete exact-tag release');
+  const listed=await discoverRelease(async url=>url.includes('?per_page')?[incomplete,complete]:incomplete,'https://api.example',...options);
+  assert.equal(listed.asset.digest,exe.digest,'Must skip incomplete duplicates in release list');
+  await assert.rejects(()=>discoverRelease(async url=>url.includes('?per_page')?[incomplete]:incomplete,'https://api.example',...options),/尚未完整发布/);
+  await assert.rejects(()=>discoverRelease(async()=>{throw Error('network timeout');},'https://api.example',...options),/network timeout/);
+  console.log('GitHub update tests passed: duplicate recovery, staged releases, version, architecture and checksum validation.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

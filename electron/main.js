@@ -15,15 +15,12 @@ async function githubUpdateFallback(download=false) {
   const base="https://api.github.com/repos/Grace0204ed/foreign-trade-assistant-v03";
   const headers={"User-Agent":"ForeignTradeAssistant","Accept":"application/vnd.github+json"};
   if(!fallbackRelease){
-    const response=await net.fetch(`${base}/releases/latest`,{headers});
-    if(!response.ok)throw new Error(`更新备用连接返回 ${response.status}`);
-    const release=await response.json();
-    const version=String(release.tag_name||'').replace(/^v/,'');
-    const semver=require('semver');
-    if(!semver.valid(version)||!semver.gt(version,app.getVersion())||release.prerelease||release.draft){publishUpdateState({status:'current',message:'当前已是最新正式版'});return {status:'current'};}
-    const asset=release.assets.find(a=>a.name===`Foreign-Trade-Assistant-Setup-${version}-${process.arch}.exe`);
-    if(process.platform!=='win32'||!asset||!/^sha256:[a-f0-9]{64}$/.test(asset.digest||''))throw new Error('没有兼容且可校验的更新文件');
-    fallbackRelease={version,asset};
+    fallbackRelease=await require('./github-update').discoverRelease(async url=>{
+      const response=await net.fetch(url,{headers,signal:AbortSignal.timeout(20000)});
+      if(!response.ok)throw new Error(`更新接口返回 ${response.status}`);
+      return response.json();
+    },base,app.getVersion(),process.platform,process.arch);
+    if(!fallbackRelease){publishUpdateState({status:'current',version:app.getVersion(),message:'当前已是最新正式版'});return {status:'current'};}
   }
   if(!download){publishUpdateState({status:'available',version:fallbackRelease.version,message:`发现新版本 ${fallbackRelease.version}（备用连接）`});return {status:'checked',version:fallbackRelease.version};}
   const {asset,version}=fallbackRelease;
@@ -279,8 +276,13 @@ ipcMain.handle("get-app-version",()=>({version:app.getVersion(),platform:process
 ipcMain.handle("get-update-state",()=>latestUpdateState);
 ipcMain.handle("check-for-updates",async()=>{
   if(!app.isPackaged)return {status:"development",message:"开发模式不执行在线更新"};
-  try { const result=await autoUpdater.checkForUpdates();return {status:"checked",version:result?.updateInfo?.version||""}; }
-  catch(error){try{return await githubUpdateFallback();}catch(fallbackError){publishUpdateState({status:"error",message:`检查更新失败：${fallbackError.message}`});throw fallbackError;}}
+  fallbackRelease=null;
+  publishUpdateState({status:'checking',message:'正在检查更新…'});
+  try {return await githubUpdateFallback();}
+  catch(apiError){
+    try{const result=await autoUpdater.checkForUpdates();return {status:'checked',version:result?.updateInfo?.version||''};}
+    catch(error){const message=`检查更新失败：${apiError.message}；备用连接：${String(error.message).split('\n')[0]}`;publishUpdateState({status:'error',message});throw new Error(message);}
+  }
 });
 ipcMain.handle("download-update",async()=>{
   if(!app.isPackaged)throw new Error("开发模式不能下载安装包");
