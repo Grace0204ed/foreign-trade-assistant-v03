@@ -1,0 +1,42 @@
+const {app,BrowserWindow}=require('electron');
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
+process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-packing-link-'));
+app.on('window-all-closed',()=>{});
+app.whenReady().then(async()=>{
+ const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;
+ const win=new BrowserWindow({show:false,webPreferences:{contextIsolation:true}});
+ const run=async s=>{try{return await win.webContents.executeJavaScript(s);}catch(e){throw Error(s+'\n'+e.message);}};
+ const wait=async s=>{for(let i=0;i<100;i++){if(await run(s))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout: '+s);};
+ const request=async(p,body)=>{const r=await fetch(base+p,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});assert(r.ok);return r.json();};
+ const rows=async()=> (await request('/api/quotations')).quotations;
+ try{
+  await win.loadURL(base);await wait("!!document.querySelector('#pdf-language option[value=fr]')");
+  await run("window.confirm=()=>true;document.querySelector('[data-create-document=packing]').click()");
+  await wait("document.querySelector('#packing-source-select').textContent.includes('暂无')");
+  for(const [id,type] of [['qa-pi','invoice'],['qa-ci','commercial']])await request('/api/quotations',{id,quoteNumber:id,buyer:{company:id},terms:type==='invoice'?{shipping:'FOB',originPort:'Shanghai',port:'Durban'}:{tradeTerm:'CIF',originPort:'Ningbo',destinationPort:'Mombasa'},documentType:type,items:[{id:id+'-item',productSnapshot:{productName:'QA machine'},priceSnapshot:{quantity:2,unitPrice:10,values:{description:id+' machine',qty:'2',unitPrice:'10',cbm:'12'}}}]});
+  const before=await request('/api/quotations/qa-pi');
+  await run("document.querySelector('#packing-source-refresh').click()");await wait("document.querySelector('#packing-source-select option[value=\"qa-pi\"]')");
+  await run("document.querySelector('#packing-source-select').value='qa-pi';document.querySelector('#packing-source-apply').click()");
+  await wait("document.querySelector('#buyer-company').value==='qa-pi'");
+  assert.equal(await run("document.querySelectorAll('.quote-line').length"),1);
+  await run("const field=document.querySelector('[data-packing-key=cbm]');field.value='99';field.dispatchEvent(new Event('input',{bubbles:true}))");
+  await run("document.querySelector('#packing-source-apply').click();document.querySelector('#save-quote-btn').click()");
+  await wait("document.querySelector('#toast')?.textContent.includes('保存') || true");
+  let saved;for(let i=0;i<60;i++){saved=(await rows()).find(q=>q.id!=='qa-pi'&&q.id!=='qa-ci');if(saved)break;await new Promise(r=>setTimeout(r,50));}assert(saved);
+  let detail=await request('/api/quotations/'+saved.id);assert.equal(detail.quotation.settingsSnapshot._quoteMeta.documentExtras.packingSource.id,'qa-pi');assert.equal(detail.items.length,1);assert.notEqual(detail.items[0].id,'qa-pi-item');assert.equal(detail.items[0].priceSnapshot.values.cbm,'99','packing editor changes survive collection and save');
+  await win.reload();await wait("!!document.querySelector('#pdf-language option[value=fr]')");
+  await run(`window.confirm=()=>true;window.quoteApp.editQuote(${JSON.stringify(saved.id)})`);
+  await wait("document.querySelector('#packing-source-select').value==='qa-pi'");
+  assert.equal(await run("document.querySelector('[data-termfield=shipping]').value"),'FOB');
+  await run("window.confirm=()=>false;document.querySelector('#packing-source-select').value='qa-ci';document.querySelector('#packing-source-apply').click()");
+  await new Promise(r=>setTimeout(r,200));assert.equal(await run("document.querySelector('#buyer-company').value"),'qa-pi');
+  await run("window.confirm=()=>true;document.querySelector('#packing-source-apply').click()");await wait("document.querySelector('#buyer-company').value==='qa-ci'");
+  assert.equal(await run("document.querySelector('[data-termfield=shipping]').value"),'CIF','legacy trade term mapped');
+  assert.equal(await run("document.querySelector('[data-termfield=port]').value"),'Mombasa','legacy destination mapped');
+  assert.equal(await run("document.querySelectorAll('.quote-line').length"),1);
+  await run("document.querySelector('#packing-source-clear').click();document.querySelector('#save-quote-btn').click()");await new Promise(r=>setTimeout(r,250));
+  detail=await request('/api/quotations/'+saved.id);assert(!detail.quotation.settingsSnapshot._quoteMeta.documentExtras.packingSource);assert.equal(detail.items.length,1);
+  assert.deepEqual(await request('/api/quotations/qa-pi'),before,'source must remain unchanged');
+  console.log('PASS packing: empty list, link, shared trade terms, cancel replacement, switch, no duplicate, reload, detach persistence, source isolation');
+ }finally{win.destroy();server.close();app.quit();}
+}).catch(error=>{console.error(error);app.exit(1);});

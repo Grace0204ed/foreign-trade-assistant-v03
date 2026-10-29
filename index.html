@@ -6,6 +6,7 @@
     <title>外贸助手</title>
     <link rel="stylesheet" href="./styles.css?v=20261012-documents" />
     <link rel="stylesheet" href="./assets/offline-fonts.css" />
+    <link rel="stylesheet" href="./assets/overview-library.css?v=20261030" />
   </head>
   <body>
     <datalist id="quote-condition-options">
@@ -22,8 +23,10 @@
       <aside class="desktop-rail no-print" aria-label="主导航">
         <button class="rail-brand nav-btn active" data-view="home" type="button" aria-label="首页"><i class="nav-icon" aria-hidden="true">⌂</i><span>首页</span></button>
         <nav class="rail-primary">
+          <small class="rail-group-label">业务工作台</small>
           <button class="nav-btn" data-view="create" type="button"><i class="nav-icon" aria-hidden="true">＋</i><span>新建单证</span></button>
           <button class="nav-btn" data-view="history" type="button"><i class="nav-icon" aria-hidden="true">▤</i><span>历史记录</span></button>
+          <small class="rail-group-label">资料与管理</small>
           <button class="nav-btn" data-view="products" type="button"><i class="nav-icon" aria-hidden="true">▦</i><span>产品库</span></button>
           <button class="nav-btn" id="crm-module-btn" type="button"><i class="nav-icon" aria-hidden="true">◉</i><span>客户跟进</span></button>
           <button class="nav-btn" data-view="settings" type="button"><i class="nav-icon" aria-hidden="true">⚙</i><span>设置</span></button>
@@ -44,15 +47,20 @@
         </header>
         <button id="global-back-btn" class="global-back-btn no-print" type="button" hidden aria-label="返回上一页">‹ <span>返回</span></button>
         <section id="view-home" class="view active no-print">
-          <div class="home-dashboard">
+          <div class="home-dashboard overview-dashboard">
             <div class="home-welcome"><div><h1 id="home-time-greeting">你好，轻松整理今天的工作</h1><p>今天可以从新建单证或最近文件继续工作。</p></div><button class="primary" data-view-target="create">＋ 新建单证</button></div>
-            <div class="home-stats">
+            <section class="overview-intro"><span>业务工作台 / OVERVIEW</span><h2>概览看板</h2><p>报价进展、单证记录与产品资料，集中管理在本机。</p></section>
+            <div id="overview-metrics" class="overview-metrics"></div>
+            <section class="overview-progress home-card"><header><h3>单证业务概览</h3><small>各类单证分别统计 · 同号仅计最新版本</small></header><div id="overview-progress-counts"></div></section>
+            <div class="overview-actions"><button type="button" class="primary" data-overview-create="quotation">＋ 新建报价单</button><button type="button" data-view-target="products">从产品库选品</button><button type="button" data-view-target="history">查看历史单证</button><button type="button" data-home-settings="quotation-config">单证模板设置</button></div>
+            <section class="overview-records home-card"><header><h3>最近单证记录 <small id="overview-record-count"></small></h3><button type="button" data-view-target="history">全部历史记录 →</button></header><div class="overview-filters"><input id="overview-search" aria-label="搜索单号或客户" placeholder="搜索单号、客户公司或联系人"><select id="overview-type" aria-label="单证类型"><option value="">全部类型</option><option value="quotation">报价单</option><option value="invoice">形式发票</option><option value="contract">销售合同</option><option value="commercial">商业发票</option><option value="packing">装箱单</option></select><label>从 <input id="overview-from" type="date"></label><label>至 <input id="overview-to" type="date"></label></div><div class="overview-table-wrap"><table class="overview-table"><thead><tr><th>单据编号</th><th>客户</th><th>单据类型</th><th>金额</th><th>状态</th><th>日期</th><th>操作</th></tr></thead><tbody id="overview-records-body"></tbody></table></div><p class="overview-footnote">金额按币种分别显示，不将不同币种相加；单证数量不等同于订单成交数量。</p></section>
+            <div class="home-stats" hidden>
               <article><i>文</i><div><b id="home-document-count">0</b><span>全部单证</span></div></article>
               <article><i>客</i><div><b id="home-customer-count">0</b><span>客户资料</span></div></article>
               <article><i>品</i><div><b id="home-product-count">0</b><span>产品资料</span></div></article>
               <article><i>稿</i><div><b id="home-draft-count">0</b><span>草稿单证</span></div></article>
             </div>
-            <div class="home-workspace-grid">
+            <div class="home-workspace-grid" hidden>
               <section class="home-card home-documents-card"><header><h3>常用单证</h3><button type="button" data-home-settings="quotation-config">管理模板</button></header><div class="home-document-grid">
                 <button type="button" data-view-target="create"><i>报</i><span><b>报价单</b><small>Quotation</small></span></button>
                 <button type="button" data-view-target="create"><i>PI</i><span><b>形式发票</b><small>Proforma Invoice</small></span></button>
@@ -210,7 +218,7 @@
         <section id="view-products" class="view no-print">
           <header class="page-head">
             <h2>产品库</h2>
-            <p>所有新机、二手机和常用设备统一保存在这里，可按分类或关键词快速查询和修改价格。</p>
+            <p>图片在前，规格与价格一目了然。点击商品查看完整资料，或引用到正在编辑的单证。</p>
           </header>
           <div class="product-library-tabs">
             <button class="active" data-product-library="legacy">产品资料</button>
@@ -218,6 +226,8 @@
           </div>
 
           <div id="legacy-product-editor" class="legacy-product-area">
+          <div id="product-library-summary" class="overview-metrics product-library-summary"></div>
+          <div class="product-library-toolbar"><button type="button" class="primary" id="library-new-product">＋ 新增产品</button><button type="button" id="library-delete-selected" disabled>删除选中（0）</button><button type="button" id="library-configure">配置产品分类与字段</button><button type="button" id="library-import">导入产品资料</button><button type="button" id="library-catalog">导出产品目录 PDF</button></div>
           <div class="panel machinery-import-panel">
             <div>
               <h3>机械价格参考表</h3>
@@ -229,7 +239,8 @@
             </div>
             <div id="machinery-reference-result" class="import-result"></div>
           </div>
-          <div class="panel">
+          <div class="panel" id="product-edit-panel" hidden>
+            <div class="row-head"><h3 id="product-edit-heading">新增／编辑产品</h3><button type="button" id="library-close-editor">收起编辑</button></div>
             <div class="smart-product-import">
               <div><h3>粘贴文字智能录入</h3><p class="hint">识别品牌、型号、状态、年份、工时、价格、尺寸、重量和运输体积。识别后先预览，不会直接覆盖已有产品。</p></div>
               <textarea id="product-smart-paste" rows="3" placeholder="例如：卡特320D，二手，运输体积85方，重量21吨，价格待询。"></textarea>
@@ -269,9 +280,10 @@
               <button id="clear-product-btn" type="button">清空产品表单</button>
             </div>
           </div>
-          <div class="panel">
+          <div class="panel" id="product-library-list-panel">
             <div class="search-row">
-              <input id="product-search" placeholder="输入品牌、型号或产品名称，例如：装载机、柳工、856H" />
+              <input id="product-search" placeholder="搜索名称、品牌、型号或规格参数" />
+              <select id="library-template-filter" aria-label="全部分类"><option value="">全部分类</option></select>
             </div>
             <div id="product-filter-summary" class="product-filter-summary"></div>
             <div id="product-list" class="list"></div>
@@ -359,6 +371,7 @@
                   <label class="inline-check image-output-switch"><input id="quote-show-product-images" type="checkbox" checked /><span>显示图片（页面预览和PDF）</span></label>
                   <button id="open-product-picker-btn" type="button">从产品库选择</button>
                   <button id="add-quote-item-btn" type="button">插入一行</button>
+                  <label class="table-color-control">明细表头配色<select id="document-table-color"><option value="">沿用当前样式</option><option value="#285fc1">商务蓝</option><option value="#5145bb">典雅紫</option><option value="#276749">森林绿</option><option value="#9b303d">酒红</option><option value="#177b83">青绿</option><option value="#374151">石墨灰</option><option value="#b77420">琥珀金</option><option value="#1f3f5c">深海蓝</option><option value="#955572">玫瑰紫</option></select></label>
                 </div>
               </div>
               <p class="image-upload-help">可以直接在每个产品行右侧上传本地图片，不需要先保存到产品库；上传成功后会立即显示缩略图，并自动加入页面预览和PDF。</p>
@@ -376,6 +389,11 @@
             <div class="actions document-simple-options"><label><input id="quote-photo-appendix" type="checkbox">附加详细照片</label><label><input id="document-show-bank" type="checkbox">当前单据显示收款信息</label><label><input id="document-show-signature" type="checkbox">当前单据显示公司授权签署（签名／公章）</label></div>
             <section id="document-specific-editor" hidden>
               <h3 id="document-specific-title">单据专用资料</h3>
+              <div id="packing-source-controls" hidden>
+                <label>关联已有 PI／商业发票<select id="packing-source-select"><option value="">请刷新可关联单据</option></select></label>
+                <div class="actions"><button type="button" id="packing-source-refresh">刷新单据</button><button type="button" id="packing-source-apply">读取并关联</button><button type="button" id="packing-source-clear">取消关联</button></div>
+                <p id="packing-source-status" class="hint">关联会复制客户、贸易运输资料及商品，不修改原单；替换前需要确认。</p>
+              </div>
               <details id="packing-editor" hidden open><summary>装箱资料（重量和体积填写本行合计）</summary><div id="packing-editor-rows"></div></details>
               <details id="shipment-document-editor" hidden open><summary>出货资料</summary><p class="hint">按实际出货填写，缺少的资料不会从报价中虚构。可保存未完整草稿。</p><div id="shipment-document-fields" class="form-grid"></div></details>
             </section>
@@ -617,6 +635,8 @@
     <script src="./assets/document-designer.js?v=20261023"></script>
     <script src="./assets/global-freight-calculator.js?v=20261023"></script>
     <script src="./assets/customer-text-parser.js"></script>
+    <script src="./assets/item-types.js?v=20261030"></script>
+    <script src="./assets/business-overview.js?v=20261030"></script>
     <script src="./app.js?v=20261012-document-layouts"></script>
     <script src="./assets/app-lock.js?v=20261023"></script>
     <script src="./assets/configurable-workspaces.js?v=20261023"></script>

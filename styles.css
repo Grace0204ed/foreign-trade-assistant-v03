@@ -1825,13 +1825,13 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
 .trade-layout .document-shipment-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
 .trade-layout .preserve-lines,.trade-layout .terms-content p { white-space:pre-line; }
 .trade-layout .document-signature-block { border-top:2px solid var(--trade-ink); padding:10px 0 0; margin-top:14px; break-inside:avoid; }
-.trade-layout .document-seller-signature { position:relative; min-height:115px; padding-right:245px; font-size:10px; }
-.trade-layout .document-seller-signature h3 { margin:0 0 8px; color:var(--trade-ink); font-size:12px; }
-.trade-layout .document-seller-signature p { margin:4px 0; }
-.trade-layout .document-sign-assets { position:absolute; right:0; top:8px; display:flex; align-items:center; gap:10px; width:230px; height:100px; }
-.trade-layout .document-sign-assets>div { width:135px; height:90px; display:flex; align-items:center; justify-content:center; }
-.trade-layout .document-signature-image { object-fit:contain; }
-.trade-layout .document-company-seal { width:85px; height:100px; object-fit:contain; mix-blend-mode:multiply; }
+.quote-preview .document-seller-signature { position:relative; min-height:115px; padding-right:245px; font-size:10px; }
+.quote-preview .document-seller-signature h3 { margin:0 0 8px; color:var(--trade-ink); font-size:12px; }
+.quote-preview .document-seller-signature p { margin:4px 0; }
+.quote-preview .document-sign-assets { position:absolute; right:0; top:8px; width:230px; height:100px; isolation:isolate; }
+.quote-preview .document-sign-assets>div { position:absolute; left:20px; top:5px; z-index:1; width:170px; height:90px; display:flex; align-items:center; justify-content:center; }
+.quote-preview .document-signature-image { object-fit:contain; }
+.quote-preview .document-company-seal { position:absolute; left:105px; top:0; z-index:2; width:100px; height:100px; object-fit:contain; mix-blend-mode:multiply; }
 .trade-layout .document-dual-signatures { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
 .trade-layout .document-dual-signatures .document-seller-signature { padding-right:0; padding-bottom:110px; }
 .trade-layout .document-dual-signatures .document-sign-assets { top:auto; bottom:0; left:0; }
@@ -2061,3 +2061,22 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
   .designer-module-toggles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px}
 }
 .password-with-eye{display:flex;align-items:center;gap:6px}.password-with-eye input{flex:1;min-width:0}.password-with-eye button{min-width:42px;padding:8px}.designer-module small{display:block;margin-top:8px;color:#65758a;line-height:1.5}.designer-sample-table{display:block;padding:8px;border-top:1px solid #dfe6ef;border-bottom:1px solid #dfe6ef;color:#334a64}
+
+/* Keep configured columns within the same A4 geometry in preview and export. */
+.quote-preview.trade-layout table { table-layout:fixed; }
+.quote-preview.trade-layout table th,.quote-preview.trade-layout table td { padding:5px 2px; overflow-wrap:anywhere; min-width:0; font-size:9px; }
+.quote-preview.trade-layout table .preview-col-description { width:28%; }
+.quote-preview.trade-layout table .preview-col-sequence { width:4%; }
+.quote-preview.trade-layout table .preview-col-image { width:12%; }
+.quote-preview .document-signature-block { break-inside:avoid; }
+@media print {
+  body.auth-ready .desktop-rail,body .desktop-page-bar,body .global-back-btn,body .document-jump-bar { display:none!important; }
+  body.auth-ready .app-shell { display:block!important; grid-template-columns:none!important; }
+  body.auth-ready .main { padding:0!important; margin:0!important; }
+  .quote-preview.trade-layout table { table-layout:fixed!important; }
+  .quote-preview.trade-layout table th,.quote-preview.trade-layout table td { padding:5px 2px!important; overflow-wrap:anywhere!important; font-size:9px!important; }
+  .quote-preview.trade-layout .document-parties { break-after:auto; }
+  .quote-preview.trade-layout .preview-panel { break-inside:auto!important; }
+  body.printing-invitation #view-invitation > :not(#invitation-preview) { display:none!important; }
+  body.printing-invitation .invitation-sheet { min-height:0!important; }
+}

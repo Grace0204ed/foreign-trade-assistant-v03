@@ -1,0 +1,5 @@
+const assert=require('node:assert/strict'),overview=require('../assets/business-overview');
+const rows=[{id:'a',quoteNumber:'Q1',version:1,quoteDate:'2026-10-01',currency:'USD',amount:10,buyer:{company:'Buyer'}},{id:'b',quoteNumber:'Q1',version:2,quoteDate:'2026-10-02',currency:'USD',amount:20,buyer:{company:'Buyer'}},{id:'c',quoteNumber:'Q2',quoteDate:'2026-10-03',currency:'CNY',amount:50}];
+assert.equal(overview.latest(rows).length,2);assert.equal(overview.month(rows,new Date(2026,9,30)).length,2);assert.deepEqual(overview.amounts(overview.latest(rows),q=>q.amount),{USD:20,CNY:50});assert.equal(overview.filter(rows,{keyword:'buyer'}).length,1);assert.equal(overview.filter(rows,{from:'2026-10-03'}).length,1);
+const types=require('../assets/item-types');const config={};assert.equal(types.migrate(config).options.length,7);config.blocks.items[0].options=[];assert.equal(types.migrate(config).options.length,0);assert.equal(types.kind({value:'保险费'}),'insurance');
+console.log('Overview deduplication, date filtering, separate currencies and item-type configuration passed.');
