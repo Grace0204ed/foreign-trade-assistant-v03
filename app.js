@@ -5686,7 +5686,7 @@
   }
 
   function renderQuotePreviewHead() {
-    const printCore = new Set(["description","hsCode","qty","billingUnit","unitPrice","amount","image"]);
+    const printCore = new Set(["sequence","description","hsCode","qty","billingUnit","unitPrice","amount","image"]);
     return quotePreviewColumns().map((column) => `<th class="preview-col-${escapeHtml(column.key)}${printCore.has(column.key)?"":" preview-col-extra"}">${labelHtml(column.en, column.zh)}</th>`).join("");
   }
 
@@ -5753,16 +5753,16 @@
 
   function renderQuotePreviewRows() {
     const columns = quotePreviewColumns();
-    const printCore = new Set(["description","hsCode","qty","billingUnit","unitPrice","amount","image"]);
+    const printCore = new Set(["sequence","description","hsCode","qty","billingUnit","unitPrice","amount","image"]);
     return (currentQuote.items || []).filter(item=>currentQuote.documentType !== 'packing' || (item.kind||'product')==='product').map((item, index) => {
       return `<tr class="${item.imageDataUrl?"preview-row-with-image":""}">${columns.map((column) => {
         const label = `${column.en || column.key} / ${column.zh || column.key}`;
-        if(column.key === 'sequence') return `<td>${index+1}</td>`;
+        if(column.key === 'sequence') return `<td class="preview-col-sequence" data-label="${escapeHtml(label)}">${index+1}</td>`;
         if(['packages','netWeight','grossWeight','cbm','marks'].includes(column.key)) return `<td>${escapeHtml(item.values?.[column.key] ?? currentQuote.packing?.[item.id]?.[column.key] ?? '—')}</td>`;
         if (column.key === "image") return `<td class="preview-col-image preview-product-image" data-label="${escapeHtml(label)}">${(item.kind||'product')==='product'&&(item.imageDataUrl||item.additionalImages?.[0])?`<img src="${escapeHtml(item.imageDataUrl||item.additionalImages[0])}" alt="${escapeHtml(labelText('Image','图片'))}">`:'—'}</td>`;
         const value = quotePreviewCell(item, column);
         const printMeta = column.key === "description" && !['commercial','packing'].includes(currentQuote.documentType)
-          ? `<span class="print-product-meta">${escapeHtml(quoteLineColumns().filter(c=>!['image','description','qty','billingUnit','unitPrice','amount','currency','remark','itemType'].includes(c.key)).map(c=>{const value=quotePreviewCell(item,c);return value&&value!=='—'?labelText(c.labelEn||c.key,c.labelZh||c.key)+': '+value:'';}).filter(Boolean).join(' · '))}</span>`
+          ? `<span class="print-product-meta">${escapeHtml(quoteLineColumns().filter(c=>!['image','description','hsCode','qty','billingUnit','unitPrice','amount','currency','remark','itemType'].includes(c.key)).map(c=>{const value=quotePreviewCell(item,c);return value&&value!=='—'?labelText(c.labelEn||c.key,c.labelZh||c.key)+': '+value:'';}).filter(Boolean).join(' · '))}</span>`
           : "";
         return `<td class="preview-col-${escapeHtml(column.key)}${printCore.has(column.key)?"":" preview-col-extra"}" data-label="${escapeHtml(label)}"><span class="preview-cell-value">${escapeHtml(value)}</span>${printMeta}</td>`;
       }).join("")}</tr>`;
@@ -5945,6 +5945,16 @@
   }
 
   function renderPreview() {
+    // A saved document owns its company identity. Never substitute the company
+    // currently selected in settings when reopening or exporting its history.
+    currentQuote.companySnapshot ||= companyProfileData(settings);
+    const liveSettings = settings;
+    settings = {...settings, ...structuredClone(currentQuote.companySnapshot)};
+    try { renderPreviewWithCompany(); }
+    finally { settings = liveSettings; }
+  }
+
+  function renderPreviewWithCompany() {
     updateDocumentSwitchState();
     collectQuoteFromForm();
     const tpl = template();
@@ -6211,7 +6221,7 @@
           showProductPhotos: currentQuote.showProductPhotos !== false,
           documentExtras: Object.fromEntries(documentExtraFields.map(key=>[key,currentQuote[key]])),
           quoteStyle: currentQuote.quoteStyle,
-          settingsSnapshot: settings,
+          settingsSnapshot: {...settings, ...structuredClone(currentQuote.companySnapshot || companyProfileData(settings))},
           showFreightDetailInPdf: !!currentQuote.showFreightDetailInPdf,
           items: apiItems
         })
@@ -6234,6 +6244,7 @@
       id:q.id, customerId:q.customer_id || null, quoteNumber:q.quote_number || "", status:q.status || "草稿",seriesId:q.series_id||q.id,version:Number(q.version||0),isFormal:!!q.is_formal,sourceQuoteId:q.source_quote_id||"",formalizedAt:q.formalized_at||null,
       ...meta.documentExtras,
       documentType:meta.documentType || "quotation", quoteStyle:meta.quoteStyle || q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
+      companySnapshot: Object.keys(companyProfileData(q.settingsSnapshot || {})).length ? companyProfileData(q.settingsSnapshot) : companyProfileData(settings),
       quoteDate:q.quote_date || today(), validUntil:q.valid_until || addDays(7), validityRangeText:meta.validityRangeText || "", showProductPhotos:meta.showProductPhotos !== false,
       pdfLanguage:meta.pdfLanguage || "bilingual", currency:meta.currency || "USD",
       currencyDisplay:meta.currencyDisplay || "single", secondaryCurrency:meta.secondaryCurrency || ((meta.currency || "USD") === "CNY" ? "USD" : "CNY"),
