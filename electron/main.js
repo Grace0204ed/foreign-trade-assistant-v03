@@ -4,6 +4,8 @@ const { spawn } = require("child_process");
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { getMachineId, getLicenseStatus, activateLicense } = require("./license");
+// Some office networks interrupt GitHub release downloads over HTTP/2.
+app.commandLine.appendSwitch("disable-http2");
 
 let localServer;
 let desktopPort = 18765;
@@ -103,6 +105,7 @@ function configureUpdater() {
   autoUpdater.autoDownload=false;
   autoUpdater.autoInstallOnAppQuit=true;
   autoUpdater.allowPrerelease=false;
+  autoUpdater.disableDifferentialDownload=true;
   autoUpdater.on("checking-for-update",()=>publishUpdateState({status:"checking",message:"正在检查更新…"}));
   autoUpdater.on("update-available",info=>publishUpdateState({status:"available",version:info.version,message:`发现新版本 ${info.version}`}));
   autoUpdater.on("update-not-available",info=>publishUpdateState({status:"current",version:info.version,message:"当前已是最新正式版"}));
@@ -254,7 +257,16 @@ ipcMain.handle("check-for-updates",async()=>{
 });
 ipcMain.handle("download-update",async()=>{
   if(!app.isPackaged)throw new Error("开发模式不能下载安装包");
-  try { await autoUpdater.downloadUpdate();return true; }
+  try {
+    for(let attempt=1;attempt<=3;attempt++){
+      try { await autoUpdater.downloadUpdate();return true; }
+      catch(error){
+        if(attempt===3)throw error;
+        publishUpdateState({status:"downloading",message:`下载连接中断，正在重试（${attempt}/3）…`});
+        await new Promise(resolve=>setTimeout(resolve,1000*attempt));
+      }
+    }
+  }
   catch(error){publishUpdateState({status:"error",message:`下载更新失败：${error.message}`});throw error;}
 });
 ipcMain.handle("install-update",()=>{
