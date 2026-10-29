@@ -46,6 +46,16 @@
   const commonCustomer=s=>clone(s.customerQuoteFields||[]).map(normalizeField);
   const commonItems=s=>clone(s.quoteLineColumns||[]).filter(f=>(f.key||f.fieldKey)!=='condition').map(normalizeField);
   const commonTerms=s=>clone(s.templates?.[0]?.termFields||[]).map(normalizeField);
+  const mergeFields=(...groups)=>{const seen=new Set();return groups.flat().map(normalizeField).filter(field=>{if(seen.has(field.fieldKey))return false;seen.add(field.fieldKey);return true;});};
+  const salesItems=s=>mergeFields([
+    sys('商品信息／产品描述','Product Description','description','textarea',10,{required:true}),
+    sys('品牌','Brand','brand','text',20),sys('型号','Model','model','text',30),
+    sys('年份','Year','year','text',40),sys('工时','Working Hours','hours','text',50),
+    sys('海关编码','HS Code','hsCode','dictionary',60),sys('数量','Quantity','qty','number',70,{required:true}),
+    sys('计费单位','Billing Unit','billingUnit','text',80),sys('单价','Unit Price','unitPrice','money',90,{required:true}),
+    sys('币种','Currency','currency','select',100,{required:true}),sys('总金额','Total Amount','amount','calculated',110),
+    sys('备注','Remark','remark','textarea',120),sys('产品图片','Product Image','image','image',130)
+  ],commonItems(s));
   function defaultBlocks(s,type='quotation'){
     const presets={
       quotation:{
@@ -55,12 +65,12 @@
       },
       invoice:{
         basic:[sys('形式发票编号','Proforma Invoice No.','quoteNumber'),sys('开票日期','Invoice Date','quoteDate','date',20),sys('PDF语言','PDF Language','pdfLanguage','select',30)],
-        customer:commonCustomer(s),items:commonItems(s),terms:[sys('付款条件','Payment Terms','payment','textarea'),sys('交货时间','Delivery Time','deliveryTime','text',20),sys('贸易术语','Trade Term','shipping','combobox',30),sys('起运港','Port of Loading','originPort','combobox',40),sys('目的港','Port of Discharge','port','combobox',50)],
+        customer:commonCustomer(s),items:salesItems(s),terms:[sys('付款条件','Payment Terms','payment','textarea'),sys('交货时间','Delivery Time','deliveryTime','text',20),sys('贸易术语','Trade Term','shipping','combobox',30),sys('起运港','Port of Loading','originPort','combobox',40),sys('目的港','Port of Discharge','port','combobox',50)],
         payment:[sys('收款账户','Beneficiary Account','showBankInfo','checkbox')],signature:[sys('卖方授权签署','Seller Authorized Signature','showCompanySignature','checkbox')]
       },
       contract:{
         basic:[sys('合同编号','Contract No.','quoteNumber'),sys('签订日期','Contract Date','quoteDate','date',20),sys('PDF语言','PDF Language','pdfLanguage','select',30)],
-        customer:commonCustomer(s),items:commonItems(s),terms:[sys('付款条款','Payment Terms','payment','textarea'),sys('交货条款','Delivery Terms','deliveryTime','textarea',20),sys('质量与质保','Quality and Warranty','warranty','textarea',30),sys('争议解决','Dispute Resolution','disputeResolution','textarea',40)],
+        customer:commonCustomer(s),items:salesItems(s),terms:[sys('付款条款','Payment Terms','payment','textarea'),sys('交货条款','Delivery Terms','deliveryTime','textarea',20),sys('质量与质保','Quality and Warranty','warranty','textarea',30),sys('争议解决','Dispute Resolution','disputeResolution','textarea',40)],
         payment:[sys('卖方收款账户','Seller Payment Account','showBankInfo','checkbox')],signature:[sys('买卖双方签署区','Buyer and Seller Signatures','showCompanySignature','checkbox')]
       },
       commercial:{
@@ -76,13 +86,13 @@
         terms:[sys('运输方式','Mode of Transport','transportMethod','select'),sys('起运港','Port of Loading','originPort','combobox',20),sys('目的港','Port of Discharge','port','combobox',30),sys('提单号','B/L No.','billOfLadingNo','text',40)],payment:[],signature:[sys('制单人签署','Prepared By','showCompanySignature','checkbox')]
       },
       invitation:{
-        basic:[sys('邀请函日期','Invitation Date','date','date'),sys('致使领馆','Embassy / Consulate','embassy','text',20),sys('语言','Language','language','select',30)],
-        customer:[sys('来访人姓名','Visitor Full Name','visitorName'),sys('来访人公司','Visitor Company','visitorCompany','text',20),sys('国籍','Nationality','country','text',30),sys('护照号码','Passport No.','passportNo','text',40),sys('出生日期','Date of Birth','birthDate','date',50)],
+        basic:[sys('邀请函日期','Invitation Date','date','date'),sys('致使领馆','Embassy / Consulate','embassy','text',20),sys('语言','Language','language','select',30),sys('邀请函样式','Invitation Style','style','select',40)],
+        customer:[sys('来访人姓名','Visitor Full Name','visitorName'),sys('来访人公司','Visitor Company','visitorCompany','text',20),sys('国籍','Nationality','country','text',30),sys('性别','Gender','gender','text',40),sys('护照号码','Passport No.','passportNo','text',50),sys('出生日期','Date of Birth','birthDate','date',60)],
         items:[sys('入境日期','Arrival Date','arrivalDate','date'),sys('离境日期','Departure Date','departureDate','date',20),sys('来访地点','Place of Visit','visitPlace','text',30),sys('签证类型','Visa Type','visaType','text',40)],
-        terms:[sys('邀请理由','Purpose of Visit','reason','textarea'),sys('费用承担','Expense Responsibility','expenseSource','textarea',20),sys('补充说明','Additional Notes','notes','textarea',30)],payment:[],signature:[sys('邀请人签署','Inviter Signature','showCompanySignature','checkbox')]
+        terms:[sys('邀请理由','Purpose of Visit','reason','textarea'),sys('双方关系','Relationship','relationship','text',20),sys('费用承担','Expense Responsibility','expenseSource','textarea',30),sys('补充说明','Additional Notes','notes','textarea',40),sys('邀请人姓名','Inviter Name','inviter','text',50),sys('邀请人职务','Inviter Title','signerTitle','text',60)],payment:[],signature:[sys('邀请人签署','Inviter Signature','showCompanySignature','checkbox')]
       },
       agency:{
-        basic:[sys('授权书编号','Authorization No.','authorizationNumber'),sys('签发日期','Date of Issue','date','date',20),sys('有效期至','Valid Until','validUntil','date',30),sys('语言','Language','language','select',40)],
+        basic:[sys('授权书编号','Authorization No.','authorizationNumber'),sys('签发日期','Date of Issue','date','date',20),sys('有效期至','Valid Until','validUntil','date',30),sys('语言','Language','language','select',40),sys('授权方公司','Authorizing Company','company','text',50),sys('授权方签署人','Authorizer','authorizer','text',60),sys('签署人职务','Authorizer Title','authorizerTitle','text',70)],
         customer:[sys('代理人姓名','Representative','agentName'),sys('证件号码','ID / Passport No.','idNumber','text',20),sys('联系电话','Telephone','phone','text',30),sys('电子邮箱','Email','email','text',40),sys('联系地址','Contact Address','address','textarea',50),sys('授权国家／地区','Territory','country','text',60)],
         items:[sys('授权产品范围','Authorized Product Scope','selectedProducts','multiselect')],terms:[sys('授权性质','Authorization Type','authorizationType','select'),sys('授权条款','Terms of Authorization','extraTerms','textarea',20)],payment:[],signature:[sys('授权方签字盖章','Authorizing Signature and Seal','showCompanySignature','checkbox')]
       }
@@ -91,17 +101,18 @@
     return {basic:selected.basic||[],customer:selected.customer||[],items:selected.items||[],terms:selected.terms||[],payment:selected.payment||[],signature:selected.signature||[],layout:[sys('填写区显示收款信息选项','Show bank information control','showBankControl','checkbox',10,{visible:['quotation','invoice','contract','commercial'].includes(type)})]};
   }
   function migrateDocumentConfig(config,s,type){
-    if(Number(config.schemaVersion||0)>=2)return config;
+    if(Number(config.schemaVersion||0)>=3)return config;
     const preset=defaultBlocks(s,type),old=config.blocks||{};
     config.blocks=config.blocks||{};
     Object.keys(blockLabels).forEach(key=>{
-      const custom=(old[key]||[]).map(normalizeField).filter(field=>!field.system&&!preset[key].some(base=>base.fieldKey===field.fieldKey));
-      config.blocks[key]=[...preset[key],...custom].map(normalizeField);
+      const existing=(old[key]||[]).map(normalizeField),existingKeys=new Set(existing.map(field=>field.fieldKey));
+      const missing=(preset[key]||[]).filter(field=>!existingKeys.has(field.fieldKey));
+      config.blocks[key]=[...existing,...missing].map(normalizeField);
     });
-    config.schemaVersion=2;
+    config.schemaVersion=3;
     return config;
   }
-  function ensureConfig(type,templateId=''){const s=ctx().settings;s.documentConfigs||={};s.quoteTemplateConfigs||={};let c;if(type==='quotation'&&templateId){if(!s.quoteTemplateConfigs[templateId])s.quoteTemplateConfigs[templateId]={type,productMode:'linked',productTemplateId:templateId,style:'business',blocks:defaultBlocks(s,type),schemaVersion:2};c=s.quoteTemplateConfigs[templateId];}else{s.documentConfigs[type]||={type,productMode:'linked',productTemplateId:s.templates?.[0]?.id||s.templates?.[0]?.name||'',style:'business',blocks:defaultBlocks(s,type),schemaVersion:2};c=s.documentConfigs[type];}migrateDocumentConfig(c,s,type);c.blocks||=defaultBlocks(s,type);Object.keys(blockLabels).forEach(k=>{c.blocks[k]=(c.blocks[k]||[]).map(normalizeField);});return c;}
+  function ensureConfig(type,templateId=''){const s=ctx().settings;s.documentConfigs||={};s.quoteTemplateConfigs||={};let c;if(type==='quotation'&&templateId){if(!s.quoteTemplateConfigs[templateId])s.quoteTemplateConfigs[templateId]={type,productMode:'linked',productTemplateId:templateId,style:'business',blocks:defaultBlocks(s,type),schemaVersion:3};c=s.quoteTemplateConfigs[templateId];}else{s.documentConfigs[type]||={type,productMode:type==='quotation'?'linked':'independent',productTemplateId:s.templates?.[0]?.id||s.templates?.[0]?.name||'',style:'business',blocks:defaultBlocks(s,type),schemaVersion:3};c=s.documentConfigs[type];}migrateDocumentConfig(c,s,type);c.blocks||=defaultBlocks(s,type);Object.keys(blockLabels).forEach(k=>{c.blocks[k]=(c.blocks[k]||[]).map(normalizeField);});return c;}
   function mountDesigner(host,config,type,label){
     if(!window.DocumentDesigner)return;
     config.designer=window.DocumentDesigner.normalize(config.designer||{name:`${label}自定义版式`,documentType:type});

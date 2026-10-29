@@ -4996,10 +4996,57 @@
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
   }
 
-  function quoteProductTemplate() {
+  function standaloneDocumentFields(type) {
+    const config=settings.documentConfigs?.[type];
+    return ['basic','customer','items','terms'].flatMap(block=>(config?.blocks?.[block]||[])
+      .map(normalizeField)
+      .filter(field=>!field.deletedAt&&field.visible!==false&&field.active!==false)
+      .sort((a,b)=>Number(a.sortOrder||0)-Number(b.sortOrder||0)));
+  }
+
+  function applyStandaloneDocumentForm(type, mapping, record, grid) {
+    if(!grid)return;
+    grid.querySelectorAll('[data-standalone-custom]').forEach(label=>label.remove());
+    Object.values(mapping).forEach(id=>{const label=$(id)?.closest('label');if(label)label.hidden=true;});
+    standaloneDocumentFields(type).forEach(field=>{
+      const id=mapping[field.fieldKey];
+      if(id&&$(id)){
+        const label=$(id).closest('label'),caption=label?.querySelector('span');
+        if(label){label.hidden=false;if(caption)caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;grid.appendChild(label);}
+        return;
+      }
+      const label=document.createElement('label');label.dataset.standaloneCustom=field.fieldKey;
+      if(field.fieldType==='textarea')label.classList.add('wide');
+      const caption=document.createElement('span');caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;
+      let input;
+      if(['select','dictionary','hierarchy'].includes(field.fieldType)){
+        input=document.createElement('select');input.append(new Option('请选择',''));
+        (field.options||[]).filter(option=>option.active!==false).forEach(option=>input.append(new Option(option.labelZh||option.labelEn||option.value||'',option.value??option.labelZh??'')));
+      }else if(field.fieldType==='textarea')input=document.createElement('textarea');
+      else{input=document.createElement('input');input.type=field.fieldType==='date'?'date':field.fieldType==='number'||field.fieldType==='money'?'number':field.fieldType==='checkbox'?'checkbox':'text';}
+      input.dataset.standaloneField=field.fieldKey;const value=record?.customFields?.[field.fieldKey]??field.defaultValue??'';
+      if(input.type==='checkbox')input.checked=value===true||value==='true';else input.value=value;
+      label.append(caption,input);grid.appendChild(label);
+    });
+  }
+
+  function collectStandaloneCustomFields(record,root){
+    record.customFields={...(record.customFields||{})};
+    root?.querySelectorAll('[data-standalone-field]').forEach(input=>{record.customFields[input.dataset.standaloneField]=input.type==='checkbox'?input.checked:input.value;});
+  }
+
+  function standaloneCustomPreview(type,record){
+    const rows=standaloneDocumentFields(type).filter(field=>!({invitation:['date','embassy','language','style','visitorName','visitorCompany','country','gender','passportNo','birthDate','arrivalDate','departureDate','visitPlace','visaType','reason','relationship','expenseSource','notes','inviter','signerTitle'],agency:['authorizationNumber','date','validUntil','language','company','authorizer','authorizerTitle','agentName','idNumber','phone','email','address','country','selectedProducts','authorizationType','extraTerms']}[type]||[]).includes(field.fieldKey)).map(field=>{
+      const value=record?.customFields?.[field.fieldKey];return value!==''&&value!=null&&value!==false?`<p><b>${escapeHtml(labelText(field.en,field.zh))}:</b> ${escapeHtml(value===true?'Yes':value)}</p>`:'';
+    }).filter(Boolean);
+    return rows.length?`<section class="preview-panel standalone-custom-fields"><h3>${escapeHtml(labelText('Additional Information','补充信息'))}</h3>${rows.join('')}</section>`:'';
+  }
+
+  function quoteProductTemplate(type = currentQuote?.documentType || "quotation") {
     normalizeTemplates();
     if(currentQuote?.isFormal && currentQuote.templateSnapshot?.productTemplate)return currentQuote.templateSnapshot.productTemplate;
-    const config = activeDocumentConfig("quotation");
+    if(type !== "quotation") return null;
+    const config = activeDocumentConfig(type);
     if (!config || config.productMode !== "linked") return template();
     return settings.templates.find((item) => (item.id || item.name) === config.productTemplateId) || template();
   }
@@ -5102,6 +5149,10 @@
       try { freightSnapshot = card.dataset.freightSnapshot ? JSON.parse(decodeURIComponent(card.dataset.freightSnapshot)) : null; } catch { freightSnapshot = null; }
       return { id: card.dataset.id, kind: card.dataset.kind || "product", additionalImages: currentQuote.items.find(item => item.id === card.dataset.id)?.additionalImages || [], values, imageDataUrl: card.querySelector("[data-image]")?.dataset.image || "", freightSnapshot };
     });
+    if(currentQuote.documentType==='packing'){
+      currentQuote.packing||={};
+      currentQuote.items.forEach(item=>{currentQuote.packing[item.id]={...(currentQuote.packing[item.id]||{}),packages:item.values.packages??'',netWeight:item.values.netWeight??'',grossWeight:item.values.grossWeight??'',cbm:item.values.cbm??'',marks:item.values.marks??''};});
+    }
     currentQuote.updatedAt = new Date().toISOString();
   }
 
@@ -5182,10 +5233,11 @@
 
   function quoteLineColumns() {
     normalizeQuoteLineColumns();
-    const linked = quoteProductTemplate();
+    const documentType=currentQuote?.documentType||"quotation";
+    const linked = quoteProductTemplate(documentType);
     const config = activeDocumentConfig();
     const aliases={productType:"description",totalAmount:"amount",productImage:"image"};
-    const source = config?.productMode === "linked" && linked?.fields?.length
+    const source = documentType === "quotation" && config?.productMode === "linked" && linked?.fields?.length
       ? linked.fields.map((field) => {
           const key=aliases[field.fieldKey]||field.fieldKey;
           return { key, labelZh:key==="description"?"商品信息 / 产品描述":field.zh, labelEn:key==="description"?"Product Description":field.en, type:field.fieldType, ...field, fieldKey:key };
@@ -5292,6 +5344,9 @@
 
   function renderQuoteItems() {
     if (!currentQuote.items?.length) currentQuote.items = [blankQuoteLine()];
+    if(currentQuote.documentType==='packing') currentQuote.items.forEach(item=>{
+      item.values={...(currentQuote.packing?.[item.id]||{}),...(item.values||{})};
+    });
     const columns = quoteLineColumns();
     $("quote-items").innerHTML = `
       <div class="quote-line-table-wrap">
@@ -5626,11 +5681,8 @@
       type: column.type,
       visible: column.visible !== false
     }));
-    const leading = [{key:'sequence',en:'No.',zh:'序号'}, ...(currentQuote.showProductPhotos !== false ? [{key:'image',en:'Image',zh:'图片'}] : [])];
-    if(currentQuote.documentType==='commercial')return [...leading,...[['description','Description','商品说明'],['hsCode','HS Code','海关编码'],['origin','Country of origin','原产国'],['qty','Quantity','数量'],['billingUnit','Unit','单位'],['unitPrice','Unit Price','单价'],['amount','Amount','金额']].map(([key,en,zh])=>({key,en,zh}))];
-    if(currentQuote.documentType==='packing') return [...leading,{key:'description',en:'Description',zh:'商品信息'},{key:'qty',en:'Quantity',zh:'数量'},...[['packages','Packages','件数'],['netWeight','Net weight (kg)','净重（kg）'],['grossWeight','Gross weight (kg)','毛重（kg）'],['cbm','Volume (m³)','体积（m³）'],['marks','Shipping marks','唛头']].map(([key,en,zh])=>({key,en,zh}))];
-    const keys=['description','qty','billingUnit','unitPrice','amount','remark'];
-    return [...leading,...columns.filter(column=>keys.includes(column.key)||settings.quoteLineColumns.find(c=>c.key===column.key)?.system===false)];
+    const leading = [{key:'sequence',en:'No.',zh:'序号'}];
+    return [...leading,...columns.filter(column=>column.key!=='image'||currentQuote.showProductPhotos!==false)];
   }
 
   function renderQuotePreviewHead() {
@@ -5706,7 +5758,7 @@
       return `<tr class="${item.imageDataUrl?"preview-row-with-image":""}">${columns.map((column) => {
         const label = `${column.en || column.key} / ${column.zh || column.key}`;
         if(column.key === 'sequence') return `<td>${index+1}</td>`;
-        if(['packages','netWeight','grossWeight','cbm','marks'].includes(column.key)) return `<td>${escapeHtml(currentQuote.packing?.[item.id]?.[column.key] ?? '—')}</td>`;
+        if(['packages','netWeight','grossWeight','cbm','marks'].includes(column.key)) return `<td>${escapeHtml(item.values?.[column.key] ?? currentQuote.packing?.[item.id]?.[column.key] ?? '—')}</td>`;
         if (column.key === "image") return `<td class="preview-col-image preview-product-image" data-label="${escapeHtml(label)}">${(item.kind||'product')==='product'&&(item.imageDataUrl||item.additionalImages?.[0])?`<img src="${escapeHtml(item.imageDataUrl||item.additionalImages[0])}" alt="${escapeHtml(labelText('Image','图片'))}">`:'—'}</td>`;
         const value = quotePreviewCell(item, column);
         const printMeta = column.key === "description" && !['commercial','packing'].includes(currentQuote.documentType)
@@ -5857,7 +5909,7 @@
     if(currentQuote.documentType==='packing') {
       const items=currentQuote.items.filter(i=>(i.kind||'product')==='product');
       if(!items.length){toast('装箱单至少需要一行商品');return false;}
-      for(const item of items){const p=currentQuote.packing?.[item.id]||{};
+      for(const item of items){const p={...(currentQuote.packing?.[item.id]||{}),...(item.values||{})};
         if(!['packages','netWeight','grossWeight','cbm'].every(k=>p[k]!=='' && p[k]!=null && Number.isFinite(Number(p[k])) && Number(p[k])>0) || !Number.isInteger(Number(p.packages)) || Number(p.grossWeight)<Number(p.netWeight)) {toast('请填写装箱件数、净重、毛重、体积；毛重不得小于净重，件数须为正整数。');return false;}
       }
       return true;
@@ -6780,7 +6832,7 @@
     const panel=$('document-specific-editor');
     panel.hidden=!shipping;
     $('document-specific-title').textContent=packing?'装箱单填写':'商业发票出货资料';
-    $('packing-editor').hidden=!packing;
+    $('packing-editor').hidden=true;
     $('shipment-document-editor').hidden=!shipping;
     const names={quotation:['报价基础信息','报价明细','贸易条款'],invoice:['形式发票基础信息','形式发票商品明细','付款及交付条款'],contract:['销售合同基础信息','合同商品明细','合同条款'],commercial:['商业发票基础信息','商业发票商品明细','贸易条款'],packing:['装箱单基础信息','装箱商品明细','运输条款']};
     const titles=names[type]||names.quotation;
