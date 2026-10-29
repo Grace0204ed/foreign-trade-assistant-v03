@@ -9,6 +9,6 @@
     packing:p=>`${p.letterhead}${p.heading}${p.parties}${p.shipment}${p.items}${p.packingTotals}${p.shippingNotes}${p.signature}`
   };
   function render(type,parts){return (layouts[type]||layouts.quotation)(parts);}
-  function options(type,overrides={}){return {bank:type!=='packing'&&(overrides.bank??['invoice','contract','commercial'].includes(type)),signature:overrides.signature??['invoice','contract','commercial'].includes(type)};}
+  function options(type,overrides={}){const defaults={quotation:{bank:true,signature:true},invoice:{bank:true,signature:true},contract:{bank:true,signature:true},commercial:{bank:true,signature:true},packing:{bank:false,signature:false}}[type]||{bank:false,signature:false};return {bank:type!=='packing'&&(overrides.bank??defaults.bank),signature:overrides.signature??defaults.signature};}
   return {render,options,types:Object.keys(layouts)};
 });

@@ -20,18 +20,18 @@
     </datalist>
     <div class="app-shell">
       <aside class="desktop-rail no-print" aria-label="主导航">
-        <button class="rail-brand nav-btn active" data-view="home" type="button" aria-label="工作台"><b>贸</b><span>工作台</span></button>
+        <button class="rail-brand nav-btn active" data-view="home" type="button" aria-label="首页"><i class="nav-icon" aria-hidden="true">⌂</i><span>首页</span></button>
         <nav class="rail-primary">
-          <button class="nav-btn" data-view="create" type="button"><i>＋</i><span>新建单证</span></button>
-          <button class="nav-btn" data-view="history" type="button"><i>▤</i><span>历史记录</span></button>
-          <button class="nav-btn" data-view="products" type="button"><i>◇</i><span>产品库</span></button>
-          <button class="nav-btn" id="crm-module-btn" type="button"><i>◎</i><span>客户跟进</span></button>
-          <button class="nav-btn" data-view="settings" type="button"><i>⚙</i><span>设置</span></button>
+          <button class="nav-btn" data-view="create" type="button"><i class="nav-icon" aria-hidden="true">＋</i><span>新建单证</span></button>
+          <button class="nav-btn" data-view="history" type="button"><i class="nav-icon" aria-hidden="true">▤</i><span>历史记录</span></button>
+          <button class="nav-btn" data-view="products" type="button"><i class="nav-icon" aria-hidden="true">▦</i><span>产品库</span></button>
+          <button class="nav-btn" id="crm-module-btn" type="button"><i class="nav-icon" aria-hidden="true">◉</i><span>客户跟进</span></button>
+          <button class="nav-btn" data-view="settings" type="button"><i class="nav-icon" aria-hidden="true">⚙</i><span>设置</span></button>
         </nav>
         <nav class="rail-secondary">
-          <button class="nav-btn" id="sidebar-lock-btn" type="button" title="快捷锁定 Ctrl+Shift+L"><i>⌾</i><span>应用锁 Ctrl+Shift+L</span></button>
-          <button class="nav-btn" data-view="help" type="button"><i>?</i><span>使用说明</span></button>
-          <button class="nav-btn" id="sidebar-contact-btn" type="button"><i>✆</i><span>联系我们</span></button>
+          <button class="nav-btn" id="sidebar-lock-btn" type="button" title="快捷锁定 Ctrl+Shift+L"><i class="nav-icon" aria-hidden="true">▣</i><span>应用锁</span></button>
+          <button class="nav-btn" data-view="help" type="button"><i class="nav-icon" aria-hidden="true">?</i><span>使用说明</span></button>
+          <button class="nav-btn" id="sidebar-contact-btn" type="button"><i class="nav-icon" aria-hidden="true">☎</i><span>联系我们</span></button>
         </nav>
       </aside>
 
@@ -41,12 +41,11 @@
             <strong id="desktop-page-title">工作台</strong>
             <small id="desktop-page-subtitle">本地离线使用 · 数据仅保存在本机</small>
           </div>
-          <span class="desktop-user-avatar" aria-label="当前使用者 Ethan">E</span>
         </header>
         <button id="global-back-btn" class="global-back-btn no-print" type="button" hidden aria-label="返回上一页">‹ <span>返回</span></button>
         <section id="view-home" class="view active no-print">
           <div class="home-dashboard">
-            <div class="home-welcome"><div><h1>早上好，Ethan</h1><p>今天可以从新建单证或最近文件继续工作。</p></div><button class="primary" data-view-target="create">＋ 新建单证</button></div>
+            <div class="home-welcome"><div><h1 id="home-time-greeting">你好，轻松整理今天的工作</h1><p>今天可以从新建单证或最近文件继续工作。</p></div><button class="primary" data-view-target="create">＋ 新建单证</button></div>
             <div class="home-stats">
               <article><i>文</i><div><b id="home-document-count">0</b><span>全部单证</span></div></article>
               <article><i>客</i><div><b id="home-customer-count">0</b><span>客户资料</span></div></article>
@@ -179,7 +178,7 @@
               <label>签署人职务<input data-setting="agencyAuthorizerTitle" placeholder="General Manager, Africa / 非洲区总经理"></label>
               <label>签名方向<select data-setting="agencySignatureRotation" id="company-signature-rotation"><option value="0">原方向</option><option value="-90">逆时针90°</option><option value="90">顺时针90°</option><option value="180">旋转180°</option></select></label>
             </div>
-            <div class="actions"><label class="file-btn">上传／替换电子签名<input id="company-signature-input" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="remove-company-signature" type="button">删除电子签名</button></div>
+            <div class="actions"><button id="draw-company-signature" type="button">手写电子签名</button><label class="file-btn">上传／替换电子签名<input id="company-signature-input" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="remove-company-signature" type="button">删除电子签名</button></div>
             <div class="company-signature-preview-box"><img id="company-signature-preview" alt="当前公司电子签名" hidden></div>
             <p id="company-signature-status" class="hint" role="status"></p>
             <p class="hint">上传、删除自动保存；姓名、职务、方向调整后点击“保存设置”。删除不修改已经导出的PDF。</p>
@@ -602,6 +601,14 @@
           <button id="save-hs-code-btn" class="primary" type="button">保存海关编码</button>
           <button id="cancel-hs-code-btn" type="button">取消</button>
         </footer>
+      </div>
+    </div>
+    <div id="signature-pad-modal" class="modal no-print" hidden>
+      <div class="modal-card signature-pad-card" role="dialog" aria-modal="true" aria-labelledby="signature-pad-title">
+        <header><h3 id="signature-pad-title">手写电子签名</h3><button id="signature-pad-close" type="button">关闭</button></header>
+        <p class="hint">按住鼠标左键或使用触摸笔书写，保存后作为当前公司的电子签名。</p>
+        <canvas id="signature-pad-canvas" width="900" height="360" aria-label="电子签名书写画布"></canvas>
+        <footer class="actions"><button id="signature-pad-clear" type="button">清空重写</button><button id="signature-pad-cancel" type="button">取消</button><button id="signature-pad-save" class="primary" type="button">保存签名</button></footer>
       </div>
     </div>
     <script src="./assets/price-lists/machinery-price-products.js"></script>

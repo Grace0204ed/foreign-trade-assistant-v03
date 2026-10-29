@@ -5985,6 +5985,28 @@
     }catch(error){settings=original;renderSettings();toast('签名保存失败：'+error.message);}
     finally{if(input)input.value='';}
   }
+  async function saveDrawnCompanySignature(data) {
+    const original=structuredClone(settings);
+    try {
+      collectSettingsDraft();settings.agencySignatureDataUrl=data;settings.agencySignatureRotation=0;storeActiveCompany();
+      if(isAdmin())await api('/api/settings',{method:'PUT',body:JSON.stringify(settings)});
+      save(keys.settings,settings);renderSettings();renderPreview();toast('手写电子签名已保存');
+    } catch(error) {settings=original;renderSettings();toast('签名保存失败：'+error.message);}
+  }
+  function initSignaturePad() {
+    const modal=$('signature-pad-modal'),canvas=$('signature-pad-canvas');if(!modal||!canvas)return;
+    const context=canvas.getContext('2d');let drawing=false,last=null,hasInk=false;
+    const clear=()=>{context.clearRect(0,0,canvas.width,canvas.height);context.lineWidth=7;context.lineCap='round';context.lineJoin='round';context.strokeStyle='#101820';hasInk=false;};
+    const point=event=>{const rect=canvas.getBoundingClientRect();return {x:(event.clientX-rect.left)*canvas.width/rect.width,y:(event.clientY-rect.top)*canvas.height/rect.height};};
+    canvas.addEventListener('pointerdown',event=>{drawing=true;last=point(event);canvas.setPointerCapture(event.pointerId);});
+    canvas.addEventListener('pointermove',event=>{if(!drawing)return;const next=point(event);context.beginPath();context.moveTo(last.x,last.y);context.lineTo(next.x,next.y);context.stroke();last=next;hasInk=true;});
+    const stop=()=>{drawing=false;last=null;};canvas.addEventListener('pointerup',stop);canvas.addEventListener('pointercancel',stop);
+    const close=()=>{modal.hidden=true;};
+    $('draw-company-signature')?.addEventListener('click',()=>{clear();modal.hidden=false;});
+    $('signature-pad-clear')?.addEventListener('click',clear);$('signature-pad-cancel')?.addEventListener('click',close);$('signature-pad-close')?.addEventListener('click',close);
+    $('signature-pad-save')?.addEventListener('click',async()=>{if(!hasInk){toast('请先在画布上书写签名');return;}await saveDrawnCompanySignature(canvas.toDataURL('image/png'));close();});
+    clear();
+  }
   function renderDocumentSignature(type) {
     const e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
     const angle=[-90,0,90,180].includes(Number(settings.agencySignatureRotation))?Number(settings.agencySignatureRotation):0;
@@ -5995,19 +6017,25 @@
   }
   function renderDocumentLayout(termFields) {
     const host=$('quote-preview'),type=currentQuote.documentType||'quotation',e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
+    const options=TradeDocumentLayouts.options(type,currentQuote.outputOptions?.[type]);
     const bankControl=activeDocumentConfig(type)?.blocks?.layout?.find(field=>field.fieldKey==='showBankControl');
     const bankToggle=$('document-show-bank')?.closest('label');if(bankToggle)bankToggle.hidden=bankControl?.visible===false||bankControl?.active===false;
     // Keep the original quotation banner, terms, seal and bank section intact.
     // Other document types retain their dedicated layouts.
     if(type==='quotation'){
       host.classList.add('september-quotation');
-      $('document-show-bank').checked=true;
-      $('document-show-bank').disabled=true;
-      $('document-show-signature').checked=!!settings.stampDataUrl;
+      $('document-show-bank').disabled=false;
+      $('document-show-bank').checked=options.bank;
+      $('document-show-signature').checked=options.signature;
+      host.querySelectorAll('.bank-panel,.bank-info,.bank-preview').forEach(node=>node.hidden=!options.bank);
+      // Quotation uses the same shared company signing module as the other
+      // documents. Remove the legacy stamp-only placement to avoid duplicate
+      // seals, then append the complete signature/seal block only when chosen.
+      host.querySelectorAll('.stamp-box,.signature-section,.pi-company-signature,.sales-contract-signatures,.document-signature-block').forEach(node=>node.remove());
+      if(options.signature)host.insertAdjacentHTML('beforeend',renderDocumentSignature(type));
       return;
     }
     $('document-show-bank').disabled=false;
-    const options=TradeDocumentLayouts.options(type,currentQuote.outputOptions?.[type]);
     const html=selector=>host.querySelector(selector)?.outerHTML||'';
     const block=(heading,content,cls='')=>`<section class="document-section ${cls}"><h3>${heading}</h3>${content}</section>`;
     const detail=(en,zh,value)=>`<p><b>${l(en,zh)}</b><span>${e(value||'—')}</span></p>`;
@@ -6351,7 +6379,7 @@
     if ($("sidebar-lock-btn")) {
       const shortcut=settings.applicationLock?.shortcut||"Ctrl+Shift+L";
       $("sidebar-lock-btn").title=`快捷锁定 ${shortcut}`;
-      $("sidebar-lock-btn").querySelector("span").textContent=`应用锁 ${shortcut}`;
+      $("sidebar-lock-btn").querySelector("span").textContent="应用锁";
     }
     document.addEventListener("keydown", (event) => {
       const shortcut=settings.applicationLock?.shortcut||"Ctrl+Shift+L";
@@ -6877,8 +6905,9 @@
   }
 
   async function init() {
-
+    const greeting=$('home-time-greeting');if(greeting){const hour=new Date().getHours();greeting.textContent=hour<6?'深夜好，注意休息':hour<11?'早上好，元气满满地开始今天的工作':hour<14?'中午好，轻松整理今天的工作':hour<18?'下午好，继续推进今天的工作':'晚上好，轻松整理今天的工作';}
     bindEvents();
+    initSignaturePad();
     initDocumentNavigation();
     organizeManagementModules();
     window.freightWorkspace?.init();
