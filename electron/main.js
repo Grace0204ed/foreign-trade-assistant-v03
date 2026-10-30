@@ -87,12 +87,22 @@ async function createWindow() {
     title:"外贸助手",show:false,icon:path.join(__dirname,"../assets/app-icon.png"),
     webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false}
   });
+  let closeAllowed=false, closePending=false;
+  win.on('close',event=>{
+    if(closeAllowed)return;
+    event.preventDefault();if(closePending)return;closePending=true;
+    win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();return true;})()')
+      .then(()=>{closeAllowed=true;win.close();})
+      .catch(error=>dialog.showErrorBox('未能保存最后的工作','窗口已保留，请重试保存后再退出。\n'+error.message))
+      .finally(()=>{closePending=false;});
+  });
   win.once("ready-to-show",()=>win.show());
   win.webContents.once("did-finish-load",()=>{if(!win.isVisible())win.show();});
   win.webContents.on("before-input-event",(event,input)=>{
     if(input.type==="keyDown"&&input.key==="F5"){
       event.preventDefault();
-      win.webContents.reloadIgnoringCache();
+      win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()')
+        .then(()=>win.webContents.reloadIgnoringCache()).catch(error=>dialog.showErrorBox('刷新前保存失败',error.message));
     }
   });
   await win.loadURL(`http://127.0.0.1:${desktopPort}/index.html`);
@@ -141,7 +151,9 @@ function configureUpdater() {
   autoUpdater.on("error",error=>publishUpdateState({status:"error",message:`更新失败：${error.message}`}));
 }
 
-function installDownloadedUpdate() {
+async function installDownloadedUpdate() {
+  // Finish pending recovery writes before an installer can terminate the app.
+  for(const win of BrowserWindow.getAllWindows())if(!win.isDestroyed())await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
   if (downloadedUpdateFile && fs.existsSync(downloadedUpdateFile)) {
     publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});
     const child=spawn(downloadedUpdateFile,["/S"],{detached:true,stdio:"ignore",windowsHide:true});
@@ -233,6 +245,10 @@ ipcMain.handle("export-current-pdf", async (event, fileName) => {
     filters: [{ name: "PDF", extensions: ["pdf"] }]
   });
   if (result.canceled || !result.filePath) return null;
+  return writeWindowPdf(win,result.filePath,false);
+});
+
+async function writeWindowPdf(win,filePath,exclusive) {
   await win.webContents.executeJavaScript(`(async()=>{
     await document.fonts.ready;
     const visibleImages=[...document.images].filter(img=>img.src&&getComputedStyle(img).display!=="none");
@@ -245,9 +261,29 @@ ipcMain.handle("export-current-pdf", async (event, fileName) => {
     marginsType: 0,
     pageSize: "A4"
   });
-  fs.writeFileSync(result.filePath, pdf);
-  return result.filePath;
+  fs.writeFileSync(filePath, pdf, exclusive?{flag:'wx'}:undefined);
+  return filePath;
+}
+const pdfDirectories=new Map();
+ipcMain.handle('select-pdf-directory',async event=>{
+  const win=BrowserWindow.fromWebContents(event.sender);
+  const result=await dialog.showOpenDialog(win,{title:'选择批量PDF导出文件夹',properties:['openDirectory','createDirectory']});
+  if(result.canceled||!result.filePaths[0])return null;
+  const token=require('crypto').randomUUID();pdfDirectories.set(token,{sender:event.sender.id,directory:result.filePaths[0]});
+  event.sender.once('destroyed',()=>{for(const [key,value]of pdfDirectories)if(value.sender===event.sender.id)pdfDirectories.delete(key);});
+  return token;
 });
+ipcMain.handle('export-batch-pdf',async(event,token,fileName)=>{
+  const grant=pdfDirectories.get(token);if(!grant||grant.sender!==event.sender.id)throw new Error('请重新选择导出文件夹');
+  const win=BrowserWindow.fromWebContents(event.sender),name=safePdfFileName(fileName);
+  for(let index=0;index<10000;index++){
+    const target=path.join(grant.directory,index?name.replace(/\.pdf$/i,' ('+index+').pdf'):name);
+    if(fs.existsSync(target))continue;
+    try{return await writeWindowPdf(win,target,true);}catch(error){if(error.code!=='EEXIST')throw error;}
+  }
+  throw new Error('同名文件过多，请选择其他文件夹');
+});
+ipcMain.handle('finish-pdf-batch',(event,token)=>{if(pdfDirectories.get(token)?.sender===event.sender.id)pdfDirectories.delete(token);});
 
 ipcMain.handle("open-data-dir", async () => {
   await shell.openPath(dataDir());

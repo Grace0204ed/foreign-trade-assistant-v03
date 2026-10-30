@@ -26,6 +26,7 @@ app.use((req,res,next)=>{
   ensureAutomaticOwner(req);next();
 });
 app.use(express.json({ limit: "50mb" }));
+require("./work-drafts")(app, db);
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use("/uploads", express.static(uploadDir));
 app.post("/api/uploads/image", requireLogin, requireAdmin, express.raw({ type: ["image/jpeg","image/png","image/webp"], limit: "8mb" }), (req, res) => {

@@ -2111,3 +2111,10 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
   body.printing-invitation #view-invitation > :not(#invitation-preview) { display:none!important; }
   body.printing-invitation .invitation-sheet { min-height:0!important; }
 }
+
+@media print { #work-recovery-modal,#pdf-selection-modal { display:none!important; } }
+
+#work-recovery-modal .modal-card,#pdf-selection-modal .modal-card{max-height:85vh;overflow:auto;width:min(760px,92vw)}
+#work-recovery-modal article{padding:12px 0;border-bottom:1px solid #dbe2ea}
+.pdf-selection-list{max-height:45vh;overflow:auto;margin:16px 0}.pdf-selection-list label{display:flex;gap:10px;padding:8px}.pdf-selection-list input{width:18px;height:18px;flex-shrink:0}
+#pdf-selection-modal [data-count]{margin:12px}#pdf-selection-modal [data-results]{white-space:pre-wrap;overflow-wrap:anywhere}

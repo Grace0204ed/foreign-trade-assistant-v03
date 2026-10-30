@@ -3797,20 +3797,12 @@
 
   async function exportPdf() {
     renderPreview();
-    // Incomplete documents may be exported; formal validation stays in saveQuote(true).
     syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
     await waitForPrintableImages($("quote-preview"));
     const fileName = currentPdfFileName();
-    if (window.quotationDesktop?.exportCurrentPdf) {
-      document.body.classList.add("printing-standard");
-      let filePath;
-      try { filePath = await window.quotationDesktop.exportCurrentPdf(fileName); }
-      finally { document.body.classList.remove("printing-standard"); }
-      if (filePath) toast(`PDF exported. / PDF 已导出：${filePath}`);
-      return;
-    }
-    applyPrintTitle();
-    window.print();
+    document.body.classList.add("printing-standard");
+    try { return await exportPdfFile(fileName); }
+    finally { document.body.classList.remove("printing-standard"); }
   }
 
   async function openDataFolder() {
@@ -3824,7 +3816,9 @@
   }
 
   function clearProductForm() {
+    if(workspaceReady)persistWork();
     editingProductId = "";
+    productWorkId = "";
     if ($("product-template")) $("product-template").value = settings.templates[0]?.name || "";
     renderProductDynamicFields();
     $("product-image-preview").src = "";
@@ -3998,6 +3992,7 @@
   }
 
   async function saveProduct() {
+    const workKey=currentWorkKey("products");
     const product = collectProductForm();
     if (!Object.values(product.values || {}).some(Boolean)) return toast("请至少填写一个产品字段。");
     const payload = serverProductFromLegacy(product);
@@ -4008,12 +4003,14 @@
       products = products.filter(p => p.id !== product.id);
       save(keys.products, products);
       await loadServerData();
+      await completeWork(workKey);
       clearProductForm();
       toast("产品已保存到主机数据库，报价和运费中心已同步。");
     } catch (error) { toast(error.message); }
   }
 
   function editProduct(id) {
+    if(workspaceReady)persistWork();
     const p = products.find((x) => x.id === id);
     if (!p) return;
     normalizeCategories();
@@ -4464,6 +4461,7 @@
   function normalizedQuoteStyle(value){return ({business:'blue-white',modern:'burgundy',minimal:'slate',gold:'classic'})[value]||value||'classic';}
 
   function newQuote(advanceNumber = false, documentType = "quotation") {
+    if(workspaceReady)persistWork();
     const d = today();
     const docType = documentTypeOf(documentType).key;
     currentQuote = {
@@ -4520,6 +4518,7 @@
   }
 
   function newInvitation() {
+    if(workspaceReady)persistWork();
     const party = invitationPartyInfo();
     currentInvitation = {
       id: uid("invitation"),
@@ -4743,15 +4742,20 @@
     `;
   }
 
-  function saveInvitation() {
+  async function saveInvitation() {
+    const workKey=currentWorkKey("invitation");
     renderInvitationPreview();
     const nowIso = new Date().toISOString();
     if (!currentInvitation.createdAt) currentInvitation.createdAt = nowIso;
     currentInvitation.updatedAt = nowIso;
+    currentInvitation.companySnapshot ||= structuredClone(companyProfileData(settings));
+    currentInvitation.documentConfigSnapshot ||= structuredClone(settings.documentConfigs?.invitation||{});
     const idx = invitations.findIndex((item) => item.id === currentInvitation.id);
     if (idx >= 0) invitations[idx] = structuredClone(currentInvitation);
     else invitations.unshift(structuredClone(currentInvitation));
     save(keys.invitations, invitations);
+    await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});
+    await completeWork(workKey);
     toast("邀请函已保存。");
   }
 
@@ -4761,15 +4765,9 @@
     const fileName = currentInvitationPdfFileName();
     document.body.classList.add("printing-invitation");
     try {
-      if (window.quotationDesktop?.exportCurrentPdf) {
-        const filePath = await window.quotationDesktop.exportCurrentPdf(fileName);
-        if (filePath) toast(`PDF 已导出：${filePath}`);
-        return;
-      }
-      applyPrintTitle();
-      window.print();
+      return await exportPdfFile(fileName);
     } finally {
-      setTimeout(() => document.body.classList.remove("printing-invitation"), 500);
+      document.body.classList.remove("printing-invitation");
     }
   }
 
@@ -4796,6 +4794,7 @@
   }
 
   function newAgentAuthorization() {
+    if(workspaceReady)persistWork();
     const date = today(), party = invitationPartyInfo();
     currentAgentAuthorization = {
       id: "", documentType:"authorization", isTemplate:false, authorizationNumber: AgencyDocuments.number('authorization',date,agentAuthorizations),
@@ -5021,7 +5020,9 @@
     const validation=AgencyDocuments.validate(currentAgentAuthorization);
     if(validation)return toast(validation);
     if(!currentAgentAuthorization.companySnapshot)currentAgentAuthorization.companySnapshot={companyNameEn:settings.companyNameEn,companyNameZh:settings.companyNameZh,companyAddressEn:settings.companyAddressEn,companyAddressZh:settings.companyAddressZh,stampDataUrl:settings.stampDataUrl||''};
+    currentAgentAuthorization.documentConfigSnapshot ||= structuredClone(settings.documentConfigs?.agency||{});
     const data = await api("/api/agent-authorizations", { method:"POST", body:JSON.stringify(currentAgentAuthorization) });
+    await completeWork(currentWorkKey("agency"));
     currentAgentAuthorization.id = data.id;
     await loadAgentAuthorizations();
     toast(currentAgentAuthorization.isTemplate?'模板已保存。':'代理文件已保存。');
@@ -5041,14 +5042,14 @@
   function handleInvitationHistory(event) {
     const button=event.target.closest("[data-invitation-history]"); if(!button)return;
     const item=invitations.find(record=>record.id===button.dataset.id); if(!item)return;
-    if(button.dataset.invitationHistory==="open") { currentInvitation=structuredClone(item); switchView("invitation"); bindInvitationToForm(); renderInvitationPreview(); return; }
+    if(button.dataset.invitationHistory==="open") { persistWork();currentInvitation=structuredClone(item); switchView("invitation"); bindInvitationToForm(); renderInvitationPreview(); return; }
     if(!confirm("确认删除这份邀请函吗？"))return;
     invitations=invitations.filter(record=>record.id!==button.dataset.id); save(keys.invitations,invitations); renderInvitationHistory();
   }
 
   async function handleAgentAuthorizationHistory(event) {
     const button = event.target.closest("[data-agency-action]"); if (!button) return;
-    if (button.dataset.agencyAction === "open") { currentAgentAuthorization = structuredClone(agentAuthorizations.find((a) => a.id === button.dataset.id)); switchView('agency'); bindAgentAuthorizationForm(); renderAgentAuthorizationPreview(); return; }
+    if (button.dataset.agencyAction === "open") { persistWork();currentAgentAuthorization = structuredClone(agentAuthorizations.find((a) => a.id === button.dataset.id)); switchView('agency'); bindAgentAuthorizationForm(); renderAgentAuthorizationPreview(); return; }
     if (!confirm("确认删除这份代理授权书吗？")) return;
     await api(`/api/agent-authorizations/${button.dataset.id}`, { method:"DELETE" });
     if (currentAgentAuthorization?.id === button.dataset.id) currentAgentAuthorization = null;
@@ -5057,7 +5058,7 @@
 
   async function exportAgentAuthorizationPdf(includeCommission=true) {
     collectAgentAuthorizationForm();
-    const validation=AgencyDocuments.validate(currentAgentAuthorization,true);if(validation)return toast(validation);
+    const validation=AgencyDocuments.validate(currentAgentAuthorization,true);if(validation)throw new Error(validation);
     const previous=currentAgentAuthorization.showCommission;
     currentAgentAuthorization.showCommission=includeCommission;
     if($('agency-show-commission'))$('agency-show-commission').checked=includeCommission;
@@ -5066,9 +5067,8 @@
     try {
       await waitForPrintableImages($("agency-preview"));
       const fileName = `${currentAgentAuthorization.date || today()} ${currentAgentAuthorization.agentName || "代理文件"} ${currentAgentAuthorization.authorizationNumber} ${AgencyDocuments.types[AgencyDocuments.type(currentAgentAuthorization)]}${currentAgentAuthorization.isTemplate?' 模板':''}.pdf`;
-      if (window.quotationDesktop?.exportCurrentPdf) { const path = await window.quotationDesktop.exportCurrentPdf(fileName); if (path) toast(`PDF 已导出：${path}`); }
-      else { applyPrintTitle(); window.print(); }
-    } finally { currentAgentAuthorization.showCommission=previous; if($("agency-show-commission"))$("agency-show-commission").checked=previous!==false; setTimeout(() => { document.body.classList.remove("printing-agency"); renderAgentAuthorizationPreview(); }, 500); }
+      return await exportPdfFile(fileName);
+    } finally { currentAgentAuthorization.showCommission=previous; if($("agency-show-commission"))$("agency-show-commission").checked=previous!==false; document.body.classList.remove("printing-agency"); renderAgentAuthorizationPreview(); }
   }
 
   function template() {
@@ -5077,6 +5077,7 @@
   }
 
   function activeDocumentConfig(type = currentQuote?.documentType || "quotation") {
+    if(pdfSnapshotMode&&currentQuote?.templateSnapshot?.documentConfig)return currentQuote.templateSnapshot.documentConfig;
     if(type === "quotation") {
       normalizeTemplates();
       const selected = settings.templates.find((item) => item.name === (currentQuote?.templateName || $("quote-template")?.value));
@@ -5090,7 +5091,7 @@
 
   function configuredBlockFields(block, fallback = []) {
     const snapshotKey={customer:"customerFields",items:"itemFields",terms:"termFields"}[block];
-    const snapshotted=currentQuote?.isFormal && snapshotKey ? currentQuote.templateSnapshot?.[snapshotKey] : null;
+    const snapshotted=(currentQuote?.isFormal||pdfSnapshotMode) && snapshotKey ? currentQuote.templateSnapshot?.[snapshotKey] : null;
     const configured = snapshotted || activeDocumentConfig()?.blocks?.[block];
     return (Array.isArray(configured) ? configured : fallback)
       .map(normalizeField)
@@ -5146,7 +5147,7 @@
 
   function quoteProductTemplate(type = currentQuote?.documentType || "quotation") {
     normalizeTemplates();
-    if(currentQuote?.isFormal && currentQuote.templateSnapshot?.productTemplate)return currentQuote.templateSnapshot.productTemplate;
+    if((currentQuote?.isFormal||pdfSnapshotMode) && currentQuote.templateSnapshot?.productTemplate)return currentQuote.templateSnapshot.productTemplate;
     if(type !== "quotation") return null;
     const config = activeDocumentConfig(type);
     if (!config || config.productMode !== "linked") return template();
@@ -6284,11 +6285,9 @@
     return `<section class="preview-panel sales-contract-signatures"><div class="commission-party-a"><h3>${labelText('Seller signature','卖方签署')}</h3><p>${escapeHtml(settings.companyNameEn)} / ${escapeHtml(settings.companyNameZh)}</p><p>${labelText('Responsible person','负责人')}: Ethan</p><p>${labelText('Title','职务')}: ${labelText('General Manager for Africa','非洲区总经理')}</p><p>${labelText('Signature','签字')}:</p>${sign}${stamp}<p>${labelText('Date','日期')}: ${escapeHtml(currentQuote.quoteDate)}</p></div><div><h3>${labelText('Buyer signature','买方签署')}</h3><p>${escapeHtml(currentQuote.buyer.company||'')}</p><p>${labelText('Responsible person','负责人')}: ${escapeHtml(currentQuote.buyer.contact||'')}</p><p>${labelText('Signature','签字')}: ____________________</p><p>${labelText('Date','日期')}: ____________________</p></div></section>`;
   }
 
-  async function saveQuote(formal = false) {
+  async function saveQuote() {
+    const workKey=currentWorkKey("quote");
     renderPreview();
-    // Drafts are interruption-safe snapshots: incomplete fields and missing prices are allowed.
-    // Only formal documents must pass the configured required-field validation.
-    if (formal && !validateQuoteLines()) return;
     syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
     const nowIso = new Date().toISOString();
     if (!currentQuote.createdAt) currentQuote.createdAt = nowIso;
@@ -6305,7 +6304,7 @@
       currencyDisplay: currentQuote.currencyDisplay,
       exchangeRate: currentQuote.exchangeRate
     });
-    if (!(formal && currentQuote.isFormal)) {
+    if(!currentQuote.isFormal) {
       const idx = quotes.findIndex((q) => q.id === currentQuote.id);
       if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
       else quotes.unshift(structuredClone(currentQuote));
@@ -6349,8 +6348,8 @@
           seriesId: currentQuote.seriesId || currentQuote.id,
           version: currentQuote.version || 0,
           isFormal: !!currentQuote.isFormal,
-          sourceQuoteId: formal ? priorId : (currentQuote.sourceQuoteId || ""),
-          formal,
+          sourceQuoteId: currentQuote.sourceQuoteId || "",
+          formal: false,
           customerId: currentQuote.customerId || null,
           quoteNumber: currentQuote.quoteNumber,
           status: currentQuote.status,
@@ -6373,23 +6372,24 @@
           items: apiItems
         })
       });
-      if (formal) {
-        currentQuote.id=saved.id;currentQuote.seriesId=saved.seriesId;currentQuote.version=saved.version;currentQuote.isFormal=true;currentQuote.sourceQuoteId=priorId;currentQuote.status="Formal";currentQuote.formalizedAt=new Date().toISOString();
-        quotes.unshift(structuredClone(currentQuote));save(keys.quotes,quotes);bindQuoteToForm();renderPreview();
-      } else if (saved.id !== currentQuote.id) {
+      if (saved.id !== currentQuote.id) {
         currentQuote.id=saved.id;currentQuote.isFormal=false;currentQuote.version=0;currentQuote.status="草稿";currentQuote.sourceQuoteId=priorId;
         quotes.unshift(structuredClone(currentQuote));save(keys.quotes,quotes);
       }
     }
-    toast(formal?`正式报价 V${currentQuote.version} 已生成，旧版本保持不变。`:"报价已保存到历史报价。");
+    await completeWork(workKey);
+    toast("单证已保存。");
     renderHistory();
   }
 
   function serverQuotationToLocal(data) {
     const q=data.quotation || {}, meta=q.settingsSnapshot?._quoteMeta || {};
+    const stored=q.settingsSnapshot||{}, storedTemplate=stored.templates?.find(t=>t.name===meta.documentExtras?.templateName)||stored.templates?.[0];
+    const storedConfig=(meta.documentType||"quotation")==="quotation"?(stored.quoteTemplateConfigs?.[storedTemplate?.id||storedTemplate?.name]||stored.documentConfigs?.quotation):stored.documentConfigs?.[meta.documentType];
     return {
       id:q.id, customerId:q.customer_id || null, quoteNumber:q.quote_number || "", status:q.status || "草稿",seriesId:q.series_id||q.id,version:Number(q.version||0),isFormal:!!q.is_formal,sourceQuoteId:q.source_quote_id||"",formalizedAt:q.formalized_at||null,
       ...meta.documentExtras,
+      templateSnapshot:meta.documentExtras?.templateSnapshot||{documentConfig:storedConfig,productTemplate:storedTemplate},
       documentType:meta.documentType || "quotation", quoteStyle:meta.quoteStyle || q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
       companySnapshot: Object.keys(companyProfileData(q.settingsSnapshot || {})).length ? companyProfileData(q.settingsSnapshot) : companyProfileData(settings),
       quoteDate:q.quote_date || today(), validUntil:q.valid_until || addDays(7), validityRangeText:meta.validityRangeText || "", showProductPhotos:meta.showProductPhotos !== false,
@@ -6397,7 +6397,7 @@
       currencyDisplay:meta.currencyDisplay || "single", secondaryCurrency:meta.secondaryCurrency || ((meta.currency || "USD") === "CNY" ? "USD" : "CNY"),
       exchangeRate:meta.exchangeRate || {sourceCurrency:meta.currency || "USD",targetCurrency:meta.secondaryCurrency || ((meta.currency || "USD") === "CNY" ? "USD" : "CNY"),rate:0,capturedAt:""},
       buyer:q.buyer || {}, terms:q.terms || {},
-      templateName:q.settingsSnapshot?.templates?.[0]?.name || settings.templates[0]?.name || "",
+      templateName:meta.documentExtras?.templateName || q.settingsSnapshot?.templates?.[0]?.name || settings.templates[0]?.name || "",
       items:(data.items || []).map(item=>{
         const additionalImages=Array.isArray(item.productSnapshot?.additionalImages)?item.productSnapshot.additionalImages:[];
         const values=item.priceSnapshot?.values||{};
@@ -6409,8 +6409,9 @@
   }
 
   async function editQuote(id) {
+    persistWork();
     currentQuote = serverQuotationToLocal(await api(`/api/quotations/${id}`));
-    switchView("quote");
+    workRestoring=true;switchView("quote");workRestoring=false;
     bindQuoteToForm();
     renderQuoteItems();
     closeProductPicker();
@@ -6666,7 +6667,7 @@
     $("remove-logo-btn").addEventListener("click", () => clearSettingsAsset("logoDataUrl", "Logo removed. / Logo 已删除。"));
     $("reset-background-btn").addEventListener("click", () => clearSettingsAsset("backgroundDataUrl", "Default background restored. / 已恢复默认背景。"));
     $("remove-stamp-btn").addEventListener("click", () => clearSettingsAsset("stampDataUrl", "Electronic seal removed. / 电子公章已删除。"));
-    $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; });
+    $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; persistWork(true); });
     $("product-template").addEventListener("change", () => renderProductDynamicFields());
     $("product-category")?.addEventListener("change", () => renderProductDynamicFields());
     $("product-smart-analyze")?.addEventListener("click",analyzeSmartProductText);
@@ -6804,7 +6805,6 @@
         renderPreview();
       }
     });
-    $("preview-quote-btn").addEventListener("click", renderPreview);
     let splitPreviewFrame = 0;
     document.querySelector('.quote-input-pane')?.addEventListener('input', event => {
       if (!event.target.closest('#quote-common-panel, #quote-standard-terms-panel')) return;
@@ -6821,26 +6821,23 @@
       }
       renderPreview();
     });
-    $("save-quote-btn").addEventListener("click",()=>saveQuote(false));
-    $("formalize-standard-quote-btn")?.addEventListener("click",()=>saveQuote(true));
-    $("export-pdf-btn").addEventListener("click", exportPdf);
+    $("save-quote-btn").addEventListener("click",()=>saveQuote().catch(error=>toast("保存失败，草稿已保留："+error.message)));
+    $("export-pdf-btn").addEventListener("click",()=>choosePdfExports());
     $("new-quote-btn").addEventListener("click", () => {
       if (currentQuote?.quoteNumber) syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
       newQuote(true, "quotation");
     });
-    $("preview-invitation-btn").addEventListener("click", renderInvitationPreview);
-    $("save-invitation-btn").addEventListener("click", saveInvitation);
-    $("export-invitation-pdf-btn").addEventListener("click", exportInvitationPdf);
+    $("save-invitation-btn").addEventListener("click", () => saveInvitation().catch(error=>toast("邀请函保存失败："+error.message)));
+    $("export-invitation-pdf-btn").addEventListener("click", () => choosePdfExports());
     $("new-invitation-btn").addEventListener("click", newInvitation);
-    $("agency-preview-btn")?.addEventListener("click", renderAgentAuthorizationPreview);
     $("agency-save-btn")?.addEventListener("click", () => saveAgentAuthorization().catch((error) => toast(error.message)));
-    $("agency-public-pdf-btn")?.addEventListener("click", () => exportAgentAuthorizationPdf(false).catch((error) => toast(error.message)));
-    $("agency-private-pdf-btn")?.addEventListener("click", () => exportAgentAuthorizationPdf(true).catch((error) => toast(error.message)));
+    $("agency-public-pdf-btn")?.addEventListener("click", () => choosePdfExports(false));
+    $("agency-private-pdf-btn")?.addEventListener("click", () => choosePdfExports(true));
     $("agency-new-btn")?.addEventListener("click", newAgentAuthorization);
     $('agency-document-type')?.addEventListener('change',changeAgencyDocumentType);
     $('agency-use-template')?.addEventListener('click',useAgencyDocumentTemplate);
     $('agency-save-template')?.addEventListener('click',()=>saveAgencyDocumentTemplate().catch(e=>toast(e.message)));
-    $('agency-export-document')?.addEventListener('click',()=>exportAgentAuthorizationPdf(true).catch(e=>toast(e.message)));
+    $('agency-export-document')?.addEventListener('click',()=>choosePdfExports(true));
     Object.keys(agencyDocumentFields).forEach(id=>$(id)?.addEventListener('input',renderAgentAuthorizationPreview));
     $('agency-manual-completion')?.addEventListener('change',renderAgentAuthorizationPreview);
     $("agency-history-list")?.addEventListener("click", (event) => handleAgentAuthorizationHistory(event).catch((error) => toast(error.message)));
@@ -6919,8 +6916,8 @@
   }
 
   // Document workspace: recovery snapshots never overwrite formal quotation history.
-  let draftDatabase, draftTimer, workspaceReady = false;
-  const documentExtraFields = ['packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography'];
+  let draftDatabase, workspaceReady = false;
+  const documentExtraFields = ['templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography'];
   let packingSourceBusy = false;
   async function refreshPackingSources() {
     const select=$('packing-source-select');
@@ -6995,20 +6992,7 @@
       tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
     });
   }
-  function scheduleDraftRecovery() {
-    if(!workspaceReady || !currentQuote) return;
-    clearTimeout(draftTimer);
-    const id=currentQuote.id;
-    $('quote-autosave-status').textContent='正在保存恢复草稿…';
-    draftTimer=setTimeout(async()=>{
-      if(currentQuote.id!==id) return;
-      try {
-        collectQuoteFromForm();
-        await draftStorage('put',{quote:structuredClone(currentQuote),company:settings.companyNameEn,savedAt:new Date().toISOString()});
-        $('quote-autosave-status').textContent='恢复草稿已保存 · '+new Date().toLocaleTimeString();
-      } catch(error) { $('quote-autosave-status').textContent='自动保存失败，请点击保存草稿：'+error.message; }
-    },400);
-  }
+  function scheduleDraftRecovery() { if(workspaceReady) persistWork(true); }
   function renderPackingEditor() {
     $('packing-editor-rows').innerHTML=(currentQuote.items||[]).filter(i=>(i.kind||'product')==='product').map(item=>`<fieldset><legend>${escapeHtml(item.values.description||item.values.model||'商品')}</legend><div class="form-grid">${[['packages','件数'],['netWeight','净重 kg'],['grossWeight','毛重 kg'],['cbm','体积 m³'],['marks','唛头']].map(([key,label])=>`<label>${label}<input data-packing-item="${escapeHtml(item.id)}" data-packing-key="${key}" ${key==='marks'?'type="text"':'type="number" min="0" step="any"'} value="${escapeHtml(currentQuote.packing?.[item.id]?.[key]??'')}"></label>`).join('')}</div></fieldset>`).join('');
   }
@@ -7138,14 +7122,9 @@
     $('packing-editor-rows').addEventListener('input',event=>{const input=event.target;if(!input.dataset.packingKey)return;currentQuote.packing||={};currentQuote.packing[input.dataset.packingItem]||={};currentQuote.packing[input.dataset.packingItem][input.dataset.packingKey]=input.value;
       const item=currentQuote.items.find(i=>i.id===input.dataset.packingItem);if(item){item.values||={};item.values[input.dataset.packingKey]=input.value;const row=[...document.querySelectorAll('.quote-line')].find(r=>r.dataset.id===item.id);const field=row?.querySelector(`[data-qfield="${input.dataset.packingKey}"]`);if(field)field.value=input.value;}
       renderPreview();scheduleDraftRecovery();});
-    $('restore-quote-draft').addEventListener('click',async()=>{
-      try { const saved=await draftStorage('get');if(!saved)return toast('暂无恢复草稿');
-        if(!confirm(`恢复 ${saved.quote.quoteNumber}（${saved.company||''}，${saved.savedAt}）？当前未保存内容将被替换。`))return;
-        clearTimeout(draftTimer);currentQuote=saved.quote;bindQuoteToForm();renderQuoteItems();renderPreview();renderPackingEditor();toast('已恢复上次编辑，请确认当前开票公司。');
-      }catch(error){toast('恢复失败：'+error.message);}
-    });
+    $('restore-quote-draft').onclick=showWorkRecovery;
     workspaceReady=true;
-    draftStorage('get').then(saved=>{if(saved)$('quote-autosave-status').textContent='发现上次编辑的恢复草稿，点击“恢复上次编辑”继续';}).catch(()=>{$('quote-autosave-status').textContent='恢复存储不可用，请手动保存草稿';});
+    installWorkRecovery().catch(error=>toast("草稿恢复服务不可用："+error.message));
     renderPreview();
   }
 
@@ -7199,12 +7178,134 @@
   }
 
   const renderInvitationBase=renderInvitationPreview;
-  renderInvitationPreview=function(){renderInvitationBase();if(currentInvitation){DocumentPresentation.apply($('invitation-preview'),currentInvitation);if($('invitation-color'))$('invitation-color').value=currentInvitation.tableHeaderColor||'#285fc1';}};
+  renderInvitationPreview=function(){const previous=settings;try{if(currentInvitation?.companySnapshot)settings={...settings,...currentInvitation.companySnapshot};if(pdfSnapshotMode&&currentInvitation?.documentConfigSnapshot)settings={...settings,documentConfigs:{...settings.documentConfigs,invitation:currentInvitation.documentConfigSnapshot}};renderInvitationBase();}finally{settings=previous;}if(currentInvitation){DocumentPresentation.apply($('invitation-preview'),currentInvitation);if($('invitation-color'))$('invitation-color').value=currentInvitation.tableHeaderColor||'#285fc1';}};
   const renderAgencyPresentationBase=renderAgentAuthorizationPreview;
-  renderAgentAuthorizationPreview=function(){renderAgencyPresentationBase();if(currentAgentAuthorization){DocumentPresentation.apply($('agency-preview'),currentAgentAuthorization);if($('agency-color'))$('agency-color').value=currentAgentAuthorization.tableHeaderColor||'#285fc1';}};
+  renderAgentAuthorizationPreview=function(){const previous=settings;try{if(currentAgentAuthorization?.companySnapshot)settings={...settings,...currentAgentAuthorization.companySnapshot};if(pdfSnapshotMode&&currentAgentAuthorization?.documentConfigSnapshot)settings={...settings,documentConfigs:{...settings.documentConfigs,agency:currentAgentAuthorization.documentConfigSnapshot}};renderAgencyPresentationBase();}finally{settings=previous;}if(currentAgentAuthorization){DocumentPresentation.apply($('agency-preview'),currentAgentAuthorization);if($('agency-color'))$('agency-color').value=currentAgentAuthorization.tableHeaderColor||'#285fc1';}};
   function bindStandalonePresentation(){
     $('invitation-color')?.addEventListener('input',event=>{currentInvitation.tableHeaderColor=event.target.value;renderInvitationPreview();});
     $('agency-color')?.addEventListener('input',event=>{currentAgentAuthorization.tableHeaderColor=event.target.value;renderAgentAuthorizationPreview();});
+  }
+
+
+  // Recovery records live in SQLite, separately from saved documents/products.
+  const workStoreKey='fta-work-v2';
+  let workRestoring=false, productWorkId='', recoveryShown=false, workCaptureError=null, workQueue=Promise.resolve(), pdfSnapshotMode=false, pdfBatchToken=null;
+  const workRecords={}, pendingWork=new Map(), dirtyWork=new Set(), recoveredKeys=new Map();
+  const readWork=()=>workRecords;
+  function currentWorkKey(kind=activeViewName){
+    let id=kind==='quote'?currentQuote?.id:kind==='products'?(editingProductId||(productWorkId||=uid('product-work'))):kind==='invitation'?currentInvitation?.id:currentAgentAuthorization?.id;
+    if(kind==='agency'&&!id&&currentAgentAuthorization)id=currentAgentAuthorization.id=uid('agency-work');
+    return recoveredKeys.get(kind+':'+id)||kind+':'+id;
+  }
+  async function flushWorkQueue(){
+    for(const [key,row] of [...pendingWork]){
+      await api('/api/work-drafts/'+encodeURIComponent(key),{method:'PUT',body:JSON.stringify(row)});
+      if(pendingWork.get(key)===row)pendingWork.delete(key);
+    }
+  }
+  function queueWork(row){
+    row={...row,revision:Math.max(Number(workRecords[row.key]?.revision||0)+1,Number(row.revision||0))};
+    workRecords[row.key]=row;pendingWork.set(row.key,row);
+    workQueue=workQueue.catch(()=>{}).then(flushWorkQueue);
+    workQueue.catch(error=>{toast('自动保存失败，工作仍保留在当前窗口，请重试保存：'+error.message);});
+    return workQueue;
+  }
+  function persistWork(markDirty=false){
+    if(!workspaceReady||workRestoring||!['quote','products','invitation','agency'].includes(activeViewName))return;
+    try{
+      const kind=activeViewName,key=currentWorkKey(kind);if(markDirty)dirtyWork.add(key);if(!dirtyWork.has(key))return;
+      let data;
+      if(kind==='quote'){collectQuoteFromForm();data=structuredClone(currentQuote);data.companySnapshot||=structuredClone(companyProfileData(settings));}
+      else if(kind==='products'){data={product:collectProductForm(),editingId:editingProductId};data.product.id=editingProductId||key;}
+      else if(kind==='invitation'){collectInvitationFromForm();data=structuredClone(currentInvitation);data.companySnapshot||=structuredClone(companyProfileData(settings));}
+      else{collectAgentAuthorizationForm();data=structuredClone(currentAgentAuthorization);data.companySnapshot||=structuredClone(companyProfileData(settings));}
+      const label=data.quoteNumber||data.visitorName||data.authorizationNumber||data.product?.values?.description||data.product?.model||'未命名';
+      const row={key,kind,data,user:currentUser?.id||'local-owner',savedAt:new Date().toISOString(),label};
+      workCaptureError=null;queueWork(row);if($('quote-autosave-status'))$('quote-autosave-status').textContent='草稿保存中…';
+      workQueue.then(()=>{if(!pendingWork.size&&$('quote-autosave-status'))$('quote-autosave-status').textContent='未完成工作已自动保存 · '+new Date().toLocaleTimeString();}).catch(()=>{});
+    }catch(error){workCaptureError=error;toast('自动保存失败：'+error.message);}
+  }
+  async function completeWork(key=currentWorkKey()){
+    dirtyWork.delete(key);
+    if(workRecords[key])await queueWork({...workRecords[key],completedAt:new Date().toISOString()});
+  }
+  async function installWorkRecovery(){
+    const saved=await api('/api/work-drafts');for(const row of saved.drafts||[])if(!pendingWork.has(row.key))workRecords[row.key]=row;
+    // Migrate earlier recovery stores once, retaining originals for support.
+    if(localStorage.getItem('fta-recovery-migrated-v3')!=='1'){
+    try{for(const row of Object.values(JSON.parse(localStorage.getItem(workStoreKey)||'{}')))if((!row.user||[currentUser?.id,'local'].includes(row.user))&&!workRecords[row.key])await queueWork(row);}catch(error){toast('旧草稿迁移失败，原始数据已保留：'+error.message);}
+    try{const legacy=await draftStorage('get');if(legacy){const data=legacy.quote||legacy;const key='quote:'+data.id;if(data.id&&!workRecords[key])await queueWork({key,kind:'quote',data,user:currentUser?.id,savedAt:legacy.savedAt||new Date().toISOString(),label:data.quoteNumber||'旧版草稿'});}}catch(error){toast('旧版恢复记录读取失败：'+error.message);}
+    if(!pendingWork.size)localStorage.setItem('fta-recovery-migrated-v3','1');
+    }
+    for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency'))persistWork(true);});
+    document.addEventListener('click',()=>persistWork(),true);
+    window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
+    window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
+    if(!recoveryShown){recoveryShown=true;if(Object.values(readWork()).some(r=>!r.completedAt))showWorkRecovery();}
+  }
+  function showWorkRecovery(){
+    const rows=Object.values(readWork()).filter(r=>!r.completedAt).sort((a,b)=>b.savedAt.localeCompare(a.savedAt));if(!rows.length)return toast('暂无未完成工作');
+    document.getElementById('work-recovery-modal')?.remove();const modal=document.createElement('div');modal.id='work-recovery-modal';modal.className='modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-label','恢复未完成工作');
+    const names={quote:'单证',products:'产品编辑',invitation:'邀请函',agency:'代理文件'};
+    modal.innerHTML='<div class="modal-card"><h3>继续上次未完成的工作</h3><p>稍后处理会保留全部草稿。恢复为独立副本，保存前请核对客户和公司。</p>'+rows.map((r,i)=>'<article><p>'+escapeHtml((names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+(r.data.buyer?.company||r.data.agentName||'')+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
+    modal.onclick=async e=>{try{
+      if(e.target.matches('[data-close]'))return modal.remove();
+      if(e.target.dataset.discard!=null){const row=rows[e.target.dataset.discard];if(!confirm('确认放弃此草稿？其他草稿和业务记录保持不变。'))return;
+        await workQueue.catch(()=>{});await api('/api/work-drafts/'+encodeURIComponent(row.key),{method:'DELETE'});pendingWork.delete(row.key);dirtyWork.delete(row.key);delete workRecords[row.key];modal.remove();return showWorkRecovery();}
+      if(e.target.dataset.resume==null)return;const row=rows[e.target.dataset.resume];persistWork();await workQueue;workRestoring=true;
+      if(row.kind==='quote'){currentQuote=structuredClone(row.data);currentQuote.sourceQuoteId||=currentQuote.id;currentQuote.id=uid('recovered');currentQuote.isFormal=false;currentQuote.status='Draft';currentQuote.version=0;bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();}
+      else if(row.kind==='products'){const p=structuredClone(row.data.product);p.id=uid('recovered-product');products.push(p);editProduct(p.id);products=products.filter(x=>x!==p);editingProductId='';productWorkId=uid('product-work');switchView('products');}
+      else if(row.kind==='invitation'){currentInvitation=structuredClone(row.data);currentInvitation.id=uid('recovered-invitation');bindInvitationToForm();switchView('invitation');renderInvitationPreview();}
+      else{currentAgentAuthorization=structuredClone(row.data);currentAgentAuthorization.id=uid('recovered-agency');bindAgentAuthorizationForm();switchView('agency');renderAgentAuthorizationPreview();}
+      recoveredKeys.set(currentWorkKey(row.kind),row.key);dirtyWork.add(row.key);modal.remove();toast('已恢复独立草稿，原业务记录未被覆盖。');
+    }catch(error){toast('恢复失败，原草稿已保留：'+error.message);}finally{workRestoring=false;}};
+  }
+  async function exportPdfFile(fileName){
+    if(window.quotationDesktop?.exportCurrentPdf){
+      const filePath=pdfBatchToken?await window.quotationDesktop.exportBatchPdf(pdfBatchToken,fileName):await window.quotationDesktop.exportCurrentPdf(fileName);
+      return {status:filePath?'exported':'cancelled',filePath};
+    }
+    applyPrintTitle();window.print();return {status:'print-dialog'};
+  }
+  async function choosePdfExports(includeCommission){
+    try{
+      if($('pdf-selection-modal'))return;persistWork();
+      if(activeViewName==='quote')collectQuoteFromForm();else if(activeViewName==='invitation')collectInvitationFromForm();else collectAgentAuthorizationForm();
+      const original={view:activeViewName,quote:structuredClone(currentQuote),invitation:structuredClone(currentInvitation),agency:structuredClone(currentAgentAuthorization)};
+      const kind=activeViewName==='invitation'?'invitation':activeViewName==='agency'?'agency':'quote', current=original[kind];
+      const rows=[{kind,data:current,label:'当前'+(kind==='quote'?documentTypeOf(current.documentType).labelZh:kind==='invitation'?'邀请函':'代理文件')+'（含未保存编辑）',draft:true,current:true}];
+      const saved=await api('/api/quotations?includeInactive=0');
+      for(const q of saved.quotations||[])if(!(kind==='quote'&&q.id===current.id))rows.push({kind:'quote',id:q.id,label:(documentTypeOf(q.settingsSnapshot?._quoteMeta?.documentType||'quotation').labelZh||'单证')+' · '+(q.quote_number||q.id)+' · '+(q.buyer?.company||q.buyer?.contact||'未填写客户')+' · '+(q.is_formal?'正式单证':'已保存草稿'),draft:!q.is_formal});
+      for(const q of invitations)if(!(kind==='invitation'&&q.id===current.id))rows.push({kind:'invitation',data:structuredClone(q),label:'邀请函 · '+(q.visitorName||q.id),draft:false});
+      const agencySaved=await api('/api/agent-authorizations');
+      for(const q of agencySaved.authorizations||[])if(!q.isTemplate&&!(kind==='agency'&&q.id===current.id))rows.push({kind:'agency',data:structuredClone(q),label:(AgencyDocuments.types[AgencyDocuments.type(q)]||'代理文件')+' · '+(q.authorizationNumber||q.id),draft:false});
+      const modal=document.createElement('div');modal.className='modal';modal.id='pdf-selection-modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-label','选择导出单证');
+      modal.innerHTML='<div class="modal-card"><h3>选择导出的单证</h3><p>默认只选当前单证。批量导出时选择一个文件夹，每份单证独立生成PDF，同名文件自动编号。</p><button data-all>全选</button><button data-none>取消全选</button><output data-count></output><div class="pdf-selection-list">'+rows.map((r,i)=>'<label><input type="checkbox" data-pdf-row="'+i+'" '+(i===0?'checked':'')+'>'+escapeHtml(r.label)+'</label>').join('')+'</div><p data-results role="status"></p><button data-export>导出所选PDF</button><button data-close>返回编辑</button></div>';document.body.append(modal);
+      const update=()=>{const count=modal.querySelectorAll('[data-pdf-row]:checked').length;modal.querySelector('[data-count]').textContent='已选 '+count+' 份';modal.querySelector('[data-export]').disabled=!count;};update();modal.onchange=update;
+      modal.onclick=async e=>{
+        if(e.target.matches('[data-close]'))return modal.remove();if(e.target.matches('[data-all],[data-none]')){modal.querySelectorAll('[data-pdf-row]').forEach(i=>i.checked=e.target.matches('[data-all]'));return update();}if(!e.target.matches('[data-export]'))return;
+        const selected=[...modal.querySelectorAll('[data-pdf-row]:checked')].map(i=>rows[i.dataset.pdfRow]);if(!selected.length)return;
+        if(selected.some(r=>r.draft)&&!confirm('已选清单包含草稿。确认按当前内容导出这些草稿？此操作不会生成正式业务记录。'))return;
+        modal.querySelectorAll('button,input').forEach(b=>b.disabled=true);const results=[];workRestoring=true;pdfSnapshotMode=true;
+        try{
+          if(selected.length>1&&window.quotationDesktop?.selectPdfDirectory){pdfBatchToken=await window.quotationDesktop.selectPdfDirectory();if(!pdfBatchToken){results.push('已取消选择导出文件夹，未导出任何单证。');return;}}
+          for(const row of selected){try{
+            pdfSnapshotMode=!row.current;
+            let result;
+            if(row.kind==='quote'){if(row.id)currentQuote=serverQuotationToLocal(await api('/api/quotations/'+encodeURIComponent(row.id)));else currentQuote=structuredClone(row.data);bindQuoteToForm();renderQuoteItems();switchView('quote');result=await exportPdf();}
+            else if(row.kind==='invitation'){currentInvitation=structuredClone(row.data);bindInvitationToForm();switchView('invitation');result=await exportInvitationPdf();}
+            else{currentAgentAuthorization=structuredClone(row.data);bindAgentAuthorizationForm();switchView('agency');result=await exportAgentAuthorizationPdf(row.current&&typeof includeCommission==='boolean'?includeCommission:currentAgentAuthorization.showCommission!==false);}
+            results.push(row.label+'：'+(result?.status==='exported'?'已导出 '+result.filePath:result?.status==='cancelled'?'已取消，未生成文件':'已打开打印对话框，文件保存结果未验证'));
+          }catch(error){results.push(row.label+'：失败 '+error.message);}}
+        }catch(error){results.push('导出失败：'+error.message);}finally{
+          try{if(pdfBatchToken)await window.quotationDesktop?.finishPdfBatch?.(pdfBatchToken);}catch(error){results.push('导出目录授权清理失败：'+error.message);}
+          pdfBatchToken=null;pdfSnapshotMode=false;currentQuote=original.quote;currentInvitation=original.invitation;currentAgentAuthorization=original.agency;
+          bindQuoteToForm();renderQuoteItems();bindInvitationToForm();if(currentAgentAuthorization)bindAgentAuthorizationForm();switchView(original.view);renderPreview();renderInvitationPreview();if(currentAgentAuthorization)renderAgentAuthorizationPreview();workRestoring=false;
+          modal.querySelector('[data-results]').textContent=results.join('\n');modal.querySelectorAll('button,input').forEach(b=>b.disabled=false);update();
+        }
+      };
+    }catch(error){toast('无法读取导出清单，编辑内容已保留：'+error.message);}
   }
 
   async function init() {
