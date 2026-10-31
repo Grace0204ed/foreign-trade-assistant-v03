@@ -15,13 +15,14 @@ const customerFieldConfig=key=>(customerConfig.fields||[]).find(field=>customerF
 const customerFieldEnabled=key=>{const field=customerFieldConfig(key);return !field||field.active!==false&&field.visible!==false;};
 const customerFieldTitle=(key,fallback)=>customerFieldConfig(key)?customerFieldLabel(customerFieldConfig(key)):fallback;
 const customCustomerFields=()=>customerFields().filter(field=>!canonicalCustomerKeys.has(customerFieldKey(field)));
-const today=()=>new Date().toISOString().slice(0,10);
+const localDay=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const today=()=>localDay(new Date());
 const mainAppUrl=query=>{const url=new URL('../index.html',window.location.href);url.search=query?`?${query}`:'';return url.href;};
 const due=d=>!d?"none":d<today()?"overdue":d===today()?"today":"future";
 const fmt=v=>v?new Date(v.length===10?v+"T00:00:00":v).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:v.length>10?"2-digit":undefined,minute:v.length>10?"2-digit":undefined}):"暂无";
 const tags=a=>(a||[]).map(x=>`<span>${esc(x)}</span>`).join("")||"<small>待补充</small>";
 function arrival(c){if(!c.arrival_value||c.arrival_precision==="none")return"暂无来华计划";let[y,m,d]=c.arrival_value.split("-"),x={month:"",month_start:"月初",month_mid:"月中",month_end:"月底",date:d?`${+d}日`:""};return`${y}年${+m}月${x[c.arrival_precision]||""}`}
-function qdate(n){let d=new Date();if(n==="monday")d.setDate(d.getDate()+(((8-d.getDay())%7)||7));else d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
+function qdate(n){let d=new Date();if(n==="monday")d.setDate(d.getDate()+(((8-d.getDay())%7)||7));else d.setDate(d.getDate()+n);return localDay(d)}
 async function api(url,opt){let r=await fetch(url,opt),j=await r.json();if(!r.ok)throw Error(j.error||"操作失败");return j}
 async function load(){const [customerRows,dashboardData,settings]=await Promise.all([api("/api/customers"),api("/api/dashboard"),api("/api/settings")]);customers=customerRows;dashboard=dashboardData;const shared=settings.settings||settings;customerConfig=shared.customerWorkspace||customerConfig;BUYERS=OptionCatalog.values(shared,'buyerTypes');EQUIPMENT=OptionCatalog.values(shared,'equipmentTags');contactTypes=OptionCatalog.values(shared,'contactTypes');contactOutcomes=OptionCatalog.values(shared,'contactOutcomes');STAGES=customerConfig.statuses?.length?customerConfig.statuses:STAGES;PROJECTS=customerConfig.labels?.length?customerConfig.labels:PROJECTS;if(selected){let hit=customers.find(x=>x.id===selected.id);if(hit)selected=await api(`/api/customers/${selected.id}`)}render()}
 async function choose(id){selected=await api(`/api/customers/${id}`);render()}

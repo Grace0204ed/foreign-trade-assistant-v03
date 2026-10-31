@@ -2,13 +2,14 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const P=require('../assets/document-presentation'),compact=s=>s.normalize('NFKC').replaceAll('⻋','车').replace(/\s/g,'');
 (async()=>{
  const results=[];
- const files=['quotation','invoice','contract','commercial','packing','invitation','authorization','agreement','statement','procurement'].map(name=>path.resolve('output/release-qa/pdfs',name+'.pdf'));
+ const files=['quotation','invoice','contract','commercial','packing','invitation','authorization','agreement','statement','procurement','short-quotation','short-invoice'].map(name=>path.resolve('output/release-qa/pdfs',name+'.pdf'));
  files.push(...['en','zh','bilingual'].map(lang=>path.resolve('output/iteration-qa','pi-'+lang+'.pdf')));
  for(const file of files){
    const parser=new PDFParse({data:fs.readFileSync(file)});
    try{const text=await parser.getText();assert(text.pages.length>0);for(const page of text.pages)assert(compact(page.text).length>20,'Blank page: '+file);
      const name=path.basename(file);let all=compact(text.pages.map(p=>p.text).join(''));
      if(name==='invitation.pdf')assert.equal(text.pages.length,1,'Ordinary invitation signature should fit on its first page');
+     if(name.startsWith('short-'))assert.equal(text.pages.length,1,'Short document with bank and signature must fit one A4 page: '+name);
      if(name.startsWith('pi-')){
        // Chromium emits CJK compatibility glyphs and PDF text extraction can
        // place a page's letterhead after its body. Remove only measured headers.
@@ -23,5 +24,5 @@ const P=require('../assets/document-presentation'),compact=s=>s.normalize('NFKC'
    }finally{await parser.destroy();}
  }
  fs.writeFileSync(path.resolve('output/iteration-qa/pdf-audit.json'),JSON.stringify(results,null,2));
- console.log('PASS 13 exported PDFs: readable text on every page; complete exact English/Chinese PI terms and language isolation. Total pages: '+results.reduce((s,r)=>s+r.pages,0));
+ console.log('PASS '+files.length+' exported PDFs: no blank pages, short documents fit one page; complete English/Chinese PI terms and language isolation. Total pages: '+results.reduce((s,r)=>s+r.pages,0));
 })().catch(e=>{console.error(e);process.exitCode=1});

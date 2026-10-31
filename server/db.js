@@ -309,6 +309,7 @@ function runSchema() {
   addColumns("freight_rates", [["quote_date","TEXT DEFAULT ''"],["valid_until","TEXT DEFAULT ''"],["transit_days","TEXT DEFAULT ''"],["cargo_limit","TEXT DEFAULT ''"],["charge_rule","TEXT DEFAULT 'standard'"],["rate_status","TEXT DEFAULT 'quoted'"],["fee_items_json","TEXT DEFAULT '[]'"]]);
   addColumns("quotations", [["logistics_snapshot_json","TEXT DEFAULT '{}'" ],["series_id","TEXT DEFAULT ''"],["version","INTEGER DEFAULT 0"],["is_formal","INTEGER DEFAULT 0"],["source_quote_id","TEXT DEFAULT ''"],["formalized_at","TEXT"]]);
   db.exec("CREATE INDEX IF NOT EXISTS idx_quotations_series_version ON quotations(series_id, version DESC)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_quotations_history_updated ON quotations(updated_at DESC,id DESC); CREATE INDEX IF NOT EXISTS idx_quotation_items_history ON quotation_items(quotation_id,sort_order)");
   db.exec(`CREATE TABLE IF NOT EXISTS logistics_partners (
     id TEXT PRIMARY KEY, company_name TEXT NOT NULL, contact_name TEXT, phone TEXT, email TEXT, wechat TEXT,
     status TEXT NOT NULL DEFAULT 'Active', remark TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL

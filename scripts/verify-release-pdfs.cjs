@@ -19,10 +19,30 @@ app.whenReady().then(async()=>{
    const packing=Object.fromEntries(items.map(i=>[i.id,{packages:'1',netWeight:'1200',grossWeight:'1300',cbm:'12',marks:i.id}]));
    const response=await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'pdf-'+type,quoteNumber:'QA-'+type,documentType:type,settingsSnapshot:company,buyer:{company:'QA Buyer',contact:'QA Contact',address:'QA Address'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Durban',payment:'30/70'},pdfLanguage:'en',documentExtras:{tableHeaderColor:'#276749',packing,outputOptions:{[type]:{signature:true}}},items})});assert(response.ok);
    await run(`window.quoteApp.editQuote('pdf-${type}')`);await run('document.fonts.ready');
+   assert(await run("document.querySelector('.desktop-topbar').contains(document.querySelector('#pdf-language'))"),type+' top toolbar');
+   assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='block'"),type+' editor must not be beside preview');
+   assert(await run("!!document.querySelector('#quote-preview .compact-letterhead h1')"),type+' compact colored letterhead');
+   assert(await run("document.querySelector('#quote-preview .compact-company-name').scrollWidth<=document.querySelector('#quote-preview .compact-company-name').clientWidth+1"),type+' company name fits one line');
    const cells=await run("[...document.querySelectorAll('#quote-preview tbody tr')].every(r=>r.children.length===document.querySelectorAll('#quote-preview thead th').length)");assert(cells,type+' columns mismatch');
    fs.writeFileSync(path.join(output,type+'-preview.png'),(await win.webContents.capturePage()).toPNG());
    await run("document.body.classList.add('printing-standard')");
+   if(type==='contract'){
+    win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
+    fs.writeFileSync(path.join(output,'contract-print-layout.json'),JSON.stringify(await run("['body','.app-shell','.main','#view-quote','.quote-split-workspace','.quote-output-pane','.quote-preview-viewport','#quote-preview','.document-signature-block'].map(s=>{const el=document.querySelector(s),c=getComputedStyle(el),r=el.getBoundingClientRect();return {s,top:r.top,height:r.height,padding:c.padding,margin:c.margin,minHeight:c.minHeight,display:c.display,overflow:c.overflow}})"),null,2));
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
+   }
    fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4'}));
+   await run("document.body.classList.remove('printing-standard')");
+  }
+  for(const type of ['quotation','invoice']){
+   const response=await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'short-'+type,quoteNumber:'SHORT-'+type,documentType:type,settingsSnapshot:company,buyer:{company:'QA Buyer',contact:'QA Contact',country:'Kenya',address:'QA Address'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Mombasa',payment:'30/70'},pdfLanguage:'en',documentExtras:{outputOptions:{[type]:{signature:true}}},items:[{id:'short-machine-'+type,productSnapshot:{productName:'Used road roller',imageDataUrl:asset},priceSnapshot:{quantity:1,unitPrice:23000,currency:'USD',values:{description:'Dynapac CA402 14-ton road roller',qty:'1',unitPrice:'23000',billingUnit:'Unit',hsCode:'84294000'}}}]})});assert(response.ok);
+   await run(`window.quoteApp.editQuote('short-${type}')`);await run('document.fonts.ready');
+   await run("document.body.classList.add('printing-standard')");
+   win.webContents.debugger.attach('1.3');
+   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
+   fs.writeFileSync(path.join(output,'short-'+type+'-layout.json'),JSON.stringify(await run("['#quote-preview','.document-parties','.preview-panel','.document-payment','.bank-panel','.document-signature-block','.document-seller-signature','table tr:last-child','table tr:last-child img'].map(s=>{const el=document.querySelector(s);if(!el)return {s};const c=getComputedStyle(el),r=el.getBoundingClientRect();return {s,top:r.top,height:r.height,padding:c.padding,margin:c.margin,minHeight:c.minHeight,html:el.tagName==='IMG'?el.outerHTML:undefined}})"),null,2));
+   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
+   fs.writeFileSync(path.join(output,'short-'+type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4'}));
    await run("document.body.classList.remove('printing-standard')");
   }
   for(const [type,view,cls] of [['invitation','invitation','printing-invitation'],['authorization','agency','printing-agency'],['agreement','agency','printing-agency'],['statement','agency','printing-agency'],['procurement','agency','printing-agency']]){

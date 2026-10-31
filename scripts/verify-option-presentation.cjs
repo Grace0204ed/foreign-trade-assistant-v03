@@ -5,7 +5,7 @@ fs.mkdirSync(path.join(process.env.QUOTE_DATA_DIR,'electron-profile'),{recursive
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;
- const win=new BrowserWindow({show:false,width:1440,height:1040,webPreferences:{contextIsolation:true}}),run=s=>win.webContents.executeJavaScript(s),errors=[];
+ const win=new BrowserWindow({show:false,width:1440,height:1040,webPreferences:{contextIsolation:true}}),run=async s=>{try{return await win.webContents.executeJavaScript(s);}catch(error){throw new Error(error.message+'\nRenderer expression: '+s);}},errors=[];
  win.webContents.on('console-message',(_e,l,m)=>{if(l===3)errors.push(m)});
  const wait=async expression=>{for(let i=0;i<100;i++){if(await run(expression))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout: '+expression)};
  try{
@@ -32,7 +32,7 @@ app.whenReady().then(async()=>{
  assert(await run("!![...document.querySelectorAll('#originPort-options option')].find(o=>o.value.includes('QA Test Port'))"));
  await run(`(()=>{for(const [selector,value,event] of [['#quote-number','QA-PRESENTATION','input'],['[data-qfield=description]','QA Machine long specification '.repeat(8),'input'],['[data-qfield=unitPrice]','100','input'],['#pdf-language','en','change'],['#document-table-color','#ffee00','input'],['#document-product-style','bold-black','change'],['#document-product-color','#223344','input']]){const i=document.querySelector(selector);assertElement(i,selector);i.value=value;i.dispatchEvent(new Event(event,{bubbles:true}));}function assertElement(i,s){if(!i)throw Error('Missing '+s)}})()`);
  const style=await run(`(()=>{const h=getComputedStyle(document.querySelector('#quote-preview thead th')),p=getComputedStyle(document.querySelector('#quote-preview tbody .preview-col-description'));return {background:h.backgroundColor,text:h.color,weight:p.fontWeight,color:p.color,terms:document.querySelector('#quote-preview').innerText}})()`);
- assert(await run("!!document.querySelector('.document-appearance-toolbar #pdf-language')"),'language stays at editor top');
+ assert(await run("!!document.querySelector('.desktop-topbar #pdf-language')"),'language belongs to the main top toolbar, not the form');
  assert.equal(style.background,'rgb(255, 238, 0)');assert.equal(style.text,'rgb(17, 17, 17)');assert.equal(style.weight,'700');assert.equal(style.color,'rgb(34, 51, 68)');assert(style.terms.includes('Incorrect or incomplete payment details may result in the transfer being rejected or delayed.'));
  await run("document.querySelector('#save-quote-btn').click()");
  let records;for(let i=0;i<60;i++){records=(await(await fetch(base+'/api/quotations')).json()).quotations;if(records.some(q=>q.quote_number==='QA-PRESENTATION'))break;await new Promise(r=>setTimeout(r,50));}
@@ -69,11 +69,11 @@ app.whenReady().then(async()=>{
  const crmSettings=(await(await fetch(base+'/api/settings')).json()).settings;
  crmSettings.optionCatalog.buyerTypes.push({id:'qa-buyer',value:'QA <Buyer>',labelZh:'测试买家',labelEn:'QA buyer',parentId:'',active:true,sortOrder:-10});
  assert((await fetch(base+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(crmSettings)})).ok);
- win.setSize(1440,1040);await win.loadURL(base+'/crm');await wait("!!document.querySelector('.add')");
- await run("document.querySelector('.add').click()");assert(await run("[...document.querySelector('[name=buyer_type]').options].some(o=>o.value==='QA <Buyer>')"),'managed CRM option is escaped and synchronized');
- await run("document.querySelector('[name=name]').value='QA CATALOG CUSTOMER';document.querySelector('[name=buyer_type]').value='QA <Buyer>';document.querySelector('.modal-backdrop form').requestSubmit()");
+ win.setSize(1440,1040);await win.loadURL(base+'/crm');await wait("!!document.querySelector('#crm-new')");
+ await run("document.querySelector('#crm-new').click()");assert(await run("[...document.querySelector('[name=buyer_type]').options].some(o=>o.value==='QA <Buyer>')"),'managed CRM option is escaped and synchronized');
+ await run("document.querySelector('[data-customer-key=name]').value='QA CATALOG CUSTOMER';document.querySelector('[name=buyer_type]').value='QA <Buyer>';document.querySelector('form.modal').requestSubmit(document.querySelector('form.modal .primary'))");
  await wait("!document.querySelector('.modal-backdrop')");
- await win.reload();await wait("!!document.querySelector('.add')");
+ await win.reload();await wait("!!document.querySelector('#crm-new')");
  assert((await(await fetch(base+'/api/customers')).json()).some(c=>c.name==='QA CATALOG CUSTOMER'&&c.buyer_type==='QA <Buyer>'),'CRM selection persisted');
  assert.equal(errors.length,0,errors.join('\n'));console.log('PASS actual option manager save/reload, API rejection, live contrast/font/color, persisted PI language, three PDF exports and PIN validation; '+output);
  }finally{win.destroy();server.close();app.quit();}

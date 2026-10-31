@@ -32,9 +32,12 @@ app.whenReady().then(async()=>{
   const paint=()=>run("document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))");
   await paint();
   fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'customers.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
-  await run("document.querySelector('#crm-settings').click()");await wait("!!document.querySelector('#crm-inline-settings [data-crm-tab]')");
-  assert(await run("location.pathname==='/crm/'"),'customer settings stay in the demo workspace');
-  await paint();fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'inline-settings.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
+  assert(!await run("!!document.querySelector('#crm-settings')"),'duplicate CRM settings entry removed');
+  assert.equal(await run("document.querySelectorAll('[data-crm-overview]').length"),4);
+  await run("document.querySelector('[data-crm-overview=week]').click()");
+  assert.equal(await run("document.querySelector('[data-crm-overview=week]').getAttribute('aria-pressed')"),'true');
+  assert(await run("document.querySelector('.crm-table-wrap').textContent.includes('EDITED COMPANY')"),'weekly overview includes the saved followup');
+  await run("document.querySelector('[data-crm-overview=all]').click()");
   await win.loadURL(base+'/index.html?settings=customer-config');await wait("!!document.querySelector('[data-crm-tab]')&&document.querySelector('#settings-customer-config-host').getBoundingClientRect().height>0&&document.querySelector('#view-settings').classList.contains('active')");
   assert(await run("[...document.querySelectorAll('[data-crm-name]')].some(el=>el.value==='买方公司')"),'settings loaded from persisted configuration, not defaults');
   await run("document.querySelector('[data-crm-tab=groups]').click()");assert.equal(await run("document.querySelectorAll('[data-crm-option]').length"),1);
@@ -75,6 +78,9 @@ app.whenReady().then(async()=>{
     await run(`document.querySelector('[data-settings-section=${type}-config]').click()`);
     assert(await run(`!!document.querySelector('#settings-${type}-config-host .refined-workspace')`),type+' uses approved settings layout');
   }
+  await run("document.querySelector('[data-settings-section=invoice-config]').click();document.querySelector('#settings-invoice-config-host [data-block=basic]').click();[...document.querySelectorAll('#settings-invoice-config-host .refined-name')].find(b=>b.textContent.includes('PDF')).click();document.querySelector('#settings-invoice-config-host [data-refined-options]').click()");
+  assert.equal(await run("document.querySelectorAll('.refined-options [data-option-index]').length"),7,'built-in PDF languages are visible in settings');
+  await run("document.querySelector('.refined-options [data-save]').click();document.querySelector('#settings-invoice-config-host [data-document-save]').click()");
   console.log('PASS customer fields/reorder/settings reload/edit/history preservation/followup/independent UI and refined document settings persistence. Evidence: '+process.env.QUOTE_DATA_DIR);
  }finally{win.destroy();await new Promise(r=>server.close(r));app.quit();}
 }).catch(e=>{console.error(e);app.exit(1)});

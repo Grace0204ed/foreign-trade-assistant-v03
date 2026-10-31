@@ -532,7 +532,6 @@
         <section id="view-history" class="view no-print">
           <header class="page-head">
             <h2>历史记录</h2>
-            <p>历史报价、历史授权书和历史邀请函分开管理，互不混淆。</p>
           </header>
           <div class="history-kind-tabs"><button class="active" data-history-kind="quotes">历史报价</button><button data-history-kind="agency">历史授权与佣金</button><button data-history-kind="invitations">历史邀请函</button></div>
           <div id="history-quotes-panel">
@@ -542,10 +541,12 @@
               <input id="history-date" type="date" />
               <button id="history-search-btn" type="button">搜索筛选</button>
               <select id="history-status"><option value="active">有效报价（草稿及正式）</option><option value="void">已作废</option><option value="deleted">回收站</option><option value="all">全部</option></select>
+              <select id="history-document-type" aria-label="单证类型"><option value="">全部单证</option><option value="quotation">报价单</option><option value="invoice">形式发票</option><option value="contract">销售合同</option><option value="commercial">商业发票</option><option value="packing">装箱单</option></select>
             </div>
             <div class="history-actions"><label><input type="checkbox" id="history-select-all"> 全选当前结果</label><span id="history-selected-count">已选0份</span><button id="history-bulk-delete" class="danger" type="button" disabled>删除所选（移入回收站）</button></div>
           </div>
           <div class="history-table-wrap"><table class="history-table"><thead><tr><th>报价编号/版本</th><th>日期/状态</th><th>客户</th><th>国家/目的港</th><th>机器/型号/配置</th><th>数量</th><th>币种/总额</th><th>操作</th></tr></thead><tbody id="unified-history-list"></tbody></table></div>
+          <div class="history-pagination"><span id="history-page-info" role="status"></span><div><button id="history-page-prev" type="button">上一页</button><button id="history-page-next" type="button">下一页</button></div></div>
           </div>
           <div id="history-agency-panel" hidden><div id="agency-history-list" class="list compact-list"></div></div>
           <div id="history-invitations-panel" hidden><div id="invitation-history-list" class="list compact-list"></div></div>
@@ -642,6 +643,7 @@
     <script src="./app.js?v=20261012-document-layouts"></script>
     <script src="./assets/app-lock.js?v=20261023"></script>
     <link rel="stylesheet" href="./assets/customer-workspace.css">
+    <link rel="stylesheet" href="./assets/approved-workspace.css">
     <script src="./assets/customer-workspace.js"></script>
     <script src="./assets/configurable-workspaces.js?v=20261023"></script>
     <script src="./assets/option-manager.js"></script>

@@ -805,6 +805,10 @@ app.post("/api/quotations", requireLogin, (req, res) => {
   ok(res, { id: quoteId,seriesId,version,isFormal:formal, message: "Quotation saved successfully.", zh: formal?"正式报价版本已生成。":"报价保存成功。" });
 });
 
+app.get('/api/history/quotations', requireLogin, (req,res) => {
+  ok(res, require('./quotation-history')(db,req.query));
+});
+
 app.get("/api/quotations", requireLogin, (req, res) => {
   const keyword=String(req.query.q || "").trim().toLowerCase(), date=String(req.query.date || "").trim();
   const rows = db.prepare("SELECT * FROM quotations ORDER BY updated_at DESC").all().filter(row => req.query.includeInactive === "1" || !["Void","Deleted"].includes(row.status));
@@ -955,7 +959,8 @@ app.post("/api/system/restore-db", requireLogin, requireAdmin, (req, res) => {
 // 客户跟进模块：与报价系统共用登录、服务器和数据库。
 app.get("/api/customers", requireLogin, (req, res) => {
   const rows = db.prepare(`SELECT c.*,
-    (SELECT COUNT(*) FROM follow_ups f WHERE f.customer_id=c.id) AS follow_up_count
+    (SELECT COUNT(*) FROM follow_ups f WHERE f.customer_id=c.id) AS follow_up_count,
+    (SELECT MAX(created_at) FROM follow_ups f WHERE f.customer_id=c.id) AS last_follow_up_at
     FROM customers c
     ORDER BY CASE grade WHEN 'S' THEN 1 WHEN 'A' THEN 2 WHEN 'B' THEN 3 ELSE 4 END, updated_at DESC`).all();
   res.json(rows.map(parseCustomer));
