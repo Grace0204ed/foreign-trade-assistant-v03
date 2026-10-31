@@ -142,7 +142,8 @@
   }
   function bindDesignerActivation(type,hostId,label){const host=$(hostId);if(!host)return;host.addEventListener('click',e=>{if(!e.target.closest('[data-block="layout"]'))return;setTimeout(()=>{const selected=host.querySelector('[data-quote-template-config]')?.value||'';mountDesigner(host,ensureConfig(type,selected),type,label);});});}
   const stringEditor=(label,key,values)=>`<fieldset><legend>${label}</legend><div class="config-chip-editor" data-list-key="${key}">${values.map((v,i)=>`<label><input value="${esc(v)}" data-list-index="${i}"><button type="button" data-list-remove="${i}">停用</button></label>`).join('')}</div><button type="button" data-list-add="${key}">＋新增</button></fieldset>`;
-  function customerPanel(){const host=$('settings-customer-config-host');if(!host||!ctx())return;const c=clone(ctx().settings.customerWorkspace||{fields:[],groups:[],statuses:[],labels:[]});const draw=()=>{c.fields=c.fields.map(normalizeField);host.innerHTML=`<section class="panel"><h3>客户管理配置</h3><p>客户库保存完整资料；各单证设置决定调用和展示哪些客户字段。</p><div data-customer-fields>${fieldTable(c.fields)}</div><button type="button" data-customer-field-add>＋自定义字段</button>${stringEditor('客户分组','groups',c.groups)}${stringEditor('客户状态','statuses',c.statuses)}${stringEditor('客户标签','labels',c.labels)}<div class="actions"><button type="button" class="primary" data-customer-save>保存客户配置</button></div></section>`;bindFields(host.querySelector('[data-customer-fields]'),c.fields,draw);host.onclick=async e=>{if(e.target.matches('[data-customer-field-add]')){c.fields.push(freshField('自定义客户字段','Custom Customer Field'));return draw();}const add=e.target.dataset.listAdd;if(add){c[add].push('新选项');return draw();}const list=e.target.closest('[data-list-key]');if(list&&e.target.dataset.listRemove!=null){c[list.dataset.listKey].splice(Number(e.target.dataset.listRemove),1);return draw();}if(e.target.matches('[data-customer-save]')){await ctx().save({customerWorkspace:c});ctx().toast('客户配置已保存。');}};host.oninput=e=>{const list=e.target.closest('[data-list-key]');if(list&&e.target.dataset.listIndex!=null)c[list.dataset.listKey][Number(e.target.dataset.listIndex)]=e.target.value;};};draw();}
+  let sharedSettingsReady=false;
+  function customerPanel(){const host=$('settings-customer-config-host');if(host&&ctx()&&sharedSettingsReady)CustomerWorkspace.mountSettings(host,ctx());}
   function lockPanel(){
     const host=$('settings-data-host');if(!host||!ctx())return;
     let panelHost=$('app-lock-settings-host');if(!panelHost){panelHost=document.createElement('div');panelHost.id='app-lock-settings-host';host.prepend(panelHost);}
@@ -179,5 +180,7 @@
     // currently selected tab so newly populated hosts do not all appear at once.
     requestAnimationFrame(()=>document.querySelector('.settings-tab.active')?.click());
   }
+  // Rebind after shared settings arrive; never edit a stale default snapshot.
+  window.addEventListener('foreign-trade-auth-ready',()=>{sharedSettingsReady=true;mount();});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(mount));else setTimeout(mount);
 })();

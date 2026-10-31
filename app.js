@@ -4510,6 +4510,10 @@
     const params=new URLSearchParams(window.location.search);
     const quoteId=params.get("quote");
     if (!currentUser) return;
+    if(params.get('settings')==='customer-config'){
+      switchView('settings');showSettingsSection('customer-config');
+      history.replaceState({},'',window.location.pathname);return;
+    }
     if (quoteId) {
       currentQuote=serverQuotationToLocal(await api(`/api/quotations/${quoteId}`));
       switchView("quote");bindQuoteToForm();renderQuoteItems();renderPreview();
@@ -7189,7 +7193,7 @@
 
   // Recovery records live in SQLite, separately from saved documents/products.
   const workStoreKey='fta-work-v2';
-  let workRestoring=false, productWorkId='', recoveryShown=false, workCaptureError=null, workQueue=Promise.resolve(), pdfSnapshotMode=false, pdfBatchToken=null;
+  let workRestoring=false, productWorkId='', workCaptureError=null, workQueue=Promise.resolve(), pdfSnapshotMode=false, pdfBatchToken=null;
   const workRecords={}, pendingWork=new Map(), dirtyWork=new Set(), recoveredKeys=new Map();
   const readWork=()=>workRecords;
   function currentWorkKey(kind=activeViewName){
@@ -7239,10 +7243,11 @@
     }
     for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency'))persistWork(true);});
     document.addEventListener('click',()=>persistWork(),true);
+    window.hasUnsavedWork=()=>dirtyWork.size>0||pendingWork.size>0||Boolean(workCaptureError);
     window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
     window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
-    if(!recoveryShown){recoveryShown=true;if(Object.values(readWork()).some(r=>!r.completedAt))showWorkRecovery();}
+    // Recovery stays available on demand; only the desktop close action prompts.
   }
   function showWorkRecovery(){
     const rows=Object.values(readWork()).filter(r=>!r.completedAt).sort((a,b)=>b.savedAt.localeCompare(a.savedAt));if(!rows.length)return toast('暂无未完成工作');

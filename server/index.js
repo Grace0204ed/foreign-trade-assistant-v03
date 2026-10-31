@@ -1013,6 +1013,20 @@ app.post("/api/customers", requireLogin, (req, res) => {
 require("./history-actions").installHistoryActions(app, { db, requireLogin, ok, fail });
 installSpecImportRoutes(app, { requireLogin, requireAdmin, ok, fail });
 
+app.put('/api/customers/:id', requireLogin, (req,res)=>{
+  const row=db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
+  if(!row)return res.status(404).json({error:'客户不存在'});
+  const body=req.body||{};
+  const keys=['name','company','phone','country','buyer_type','stage','grade','requirement','group_name'];
+  const next={};for(const key of keys)next[key]=Object.hasOwn(body,key)?String(body[key]??''):row[key];
+  if(!next.name.trim())return res.status(400).json({error:'客户名称不能为空'});
+  const old=JSON.parse(row.custom_fields_json||'{}');
+  const custom=body.custom_fields&&typeof body.custom_fields==='object'&&!Array.isArray(body.custom_fields)?body.custom_fields:{};
+  const labels=Array.isArray(body.labels)?JSON.stringify(body.labels):row.labels_json;
+  db.prepare(`UPDATE customers SET ${keys.map(k=>k+'=?').join(',')},labels_json=?,custom_fields_json=?,whatsapp_number=?,updated_at=? WHERE id=?`).run(...keys.map(k=>next[k]),labels,JSON.stringify({...old,...custom}),String(next.phone||'').replace(/\D/g,''),now(),row.id);
+  res.json({ok:true,id:row.id});
+});
+
 app.post("/api/customers/:id/followups", requireLogin, (req, res) => {
   const customer = db.prepare("SELECT * FROM customers WHERE id=?").get(req.params.id);
   if (!customer) return res.status(404).json({ error: "客户不存在" });

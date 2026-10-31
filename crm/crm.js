@@ -130,4 +130,4 @@ function followModal(){
 }
 async function backup(){try{let r=await api("/api/backup",{method:"POST"});toast("备份已保存："+r.path)}catch(e){toast(e.message,true)}}
 function toast(text,bad=false){let n=document.getElementById("notice");if(!n)return;n.className=bad?"notice bad":"notice";n.textContent=text;setTimeout(()=>{if(n)n.textContent=""},5000)}
-load().catch(e=>{app.innerHTML=`<div class="empty">系统启动失败：${esc(e.message)}</div>`});
+// workspace.js starts loading after installing the configured UI.

@@ -93,7 +93,7 @@ app.whenReady().then(async()=>{
    assert.deepEqual(await request('/api/quotations/'+formal.id),formalBefore,'saving formal history creates a new draft and preserves the original');
    const legacy={key:'quote:legacy-fixture',kind:'quote',label:'LEGACY MIGRATION',savedAt:new Date().toISOString(),data:{id:'legacy-fixture',quoteNumber:'LEGACY-MIGRATE',documentType:'quotation',buyer:{company:'LEGACY OWNER'},terms:{},items:[]}};
    await run('localStorage.removeItem("fta-recovery-migrated-v3");localStorage.setItem("fta-work-v2",JSON.stringify({legacy:'+JSON.stringify(legacy)+'}));');
-   await win.reload();await wait("!!window.flushPendingWork&&!!document.querySelector('#work-recovery-modal')");assert((await drafts()).some(r=>r.key===legacy.key));
+   await win.reload();await wait("!!window.flushPendingWork&&!!document.querySelector('#restore-quote-draft')");assert(!await run("!!document.querySelector('#work-recovery-modal')"),'startup must not interrupt with a recovery dialog');await run("document.querySelector('#restore-quote-draft').click()");assert((await drafts()).some(r=>r.key===legacy.key));
    const ordered=(await drafts()).sort((a,b)=>b.savedAt.localeCompare(a.savedAt)),legacyIndex=ordered.findIndex(r=>r.key===legacy.key);
    await run('window.confirm=()=>true;document.querySelector("[data-discard=\\"'+legacyIndex+'\\"]").click()');
    for(let i=0;i<100&&(await drafts()).some(r=>r.key===legacy.key);i++)await new Promise(r=>setTimeout(r,30));assert(!(await drafts()).some(r=>r.key===legacy.key));

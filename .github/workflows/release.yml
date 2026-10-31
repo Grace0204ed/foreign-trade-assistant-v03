@@ -32,6 +32,8 @@ jobs:
       - run: npm run ensure:sqlite
       - run: npm run check
       - run: npm test
+      - name: Verify configured customer workflow in Electron
+        run: npm run test:customers
       - name: Build installer without concurrent release creation
         run: npm run rebuild:electron && npx electron-builder --win nsis --publish never
       - name: Publish one complete release atomically

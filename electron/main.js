@@ -91,8 +91,18 @@ async function createWindow() {
   win.on('close',event=>{
     if(closeAllowed)return;
     event.preventDefault();if(closePending)return;closePending=true;
-    win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();return true;})()')
-      .then(()=>{closeAllowed=true;win.close();})
+    (async()=>{
+      const unsaved=await win.webContents.executeJavaScript('Boolean(window.hasUnsavedWork?.())');
+      if(unsaved){
+        const {response}=await dialog.showMessageBox(win,{
+          type:'question',title:'保存草稿',message:'有未保存的内容，是否保存草稿后关闭软件？',
+          buttons:['保存草稿并关闭','取消'],defaultId:0,cancelId:1,noLink:true
+        });
+        if(response!==0)return;
+      }
+      await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
+      closeAllowed=true;win.close();
+    })()
       .catch(error=>dialog.showErrorBox('未能保存最后的工作','窗口已保留，请重试保存后再退出。\n'+error.message))
       .finally(()=>{closePending=false;});
   });
