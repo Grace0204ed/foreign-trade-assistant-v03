@@ -17,13 +17,26 @@ render=function(){
   if(!crmVisible('country'))document.querySelectorAll('.crm-table-wrap tr').forEach(row=>row.children[1]?.remove());
   if(!crmVisible('name'))document.querySelectorAll('.crm-table-wrap td:first-child small').forEach(el=>el.remove());
   document.getElementById('crm-home').onclick=()=>location.assign(mainAppUrl());
-  document.getElementById('crm-settings').onclick=()=>location.assign(mainAppUrl('settings=customer-config'));
+  document.getElementById('crm-settings').onclick=crmSettingsView;
+  document.querySelector('.crm-nav button.active').onclick=render;
   document.getElementById('crm-search').oninput=e=>{const pos=e.target.selectionStart;query=e.target.value;render();const input=document.getElementById('crm-search');input.focus();input.setSelectionRange(pos,pos);};
   document.getElementById('crm-group').onchange=e=>{crmGroup=e.target.value;render();};document.getElementById('crm-state').onchange=e=>{crmState=e.target.value;render();};
   document.querySelectorAll('[data-crm-select]').forEach(b=>b.onclick=()=>choose(+b.dataset.crmSelect).catch(e=>toast(e.message,true)));
   document.getElementById('crm-edit')?.addEventListener('click',()=>crmEdit(selected));
   document.getElementById('crm-follow')?.addEventListener('click',()=>{followModal();const form=document.querySelector('.follow-modal');form.querySelector('[name=stage]').innerHTML=crmOptions(customerConfig.statuses,selected.stage);form.querySelector('[name=content]').required=true;form.querySelector('[name=next_follow_up]').required=customerConfig.followup.requireNextDate;});
 };
+function crmSettingsView(){
+  document.querySelectorAll('.crm-nav button').forEach(b=>b.classList.toggle('active',b.id==='crm-settings'));
+  document.querySelector('.crm-header h1').textContent='客户管理设置';
+  document.querySelector('.crm-header p').textContent='按自己的业务习惯配置字段、分组、状态和标签。';
+  const body=document.querySelector('.crm-body');body.innerHTML='<div id="notice" role="status"></div><div id="crm-inline-settings"></div>';
+  CW.mountSettings(document.getElementById('crm-inline-settings'),{
+    settings:{customerWorkspace:customerConfig},
+    save:async next=>{const current=await api('/api/settings');const result=await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...current.settings,...next})});customerConfig=CW.normalize(result.settings?.customerWorkspace||next.customerWorkspace);},
+    toast:message=>toast(message)
+  });
+  document.querySelector('.crm-nav button:first-of-type').onclick=()=>load().catch(e=>toast(e.message,true));
+}
 function crmDetail(c){return `<div class="crm-detail-body"><div class="crm-avatar">${esc(crmLabel(c)[0])}</div><h2>${esc(crmLabel(c))}</h2><p>${esc(c.name)}</p><dl><dt>客户分组</dt><dd>${esc(c.group_name||'未分组')}</dd><dt>状态 / 等级</dt><dd>${esc(c.stage)} / ${esc(c.grade)}</dd><dt>客户标签</dt><dd>${(c.labels||[]).map(t=>`<span class="crm-badge">${esc(t)}</span>`).join(' ')||'—'}</dd>${CW.fields(customerConfig).map(f=>`<dt>${esc(f.zh)}</dt><dd>${esc(CW.value(c,f)??'—')}</dd>`).join('')}<dt>来华计划</dt><dd>${esc(arrival(c))}</dd><dt>设备需求</dt><dd>${esc((c.equipment_tags||[]).join('、')||'—')}</dd></dl><div class="crm-toolbar"><button type="button" id="crm-edit">编辑资料</button><button type="button" class="primary" id="crm-follow">记录跟进</button></div><h3>跟进记录</h3>${(c.follow_ups||[]).map(f=>`<article class="crm-record"><small>${esc(fmt(f.created_at))} · ${esc(f.contact_type)}</small><p>${esc(f.content||f.outcome)}</p><small>下次跟进：${esc(f.next_follow_up||'未安排')}</small></article>`).join('')||'<p>暂无跟进记录</p>'}</div>`;}
 function crmEdit(customer){const c=customer||{},config=customerConfig;
   const d=modal(`<form class="modal"><div class="modal-head"><h2>${customer?'编辑客户资料':'新增客户'}</h2><button class="close" type="button">×</button></div><div class="form-grid">${CW.fields(config).map(f=>`<label>${esc(f.zh)}${f.required?' *':''}${CW.input(f,CW.value(c,f))}</label>`).join('')}<label>客户分组<select name="group_name"><option value="">未分组</option>${crmOptions(config.groups,c.group_name)}</select></label><label>客户状态<select name="stage">${crmOptions(config.statuses,c.stage)}</select></label><label>客户等级<select name="grade">${crmOptions(GRADES,c.grade||'B')}</select></label><label>买家身份<select name="buyer_type">${crmOptions(BUYERS,c.buyer_type||'公司买家')}</select></label></div><fieldset><legend>客户标签</legend>${[...new Set([...(c.labels||[]),...config.labels])].map(t=>`<label class="crm-check"><input type="checkbox" data-crm-tag="${esc(t)}" ${(c.labels||[]).includes(t)?'checked':''}>${esc(t)}</label>`).join('')}</fieldset><p class="form-error" hidden></p><div class="modal-actions"><button type="button" class="close">取消</button><button class="primary">保存客户</button></div></form>`);

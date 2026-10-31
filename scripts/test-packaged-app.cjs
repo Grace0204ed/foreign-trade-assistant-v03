@@ -1,5 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
 const {_electron:electron}=require(process.env.PLAYWRIGHT_PATH||'playwright');
+const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/外贸助手.exe');
 (async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fta-installed-test-'));
  const sourceLicense=path.join(process.env.APPDATA||'', 'foreign-trade-assistant','offline-license.json');
@@ -7,7 +8,7 @@ const {_electron:electron}=require(process.env.PLAYWRIGHT_PATH||'playwright');
  fs.copyFileSync(sourceLicense,path.join(dir,'offline-license.json'));
  const env={...process.env,QUOTE_DATA_DIR:dir,PATH:process.env.SystemRoot+';'+process.env.SystemRoot+'/System32'};
  delete env.ELECTRON_RUN_AS_NODE;
- let app=await electron.launch({executablePath:process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/外贸助手.exe'),env,timeout:60000});
+ let app=await electron.launch({executablePath,env,timeout:60000});
  try{
   let page=await app.firstWindow();const errors=[],external=[];
   await page.waitForTimeout(3000);
@@ -51,7 +52,7 @@ const {_electron:electron}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await page.locator('[data-qfield="description"]').first().fill('UNSAVED CLOSE CONTENT');
   await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});
   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('App did not close after flushing')),20000);if(app.process().exitCode!==null){clearTimeout(timer);resolve();}else app.process().once('exit',()=>{clearTimeout(timer);resolve();});});
-  app=await electron.launch({executablePath:process.env.TEST_APP_EXE,env,timeout:60000});page=await app.firstWindow();
+  app=await electron.launch({executablePath,env,timeout:60000});page=await app.firstWindow();
   await page.waitForSelector('#restore-quote-draft',{state:'attached',timeout:60000});
   await page.waitForFunction(()=>!!window.flushPendingWork);
   assert.equal(await page.locator('#work-recovery-modal').count(),0,'no intrusive recovery dialog on startup');
@@ -76,7 +77,7 @@ const {_electron:electron}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await page.locator('[data-product-field="model"]').fill('PACKAGE UNSAVED PRODUCT');await page.fill('#product-smart-paste','preserve partial import');
   await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});
   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Product window close timed out')),20000);if(app.process().exitCode!==null){clearTimeout(timer);resolve();}else app.process().once('exit',()=>{clearTimeout(timer);resolve();});});
-  app=await electron.launch({executablePath:process.env.TEST_APP_EXE,env,timeout:60000});page=await app.firstWindow();
+  app=await electron.launch({executablePath,env,timeout:60000});page=await app.firstWindow();
   await page.waitForSelector('#restore-quote-draft',{state:'attached',timeout:60000});
   await page.waitForFunction(()=>!!window.flushPendingWork);
   await page.locator('#restore-quote-draft').evaluate(el=>el.click());

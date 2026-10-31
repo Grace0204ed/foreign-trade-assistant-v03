@@ -32,6 +32,9 @@ app.whenReady().then(async()=>{
   const paint=()=>run("document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))");
   await paint();
   fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'customers.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
+  await run("document.querySelector('#crm-settings').click()");await wait("!!document.querySelector('#crm-inline-settings [data-crm-tab]')");
+  assert(await run("location.pathname==='/crm/'"),'customer settings stay in the demo workspace');
+  await paint();fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'inline-settings.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
   await win.loadURL(base+'/index.html?settings=customer-config');await wait("!!document.querySelector('[data-crm-tab]')&&document.querySelector('#settings-customer-config-host').getBoundingClientRect().height>0&&document.querySelector('#view-settings').classList.contains('active')");
   assert(await run("[...document.querySelectorAll('[data-crm-name]')].some(el=>el.value==='买方公司')"),'settings loaded from persisted configuration, not defaults');
   await run("document.querySelector('[data-crm-tab=groups]').click()");assert.equal(await run("document.querySelectorAll('[data-crm-option]').length"),1);
@@ -49,6 +52,29 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('#crm-edit').click()");assert(!await run("!!document.querySelector('[data-customer-key=country]')"));
   assert(await run("[...document.querySelector('[name=group_name]').options].some(o=>o.value==='新测试分组')"),'removed group still available for existing customer');
   await run("document.querySelector('form.modal .primary').click()");await wait("!document.querySelector('.modal-backdrop')");assert.equal((await request('/api/customers/'+id)).country,'Kenya');
-  console.log('PASS customer fields/reorder/settings reload/edit/history preservation/followup/independent UI. Evidence: '+process.env.QUOTE_DATA_DIR);
+  await win.loadURL(base+'/index.html?settings=customer-config');await wait("!!document.querySelector('[data-crm-tab]')");await run("document.querySelector('[data-settings-section=invoice-config]').click()");await wait("!!document.querySelector('#settings-invoice-config-host .refined-row')&&document.querySelector('#settings-invoice-config-host').getBoundingClientRect().height>0");
+  assert(!await run("!!document.querySelector('#settings-invoice-config-host [data-document-fields] table')"),'document settings use demo master/detail, not legacy table');
+  await run("document.querySelector('#settings-invoice-config-host [data-refined-prop=zh]').value='测试发票编号';document.querySelector('#settings-invoice-config-host [data-refined-prop=zh]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#settings-invoice-config-host [data-document-save]').click()");
+  await wait("window.quoteSettingsContext.settings.documentConfigs.invoice.blocks.basic[0].zh==='测试发票编号'");
+  // Verify persisted server data, not just the current UI reference.
+  for(let i=0;i<100;i++){if((await request('/api/settings')).settings.documentConfigs?.invoice?.blocks.basic[0].zh==='测试发票编号')break;await new Promise(r=>setTimeout(r,50));}
+  assert.equal((await request('/api/settings')).settings.documentConfigs.invoice.blocks.basic[0].zh,'测试发票编号');
+  await run("document.querySelector('#settings-invoice-config-host [data-block=terms]').click()");
+  assert.equal(await run("document.querySelector('#settings-invoice-config-host [data-refined-prop=fieldType]').selectedOptions[0].textContent"),'多行文字');
+  await paint();fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'document-settings.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
+  const termsBefore=await run("document.querySelectorAll('#settings-invoice-config-host [data-refined-id]').length");
+  await run("document.querySelector('#settings-invoice-config-host [data-refined-child]').click()");
+  assert.equal(await run("document.querySelector('.field-edit-modal h3').textContent"),'新增子字段');
+  await run("document.querySelector('.field-edit-modal [data-close]').click()");
+  assert.equal(await run("document.querySelectorAll('#settings-invoice-config-host [data-refined-id]').length"),termsBefore,'cancel must not insert a phantom child');
+  await run("(()=>{const host=document.querySelector('#settings-invoice-config-host');[...host.querySelectorAll('.refined-name')].find(b=>b.textContent.includes('贸易术语')).click();host.querySelector('[data-refined-options]').click();document.querySelector('.refined-options [data-add]').click();const row=[...document.querySelectorAll('[data-option-index]')].at(-1);const zh=row.querySelector('[data-o=labelZh]');zh.value='测试贸易方式';zh.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  assert(await run("document.querySelector('[data-option-preview]').textContent.includes('测试贸易方式')"),'live bilingual options preview');
+  await paint();fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'options.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
+  await run("document.querySelector('.refined-options [data-save]').click()");assert(!await run("!!document.querySelector('.refined-options')"),'option saved without requiring internal value input');
+  for(const type of ['quotation','invoice','contract','commercial','packing','invitation','agency']){
+    await run(`document.querySelector('[data-settings-section=${type}-config]').click()`);
+    assert(await run(`!!document.querySelector('#settings-${type}-config-host .refined-workspace')`),type+' uses approved settings layout');
+  }
+  console.log('PASS customer fields/reorder/settings reload/edit/history preservation/followup/independent UI and refined document settings persistence. Evidence: '+process.env.QUOTE_DATA_DIR);
  }finally{win.destroy();await new Promise(r=>server.close(r));app.quit();}
 }).catch(e=>{console.error(e);app.exit(1)});
