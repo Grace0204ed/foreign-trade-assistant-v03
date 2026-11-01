@@ -42,14 +42,14 @@ app.whenReady().then(async()=>{
   assert((await request('/api/products')).products.some(p=>p.model==='IMPORT-1'),'import persisted after reload');
   await run("document.querySelector('[data-view=products]').click();document.querySelector('#product-search').value='IMPORT-1';document.querySelector('#product-search').dispatchEvent(new Event('input'));document.querySelector('[data-library-select]').click();document.querySelector('#library-edit-selected').click()");
   await run("document.querySelector('#product-edit-panel').scrollIntoView();new Promise(r=>setTimeout(r,150))");fs.writeFileSync(path.join(output,'product-editor.png'),(await win.webContents.capturePage()).toPNG());
-  await run("document.querySelector('[data-create-document=quotation]').click()");
+  await run("document.querySelector('#product-editor-cancel').click();document.querySelector('[data-create-document=quotation]').click()");
   assert(await run("document.querySelector('#quote-style-select').hidden"));assert.equal(await run("document.querySelector('#add-quote-item-btn').textContent"),'＋ 新增');
   for(const type of ['quotation','invoice','contract','commercial','packing','authorization','invitation']){
    await run(`document.querySelector('.view.active [data-switch-document="${type}"]').click()`);
    assert(await run(`document.querySelector('.view.active [data-switch-document="${type}"]').classList.contains('is-current-document')`),type+' green selection');
    assert(await run("!document.querySelector('#document-top-tools').hidden"),type+' toolbar');
    await run("document.querySelector('#document-top-tools [data-tools-view]:not([hidden]) .document-text-options summary').click()");
-   assert(await run("!!document.querySelector('#document-top-tools details[open]')"));
+   assert(await run("!!document.querySelector('#document-top-tools details[open]')"),type+' text style opens');
    await run("document.querySelector('.desktop-topbar').click()");assert(!await run("!!document.querySelector('#document-top-tools details[open]')"));
    await run("document.querySelector('#document-top-tools [data-tools-view]:not([hidden]) .document-text-options summary').click();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");assert(!await run("!!document.querySelector('#document-top-tools details[open]')"));
   }

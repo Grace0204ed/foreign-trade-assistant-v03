@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="./styles.css?v=20261012-documents" />
     <link rel="stylesheet" href="./assets/offline-fonts.css" />
     <link rel="stylesheet" href="./assets/overview-library.css?v=20261030" />
+    <link rel="stylesheet" href="./assets/product-editor-modal.css" />
   </head>
   <body>
     <datalist id="quote-condition-options">
@@ -226,14 +227,17 @@
           <div id="legacy-product-editor" class="legacy-product-area">
           <div id="product-library-summary" class="overview-metrics product-library-summary"></div>
           <div class="product-library-toolbar"><button type="button" class="primary" id="library-new-product">＋ 新增产品</button><button type="button" id="library-delete-selected" disabled>删除选中（0）</button><button type="button" id="library-configure">配置产品分类与字段</button><button type="button" id="library-import">导入产品资料</button><button type="button" id="library-catalog">导出产品目录 PDF</button></div>
-          <div class="panel" id="product-edit-panel" hidden>
-            <div class="row-head"><h3 id="product-edit-heading">新增／编辑产品</h3><button type="button" id="library-close-editor">收起编辑</button></div>
-            <div class="smart-product-import">
-              <div><h3>粘贴文字智能录入</h3><p class="hint">识别品牌、型号、状态、年份、工时、价格、尺寸、重量和运输体积。识别后先预览，不会直接覆盖已有产品。</p></div>
+          <dialog id="product-editor-modal" aria-labelledby="product-edit-heading">
+          <div class="panel" id="product-edit-panel">
+            <div class="row-head product-editor-header"><div><small>产品库</small><h3 id="product-edit-heading">新增产品</h3></div><button type="button" id="library-close-editor" aria-label="关闭产品编辑">✕</button></div>
+            <div class="product-editor-body">
+            <details class="smart-product-import">
+              <summary>粘贴文字智能录入</summary>
+              <p class="hint">识别后先预览，确认后填入表单。</p>
               <textarea id="product-smart-paste" rows="3" placeholder="例如：卡特320D，二手，运输体积85方，重量21吨，价格待询。"></textarea>
               <div class="actions"><button id="product-smart-analyze" type="button">识别并预览</button><button id="product-smart-apply" class="primary" type="button" hidden>确认填入表单</button></div>
               <div id="product-smart-preview" class="smart-import-preview"></div>
-            </div>
+            </details>
             <div class="form-grid">
               <label><span>资料模板</span><select id="product-template"></select></label>
               <label><span>资料类型</span><select id="product-record-type"><option value="model">通用车型资料</option><option value="inventory">具体库存设备</option></select></label>
@@ -255,14 +259,19 @@
               <div>
                 <span class="field-title">常用图片</span>
                 <label class="file-btn">上传图片<input id="product-image" type="file" accept="image/*" /></label>
-                <img id="product-image-preview" class="product-preview" alt="" />
+                <button id="product-remove-image" type="button">移除图片</button>
+                <img id="product-image-preview" class="product-preview" alt="产品图片预览" hidden />
               </div>
             </div>
-            <div class="actions">
+            </div>
+            <div class="actions product-editor-footer">
+              <button id="product-editor-delete" type="button" hidden>删除产品</button>
+              <button id="product-editor-cancel" type="button">取消</button>
+              <button id="clear-product-btn" type="button">清空表单</button>
               <button id="save-product-btn" class="primary" type="button">保存产品</button>
-              <button id="clear-product-btn" type="button">清空产品表单</button>
             </div>
           </div>
+          </dialog>
           <div class="panel" id="product-library-list-panel">
             <div class="search-row">
               <input id="product-search" placeholder="搜索名称、品牌、型号或规格参数" />
