@@ -36,6 +36,8 @@ jobs:
         run: npm run test:customers
       - name: Verify approved layout and history pagination in Electron
         run: npm run test:approved
+      - name: Verify header, CRM and application lock interactions
+        run: npm run test:next
       - name: Build installer without concurrent release creation
         run: npm run rebuild:electron && npx electron-builder --win nsis --publish never
       - name: Publish one complete release atomically

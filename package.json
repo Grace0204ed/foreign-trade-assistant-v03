@@ -1,6 +1,6 @@
 {
   "name": "foreign-trade-assistant",
-  "version": "0.11.12",
+  "version": "0.11.13",
   "description": "外贸助手：客户跟进、产品、报价与外贸单证桌面系统",
   "main": "electron/main.js",
   "private": true,
@@ -22,7 +22,9 @@
     "test:recovery": "node scripts/run-work-recovery.cjs",
     "test:packaged": "node scripts/test-packaged-app.cjs",
     "test:customers": "node --check assets/customer-workspace.js && node --check crm/workspace.js && node scripts/run-customer-workspace.cjs",
-    "test:approved": "electron scripts/test-history-pagination.cjs && electron scripts/test-approved-workspace.cjs"
+    "test:approved": "electron scripts/test-history-pagination.cjs && electron scripts/test-approved-workspace.cjs",
+    "test:next": "electron scripts/test-next-upgrade.cjs",
+    "test:languages": "electron scripts/verify-language-pdfs.cjs && node scripts/audit-language-pdfs.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

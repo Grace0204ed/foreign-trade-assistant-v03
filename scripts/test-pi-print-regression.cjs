@@ -30,9 +30,9 @@ const customerContext=vm.createContext({
 });
 vm.runInContext(extract('customerPreviewFields'),customerContext);
 const customer=customerContext.customerPreviewFields({company:'Arby',country:'Kenya',reference:'REF-01',phone:'HIDDEN'});
-assert(customer.includes('Buyer Country:</b> <span>Kenya'));
+assert(customer.includes('Buyer Country:</b> <bdi>Kenya'));
 assert(customer.indexOf('Kenya')<customer.indexOf('Arby'));
-assert(customer.includes('Reference:</b> <span>REF-01'));
+assert(customer.includes('Reference:</b> <bdi>REF-01'));
 assert(!customer.includes('HIDDEN'));
 assert(source.includes('const buyer=customerPreviewFields(currentQuote.buyer)'),'Dedicated document layouts must use configured customer fields');
 const layouts=require('../assets/trade-document-layouts.js');

@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("quotationDesktop", {
   selectRestoreDb: () => ipcRenderer.invoke("select-restore-db"),
   selectImportJson: () => ipcRenderer.invoke("select-import-json"),
   getLicenseStatus: () => ipcRenderer.invoke("get-license-status"),
+  getPublisherContact: () => ipcRenderer.invoke('get-publisher-contact'),
+  savePublisherContact: value => ipcRenderer.invoke('save-publisher-contact',value),
   activateLicense: (activationCode) => ipcRenderer.invoke("activate-license", activationCode),
   completeActivation: () => ipcRenderer.invoke("complete-activation"),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),

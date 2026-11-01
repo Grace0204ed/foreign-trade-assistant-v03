@@ -67,7 +67,7 @@ app.whenReady().then(async()=>{
   await paint();fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'document-settings.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
   const termsBefore=await run("document.querySelectorAll('#settings-invoice-config-host [data-refined-id]').length");
   await run("document.querySelector('#settings-invoice-config-host [data-refined-child]').click()");
-  assert.equal(await run("document.querySelector('.field-edit-modal h3').textContent"),'新增子字段');
+  assert.equal(await run("document.querySelector('.field-edit-modal h3').textContent"),'新增字段');
   await run("document.querySelector('.field-edit-modal [data-close]').click()");
   assert.equal(await run("document.querySelectorAll('#settings-invoice-config-host [data-refined-id]').length"),termsBefore,'cancel must not insert a phantom child');
   await run("(()=>{const host=document.querySelector('#settings-invoice-config-host');[...host.querySelectorAll('.refined-name')].find(b=>b.textContent.includes('贸易术语')).click();host.querySelector('[data-refined-options]').click();document.querySelector('.refined-options [data-add]').click();const row=[...document.querySelectorAll('[data-option-index]')].at(-1);const zh=row.querySelector('[data-o=labelZh]');zh.value='测试贸易方式';zh.dispatchEvent(new Event('input',{bubbles:true}));})()");
@@ -79,7 +79,7 @@ app.whenReady().then(async()=>{
     assert(await run(`!!document.querySelector('#settings-${type}-config-host .refined-workspace')`),type+' uses approved settings layout');
   }
   await run("document.querySelector('[data-settings-section=invoice-config]').click();document.querySelector('#settings-invoice-config-host [data-block=basic]').click();[...document.querySelectorAll('#settings-invoice-config-host .refined-name')].find(b=>b.textContent.includes('PDF')).click();document.querySelector('#settings-invoice-config-host [data-refined-options]').click()");
-  assert.equal(await run("document.querySelectorAll('.refined-options [data-option-index]').length"),7,'built-in PDF languages are visible in settings');
+  assert.equal(await run("document.querySelectorAll('.refined-options [data-option-index]').length"),require('../assets/document-locales.js').options().length,'all built-in PDF languages and retained bilingual modes are visible in settings');
   await run("document.querySelector('.refined-options [data-save]').click();document.querySelector('#settings-invoice-config-host [data-document-save]').click()");
   console.log('PASS customer fields/reorder/settings reload/edit/history preservation/followup/independent UI and refined document settings persistence. Evidence: '+process.env.QUOTE_DATA_DIR);
  }finally{win.destroy();await new Promise(r=>server.close(r));app.quit();}

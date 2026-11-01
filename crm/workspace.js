@@ -1,6 +1,13 @@
 /* Customer management is independent of the document editor. Stable field keys
  * bind settings, input and details; names and ordering never identify data. */
 const CW=CustomerWorkspace;
+const crmEmbedded=new URLSearchParams(location.search).get('embedded')==='1'&&parent!==window;
+if(crmEmbedded){
+  document.body.classList.add('crm-embedded');
+  let lastActivity=0;
+  ['pointerdown','keydown','wheel'].forEach(type=>document.addEventListener(type,()=>{if(Date.now()-lastActivity>1000){lastActivity=Date.now();parent.postMessage({type:'fta-crm-activity'},location.origin);}},{passive:true}));
+  window.addEventListener('message',event=>{if(event.origin===location.origin&&event.source===parent&&event.data?.type==='fta-crm-refresh')load().catch(e=>toast(e.message,true));});
+}
 let crmGroup='',crmState='',crmOverview='all';
 const crmOverviewMatch=(c,key)=>{
   if(key==='today')return due(c.next_follow_up)==='today';

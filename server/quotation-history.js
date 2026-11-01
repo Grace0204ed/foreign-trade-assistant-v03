@@ -4,6 +4,7 @@ module.exports = function quotationHistory(db, query = {}) {
   const pageSize = Math.min(100, Math.max(1, parseInt(query.pageSize, 10) || 30));
   const where = [], args = [];
   const status = String(query.status || 'active');
+  if(Array.isArray(query.ids)){if(!query.ids.length)where.push('0');else{where.push(`q.id IN (${query.ids.map(()=>'?').join(',')})`);args.push(...query.ids);}}
   if (status === 'active') where.push("q.status NOT IN ('Void','Deleted')");
   if (status === 'void' || status === 'deleted') { where.push('q.status=?'); args.push(status === 'void' ? 'Void' : 'Deleted'); }
   if (query.date) { where.push('q.quote_date=?'); args.push(String(query.date)); }

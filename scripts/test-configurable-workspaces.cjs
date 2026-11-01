@@ -25,7 +25,7 @@ assert.ok(workspaceText.includes('data-field-edit')&&workspaceText.includes('dat
 assert.ok(!indexText.includes('id="product-condition"'),'retired fixed equipment condition input is still visible');
 assert.ok(workspaceText.includes('draggable="true"')&&workspaceText.includes('ondrop'),'drag sorting is missing');
 for(const host of ['quotation','invoice','contract','commercial','packing','invitation','agency'])assert.ok(indexText.includes(`settings-${host}-config-host`),`${host} document-specific settings are missing`);
-assert.ok(indexText.includes('quote-secondary-currency')&&indexText.includes('quote-fx-rate'),'dual currency controls are missing');
+assert.ok(!indexText.includes('id="quote-secondary-currency"')&&!indexText.includes('id="quote-fx-rate"')&&!indexText.includes('id="quote-currency-display"'),'new document editor must use a single currency');
 assert.ok(serverText.includes('currencyDisplay:q.currencyDisplay')&&serverText.includes('secondaryCurrency:q.secondaryCurrency')&&serverText.includes('exchangeRate:q.exchangeRate'),'server quote metadata does not persist dual currency settings');
 assert.ok(serverText.includes('convertToMain'),'server totals are not normalized into the primary currency');
 assert.ok(indexText.includes('quote-preview-mode')&&appText.includes("event.ctrlKey"),'preview modes or Ctrl+wheel zoom are missing');

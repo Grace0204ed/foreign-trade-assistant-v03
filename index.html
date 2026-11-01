@@ -28,7 +28,7 @@
           <button class="nav-btn" data-view="history" type="button"><i class="nav-icon" aria-hidden="true">▤</i><span>历史记录</span></button>
           <small class="rail-group-label">资料与管理</small>
           <button class="nav-btn" data-view="products" type="button"><i class="nav-icon" aria-hidden="true">▦</i><span>产品库</span></button>
-          <button class="nav-btn" id="crm-module-btn" type="button"><i class="nav-icon" aria-hidden="true">◉</i><span>客户跟进</span></button>
+          <button class="nav-btn" id="crm-module-btn" data-view="crm" type="button"><i class="nav-icon" aria-hidden="true">◉</i><span>CRM管理</span></button>
           <button class="nav-btn" data-view="settings" type="button"><i class="nav-icon" aria-hidden="true">⚙</i><span>设置</span></button>
         </nav>
         <nav class="rail-secondary">
@@ -45,6 +45,7 @@
           </div>
         </header>
         <button id="global-back-btn" class="global-back-btn no-print" type="button" hidden aria-label="返回上一页">‹ <span>返回</span></button>
+        <section id="view-crm" class="view no-print"><iframe id="crm-workspace-frame" title="CRM管理" data-src="/crm/?embedded=1"></iframe></section>
         <section id="view-home" class="view active no-print">
           <div class="home-dashboard overview-dashboard">
             <div class="home-welcome"><div><h1 id="home-time-greeting">你好，轻松整理今天的工作</h1><p>今天可以从新建单证或最近文件继续工作。</p></div><button class="primary" data-view-target="create">＋ 新建单证</button></div>
@@ -113,6 +114,7 @@
             <button class="settings-tab" data-settings-section="invitation-config" type="button">邀请函设置</button>
             <button class="settings-tab" data-settings-section="agency-config" type="button">授权书设置</button>
             <button class="settings-tab" data-settings-section="customer-config" type="button">客户管理配置</button>
+            <button class="settings-tab" data-settings-section="translation" type="button">语言模板</button>
             <button class="settings-tab" data-settings-section="software-update" type="button">软件更新</button>
             <button class="settings-tab" data-settings-section="data" type="button">管理后台</button>
           </div>
@@ -125,6 +127,7 @@
           <div data-settings-panel="invitation-config" id="settings-invitation-config-host"></div>
           <div data-settings-panel="agency-config" id="settings-agency-config-host"></div>
           <div data-settings-panel="customer-config" id="settings-customer-config-host"></div>
+          <div data-settings-panel="translation" id="settings-translation-host"></div>
           <div data-settings-panel="software-update" id="settings-software-update-host"></div>
           <div class="panel settings-management-link" data-settings-panel="data">
             <h3>管理后台</h3><p>管理本机数据库、备份恢复、应用锁和操作记录。</p>
@@ -350,11 +353,7 @@
                 <label><span>报价日期</span><input id="quote-date" type="date" /></label>
                 <label><span>报价有效期</span><input id="valid-until" type="date" /></label>
 
-                <label><span>主报价币种</span><select id="quote-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
-                <label><span>价格显示方式</span><select id="quote-currency-display"><option value="single">仅显示主币种</option><option value="dual">同时显示第二币种</option></select></label>
-                <label><span>第二显示币种</span><select id="quote-secondary-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
-                <label><span>换算汇率</span><input id="quote-fx-rate" type="number" min="0" step="0.000001" placeholder="1 主币种 = ? 第二币种"></label>
-                <p class="wide hint" id="quote-fx-hint">汇率会随单据保存为快照，历史报价不会因以后汇率变化而改变。</p>
+                <label><span>货币</span><select id="quote-currency"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option></select></label>
                 <label><span>客户国家</span><input id="buyer-country" list="country-options" placeholder="Tanzania / 坦桑尼亚" /><datalist id="country-options"></datalist></label>
                 <label><span>客户公司</span><input id="buyer-company" /></label>
                 <label><span>负责人姓名</span><input id="buyer-contact" /></label>
@@ -533,7 +532,6 @@
           <header class="page-head">
             <h2>历史记录</h2>
           </header>
-          <div class="history-kind-tabs"><button class="active" data-history-kind="quotes">历史报价</button><button data-history-kind="agency">历史授权与佣金</button><button data-history-kind="invitations">历史邀请函</button></div>
           <div id="history-quotes-panel">
           <div class="panel">
             <div class="filter-grid">
@@ -541,7 +539,7 @@
               <input id="history-date" type="date" />
               <button id="history-search-btn" type="button">搜索筛选</button>
               <select id="history-status"><option value="active">有效报价（草稿及正式）</option><option value="void">已作废</option><option value="deleted">回收站</option><option value="all">全部</option></select>
-              <select id="history-document-type" aria-label="单证类型"><option value="">全部单证</option><option value="quotation">报价单</option><option value="invoice">形式发票</option><option value="contract">销售合同</option><option value="commercial">商业发票</option><option value="packing">装箱单</option></select>
+              <select id="history-document-type" aria-label="单证类型"><option value="">全部单证</option><option value="quotation">报价单</option><option value="invoice">形式发票</option><option value="contract">销售合同</option><option value="commercial">商业发票</option><option value="packing">装箱单</option><option value="authorization">代理授权书</option><option value="agreement">佣金协议</option><option value="statement">佣金结算单</option><option value="procurement">委托采购</option><option value="invitation">商务邀请函</option></select>
             </div>
             <div class="history-actions"><label><input type="checkbox" id="history-select-all"> 全选当前结果</label><span id="history-selected-count">已选0份</span><button id="history-bulk-delete" class="danger" type="button" disabled>删除所选（移入回收站）</button></div>
           </div>
@@ -639,9 +637,14 @@
     <script src="./assets/item-types.js?v=20261030"></script>
     <script src="./assets/business-overview.js?v=20261030"></script>
     <script src="./assets/option-catalog.js"></script>
+    <script src="./assets/document-locales.js"></script>
+    <script src="./assets/document-template-copy.js"></script>
     <script src="./assets/document-presentation.js"></script>
     <script src="./app.js?v=20261012-document-layouts"></script>
-    <script src="./assets/app-lock.js?v=20261023"></script>
+    <link rel="stylesheet" href="./assets/next-upgrade.css">
+    <script src="./assets/translation-workspace.js"></script>
+    <script src="./assets/publisher-workspace.js"></script>
+    <script src="./assets/app-lock.js?v=20261101"></script>
     <link rel="stylesheet" href="./assets/customer-workspace.css">
     <link rel="stylesheet" href="./assets/approved-workspace.css">
     <script src="./assets/customer-workspace.js"></script>

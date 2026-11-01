@@ -8,14 +8,18 @@
   function typography(value={}){const result={};for(const region of regions){const source=value[region]||{};result[region]={};if(region==='product')Object.assign(result[region],{fontWeight:700,color:'#172033',fontSize:12,lineHeight:1.5});for(const key of ['fontFamily','fontSize','fontWeight','color','lineHeight','letterSpacing']){const v=source[key];if(key==='color'&&/^#[0-9a-f]{6}$/i.test(v))result[region][key]=v;else if(key==='fontFamily'&&typeof v==='string'&&/^[\w\s,'"\u3400-\u9fff-]{1,100}$/.test(v))result[region][key]=v;else if(['fontSize','fontWeight','lineHeight','letterSpacing'].includes(key)&&Number.isFinite(Number(v))){const limits={fontSize:[8,32],fontWeight:[100,900],lineHeight:[1,2.5],letterSpacing:[0,5]}[key];result[region][key]=Math.max(limits[0],Math.min(limits[1],Number(v)));}}}return result;}
   function contrast(hex){const n=hex.slice(1).match(/../g).map(x=>parseInt(x,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return n[0]*.2126+n[1]*.7152+n[2]*.0722>.179?'#111111':'#ffffff';}
   function apply(host,doc){if(!host)return;const color=/^#[0-9a-f]{6}$/i.test(doc.tableHeaderColor||'')?doc.tableHeaderColor:'';host.classList.toggle('custom-table-header',!!color);host.style.setProperty('--document-table-color',color||'inherit');host.style.setProperty('--document-header-text',color?contrast(color):'#ffffff');host.style.setProperty('--document-heading-color',color&&contrast(color)==='#ffffff'?color:'#172033');host.style.setProperty('--trade-ink',color?(contrast(color)==='#ffffff'?color:'#172033'):'var(--doc-accent,var(--primary))');
+    globalThis.DocumentLocales?.apply(host,doc.pdfLanguage||doc.language||'bilingual');
     const selectors={title:'.document-heading h1,.preview-title h2,.invitation-title,.agency-sheet h1',tableHeader:'thead th',product:'tbody .preview-col-description,tbody .preview-col-productType,tbody .preview-col-brand,tbody .preview-col-model',body:'.preview-fields,.document-parties,.document-shipment',notes:'.terms-content,.shipping-notes,.contract-clause',footer:'.document-footer'};
+    selectors.body+=',.invitation-content,.invitation-body,.agency-sheet p,.agency-sheet td';
     const config=typography(doc.documentTypography);for(const [region,selector] of Object.entries(selectors))host.querySelectorAll(selector).forEach(node=>{for(const key of ['fontFamily','fontSize','fontWeight','color','lineHeight','letterSpacing']){const v=config[region][key];if(v!=null)node.style.setProperty(key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),typeof v==='number'&&['fontSize','letterSpacing'].includes(key)?v+'px':String(v),'important');}});
   }
-  function terms(language){return language==='en'?paymentShipping.en:language==='zh'?paymentShipping.zh:paymentShipping.en+'\n'+paymentShipping.zh;}
+  const copy=typeof module==='object'&&module.exports?require('./document-template-copy.js'):globalThis.DocumentTemplateCopy;
+  function terms(language){if(copy?.get(language,'payment'))return copy.get(language,'payment');return language==='en'?paymentShipping.en:language==='zh'?paymentShipping.zh:language==='zh-fr'||language==='zh-es'?copy.get(language.slice(3),'payment')+'\n'+paymentShipping.zh:paymentShipping.en+'\n'+paymentShipping.zh;}
   function localizeTerms(value,language){
-    const source=String(value||''),{en,zh}=paymentShipping;
-    if(source.includes(en)&&source.includes(zh))return source.replace(en,language==='zh'?'':en).replace(zh,language==='en'?'':zh).trim();
-    return source.replace(source.includes(en)?en:zh,terms(language));
+    let source=String(value||''),replaced=false;const marker='\uE000FTA_PAYMENT_TEMPLATE\uE001';
+    const known=[...Object.values(paymentShipping),...Object.values(copy?.packs||{}).map(p=>p.payment).filter(Boolean)];
+    for(const text of known)if(source.includes(text)){source=source.replace(text,replaced?'':marker);replaced=true;}
+    return source.replace(marker,terms(language)).trim();
   }
   return {paymentShipping,typography,contrast,apply,terms,localizeTerms};
 });

@@ -646,6 +646,8 @@
   }
 
   function labelText(en, zh, mode = displayMode()) {
+    const bundled=DocumentLocales.label(en,mode);if(bundled)return bundled;
+    if(DocumentLocales.extra.includes(mode))return en||zh||'';
     if (mode === "en") return en;
     if (mode === "zh") return zh;
     if (mode === "es") return quoteEs(en, zh);
@@ -656,6 +658,8 @@
   }
 
   function labelHtml(en, zh, mode = displayMode()) {
+    const bundled=DocumentLocales.label(en,mode);if(bundled)return escapeHtml(bundled);
+    if(DocumentLocales.extra.includes(mode))return escapeHtml(en||zh||'');
     if (mode === "en") return escapeHtml(en);
     if (mode === "zh") return escapeHtml(zh);
     if (mode === "es") return escapeHtml(quoteEs(en, zh));
@@ -667,6 +671,7 @@
 
   function localizedText(en, zh, separator = " | ") {
     const mode = displayMode();
+    if(DocumentLocales.extra.includes(mode))return DocumentLocales.label(en,mode)||en||zh||'';
     if (mode === "en") return en || "";
     if (mode === "zh") return zh || "";
     if (mode === "es") return en ? quoteEs(en) : "";
@@ -823,6 +828,7 @@
     if (!value) return "";
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return String(value);
+    if (mode === 'es' || DocumentLocales.extra.includes(mode)) return d.toLocaleDateString(mode, { year: 'numeric', month: 'long', day: 'numeric' });
     const en = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     const zh = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
     const es = d.toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
@@ -935,6 +941,10 @@
   ];
 
   function paymentLabel(value, mode = displayMode()) {
+    if(DocumentLocales.extra.includes(mode)){
+      const ratio=String(value||'').match(/^(30\/70|40\/60|50\/50|100%)$/)?.[1];
+      if(ratio){const [deposit,balance]=ratio==='100%'?[100,0]:ratio.split('/').map(Number);return balance?`${deposit}% ${DocumentLocales.label('Deposit',mode)}; ${balance}% ${DocumentLocales.label('Balance before shipment',mode)}`:`100% ${DocumentLocales.label('Payment before shipment',mode)}`;}
+    }
     const labels = {
       "30/70": {
         en: "30/70 - 30% deposit, 70% before shipment",
@@ -1084,6 +1094,7 @@
   };
 
   function invitationLanguages(mode) {
+    if(DocumentLocales.extra.includes(mode))return [mode];
     if(mode==='fr')return ['fr'];
     if(mode==='zh-fr')return ['fr','zh'];
     if (mode === "en") return ["en"];
@@ -1094,11 +1105,12 @@
   }
 
   function invitationText(key, mode, custom = {}) {
+    if(key==='closing'&&DocumentTemplateCopy.get(mode,'closing'))return DocumentTemplateCopy.get(mode,'closing');
     const french={titleFallback:'Lettre d’invitation professionnelle',toPrefix:'À',date:'Date',details:'Informations sur le visiteur',name:'Nom complet',company:'Société',country:'Nationalité',gender:'Sexe',birthDate:'Date de naissance',passport:'N° de passeport',arrivalDate:'Date d’arrivée',departureDate:'Date de départ',visitPlace:'Lieu de visite',visaType:'Type de visa',relationship:'Relation commerciale',expenseSource:'Prise en charge des frais',reason:'Objet de la visite',notes:'Informations complémentaires',responsibility:'Prise en charge des frais',inviter:'Signataire',signature:'Signature autorisée',closing:'Nous vous remercions de bien vouloir examiner sa demande de visa pour cette visite professionnelle.'};
     invitationLangPack.fr=french;
     return invitationLanguages(mode).map((lang) => {
       if (custom[lang]) return custom[lang];
-      return invitationLangPack[lang]?.[key] || "";
+      return DocumentLocales.label(invitationLangPack.en[key],lang)||invitationLangPack[lang]?.[key] || "";
     }).filter(Boolean).join(" / ");
   }
 
@@ -1201,6 +1213,7 @@
     return {
       id: field.id || `field-${fieldKeyOf(field)}`,
       parentId: field.parentId || "",
+      icon: field.icon || "",
       zh,
       en,
       fieldKey: fieldKeyOf(field),
@@ -1630,11 +1643,26 @@
   function syncTopDocumentTools(view){
     let tools=$('document-top-tools');
     if(!tools){tools=document.createElement('div');tools.id='document-top-tools';tools.className='document-top-tools';document.querySelector('.desktop-topbar').append(tools);}
-    const groups={quote:['pdf-language','document-table-color','document-product-style','document-product-color'],invitation:['invitation-language','invitation-color'],agency:['agency-language','agency-color']};
+    const groups={quote:['pdf-language','document-table-color','document-product-style','document-product-color'],invitation:['invitation-language','invitation-color','invitation-text-style'],agency:['agency-language','agency-color','agency-text-style']};
+    for(const kind of ['invitation','agency'])if(!$(kind+'-text-style')){
+      const label=document.createElement('label');label.className='document-top-control';label.innerHTML=`<span>文字样式</span><select id="${kind}-text-style"><option value="regular">常规</option><option value="bold">加粗</option></select><input type="color" id="${kind}-text-color" value="#172033" aria-label="字体颜色">`;
+      tools.append(label);
+      const apply=()=>{const doc=kind==='invitation'?currentInvitation:currentAgentAuthorization;if(!doc)return;doc.documentTypography=DocumentPresentation.typography(doc.documentTypography);for(const region of ['body','notes'])Object.assign(doc.documentTypography[region],{fontWeight:$(kind+'-text-style').value==='bold'?700:400,color:$(kind+'-text-color').value});(kind==='invitation'?renderInvitationPreview:renderAgentAuthorizationPreview)();scheduleDraftRecovery();};
+      label.querySelector('select').addEventListener('change',apply);label.querySelector('input').addEventListener('input',apply);
+    }
     for(const [name,ids] of Object.entries(groups)){
       let group=tools.querySelector(`[data-tools-view="${name}"]`);
       if(!group){group=document.createElement('div');group.dataset.toolsView=name;group.className='document-tools-group';tools.append(group);ids.forEach(id=>{const input=$(id),label=input?.closest('label');if(label){label.classList.add('document-top-control');group.append(label);}});}
       group.hidden=view!==name;
+      const language=$(ids[0]);if(language){language.closest('label').hidden=false;language.closest('label').querySelector('span').textContent='语言';}
+      const color=$(ids[1]),label=color?.closest('label');if(label){const text=[...label.childNodes].find(n=>n.nodeType===3&&n.textContent.trim());if(text)text.textContent='颜色';}
+      if(name==='quote'&&!group.querySelector('.document-text-options')){
+        const style=$('document-product-style').closest('label'),color=$('document-product-color').closest('label');
+        style.firstChild.textContent='样式';color.firstChild.textContent='字体颜色';
+        const popup=document.createElement('details');popup.className='document-text-options';popup.innerHTML='<summary>文字样式</summary><div></div>';popup.querySelector('div').append(style,color);group.append(popup);
+      }else if(name!=='quote'&&!group.querySelector('.document-text-options')){
+        const style=$(name+'-text-style').closest('label'),popup=document.createElement('details');popup.className='document-text-options';popup.innerHTML='<summary>文字样式</summary><div></div>';popup.querySelector('div').append(style);group.append(popup);
+      }
     }
     document.querySelector('.document-appearance-toolbar')?.setAttribute('hidden','');
     tools.hidden=!Object.hasOwn(groups,view);
@@ -1663,10 +1691,16 @@
     updateDesktopTopbar(name);
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
-    if (name === "history") { renderHistory(); renderInvitationHistory(); loadAgentAuthorizations(); }
+    if (name === "history") { renderHistory(); }
     if (name === "home") renderHomeDashboard();
     if (name === "products") { renderProducts(); window.dispatchEvent(new Event("product-library-opened")); }
-    if (name === "settings") renderSettings();
+    if (name === "settings") { renderSettings(); window.TranslationWorkspace?.mount(); }
+    if (name === "crm") {
+      const frame=$('crm-workspace-frame');
+      $('desktop-page-title').textContent='CRM管理';
+      if(!frame.getAttribute('src'))frame.src=frame.dataset.src;
+      else frame.contentWindow?.postMessage({type:'fta-crm-refresh'},location.origin);
+    }
     if (name === "users") {
       ensureUserManagerPanel();
       renderUsers();
@@ -3128,7 +3162,7 @@
     return (blank?'<option value="">请选择</option>':'')+values.map(value=>{const row=rows.find(r=>r.value===value);return `<option value="${escapeHtml(value)}" ${value===selected?'selected':''}>${escapeHtml(row?labelText(row.labelEn,row.labelZh):value+'（历史值）')}</option>`;}).join('');
   }
   function syncCatalogSelectors(){
-    const map={currencies:['quote-currency','quote-secondary-currency','product-currency','agency-currency','calc-currency','logistics-currency','freight-currency'],shippingMethods:['product-transport-method','calc-method','freight-method'],containerTypes:['calc-container-type','freight-container-type'],dimensionUnits:['product-dimension-unit'],rateUnits:['freight-unit']};
+    const map={currencies:['quote-currency','product-currency','agency-currency','calc-currency','logistics-currency','freight-currency'],shippingMethods:['product-transport-method','calc-method','freight-method'],containerTypes:['calc-container-type','freight-container-type'],dimensionUnits:['product-dimension-unit'],rateUnits:['freight-unit']};
     for(const [key,ids] of Object.entries(map))for(const id of ids){const select=$(id);if(select)select.innerHTML=catalogOptions(key,select.value);}
     const lengthSelect=document.querySelector('#global-freight-calculator [data-value=lengthUnit]');if(lengthSelect){const selected=lengthSelect.value==='m'?'meter':lengthSelect.value;lengthSelect.innerHTML=catalogOptions('dimensionUnits',selected);for(const option of lengthSelect.options)if(option.value==='meter')option.value='m';}
     for(const [id,key] of [['agency-network-options','cryptoNetworks'],['logistics-fee-name-options','freightFeeNames'],['quote-condition-options','equipmentConditions']])if($(id))$(id).innerHTML=OptionCatalog.active(settings,key).map(r=>`<option value="${escapeHtml(r.value)}">${escapeHtml(r.labelZh)}</option>`).join('');
@@ -4642,7 +4676,7 @@
       en: settings.invitationTitleEn || invitationLangPack.en.titleFallback,
       zh: settings.invitationTitleZh || invitationLangPack.zh.titleFallback
     };
-    return invitationLanguages(mode).map((lang) => custom[lang] || invitationLangPack[lang]?.titleFallback).filter(Boolean).join(" / ");
+    return invitationLanguages(mode).map((lang) => custom[lang] || DocumentLocales.label('Invitation Letter',lang)||invitationLangPack[lang]?.titleFallback).filter(Boolean).join(" / ");
   }
 
   function invitationField(labelKey, value, mode) {
@@ -4658,7 +4692,7 @@
     const zh = parts.find(hasZh) || "";
     const nonZh = parts.find((part) => !hasZh(part)) || parts[0] || "";
     if (mode === "zh") return zh || nonZh;
-    if (mode === "en" || mode === "es" || mode === "fr") return raw.split(/\s+\/\s+/).filter(part=>!hasZh(part)).join(' / ') || raw;
+    if (mode === "en" || mode === "es" || mode === "fr" || DocumentLocales.extra.includes(mode)) return raw.split(/\s+\/\s+/).filter(part=>!hasZh(part)).join(' / ') || raw;
     if (mode === "zh-es") return [nonZh, zh].filter(Boolean).join(" / ");
     if (mode === "zh-fr") return [nonZh, zh].filter(Boolean).join(" / ");
     return [nonZh, zh].filter(Boolean).join(" / ");
@@ -4672,6 +4706,7 @@
     const arrival = formatInvitationDate(currentInvitation.arrivalDate, mode) || "-";
     const departure = formatInvitationDate(currentInvitation.departureDate, mode) || "-";
     const visitPlace = currentInvitation.visitPlace || settings.companyAddressEn || "our factory in China";
+    const bundled=DocumentTemplateCopy.get(mode,'invite',{name,country,company,place:visitPlace,arrival,departure});if(bundled)return bundled;
     const text = {
       en: `Due to our business cooperation and order discussion, we hereby invite ${name} from ${country}, representing ${company}, to visit ${visitPlace} for business inspection, factory visit, machinery inspection and purchase discussion. The planned entry date is ${arrival}, and the planned departure date is ${departure}.`,
       zh: `我司现邀请来自${countryZh}的客户${name}${currentInvitation.visitorCompany?`（${company}）`:''}来华访问${visitPlace}，进行商务考察、设备验机及采购合作洽谈。计划入境日期为${currentInvitation.arrivalDate}，计划离境日期为${currentInvitation.departureDate}。`,
@@ -4682,6 +4717,7 @@
   }
 
   function invitationResponsibilityParagraph(mode) {
+    const bundled=DocumentTemplateCopy.get(mode,'responsibility');if(bundled)return bundled;
     if(mode==='fr'||mode==='zh-fr')return currentInvitation.expenseSource||'';
     const text = {
       en: "During the visit in China, all expenses including but not limited to international and domestic transportation, accommodation, meals, insurance, medical costs and personal expenses shall be borne by the visitor/customer. Any fines, losses, penalties or legal responsibilities caused by overstaying, delayed departure, violation of local laws or personal conduct shall be borne solely by the visitor/customer. Our company does not bear any such costs or liabilities.",
@@ -4804,6 +4840,7 @@
       fr:{payment:"Compte bancaire en USD ou USDT",settlement:"Dans un délai de 3 jours ouvrables",commission:"La commission est calculée uniquement sur les paiements clients effectivement et irrévocablement reçus par le mandant. Le fret, l’assurance, les taxes, remboursements, frais bancaires et éléments convenus séparément sont exclus. Le taux final de chaque commande doit être confirmé par écrit avant sa conclusion. Le paiement intervient dans le délai convenu après réception de toutes les sommes exigibles, en l’absence de litige et après fourniture de coordonnées de paiement conformes.",extra:"Cette autorisation d’agence commerciale est non exclusive et incessible. Le mandant peut en modifier la portée ou y mettre fin par notification écrite. Le représentant ne peut ouvrir de compte, emprunter, fournir de garantie ni prendre d’engagement dépassant la présente autorisation au nom du mandant."}
     };
     const pair=(foreign)=>({payment:`${copy[foreign].payment} / ${copy.zh.payment}`,settlement:`${copy[foreign].settlement} / ${copy.zh.settlement}`,commission:`${copy[foreign].commission}\n\n${copy.zh.commission}`,extra:`${copy[foreign].extra}\n\n${copy.zh.extra}`});
+    if(DocumentLocales.extra.includes(mode))return {...copy.en,extra:DocumentTemplateCopy.get(mode,'extra')};
     return mode==="bilingual"?pair("en"):mode==="zh-es"?pair("es"):mode==="zh-fr"?pair("fr"):(copy[mode]||copy.zh);
   }
 
@@ -4973,12 +5010,15 @@
 
   function agencyText(en, zh, es=en, fr=en) {
     const mode = currentAgentAuthorization?.language || "bilingual";
+    const fixed=DocumentTemplateCopy.authorizationText(en,mode,currentAgentAuthorization);if(fixed)return fixed;
+    const bundled=DocumentLocales.label(en,mode);if(bundled)return bundled;
+    if(DocumentLocales.extra.includes(mode))return en;
     return mode === "en" ? en : mode === "es" ? es : mode === "fr" ? fr : mode === "zh" ? zh : mode === "zh-es" ? `${es} / ${zh}` : mode === "zh-fr" ? `${fr} / ${zh}` : `${en} / ${zh}`;
   }
 
   function applyAgencyLanguageDefaults(){
     const mode=$("agency-language")?.value||"bilingual",next=agencyDefaultCopy(mode);
-    const all=["bilingual","zh-es","zh-fr","zh","en","es","fr"].map(agencyDefaultCopy);
+    const all=["bilingual","zh-es","zh-fr","zh","en","es","fr",...DocumentLocales.extra].map(agencyDefaultCopy);
     [["agency-payment-methods","payment"],["agency-settlement-days","settlement"],["agency-commission-terms","commission"],["agency-extra-terms","extra"]].forEach(([id,key])=>{const input=$(id);if(!input)return;const current=input.value.trim();if(!current||all.some(item=>item[key]===current))input.value=next[key];});
     renderAgentAuthorizationPreview();
   }
@@ -5184,12 +5224,8 @@
     $("valid-until").value = currentQuote.validUntil || addDays(7);
     $("pdf-language").value = currentQuote.pdfLanguage || "bilingual";
     const quoteCurrencies=[...new Set([...(settings.currencies||[]),currentQuote.currency,currentQuote.secondaryCurrency].filter(Boolean).map(value=>String(value).toUpperCase()))];
-    ["quote-currency","quote-secondary-currency"].forEach(id=>{if($(id))$(id).innerHTML=quoteCurrencies.map(currency=>`<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`).join("");});
+    ["quote-currency"].forEach(id=>{if($(id))$(id).innerHTML=quoteCurrencies.map(currency=>`<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`).join("");});
     if ($("quote-currency")) $("quote-currency").value = currentQuote.currency || settings.currency || "USD";
-    if($("quote-currency-display"))$("quote-currency-display").value=currentQuote.currencyDisplay||"single";
-    if($("quote-secondary-currency"))$("quote-secondary-currency").value=currentQuote.secondaryCurrency||quoteCurrencies.find(currency=>currency!==currentQuote.currency)||"USD";
-    if($("quote-fx-rate"))$("quote-fx-rate").value=currentQuote.exchangeRate?.rate||"";
-    syncDualCurrencyControls();
     $("buyer-country").value = currentQuote.buyer.country || "";
     $("buyer-company").value = currentQuote.buyer.company || "";
     $("buyer-contact").value = currentQuote.buyer.contact || "";
@@ -5228,9 +5264,8 @@
     currentQuote.showProductPhotos = $("quote-show-product-images")?.checked !== false;
     currentQuote.pdfLanguage = $("pdf-language").value || "bilingual";
     currentQuote.currency = $("quote-currency")?.value || settings.currency || "USD";
-    currentQuote.currencyDisplay=$("quote-currency-display")?.value||"single";
-    currentQuote.secondaryCurrency=$("quote-secondary-currency")?.value||"USD";
-    currentQuote.exchangeRate={sourceCurrency:currentQuote.currency,targetCurrency:currentQuote.secondaryCurrency,rate:Number($("quote-fx-rate")?.value||0),capturedAt:new Date().toISOString()};
+    // Legacy documents keep their saved dual-currency snapshot; new documents are single-currency.
+    currentQuote.currencyDisplay ||= 'single';
     currentQuote.customerId = null;
     currentQuote.buyer = {
       country: $("buyer-country").value,
@@ -5283,14 +5318,6 @@
     currentQuote.updatedAt = new Date().toISOString();
   }
 
-  function syncDualCurrencyControls() {
-    const main=$("quote-currency")?.value||settings.currency||"USD",display=$("quote-currency-display")?.value||"single",secondary=$("quote-secondary-currency"),rate=$("quote-fx-rate"),hint=$("quote-fx-hint");
-    const dual=display==="dual";
-    if(dual&&secondary&&secondary.value===main){const alternative=[...(settings.currencies||[]),"USD","CNY","EUR","GBP"].map(value=>String(value).toUpperCase()).find(value=>value!==main);if(alternative){if(![...secondary.options].some(option=>option.value===alternative))secondary.add(new Option(alternative,alternative));secondary.value=alternative;}}
-    if(secondary)secondary.disabled=!dual;
-    if(rate)rate.disabled=!dual;
-    if(hint)hint.textContent=dual?`请输入明确汇率：1 ${main} = ? ${secondary?.value||"第二币种"}。单价、金额和总计会同时显示两种货币；该汇率随单据保存。`:'当前仅显示主报价币种。选择“同时显示第二币种”后填写汇率。';
-  }
 
   function itemKindLabel(kind) {
     const map = {
@@ -5850,6 +5877,7 @@
     const entry = Object.values(types).find(labels => labels.includes(raw)) || types[item.kind || "product"];
     if (!entry) return raw || "";
     const [zh, en, fr, es] = entry;
+    if(DocumentLocales.extra.includes(mode))return DocumentLocales.label(en,mode)||en;
     return ({zh, en, fr, es, bilingual: `${en} / ${zh}`, "zh-en": `${en} / ${zh}`, "zh-fr": `${fr} / ${zh}`, "zh-es": `${es} / ${zh}`})[mode] || `${en} / ${zh}`;
   }
 
@@ -5918,7 +5946,7 @@
     const translation=documentTranslatedValue('term:'+field.fieldKey);
     if(translation) return translation;
     const value = currentQuote.terms[field.fieldKey] || "";
-    if(field.fieldKey==='notes'&&Object.values(DocumentPresentation.paymentShipping).some(text=>value.includes(text)))return DocumentPresentation.localizeTerms(value,displayMode());
+    if(field.fieldKey==='notes'&&[...Object.values(DocumentPresentation.paymentShipping),...Object.values(DocumentTemplateCopy.packs).map(p=>p.payment).filter(Boolean)].some(text=>value.includes(text)))return DocumentPresentation.localizeTerms(value,displayMode());
     if (["notes", "warranty", "afterSales"].includes(field.fieldKey) && ["bilingual", "zh-fr", "zh-es"].includes(displayMode())) return value;
     if (field.fieldKey === "payment") {
       if (["bilingual", "zh-fr", "zh-es"].includes(displayMode()) && String(value).includes(' / ')) return value;
@@ -5959,7 +5987,7 @@
 
   function customerPreviewFields(buyer = {}) {
     normalizeCustomerQuoteFields();
-    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <span>${escapeHtml(buyer[field.fieldKey] ?? "")}</span></p>`).join("");
+    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <bdi>${escapeHtml(buyer[field.fieldKey] ?? "")}</bdi></p>`).join("");
   }
 
   function applyCustomerQuoteFieldLabels() {
@@ -5983,9 +6011,9 @@
   }
 
   function syncConfiguredLanguageOptions(input,field) {
-    if(!input||!field.options?.length)return;
-    const selected=input.value,supported=new Set(['bilingual','en','zh','es','zh-es','fr','zh-fr']);
-    const options=OptionCatalog.fieldOptions(field,selected).filter(o=>supported.has(String(o.value)));
+    if(!input)return;
+    const selected=input.value,supported=DocumentLocales.supported;
+    const options=OptionCatalog.fieldOptions({...field,options:DocumentLocales.mergeOptions(field.options||[])},selected).filter(o=>supported.has(String(o.value)));
     input.replaceChildren(...options.map(o=>new Option([o.labelZh,o.labelEn].filter(Boolean).join(' / ')||o.value,o.value)));
     input.value=selected;
     if(!input.value&&options.length)input.value=options[0].value;
@@ -5996,12 +6024,12 @@
     if(!grid)return;
     grid.querySelectorAll('[data-custom-basic-label]').forEach(label=>label.remove());
     const ids={quoteNumber:"quote-number",quoteDate:"quote-date",validUntil:"valid-until",pdfLanguage:"pdf-language"};
-    Object.values(ids).forEach((id)=>{const label=$(id)?.closest('label');if(label)label.hidden=true;});
+    Object.values(ids).forEach((id)=>{const label=$(id)?.closest('label');if(label)label.hidden=id!=='pdf-language';});
     configuredBlockFields("basic",[]).forEach(field=>{
       if(ids[field.fieldKey]){
         const input=$(ids[field.fieldKey]),label=input?.closest('label');
         if(field.fieldKey==='pdfLanguage')syncConfiguredLanguageOptions(input,field);
-        if(label){label.hidden=false;const caption=label.querySelector('span');if(caption)caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;if(ids[field.fieldKey]!=='pdf-language')grid.appendChild(label);}
+        if(label){label.hidden=false;const caption=label.querySelector('span');if(caption)caption.textContent=field.fieldKey==='pdfLanguage'?'语言':`${field.zh} / ${field.en}${field.required?' *':''}`;if(ids[field.fieldKey]!=='pdf-language')grid.appendChild(label);}
         return;
       }
       const label=document.createElement('label');label.dataset.customBasicLabel='true';
@@ -6174,6 +6202,7 @@
     preview.classList.toggle('custom-table-header',!!tableColor);preview.style.setProperty('--document-table-color',tableColor||'inherit');
     if($('document-table-color'))$('document-table-color').value=tableColor||'#285fc1';
     DocumentPresentation.apply(preview,currentQuote);
+    DocumentLocales.apply(preview,mode);
     const productType=DocumentPresentation.typography(currentQuote.documentTypography).product;
     if($('document-product-style'))$('document-product-style').value=productType.fontWeight>=700?(productType.color==='#000000'?'bold-black':'bold'):'regular';
     if($('document-product-color'))$('document-product-color').value=productType.color;
@@ -6513,13 +6542,14 @@
     try {
       const normalParams=new URLSearchParams(); if(keyword)normalParams.set("q",keyword);if(date)normalParams.set("date",date);
       normalParams.set('status',filter);normalParams.set('page',historyPage);normalParams.set('pageSize','30');if(documentType)normalParams.set('type',documentType);
-      const normalResult=await api(`/api/history/quotations?${normalParams}`);
+      const summaries=invitations.map(r=>({id:r.id,number:r.invitationNumber||r.number||r.id,date:r.date||r.updatedAt?.slice(0,10)||'',sort:r.updatedAt||r.date,company:r.visitorCompany,contact:r.visitorName,country:r.country}));
+      const normalResult=await api(`/api/history/documents?${normalParams}`,{method:'POST',body:JSON.stringify({invitations:summaries})});
       if(request!==historyRequest)return;
       historyPage=normalResult.page;
       $('history-page-info').textContent=`共 ${normalResult.total} 份 · 第 ${historyPage} / ${normalResult.pages} 页`;
       $('history-page-prev').disabled=historyPage<=1;$('history-page-next').disabled=historyPage>=normalResult.pages;
       $('history-page-prev').onclick=()=>{historyPage--;renderHistory();};$('history-page-next').onclick=()=>{historyPage++;renderHistory();};
-      const normalRows=(normalResult.quotations||[]).map(q=>({type:"standard",sort:q.updated_at||q.quote_date,q}));
+      const normalRows=(normalResult.quotations||[]).map(q=>({type:q._source||"standard",sort:q.updated_at||q.quote_date,q}));
       const rows=normalRows.filter(({q})=>filter==='all'||(filter==='void'?q.status==='Void':filter==='deleted'?q.status==='Deleted':!['Void','Deleted'].includes(q.status))).sort((a,b)=>String(b.sort||"").localeCompare(String(a.sort||"")));
       $("unified-history-list").innerHTML=rows.map(({type,q})=>{
         const meta=q.settingsSnapshot?._quoteMeta||{}, machine=(q.items||[]).map(item=>`${item.productSnapshot?.machineCategory||""} ${item.productSnapshot?.brand||""} ${item.productSnapshot?.model||""} ${item.productSnapshot?.productName||""}`.trim()).filter(Boolean).join("；"),port=q.terms?.port||q.terms?.destinationPort||"",qty=(q.items||[]).reduce((sum,item)=>sum+Number(item.priceSnapshot?.quantity||item.priceSnapshot?.values?.qty||0),0);
@@ -6527,9 +6557,17 @@
       }).join("")||`<tr><td colspan="8" class="empty">没有找到历史报价。</td></tr>`;
       $('history-select-all').checked=false;
       const selected=()=>Array.from(document.querySelectorAll('.history-row-select:checked')).map(el=>({id:el.dataset.id,type:el.dataset.type}));
-      const updateSelection=()=>{const count=selected().length;$('history-selected-count').textContent=`已选${count}份`;$('history-bulk-delete').disabled=!count;$('history-select-all').checked=count>0&&count===rows.length;$('history-select-all').indeterminate=count>0&&count<rows.length;};
+      const updateSelection=()=>{const count=selected().length;$('history-selected-count').textContent=`已选${count}份`;$('history-bulk-delete').disabled=!count;$('history-select-all').checked=count>0&&count===document.querySelectorAll('.history-row-select').length;$('history-select-all').indeterminate=count>0&&count<document.querySelectorAll('.history-row-select').length;};
       Array.from($('unified-history-list').rows).forEach((tr,index)=>{
         const entry=rows[index];if(!entry)return;const {q,type}=entry;
+        if(type!=='standard'){
+          const names={authorization:'代理授权书',agreement:'佣金协议',statement:'佣金结算单',procurement:'委托采购',invitation:'商务邀请函'};
+          tr.cells[0].querySelector('small').textContent=names[q.settingsSnapshot?._quoteMeta?.documentType]||'代理文件';
+          tr.cells[1].querySelector('small').textContent=q.status==='Deleted'?'已删除':'已保存';tr.cells[4].textContent='—';tr.cells[5].textContent='—';tr.cells[6].textContent='—';
+          const actions=tr.querySelector('.history-actions');actions.replaceChildren();
+          const open=document.createElement('button');open.textContent='查看';open.onclick=async()=>{try{if(type==='invitation'){handleInvitationHistory({target:{closest:()=>({dataset:{invitationHistory:'open',id:q.id}})}});}else{const data=await api('/api/agent-authorizations/'+encodeURIComponent(q.id));agentAuthorizations=agentAuthorizations.filter(a=>a.id!==q.id).concat(data.authorization);handleAgentAuthorizationHistory({target:{closest:()=>({dataset:{agencyAction:'open',id:q.id}})}});}}catch(error){toast(error.message);}};actions.append(open);
+          if(q.status!=='Deleted'){const del=document.createElement('button');del.textContent='删除';del.onclick=async()=>{try{if(type==='invitation')handleInvitationHistory({target:{closest:()=>({dataset:{invitationHistory:'delete',id:q.id}})}});else await handleAgentAuthorizationHistory({target:{closest:()=>({dataset:{agencyAction:'delete',id:q.id}})}});await renderHistory();}catch(error){toast(error.message);}};actions.append(del);}return;
+        }
         const names={quotation:'报价单',invoice:'形式发票',contract:'销售合同',commercial:'商业发票',packing:'装箱单'};
         tr.cells[0].querySelector('small').textContent=names[q.settingsSnapshot?._quoteMeta?.documentType]||'报价单';
         const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.className='history-row-select';checkbox.dataset.id=q.id;checkbox.dataset.type=type;checkbox.setAttribute('aria-label',`选择报价 ${q.quote_number||q.quoteNumber}`);checkbox.onchange=updateSelection;tr.cells[0].prepend(checkbox);
@@ -6769,8 +6807,7 @@
     $("buyer-country").addEventListener("blur", applyBuyerCountryDialCode);
     $("buyer-phone").addEventListener("paste", pastePlainTextIntoInput);
     $("quote-template").addEventListener("change", () => { collectQuoteFromForm(); applyDocumentBasicFields(); applyCustomerQuoteFieldLabels(); renderQuoteTerms(); renderQuoteItems(); renderPreview(); });
-    ["quote-currency","quote-currency-display","quote-secondary-currency"].forEach(id=>$(id)?.addEventListener("change",()=>{syncDualCurrencyControls();collectQuoteFromForm();renderQuoteItems();renderPreview();}));
-    $("quote-fx-rate")?.addEventListener("input",()=>{collectQuoteFromForm();renderQuoteItems();renderPreview();});
+    $("quote-currency")?.addEventListener("change",()=>{collectQuoteFromForm();renderQuoteItems();renderPreview();});
     $("quote-show-product-images")?.addEventListener("change", renderPreview);
     $("quote-items").addEventListener("input", (event) => {
       const row=event.target.closest(".quote-line");
@@ -7409,10 +7446,15 @@
   };
   ["crm-module-btn", "crm-entry-btn"].forEach((id) => {
     const button = $(id);
-    if (button) button.addEventListener("click", () => {
+    if (button && !button.dataset.view) button.addEventListener("click", () => {
       if (!currentUser) return switchView("login");
-      window.location.href = "/crm";
+      switchView('crm');
     });
+  });
+
+  window.addEventListener('message',event=>{
+    const frame=$('crm-workspace-frame');
+    if(event.origin===location.origin&&event.source===frame?.contentWindow&&event.data?.type==='fta-crm-activity')window.AppLock?.activity();
   });
 
   window.freightContext = { get settings(){return settings;}, get ports(){return ports;}, get rates(){return freightRates;}, get routes(){return countryRoutes;}, get products(){return products;}, get quotes(){return quotes;}, api, isAdmin, toast, portRegion, portOptionLabel, setPortInputValue, openSettingsSection, loadServerData, renderPreview, collectQuoteFromForm,

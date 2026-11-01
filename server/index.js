@@ -701,6 +701,12 @@ app.get("/api/agent-authorizations", requireLogin, (req, res) => {
   ok(res, { authorizations: rows.map((row) => ({ ...JSON.parse(row.data_json || "{}"), id: row.id, authorizationNumber: row.authorization_number, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at })) });
 });
 
+app.get('/api/agent-authorizations/:id',requireLogin,(req,res)=>{
+  const row=db.prepare('SELECT * FROM agent_authorizations WHERE id=?').get(req.params.id);
+  if(!row)return fail(res,404,'Not found.','未找到代理文件。');
+  ok(res,{authorization:{...JSON.parse(row.data_json||'{}'),id:row.id,authorizationNumber:row.authorization_number,status:row.status,createdAt:row.created_at,updatedAt:row.updated_at}});
+});
+
 app.post("/api/agent-authorizations", requireLogin, (req, res) => {
   const data = req.body || {};
   const agencyDocuments = require('../assets/agency-documents');
@@ -730,6 +736,7 @@ app.get("/api/settings", requireLogin, (req, res) => {
   const row = db.prepare("SELECT data_json FROM company_settings WHERE id=1").get();
   ok(res, { settings: JSON.parse(row.data_json) });
 });
+
 
 app.put("/api/settings", requireLogin, requireAdmin, (req, res) => {
   try {
@@ -808,6 +815,7 @@ app.post("/api/quotations", requireLogin, (req, res) => {
 app.get('/api/history/quotations', requireLogin, (req,res) => {
   ok(res, require('./quotation-history')(db,req.query));
 });
+app.post('/api/history/documents',requireLogin,(req,res)=>{try{ok(res,require('./document-history')(db,req.query,req.body?.invitations||[]));}catch(error){fail(res,400,error.message,error.message);}});
 
 app.get("/api/quotations", requireLogin, (req, res) => {
   const keyword=String(req.query.q || "").trim().toLowerCase(), date=String(req.query.date || "").trim();

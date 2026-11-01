@@ -120,7 +120,7 @@ async function createWindow() {
 
 async function createActivationWindow() {
   const win = new BrowserWindow({
-    width:760,height:680,resizable:false,maximizable:false,
+    width:780,height:800,minWidth:560,minHeight:680,resizable:true,maximizable:true,
     title:"激活外贸助手",show:false,icon:path.join(__dirname,"../assets/app-icon.png"),
     webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false}
   });
@@ -217,6 +217,14 @@ app.on("activate", () => {
 });
 
 ipcMain.handle("get-license-status",()=>getLicenseStatus(dataDir(),app.getVersion()));
+ipcMain.handle('get-publisher-contact',()=>require('./publisher-contact').read());
+ipcMain.handle('save-publisher-contact',(event,value)=>{
+  // Publisher-only: never permit buyers to change contact/payment destinations.
+  if(app.isPackaged)throw Error('发行版不能修改发布者收款资料');
+  const sender=new URL(event.sender.getURL());
+  if(sender.origin!==`http://127.0.0.1:${desktopPort}`||sender.pathname!=='/index.html')throw Error('请在发布者设置中修改');
+  return require('./publisher-contact').write(value);
+});
 ipcMain.handle("activate-license",(_event,activationCode)=>{
   try { return {ok:true,...activateLicense(dataDir(),app.getVersion(),activationCode)}; }
   catch(error){return {ok:false,machineId:getMachineId(),message:error.message};}
