@@ -1,0 +1,21 @@
+/* Shared editor refinements: paper layout remains independent of the form. */
+.document-switch-buttons button.is-current-document{background:#e8f6ef!important;color:#157246!important;border-color:#91cdb0!important;box-shadow:none}
+.document-switch-buttons button.is-current-document::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#218655;margin-right:7px;vertical-align:middle}
+.import-review-card{width:min(960px,94vw);max-height:88vh;overflow:auto;padding:24px}
+.import-review-card header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.import-review-card h3{margin:0 0 8px}.import-review-card header p{color:#75839b;font-size:12px}
+.import-review-card .import-mapping{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}.import-review-card label{display:flex;flex-direction:column;gap:8px;min-width:0}.import-review-card footer{display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-top:18px}.import-review-card footer label{flex:1;min-width:180px}.import-review-card [role=status]{flex-basis:100%;margin:0;color:#516480}
+.product-dynamic-fields>label>span{font-size:12px}.product-dynamic-fields input,.product-dynamic-fields select{min-height:40px}
+#product-edit-panel{border-color:#cddcf1;padding:24px;border-radius:16px}#product-edit-panel .form-grid{gap:18px}#product-edit-panel .row-head h3{font-size:18px}
+.library-row-actions{flex-wrap:nowrap}.library-table-scroll{overflow:auto}.library-table th,.library-table td{vertical-align:middle}
+.quote-input-pane .panel,.quote-input-pane .form-card{border-radius:14px}.quote-input-pane .form-grid{gap:16px}.quote-input-pane h3{font-size:15px;margin-bottom:18px}
+#quote-style-select[hidden]{display:none!important}
+@media screen{
+  .quote-split-workspace{display:block!important}.quote-input-pane,.quote-output-pane{width:100%!important;max-width:none!important;min-width:0!important}.quote-output-pane{margin-top:24px}
+  #view-quote .quote-items-wrap{overflow:auto}#view-quote #quote-items input,#view-quote #quote-items select{min-width:76px}#view-quote #quote-items textarea{min-width:210px}
+  #view-quote .quote-line-table input[type=number]{min-width:100px}.document-top-tools{position:relative}.document-text-options>div{z-index:100}
+}
+@media(max-width:720px){.import-review-card .import-mapping{grid-template-columns:repeat(2,minmax(0,1fr))}.import-review-card{padding:18px}}
+@media(max-width:420px){.import-review-card .import-mapping{grid-template-columns:1fr}}
+#application-lock-screen{background:radial-gradient(ellipse at 50% 36%,#e8f0ff 0%,#edf2fa 42%,#e4ebf5 100%)!important;overflow:auto}
+#application-lock-screen .app-lock-card{background:#fff;border-color:#dce5f3;box-shadow:0 24px 75px #3357851b;border-radius:22px;padding:36px;width:min(390px,100%)}
+#application-lock-screen .app-lock-card h2{color:#1b3150;font-size:24px}#application-lock-screen .password-with-eye{background:#f8faff;border-radius:10px}#application-lock-screen [data-unlock]{border-radius:10px;background:#2c61c9;color:#fff;font-weight:600}

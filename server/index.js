@@ -93,6 +93,8 @@ function rowToProduct(row) {
     modelProductId: row.model_product_id || "",
     inventoryCode: row.inventory_code || "",
     year: row.year || "",
+    templateName: row.template_name || "",
+    values: JSON.parse(row.values_json || "{}"),
     workingHours: row.working_hours,
     specificPrice: row.specific_price,
     currency: row.currency || "USD",
@@ -324,6 +326,7 @@ app.post("/api/products", requireLogin, (req, res) => {
     (id, category, brand, model, aliases, condition, transport_length, transport_width, transport_height, transport_cbm, dimension_unit, weight, transport_method, reference_price, record_type, model_product_id, inventory_code, year, working_hours, specific_price, currency, price_status, transport_data_status, transport_plans_json, raw_import_text, params, remark, image_path, status, search_text, created_at, updated_at)
     VALUES (@id, @category, @brand, @model, @aliases, @condition, @transportLength, @transportWidth, @transportHeight, @transportCbm, @dimensionUnit, @weight, @transportMethod, @referencePrice, @recordType, @modelProductId, @inventoryCode, @year, @workingHours, @specificPrice, @currency, @priceStatus, @transportDataStatus, @transportPlansJson, @rawImportText, @params, @remark, @imagePath, @status, @searchText, @createdAt, @updatedAt)`)
     .run({ id: productId, ...payload, transportPlansJson:JSON.stringify(payload.transportPlans), searchText: productSearchText(payload), createdAt: now(), updatedAt: now() });
+  db.prepare("UPDATE products SET template_name=?,values_json=? WHERE id=?").run(String(p.templateName||''),JSON.stringify(p.values&&typeof p.values==='object'&&!Array.isArray(p.values)?p.values:{}),productId);
   ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(productId)), message: "Saved successfully.", zh: "保存成功。" });
 });
 
@@ -415,7 +418,7 @@ app.put("/api/products/:id", requireLogin, (req, res) => {
     dimensionUnit: p.dimensionUnit ?? existing.dimension_unit,
     weight: p.weight ?? existing.weight,
     transportMethod: p.transportMethod ?? existing.transport_method,
-    referencePrice: p.referencePrice ?? existing.reference_price,
+    referencePrice: Object.hasOwn(p,'referencePrice') ? (p.referencePrice === '' ? null : p.referencePrice) : existing.reference_price,
     recordType: p.recordType ?? existing.record_type ?? "model",
     modelProductId: p.modelProductId ?? existing.model_product_id ?? "",
     inventoryCode: p.inventoryCode ?? existing.inventory_code ?? "",
@@ -440,6 +443,7 @@ app.put("/api/products/:id", requireLogin, (req, res) => {
     transport_plans_json=@transportPlansJson, raw_import_text=@rawImportText, params=@params,
     remark=@remark, image_path=@imagePath, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
     .run({ id: req.params.id, ...payload, transportPlansJson:JSON.stringify(payload.transportPlans), searchText: productSearchText(payload), updatedAt: now() });
+  db.prepare("UPDATE products SET template_name=?,values_json=? WHERE id=?").run(String(p.templateName??existing.template_name??''),JSON.stringify({...JSON.parse(existing.values_json||'{}'),...(p.values&&typeof p.values==='object'&&!Array.isArray(p.values)?p.values:{})}),req.params.id);
   ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(req.params.id)), message: "Saved successfully.", zh: "保存成功。" });
 });
 
@@ -807,7 +811,7 @@ app.post("/api/quotations", requireLogin, (req, res) => {
   const insertItem = db.prepare(`INSERT INTO quotation_items (id, quotation_id, product_id, product_snapshot_json, price_snapshot_json, freight_snapshot_json, include_freight_in_total, sort_order, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   items.forEach((item, index) => insertItem.run(formal ? id("item") : (item.id || id("item")), quoteId, item.productId || "", JSON.stringify(item.productSnapshot || {}), JSON.stringify(item.priceSnapshot || {}), JSON.stringify(item.freightSnapshot || {}), item.includeFreightInTotal === false ? 0 : 1, index, now(), now()));
-  if(formal && q.customerId){const customer=db.prepare("SELECT stage,grade,next_follow_up,next_follow_purpose FROM customers WHERE id=?").get(q.customerId);if(customer){db.prepare("UPDATE customers SET stage='报价评估中',updated_at=? WHERE id=?").run(now(),q.customerId);db.prepare("INSERT INTO follow_ups (customer_id,content,contact_type,outcome,old_stage,new_stage,old_grade,new_grade,next_follow_up,next_follow_purpose,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(q.customerId,`生成正式报价 ${q.quoteNumber} V${version}，金额 ${q.currency||"USD"} ${totalMachinePrice+totalFreight}`,"系统","正式报价",customer.stage,"报价评估中",customer.grade,customer.grade,customer.next_follow_up,customer.next_follow_purpose,now());}}
+  // Documents may retain a customer reference, but must not change CRM stages or follow-up history.
   if(formal)db.prepare("INSERT INTO audit_logs (id,user_id,action,entity_type,entity_id,before_json,after_json,reason,created_at) VALUES (?,?,?,?,?,?,?,?,?)").run(id("audit"),req.session.user.id,"create_formal_version","quotation",quoteId,JSON.stringify({sourceQuoteId:q.sourceQuoteId||q.id||""}),JSON.stringify({seriesId,version,total:totalMachinePrice+totalFreight}),"生成正式报价版本",now());
   ok(res, { id: quoteId,seriesId,version,isFormal:formal, message: "Quotation saved successfully.", zh: formal?"正式报价版本已生成。":"报价保存成功。" });
 });

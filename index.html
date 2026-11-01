@@ -222,25 +222,10 @@
             <h2>产品库</h2>
             <p>图片在前，规格与价格一目了然。点击商品查看完整资料，或引用到正在编辑的单证。</p>
           </header>
-          <div class="product-library-tabs">
-            <button class="active" data-product-library="legacy">产品资料</button>
-            <button data-product-library="machinery-reference">机械价格参考表</button>
-          </div>
 
           <div id="legacy-product-editor" class="legacy-product-area">
           <div id="product-library-summary" class="overview-metrics product-library-summary"></div>
           <div class="product-library-toolbar"><button type="button" class="primary" id="library-new-product">＋ 新增产品</button><button type="button" id="library-delete-selected" disabled>删除选中（0）</button><button type="button" id="library-configure">配置产品分类与字段</button><button type="button" id="library-import">导入产品资料</button><button type="button" id="library-catalog">导出产品目录 PDF</button></div>
-          <div class="panel machinery-import-panel">
-            <div>
-              <h3>机械价格参考表</h3>
-              <p class="hint">将金万挖机械型号库导入产品库后，可按品牌/型号搜索、编辑价格范围，并在报价单里直接引用。</p>
-            </div>
-            <div class="actions">
-              <button id="import-machinery-reference-btn" class="primary" type="button">导入/更新机械价格参考表</button>
-              <button id="export-product-catalog-pdf-btn" type="button">导出产品目录 PDF</button>
-            </div>
-            <div id="machinery-reference-result" class="import-result"></div>
-          </div>
           <div class="panel" id="product-edit-panel" hidden>
             <div class="row-head"><h3 id="product-edit-heading">新增／编辑产品</h3><button type="button" id="library-close-editor">收起编辑</button></div>
             <div class="smart-product-import">
@@ -254,10 +239,6 @@
               <label><span>资料类型</span><select id="product-record-type"><option value="model">通用车型资料</option><option value="inventory">具体库存设备</option></select></label>
               <label><span>引用通用车型</span><select id="product-model-reference"><option value="">不引用</option></select></label>
               <label><span>库存编号</span><input id="product-inventory-code" placeholder="同型号多台设备分别编号"></label>
-              <label><span>年份</span><input id="product-year" inputmode="numeric"></label>
-              <label><span>工作小时数</span><input id="product-working-hours" type="number" min="0"></label>
-              <label><span>具体设备价格</span><input id="product-specific-price" type="number" min="0" step="0.01" placeholder="留空显示待询价"></label>
-              <label><span>币种</span><select id="product-currency"><option>USD</option><option>CNY</option><option>EUR</option><option>GBP</option></select></label>
               <div id="product-dynamic-fields" class="wide product-dynamic-fields"></div>
               <fieldset class="wide product-logistics-fields">
                 <legend>运输资料（产品库、报价与悬浮运费计算器共用）</legend>
@@ -291,8 +272,8 @@
             <div id="product-list" class="list"></div>
           </div>
           <div class="panel">
-            <h3>文本导入价格表</h3>
-            <p class="hint">支持从 Excel、微信、备忘录复制文本。第一行可以写表头，例如：分类 品牌 型号 年份 工时 底价 备注。</p>
+            <h3>导入产品资料</h3>
+            <p class="hint">① 粘贴文本　② 识别并核对字段　③ 确认入库。支持 Excel 表格及带引号的逗号分隔文本。</p>
             <textarea id="price-import-text" class="import-textarea" placeholder="示例：
 挖掘机 SANY 215C 2021 3200 20000 底价
 装载机 LIUGONG 856H 2020 2800 23500 两台常用报价
@@ -300,9 +281,8 @@
 也支持带表头：
 分类	品牌	型号	年份	工时	底价	备注"></textarea>
             <div class="actions">
-              <label class="file-btn">上传TXT/CSV<input id="price-import-file" type="file" accept=".txt,.csv,text/plain,text/csv" /></label>
-              <button id="import-price-btn" class="primary" type="button">导入价格表</button>
-              <button id="clear-import-text-btn" type="button">清空导入文本</button>
+              <button id="import-price-btn" class="primary" type="button">识别与核对</button>
+              <button id="clear-import-text-btn" type="button">清空文本</button>
             </div>
             <div id="price-import-result" class="import-result"></div>
           </div>
@@ -347,7 +327,7 @@
               <h3>报价基础信息</h3>
               <div class="customer-paste-box"><label><span>粘贴客户信息自动识别</span><textarea id="customer-paste-text" placeholder="粘贴 WhatsApp 签名、名片文字或客户资料，例如：Company / Contact / Phone / Email / Country / Address"></textarea></label><div><button id="recognize-customer-text-btn" type="button">识别并填入客户资料</button><p id="customer-recognize-result" class="hint">只在本机识别，不会发送到第三方。</p></div></div>
               <div class="form-grid">
-                <label><span>单据样式</span><select id="quote-style-select"><option value="classic">商务金色</option><option value="black-gold">黑金典雅</option><option value="blue-white">蓝白商务</option></select></label>
+                <select id="quote-style-select" hidden aria-hidden="true" tabindex="-1"><option value="classic">商务金色</option><option value="black-gold">黑金典雅</option><option value="blue-white">蓝白商务</option></select>
                 <label><span>报价模板</span><select id="quote-template"></select></label>
                 <label><span>报价编号</span><input id="quote-number" /></label>
                 <label><span>报价日期</span><input id="quote-date" type="date" /></label>
@@ -369,7 +349,7 @@
                 <div class="actions">
                   <label class="inline-check image-output-switch"><input id="quote-show-product-images" type="checkbox" checked /><span>显示图片（页面预览和PDF）</span></label>
                   <button id="open-product-picker-btn" type="button">从产品库选择</button>
-                  <button id="add-quote-item-btn" type="button">插入一行</button>
+                  <button id="add-quote-item-btn" type="button">＋ 新增</button>
 
                 </div>
               </div>
@@ -628,7 +608,6 @@
         <footer class="actions"><button id="signature-pad-clear" type="button">清空重写</button><button id="signature-pad-cancel" type="button">取消</button><button id="signature-pad-save" class="primary" type="button">保存签名</button></footer>
       </div>
     </div>
-    <script src="./assets/price-lists/machinery-price-products.js"></script>
     <script src="./assets/agency-documents.js?v=20261007"></script>
     <script src="./assets/trade-document-layouts.js?v=20261012"></script>
     <script src="./assets/document-designer.js?v=20261023"></script>
@@ -640,7 +619,8 @@
     <script src="./assets/document-locales.js"></script>
     <script src="./assets/document-template-copy.js"></script>
     <script src="./assets/document-presentation.js"></script>
-    <script src="./app.js?v=20261012-document-layouts"></script>
+    <script src="./assets/product-text-import.js"></script>
+    <script src="./app.js?v=20261101-refinement"></script>
     <link rel="stylesheet" href="./assets/next-upgrade.css">
     <script src="./assets/translation-workspace.js"></script>
     <script src="./assets/publisher-workspace.js"></script>
@@ -650,6 +630,7 @@
     <script src="./assets/customer-workspace.js"></script>
     <script src="./assets/configurable-workspaces.js?v=20261023"></script>
     <script src="./assets/option-manager.js"></script>
+    <link rel="stylesheet" href="./assets/refinement-workspace.css">
   </body>
 </html>
 

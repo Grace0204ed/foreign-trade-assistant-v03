@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const parser=require('../assets/product-text-import');
+const a=parser.inspect('品牌\t型号\t年份\t价格\t备注\nCAT\t320D\t\t26500\t待补图');
+assert.deepEqual(parser.records(a,a.mapping),[{brand:'CAT',model:'320D',year:'',unitPrice:'26500',remark:'待补图'}]);
+assert.deepEqual(parser.parse('名称,型号,备注\n"商品,甲",M1,"第一行\n第二行"'),[['名称','型号','备注'],['商品,甲','M1','第一行\n第二行']]);
+assert.throws(()=>parser.parse('名称,型号\n"未闭合,M1'),/引号/);
+assert.throws(()=>parser.records({...a,rows:[['CAT','320D']]},a.mapping),/列数/);
+assert.throws(()=>parser.records(a,['model','model','','','']),/不能对应多列/);
+const noHeader=parser.inspect('CAT 320D 2017');assert.equal(noHeader.hasHeader,false);assert.throws(()=>parser.records(noHeader,noHeader.mapping),/选择列/);
+assert.equal(parser.records(noHeader,['brand','model','year'])[0].year,'2017');
+console.log('PASS product text parser: empty cells, quoted commas/newlines, aliases, mapping and invalid input.');

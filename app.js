@@ -174,9 +174,9 @@
   ];
 
   const defaultSettings = {
-    companyNameEn: "Jinwanwa International Trading Co., Ltd.",
-    companyNameZh: "合肥金万挖工程机械有限公司",
-    contactPerson: "Ethan",
+    companyNameEn: "Example Trading Co., Ltd.",
+    companyNameZh: "示例贸易有限公司",
+    contactPerson: "张三",
     companyPhone: "",
     companyEmail: "",
     companyAddressEn: "Hefei, China",
@@ -193,13 +193,13 @@
     bankFields: [
       { id: "bank-transfer-title", labelEn: "Payment Terms", labelZh: "付款条款", value: "T/T 100%", visible: true, sortOrder: 10 },
       { id: "bank-pay-to", labelEn: "Payment Instructions", labelZh: "付款说明", value: "Please make payment via SWIFT (T/T) to the following account. / 请通过 SWIFT（T/T）汇款至以下账户。", visible: true, sortOrder: 20 },
-      { id: "bank-account-number", labelEn: "Account Number", labelZh: "银行账号", value: "79969931082731", visible: true, sortOrder: 30 },
-      { id: "bank-account-name", labelEn: "Account Name", labelZh: "账户名称", value: "Hefei Jinwanwa International Trade Co., Ltd.", visible: true, sortOrder: 40 },
-      { id: "bank-name", labelEn: "Bank Name", labelZh: "银行名称", value: "DBS Bank (Hong Kong) Limited", visible: true, sortOrder: 50 },
-      { id: "bank-swift", labelEn: "SWIFT/BIC Code", labelZh: "SWIFT/BIC 代码", value: "DHBKHKHH (DHBKHKHHXXX for 11-character requirement)", visible: true, sortOrder: 60 },
-      { id: "bank-branch", labelEn: "Branch Code", labelZh: "分行代码", value: "478", visible: true, sortOrder: 70 },
-      { id: "bank-address", labelEn: "Bank Address", labelZh: "银行地址", value: "11th Floor, The Center, 99 Queen's Road Central, Central, Hong Kong", visible: true, sortOrder: 80 },
-      { id: "bank-country", labelEn: "Country/Region", labelZh: "国家/地区", value: "Hong Kong (China)", visible: true, sortOrder: 90 },
+      { id: "bank-account-number", labelEn: "Account Number", labelZh: "银行账号", value: "", visible: true, sortOrder: 30 },
+      { id: "bank-account-name", labelEn: "Account Name", labelZh: "账户名称", value: "", visible: true, sortOrder: 40 },
+      { id: "bank-name", labelEn: "Bank Name", labelZh: "银行名称", value: "", visible: true, sortOrder: 50 },
+      { id: "bank-swift", labelEn: "SWIFT/BIC Code", labelZh: "SWIFT/BIC 代码", value: "", visible: true, sortOrder: 60 },
+      { id: "bank-branch", labelEn: "Branch Code", labelZh: "分行代码", value: "", visible: true, sortOrder: 70 },
+      { id: "bank-address", labelEn: "Bank Address", labelZh: "银行地址", value: "", visible: true, sortOrder: 80 },
+      { id: "bank-country", labelEn: "Country/Region", labelZh: "国家/地区", value: "", visible: true, sortOrder: 90 },
       { id: "bank-account-type", labelEn: "Account Type", labelZh: "账户类型", value: "Business Account", visible: true, sortOrder: 100 },
       { id: "bank-payment-method", labelEn: "Payment Method Notes", labelZh: "付款方式备注", value: "For the payment of goods, please make a SWIFT(T/T) or CHATS(HK Local Payment) payment.", visible: true, sortOrder: 110 },
       { id: "bank-note", labelEn: "Notes", labelZh: "备注", value: "Please include [Buyer's Name, Invoice/Contract Number, and Product Name] in the memo or note section when making the payment. The deposit is non-refundable.", visible: true, sortOrder: 120 }
@@ -713,8 +713,12 @@
       model: product.model,
       tonnage: product.weight || "",
       weight: product.weight || "",
-      year: "",
-      hours: "",
+      year: product.year || product.values?.year || "",
+      hours: product.workingHours ?? product.values?.hours ?? "",
+      workingHours: product.workingHours ?? product.values?.hours ?? "",
+      templateName: product.templateName || "",
+      values: product.values || {},
+      rawImportText: product.rawImportText || "",
       referencePrice: product.referencePrice || "",
       recordType: product.recordType || "model",
       modelProductId: product.modelProductId || "",
@@ -742,6 +746,8 @@
     const values = productValues(product);
     return {
       id: product.id,
+      templateName: product.templateName || "",
+      values: product.values || {},
       category: values.productType || product.category || "",
       brand: values.brand || product.brand || "",
       model: values.model || product.model || "",
@@ -753,13 +759,13 @@
       inventoryCode: product.inventoryCode || "",
       year: product.year || values.year || "",
       workingHours: product.workingHours ?? values.hours ?? "",
-      specificPrice: product.specificPrice === "" ? null : product.specificPrice,
+      specificPrice: product.specificPrice === "" ? "" : product.specificPrice,
       currency: product.currency || values.currency || settings.currency || "USD",
       priceStatus: product.specificPrice === "" || product.specificPrice == null ? "pending" : "quoted",
       transportDataStatus: product.transportDataStatus || "reference",
       transportPlans: product.transportPlans || [],
       rawImportText: product.rawImportText || "",
-      params: [values.tonnage || product.tonnage, values.year || product.year, values.hours || product.hours, values.params || product.params].filter(Boolean).join(" | "),
+      params: values.params ?? product.params ?? "",
       remark: values.remark || product.remark || "",
       imagePath: product.imagePath || product.imageDataUrl || "",
       status: product.status || "Active"
@@ -1642,7 +1648,13 @@
 
   function syncTopDocumentTools(view){
     let tools=$('document-top-tools');
-    if(!tools){tools=document.createElement('div');tools.id='document-top-tools';tools.className='document-top-tools';document.querySelector('.desktop-topbar').append(tools);}
+    if(!tools){
+      tools=document.createElement('div');tools.id='document-top-tools';tools.className='document-top-tools';document.querySelector('.desktop-topbar').append(tools);
+      const closeExcept=target=>tools.querySelectorAll('details[open]').forEach(popup=>{if(!target||!popup.contains(target))popup.open=false;});
+      document.addEventListener('click',event=>closeExcept(event.target));
+      document.addEventListener('keydown',event=>{if(event.key==='Escape')closeExcept();});
+    }
+    if(tools.dataset.currentView!==view){tools.querySelectorAll('details[open]').forEach(popup=>popup.open=false);tools.dataset.currentView=view;}
     const groups={quote:['pdf-language','document-table-color','document-product-style','document-product-color'],invitation:['invitation-language','invitation-color','invitation-text-style'],agency:['agency-language','agency-color','agency-text-style']};
     for(const kind of ['invitation','agency'])if(!$(kind+'-text-style')){
       const label=document.createElement('label');label.className='document-top-control';label.innerHTML=`<span>文字样式</span><select id="${kind}-text-style"><option value="regular">常规</option><option value="bold">加粗</option></select><input type="color" id="${kind}-text-color" value="#172033" aria-label="字体颜色">`;
@@ -3199,7 +3211,7 @@
       const mergedProducts = new Map(serverProducts.map((product) => [product.id, toLegacyProduct(product)]));
       products.forEach((product) => {
         const serverProduct = mergedProducts.get(product.id);
-        mergedProducts.set(product.id, serverProduct ? { ...product, ...serverProduct, imageDataUrl: product.imageDataUrl || serverProduct.imageDataUrl || "" } : product);
+        mergedProducts.set(product.id, serverProduct ? { ...product, ...serverProduct, templateName:serverProduct.templateName||product.templateName||'', values:{...(product.values||{}),...(serverProduct.values||{})}, imageDataUrl: serverProduct.imageDataUrl || product.imageDataUrl || "" } : product);
       });
       products = Array.from(mergedProducts.values());
       const knownCategories=new Set(settings.categories.map(c=>normalize(`${c.labelEn}${c.labelZh}${categoryLabel(c)}`)));
@@ -3893,12 +3905,12 @@
       model: product.values?.model || product.model || "",
       tonnage: product.values?.tonnage || product.tonnage || "",
       year: product.values?.year || product.year || "",
-      hours: product.values?.hours || product.hours || "",
-      unitPrice: product.values?.unitPrice || product.referencePrice || "",
+      hours: product.values?.hours ?? product.workingHours ?? product.hours ?? "",
+      unitPrice: product.values?.unitPrice ?? product.specificPrice ?? product.referencePrice ?? "",
       referencePrice: product.values?.referencePrice || product.referencePrice || "",
       params: product.values?.params || product.params || "",
       remark: product.values?.remark || product.remark || "",
-      currency: product.values?.currency || settings.currency
+      currency: product.values?.currency || product.currency || settings.currency
     };
   }
 
@@ -3922,6 +3934,10 @@
         ${renderProductLibraryFieldInput(field, values[field.fieldKey] || "")}
       </label>
     `).join("");
+    // One editable source per field; keep stable IDs for smart paste and draft recovery.
+    for(const [key,id] of Object.entries({year:'product-year',hours:'product-working-hours',unitPrice:'product-specific-price',currency:'product-currency'})){
+      const input=host.querySelector('[data-product-field="'+key+'"]');if(input)input.id=id;
+    }
   }
 
   function renderProductLibraryFieldInput(field, value) {
@@ -3932,7 +3948,8 @@
     if (field.fieldKey === "currency") return renderCurrencySelectFor("product", field.fieldKey, value);
     if (field.fieldType === "textarea") return `<textarea data-product-field="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-product-field="${key}" type="date" value="${val}" />`;
-    if (field.fieldType === "number" || field.fieldType === "money") return `<input data-product-field="${key}" type="number" value="${val}" />`;
+    if (field.fieldKey === "unitPrice" || field.fieldType === "money") return `<input data-product-field="${key}" type="text" value="${val}" placeholder="可留空或填写价格范围" />`;
+    if (field.fieldType === "number") return `<input data-product-field="${key}" type="number" value="${val}" />`;
     if (field.fieldType === "checkbox") return `<input data-product-field="${key}" type="checkbox" ${value===true||value==='true'?'checked':''} />`;
     if (["select","dictionary","hierarchy"].includes(field.fieldType)) {
       const options=OptionCatalog.fieldOptions(field,value);
@@ -4001,10 +4018,41 @@
 
   function collectProductTransportPlans() { return [...document.querySelectorAll(".transport-plan-row")].map(row=>Object.fromEntries([...row.querySelectorAll("[data-plan]")].map(input=>[input.dataset.plan,input.value]))).filter(plan=>plan.name||plan.cbm||plan.containerType); }
 
+  function reviewProductTextImport() {
+    let analysis;
+    try{analysis=ProductTextImport.inspect($('price-import-text').value);}catch(error){return toast(error.message);}
+    let modal=$('product-import-review');if(!modal){modal=document.createElement('div');modal.id='product-import-review';modal.className='modal no-print';document.body.append(modal);}
+    modal.innerHTML=`<div class="modal-card import-review-card" role="dialog" aria-modal="true" aria-labelledby="product-import-title"><header><div><h3 id="product-import-title">核对产品资料</h3><p>${analysis.hasHeader?'已识别表头，请核对每列。':'未识别表头，请先为各列选择字段。'} 确认前不会写入产品库。</p></div><button data-import-close type="button">关闭</button></header><div class="import-mapping">${analysis.headings.map((heading,i)=>`<label><span>${escapeHtml(heading)}</span><select data-import-column="${i}"><option value="">忽略此列</option>${Object.entries(ProductTextImport.fields).map(([key,label])=>`<option value="${key}" ${analysis.mapping[i]===key?'selected':''}>${label}</option>`).join('')}</select></label>`).join('')}</div><div class="library-table-scroll"><table class="library-table"><thead><tr>${analysis.headings.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${analysis.rows.slice(0,8).map(row=>`<tr>${row.map(cell=>`<td>${escapeHtml(cell)||'—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div><footer><label>资料模板<select id="import-product-template">${settings.templates.map(t=>`<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('')}</select></label><label>同品牌／型号或同名产品<select id="import-duplicate-mode"><option value="skip">跳过已有产品</option><option value="update">仅更新非空字段</option><option value="new">作为新产品新增</option></select></label><p id="import-review-status" role="status">共 ${analysis.rows.length} 条，将保存至本机数据库。</p><button type="button" class="primary" id="import-review-save">确认入库</button></footer></div>`;
+    modal.hidden=false;let saving=false,queue=null,success=0,skipped=0;
+    const close=()=>{if(!saving)modal.hidden=true;};modal.querySelector('[data-import-close]').onclick=close;modal.onclick=e=>{if(e.target===modal)close();};modal.onkeydown=e=>{if(e.key==='Escape')close();};
+    modal.querySelectorAll('select').forEach(input=>input.onchange=()=>{queue=null;success=0;skipped=0;});
+    $('import-review-save').onclick=async()=>{
+      if(saving)return;const button=$('import-review-save'),status=$('import-review-status');
+      try{
+        if(!queue)queue=ProductTextImport.records(analysis,[...modal.querySelectorAll('[data-import-column]')].map(input=>input.value));
+        saving=true;button.disabled=true;modal.querySelectorAll('select').forEach(input=>input.disabled=true);
+        while(queue.length){const row=queue[0],mode=$('import-duplicate-mode').value;
+          const match=products.find(p=>row.model?normalize(p.model)===normalize(row.model)&&(!row.brand||normalize(p.brand)===normalize(row.brand)):normalize(productDisplayName(p))===normalize(row.name));
+          if(match&&mode==='skip'){skipped++;queue.shift();continue;}
+          const nonempty=Object.fromEntries(Object.entries(row).filter(([,value])=>value!==''));
+          const existing=match&&mode==='update'?match:null,values={...(existing?productValues(existing):{}),...nonempty};
+          const price=values.unitPrice,product={...(existing||{}),id:existing?.id||uid('product'),templateName:existing?.templateName||$('import-product-template').value,values,category:values.productType||existing?.category||'',brand:values.brand||'',model:values.model||'',year:values.year||'',workingHours:values.hours||'',referencePrice:price||'',specificPrice:price!==''&&price!=null&&Number.isFinite(Number(price))?Number(price):'',currency:values.currency||existing?.currency||settings.currency||'USD',params:values.params||'',remark:values.remark||''};
+          const result=await api(existing?'/api/products/'+encodeURIComponent(product.id):'/api/products',{method:existing?'PUT':'POST',body:JSON.stringify(serverProductFromLegacy(product))});
+          products=products.filter(p=>p.id!==product.id);products.unshift({...product,...toLegacyProduct(result.product)});success++;queue.shift();status.textContent='已保存 '+success+' 条，跳过 '+skipped+' 条，剩余 '+queue.length+' 条。';
+        }
+        save(keys.products,products);await loadServerData();$('price-import-result').textContent='已保存 '+success+' 条，跳过 '+skipped+' 条。';modal.hidden=true;toast('产品资料已入库。');
+      }catch(error){status.textContent='已保存 '+success+' 条。'+error.message+'；已成功的记录不会重复提交，可重试剩余记录。';}
+      finally{saving=false;button.disabled=false;modal.querySelectorAll('select').forEach(input=>input.disabled=success>0&&!!queue?.length);}
+    };
+    modal.querySelector('[data-import-close]').focus();
+  }
+
   function collectProductForm() {
-    const values = {};
+    const existing=products.find(product=>product.id===editingProductId)||{};
+    const values = {...productValues(existing)};
     document.querySelectorAll("[data-product-field]").forEach((input) => values[input.dataset.productField] = input.multiple?[...input.selectedOptions].map(option=>option.value).join(','):input.type==='checkbox'?input.checked:input.value);
     return {
+      ...existing,
       id: editingProductId || uid("product"),
       category: $("product-template")?.value || "",
       templateName: $("product-template")?.value || settings.templates[0]?.name || "",
@@ -4012,7 +4060,6 @@
       brand: values.brand || "",
       model: values.model || "",
       tonnage: values.tonnage || "",
-      year: values.year || "",
       hours: values.hours || "",
       referencePrice: values.unitPrice || values.referencePrice || "",
       recordType: $("product-record-type")?.value || "model",
@@ -4021,7 +4068,7 @@
       condition: $("product-condition")?.value || values.condition || "",
       year: $("product-year")?.value || values.year || "",
       workingHours: $("product-working-hours")?.value || values.hours || "",
-      specificPrice: $("product-specific-price")?.value || "",
+      specificPrice: values.unitPrice!==''&&Number.isFinite(Number(values.unitPrice))?Number(values.unitPrice):"",
       currency: $("product-currency")?.value || values.currency || "USD",
       transportDataStatus: $("product-transport-status")?.value || "reference",
       transportPlans: collectProductTransportPlans(),
@@ -4053,7 +4100,7 @@
       await loadServerData();
       await completeWork(workKey);
       clearProductForm();
-      toast("产品已保存到主机数据库，报价和运费中心已同步。");
+      toast("产品已保存，可在产品库及单证中引用。");
     } catch (error) { toast(error.message); }
   }
 
@@ -4080,9 +4127,9 @@
     if($("product-model-reference"))$("product-model-reference").value=p.modelProductId||"";
     if($("product-inventory-code"))$("product-inventory-code").value=p.inventoryCode||"";
     if($("product-condition"))$("product-condition").value=p.condition||"";
-    if($("product-year"))$("product-year").value=p.year||"";
-    if($("product-working-hours"))$("product-working-hours").value=p.workingHours??"";
-    if($("product-specific-price"))$("product-specific-price").value=p.specificPrice??"";
+    if($("product-year"))$("product-year").value=productValues(p).year;
+    if($("product-working-hours"))$("product-working-hours").value=productValues(p).hours;
+    if($("product-specific-price"))$("product-specific-price").value=productValues(p).unitPrice;
     if($("product-currency"))$("product-currency").value=p.currency||"USD";
     if($("product-transport-status"))$("product-transport-status").value=p.transportDataStatus||"reference";
     if($("product-smart-paste"))$("product-smart-paste").value=p.rawImportText||"";
@@ -4101,144 +4148,6 @@
     renderAllSelectors();
   }
 
-  function splitImportLine(line) {
-    const normalized = line.trim();
-    const separator = /[\t,，]/.test(normalized) ? /[\t,，]+/ : /\s+/;
-    return normalized.split(separator).map((cell) => cell.trim()).filter(Boolean);
-  }
-
-  function normalizeHeaderKey(text) {
-    const value = normalize(text);
-    const map = [
-      [["category", "type", "产品类型", "分类", "种类"], "category"],
-      [["brand", "品牌", "厂家"], "brand"],
-      [["model", "型号", "机型"], "model"],
-      [["tonnage", "吨位", "吨"], "tonnage"],
-      [["year", "年份", "年限"], "year"],
-      [["hours", "工时", "小时", "工作小时"], "hours"],
-      [["price", "底价", "参考价格", "售价", "单价", "价格", "成本"], "referencePrice"],
-      [["params", "参数", "配置"], "params"],
-      [["remark", "备注", "说明"], "remark"]
-    ];
-    return map.find(([aliases]) => aliases.some((alias) => value.includes(normalize(alias))))?.[1] || "";
-  }
-
-  function looksLikeHeader(cells) {
-    return cells.filter((cell) => normalizeHeaderKey(cell)).length >= 2;
-  }
-
-  function parsePriceNumber(text) {
-    const match = String(text || "").replace(/[,，]/g, "").match(/\d+(?:\.\d+)?/);
-    return match ? match[0] : "";
-  }
-
-  function productKey(product) {
-    return normalize(`${product.category}|${product.brand}|${product.model}|${product.year}`);
-  }
-
-  function productFromImportObject(row) {
-    const category = row.category || categoryLabel(settings.categories[0]) || "Uncategorized / 未分类";
-    return {
-      id: uid("product"),
-      category,
-      brand: row.brand || "",
-      model: row.model || "",
-      tonnage: row.tonnage || "",
-      year: row.year || "",
-      hours: row.hours || "",
-      referencePrice: parsePriceNumber(row.referencePrice),
-      params: row.params || "",
-      remark: row.remark || "",
-      imageDataUrl: ""
-    };
-  }
-
-  function parseProductWithoutHeader(cells) {
-    const categoryNames = settings.categories || [];
-    const categoryIndex = cells.findIndex((cell) => categoryNames.some((cat) => [cat.labelEn, cat.labelZh, categoryLabel(cat), categoryFullLabel(cat)].some((name) => normalize(name) === normalize(cell))));
-    const category = categoryIndex >= 0 ? cells.splice(categoryIndex, 1)[0] : (categoryLabel(settings.categories[0]) || "Uncategorized / 未分类");
-    let priceIndex = -1;
-    for (let index = cells.length - 1; index >= 0; index -= 1) {
-      if (parsePriceNumber(cells[index])) {
-        priceIndex = index;
-        break;
-      }
-    }
-    const referencePrice = priceIndex >= 0 ? parsePriceNumber(cells.splice(priceIndex, 1)[0]) : "";
-    const yearIndex = cells.findIndex((cell) => /^(19|20)\d{2}$/.test(cell));
-    const year = yearIndex >= 0 ? cells.splice(yearIndex, 1)[0] : "";
-    const brand = cells.shift() || "";
-    const model = cells.shift() || "";
-    const hoursIndex = cells.findIndex((cell) => /\d/.test(cell) && (/小时|工时|h$/i.test(cell) || /^\d+(?:\.\d+)?$/.test(cell)));
-    const hours = hoursIndex >= 0 ? parsePriceNumber(cells.splice(hoursIndex, 1)[0]) : "";
-    return {
-      id: uid("product"),
-      category,
-      brand,
-      model,
-      tonnage: "",
-      year,
-      hours,
-      referencePrice,
-      params: "",
-      remark: cells.join(" "),
-      imageDataUrl: ""
-    };
-  }
-
-  function importPriceList() {
-    normalizeCategories();
-    const raw = $("price-import-text").value.trim();
-    if (!raw) return toast("请先粘贴价格表文本。");
-    const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    if (!lines.length) return toast("没有可导入的内容。");
-    const firstCells = splitImportLine(lines[0]);
-    const hasHeader = looksLikeHeader(firstCells);
-    const headers = hasHeader ? firstCells.map(normalizeHeaderKey) : [];
-    const dataLines = hasHeader ? lines.slice(1) : lines;
-    let added = 0;
-    let updated = 0;
-    let skipped = 0;
-    dataLines.forEach((line) => {
-      const cells = splitImportLine(line);
-      if (!cells.length) return;
-      let product;
-      if (hasHeader) {
-        const row = {};
-        headers.forEach((key, index) => {
-          if (key) row[key] = cells[index] || "";
-        });
-        product = productFromImportObject(row);
-      } else {
-        product = parseProductWithoutHeader([...cells]);
-      }
-      if (!product.brand && !product.model) {
-        skipped += 1;
-        return;
-      }
-      const key = productKey(product);
-      const existingIndex = products.findIndex((item) => productKey(item) === key);
-      if (existingIndex >= 0) {
-        products[existingIndex] = { ...products[existingIndex], ...product, id: products[existingIndex].id, imageDataUrl: products[existingIndex].imageDataUrl || "" };
-        updated += 1;
-      } else {
-        products.unshift(product);
-        added += 1;
-      }
-    });
-    save(keys.products, products);
-    renderProducts();
-    renderAllSelectors();
-    $("price-import-result").textContent = `导入完成：新增 ${added} 条，更新 ${updated} 条，跳过 ${skipped} 条。`;
-    toast("价格表导入完成。");
-  }
-
-  async function loadPriceImportFile(file) {
-    if (!file) return;
-    const text = await file.text();
-    $("price-import-text").value = text;
-    $("price-import-result").textContent = `已读取文件：${file.name}。确认内容无误后点击“导入价格表”。`;
-  }
 
   let libraryPage=1,libraryFilterKey='';
   const libraryPageSize=20;
@@ -4283,6 +4192,7 @@
   function updateLibrarySelection(){
     const checks=[...document.querySelectorAll('[data-library-select]')],count=checks.filter(input=>input.checked).length;
     const button=$('library-delete-selected');button.disabled=count===0;button.textContent='删除选中（'+count+'）';
+    if($('library-edit-selected'))$('library-edit-selected').disabled=count!==1;
     const all=$('library-select-all');if(all){all.checked=checks.length>0&&count===checks.length;all.indeterminate=count>0&&count<checks.length;}
   }
   async function deleteSelectedLibraryProducts(){
@@ -4355,110 +4265,12 @@
 
   function productDisplayName(product) {
     const values = productValues(product);
-    return [values.brand, values.model].filter(Boolean).join(" ") || values.productType || values.name || "未命名产品";
+    return values.name || [values.brand, values.model].filter(Boolean).join(" ") || values.productType || "未命名产品";
   }
 
   function productSummary(product) {
     const values = productValues(product);
     return [values.year, values.hours ? `${values.hours}h` : "", values.tonnage, values.params].filter(Boolean).join(" | ");
-  }
-
-  function machineryReferenceProducts() {
-    return Array.isArray(window.machineryPriceReferenceProducts) ? window.machineryPriceReferenceProducts : [];
-  }
-
-  function machineryReferenceKey(product) {
-    const values = productValues(product);
-    return normalize(`${values.productType || product.category}|${values.brand || product.brand}|${values.model || product.model}`);
-  }
-
-  function productFromMachineryReference(row) {
-    const specParts = [row.spec1, row.spec2, row.spec3, row.spec4].filter(Boolean);
-    const priceParts = [
-      row.refurbishedYearRange || row.refurbishedPriceRange ? `翻新机：${row.refurbishedYearRange || "-"} / ${row.refurbishedPriceRange || "待填写"}` : "",
-      row.originalUsedYearRange || row.originalPriceRange ? `原版二手机：${row.originalUsedYearRange || "-"} / ${row.originalPriceRange || "待填写"}` : "",
-      row.newMachineAvailability || row.newPriceRange ? `全新机：${row.newMachineAvailability || "-"} / ${row.newPriceRange || "待填写"}` : "",
-    ].filter(Boolean);
-    return {
-      id: uid("product"),
-      category: row.category || "机械价格参考表",
-      templateName: "二手工程机械",
-      values: {
-        productType: row.categoryBilingual || row.category || "",
-        brand: row.brand || "",
-        model: row.model || "",
-        tonnage: row.spec2 || "",
-        year: row.originalUsedYearRange || "",
-        hours: row.usageRange || "",
-        unitPrice: "",
-        currency: "USD",
-        params: specParts.join(" | "),
-        remark: [row.remarks, priceParts.join("；"), row.newMachineAvailability === "停产无新机 / Discontinued" ? "停产型号无全新机报价" : ""].filter(Boolean).join("；"),
-      },
-      brand: row.brand || "",
-      model: row.model || "",
-      tonnage: row.spec2 || "",
-      year: row.originalUsedYearRange || "",
-      hours: row.usageRange || "",
-      referencePrice: "",
-      params: specParts.join(" | "),
-      remark: [row.remarks, priceParts.join("；")].filter(Boolean).join("；"),
-      imageDataUrl: "",
-      source: "machinery-price-reference-v7",
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  function mergeProductsIntoLocal(nextProducts) {
-    let added = 0;
-    let updated = 0;
-    const existing = new Map(products.map((product, index) => [machineryReferenceKey(product), index]));
-    nextProducts.forEach((product) => {
-      const key = machineryReferenceKey(product);
-      if (existing.has(key)) {
-        const index = existing.get(key);
-        products[index] = {
-          ...products[index],
-          ...product,
-          id: products[index].id,
-          referencePrice: products[index].referencePrice || product.referencePrice || "",
-          imageDataUrl: products[index].imageDataUrl || product.imageDataUrl || ""
-        };
-        updated += 1;
-      } else {
-        products.push(product);
-        existing.set(key, products.length - 1);
-        added += 1;
-      }
-    });
-    products.sort((a, b) => String(a.category || "").localeCompare(String(b.category || ""), "zh-Hans-CN") || String(a.brand || "").localeCompare(String(b.brand || ""), "zh-Hans-CN") || String(a.model || "").localeCompare(String(b.model || ""), "zh-Hans-CN"));
-    save(keys.products, products);
-    return { added, updated };
-  }
-
-  async function importMachineryReferenceProducts(targetId = "machinery-reference-result") {
-    const source = machineryReferenceProducts();
-    if (!source.length) return toast("未找到机械价格参考表数据，请确认 assets/price-lists/machinery-price-products.js 已加载。");
-    const importedProducts = source.map(productFromMachineryReference);
-    let result = mergeProductsIntoLocal(importedProducts);
-    let storageMode = "本机产品库";
-    if (currentUser) {
-      try {
-        const payload = importedProducts.map(serverProductFromLegacy);
-        const data = await api("/api/products/bulk-upsert", { method: "POST", body: JSON.stringify({ products: payload }) });
-        const serverRows = (data.products || []).map(toLegacyProduct);
-        result = { added: data.added || 0, updated: data.updated || 0 };
-        mergeProductsIntoLocal(serverRows);
-        storageMode = "服务器产品库";
-      } catch (error) {
-        storageMode = `本机产品库（服务器导入失败：${error.message}）`;
-      }
-    }
-    renderProducts();
-    renderAllSelectors();
-    const message = `机械价格参考表已导入${storageMode}：新增 ${result.added} 条，更新 ${result.updated} 条。`;
-    if ($(targetId)) $(targetId).textContent = message;
-    toast(message);
   }
 
   function exportProductCatalogPdf() {
@@ -4854,7 +4666,7 @@
     currentAgentAuthorization = {
       id: "", documentType:"authorization", isTemplate:false, authorizationNumber: AgencyDocuments.number('authorization',date,agentAuthorizations),
       date, validUntil: "", language: "bilingual", company: [party.nameEn || settings.companyNameEn, party.nameZh || settings.companyNameZh].filter(Boolean).join(" / "),
-      authorizer: settings.agencyAuthorizer || party.signerName || settings.contactPerson || "Ethan", authorizerTitle: settings.agencyAuthorizerTitle || party.signerTitle || "General Manager / 总经理",
+      authorizer: settings.agencyAuthorizer || party.signerName || settings.contactPerson || "", authorizerTitle: settings.agencyAuthorizerTitle || party.signerTitle || "",
       signatureDataUrl: settings.agencySignatureDataUrl || "", signatureRotation: settings.agencySignatureRotation || 0,
       country: "", agentName: "", idNumber: "", phone: "", email: "", address:"", officeAddress:"",
       selectedProducts: agencyProductGroups.flatMap(group => group.items.map(item => item[0])), showCommission:true,
@@ -4981,7 +4793,7 @@
       a.documentNotes='';
       if(kind==='statement'){
         a.company=[settings.companyNameEn,settings.companyNameZh].filter(Boolean).join(' / ');
-        a.authorizer='Ethan';a.authorizerTitle='General Manager for Africa / 非洲区总经理';
+        a.authorizer=settings.agencyAuthorizer||settings.contactPerson||'';a.authorizerTitle=settings.agencyAuthorizerTitle||'';
         a.signatureDataUrl=settings.agencySignatureDataUrl||'';a.signatureRotation=settings.agencySignatureRotation||0;
         a.paymentChannel='bank';a.commissionBasis='rate';a.orderRate='';a.fixedCommission='';a.allowManualCompletion=true;
         a.companySnapshot={companyNameEn:settings.companyNameEn,companyNameZh:settings.companyNameZh,companyAddressEn:settings.companyAddressEn,companyAddressZh:settings.companyAddressZh,stampDataUrl:settings.stampDataUrl||'',agencySignatureDataUrl:settings.agencySignatureDataUrl||'',agencySignatureRotation:settings.agencySignatureRotation||0};
@@ -5052,7 +4864,7 @@
       ${showCommission?`<section class="agency-commission-section"><h2>${agencyText("Commission and Settlement","佣金及结算","Comisión y liquidación","Commission et règlement")}</h2><ol class="agency-terms"><li>${escapeHtml(agencyText(`The indicative commission range is ${a.commissionMin}%-${a.commissionMax}%. The final rate must be confirmed in writing for each order.`,`参考佣金比例为${a.commissionMin}%-${a.commissionMax}%，每笔订单的最终比例须另行书面确认。`,`La comisión orientativa es del ${a.commissionMin}%-${a.commissionMax}%; la tasa final se confirmará por escrito para cada pedido.`,`La commission indicative est de ${a.commissionMin}%-${a.commissionMax}%; le taux final est confirmé par écrit pour chaque commande.`))}</li><li>${escapeHtml(a.commissionTerms||"-")}</li><li>${escapeHtml(agencyText(`Payment: ${a.paymentMethods||"-"}; settlement: ${a.settlementDays||"-"} after all conditions are met.`,`支付方式：${a.paymentMethods||"-"}；全部结算条件满足后${a.settlementDays||"-"}支付。`,`Pago: ${a.paymentMethods||"-"}; liquidación: ${a.settlementDays||"-"} después de cumplirse todas las condiciones.`,`Paiement : ${a.paymentMethods||"-"}; règlement : ${a.settlementDays||"-"} après satisfaction de toutes les conditions.`))}</li><li>${escapeHtml(agencyText(a.markupAllowed?"A reasonable markup is permitted, subject to customer acceptance and our final written confirmation.":"No markup is permitted without prior written approval.",a.markupAllowed?"允许在我方基础报价上合理加价，但须经客户接受并由我方最终书面确认。":"未经我方事先书面同意不得加价。",a.markupAllowed?"Se permite un margen razonable, sujeto a la aceptación del cliente y nuestra confirmación final por escrito.":"No se permite margen sin autorización previa por escrito.",a.markupAllowed?"Une marge raisonnable est autorisée, sous réserve de l’acceptation du client et de notre confirmation écrite finale.":"Aucune marge n’est autorisée sans accord écrit préalable."))}</li></ol></section>`:""}
       ${a.extraTerms?`<section class="agency-additional"><h2>${agencyText("Additional Terms","补充条款","Condiciones adicionales","Conditions supplémentaires")}</h2><p>${escapeHtml(a.extraTerms)}</p></section>`:""}
       <p class="agency-validity">${agencyText("This authorization becomes effective on the date of signature and seal.", "本授权书自签字盖章之日起生效。")}</p>
-      <footer class="agency-signature"><div class="agency-seal-side">${stamp ? `<img src="${stamp}" alt="Company Stamp">` : `<div class="agency-stamp-placeholder">${agencyText("Company Stamp", "公司公章")}</div>`}<p>${agencyText("Authorizing Party", "授权方")}：${escapeHtml(a.company || "-")}</p></div><div class="agency-signer-side"><p>${agencyText("Authorized Signatory", "授权签署人")}：<b>${escapeHtml(a.authorizer || "Ethan")}</b></p><p>${agencyText("Title", "职务")}：${escapeHtml(a.authorizerTitle || "-")}</p><p>${agencyText("Signature", "签字")}：____________________</p><p class="agency-issue-date">${agencyText("Date of Issue", "签发日期","Fecha de emisión","Date d’émission")}：${escapeHtml(a.date||"-")}</p></div></footer>
+      <footer class="agency-signature"><div class="agency-seal-side">${stamp ? `<img src="${stamp}" alt="Company Stamp">` : `<div class="agency-stamp-placeholder">${agencyText("Company Stamp", "公司公章")}</div>`}<p>${agencyText("Authorizing Party", "授权方")}：${escapeHtml(a.company || "-")}</p></div><div class="agency-signer-side"><p>${agencyText("Authorized Signatory", "授权签署人")}：<b>${escapeHtml(a.authorizer||'')}</b></p><p>${agencyText("Title", "职务")}：${escapeHtml(a.authorizerTitle || "-")}</p><p>${agencyText("Signature", "签字")}：____________________</p><p class="agency-issue-date">${agencyText("Date of Issue", "签发日期","Fecha de emisión","Date d’émission")}：${escapeHtml(a.date||"-")}</p></div></footer>
     </section>`;
   }
 
@@ -5967,7 +5779,7 @@
       return `<p>${escapeHtml(address)} | ${labelText("Quotation Contact", "报价负责人")}: ${escapeHtml(settings.contactPerson)}</p>`;
     }
     return `<div class="preview-contact-list">
-      <p>${escapeHtml(address)} | ${labelText("Quotation Contact", "报价负责人")}: ${escapeHtml(settings.contactPerson)}</p>
+      <p>${escapeHtml(address)}</p>
       <div>${fields.map((field) => field.type === "image"
         ? `<span class="preview-contact-image"><b>${labelText(field.labelEn, field.labelZh)}</b><img src="${field.value}" alt=""></span>`
         : `<span><b>${labelText(field.labelEn, field.labelZh)}:</b> ${escapeHtml(field.value)}</span>`).join("")}</div>
@@ -6292,8 +6104,7 @@
     const options=TradeDocumentLayouts.options(type,currentQuote.outputOptions?.[type]);
     const bankControl=activeDocumentConfig(type)?.blocks?.layout?.find(field=>field.fieldKey==='showBankControl');
     const bankToggle=$('document-show-bank')?.closest('label');if(bankToggle)bankToggle.hidden=bankControl?.visible===false||bankControl?.active===false;
-    // Keep the original quotation banner, terms, seal and bank section intact.
-    // Other document types retain their dedicated layouts.
+    // Share the compact header without merging the documents' distinct bodies.
     if(type==='quotation'){
       host.classList.add('september-quotation');
       host.querySelector('.preview-banner')?.remove();host.querySelector('.preview-top')?.remove();
@@ -6341,14 +6152,7 @@
     $('document-show-signature').checked=options.signature;
   }
 
-  function renderSalesContractSignatures() {
-    const signature=settings.agencySignatureDataUrl||'';
-    const angle=[-90,0,90,180].includes(Number(settings.agencySignatureRotation))?Number(settings.agencySignatureRotation):0;
-    const sign=signature?`<span class="commission-electronic-signature"><img src="${escapeHtml(signature)}" alt="Seller electronic signature" style="transform:translate(-50%,-50%) rotate(${angle}deg);width:${Math.abs(angle)===90?55:130}px;height:${Math.abs(angle)===90?130:55}px"></span>`:'____________________';
-    const stamp=settings.stampDataUrl?`<span class="commission-stamp-overlay"><img class="commission-signature-stamp" src="${escapeHtml(settings.stampDataUrl)}" alt="Seller electronic company stamp"></span>`:'';
-    if(currentQuote.documentType==='invoice')return `<section class="preview-panel pi-company-signature"><h3>${labelText('For and on behalf of the Seller','卖方公司授权签署')}</h3><p><b>${labelText('Company','公司全称')}:</b> ${localizedText(settings.companyNameEn,settings.companyNameZh)}</p><p><b>${labelText('Title','职务')}:</b> ${escapeHtml(settings.agencyAuthorizerTitle||labelText('General Manager, Africa','非洲区总经理'))}</p><p><b>${labelText('Authorized Signatory','授权签字人')}:</b> ${escapeHtml(settings.agencyAuthorizer||settings.contactPerson||'')}</p><div class="pi-signature-assets"><div><b>${labelText('Electronic Signature','电子签名')}</b>${sign}</div><div><b>${labelText('Company Seal','公司公章')}</b>${stamp}</div></div><p><b>${labelText('Date','签署日期')}:</b> ${escapeHtml(currentQuote.quoteDate)}</p></section>`;
-    return `<section class="preview-panel sales-contract-signatures"><div class="commission-party-a"><h3>${labelText('Seller signature','卖方签署')}</h3><p>${escapeHtml(settings.companyNameEn)} / ${escapeHtml(settings.companyNameZh)}</p><p>${labelText('Responsible person','负责人')}: Ethan</p><p>${labelText('Title','职务')}: ${labelText('General Manager for Africa','非洲区总经理')}</p><p>${labelText('Signature','签字')}:</p>${sign}${stamp}<p>${labelText('Date','日期')}: ${escapeHtml(currentQuote.quoteDate)}</p></div><div><h3>${labelText('Buyer signature','买方签署')}</h3><p>${escapeHtml(currentQuote.buyer.company||'')}</p><p>${labelText('Responsible person','负责人')}: ${escapeHtml(currentQuote.buyer.contact||'')}</p><p>${labelText('Signature','签字')}: ____________________</p><p>${labelText('Date','日期')}: ____________________</p></div></section>`;
-  }
+  function renderSalesContractSignatures() { return renderDocumentSignature(currentQuote.documentType); }
 
   async function saveQuote() {
     const workKey=currentWorkKey("quote");
@@ -6757,7 +6561,7 @@
     $("reset-background-btn").addEventListener("click", () => clearSettingsAsset("backgroundDataUrl", "Default background restored. / 已恢复默认背景。"));
     $("remove-stamp-btn").addEventListener("click", () => clearSettingsAsset("stampDataUrl", "Electronic seal removed. / 电子公章已删除。"));
     $("product-image").addEventListener("change", async e => { const data = await normalizeImage(e.target.files[0]); $("product-image-preview").src = data; $("product-image-preview").dataset.image = data; persistWork(true); });
-    $("product-template").addEventListener("change", () => renderProductDynamicFields());
+    $("product-template").addEventListener("change", () => renderProductDynamicFields(collectProductForm()));
     $("product-category")?.addEventListener("change", () => renderProductDynamicFields());
     $("product-smart-analyze")?.addEventListener("click",analyzeSmartProductText);
     $("product-smart-apply")?.addEventListener("click",applySmartProductCandidate);
@@ -6766,16 +6570,13 @@
     $("product-model-reference")?.addEventListener("change",()=>{const source=products.find(p=>p.id===$("product-model-reference").value);if(!source)return;[["product-transport-length",source.transportLength],["product-transport-width",source.transportWidth],["product-transport-height",source.transportHeight],["product-transport-cbm",source.transportCbm],["product-weight",source.weight],["product-transport-method",source.transportMethod],["product-transport-status",source.transportDataStatus]].forEach(([id,value])=>{if($(id)&&value!==undefined&&value!==null)$(id).value=value;});renderProductTransportPlans(source.transportPlans||[]);toast("已引用通用车型运输数据，可按实际库存设备修改。");});
     $("save-product-btn").addEventListener("click", saveProduct);
     $("clear-product-btn").addEventListener("click", clearProductForm);
-    $("price-import-file").addEventListener("change", async e => loadPriceImportFile(e.target.files[0]));
-    $("import-price-btn").addEventListener("click", importPriceList);
+    $("import-price-btn").addEventListener("click", reviewProductTextImport);
     $("clear-import-text-btn").addEventListener("click", () => { $("price-import-text").value = ""; $("price-import-result").textContent = ""; });
-    $("import-machinery-reference-btn")?.addEventListener("click", () => importMachineryReferenceProducts("machinery-reference-result"));
-    $("export-product-catalog-pdf-btn")?.addEventListener("click", exportProductCatalogPdf);
-    $("import-machinery-reference-tab-btn")?.addEventListener("click", () => importMachineryReferenceProducts("machinery-reference-tab-result"));
-    $("export-product-catalog-pdf-tab-btn")?.addEventListener("click", exportProductCatalogPdf);
     $("product-search").addEventListener("input", renderProducts);
     $('library-template-filter')?.addEventListener('change',renderProducts);
     $('library-delete-selected')?.addEventListener('click',deleteSelectedLibraryProducts);
+    const editSelected=document.createElement('button');editSelected.id='library-edit-selected';editSelected.type='button';editSelected.textContent='编辑选中';editSelected.disabled=true;$('library-new-product').after(editSelected);
+    editSelected.addEventListener('click',()=>{const ids=[...document.querySelectorAll('[data-library-select]:checked')];if(ids.length===1)editProduct(ids[0].dataset.librarySelect);else toast('请只选择一个产品进行编辑。');});
     $('product-list')?.addEventListener('change',event=>{if(event.target.id==='library-select-all')document.querySelectorAll('[data-library-select]').forEach(input=>input.checked=event.target.checked);updateLibrarySelection();});
     $('library-new-product')?.addEventListener('click',()=>{clearProductForm();$('product-edit-panel').hidden=false;$('product-edit-panel').scrollIntoView({behavior:'smooth',block:'start'});});
     $('library-close-editor')?.addEventListener('click',()=>{$('product-edit-panel').hidden=true;});
@@ -7231,7 +7032,10 @@
 
   function updateDocumentSwitchState() {
     const type=activeViewName==='invitation'?'invitation':activeViewName==='agency'?'authorization':currentQuote?.documentType||'quotation';
-    document.querySelectorAll('[data-switch-document]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.switchDocument===type)));
+    document.querySelectorAll('[data-switch-document]').forEach(button=>{const active=button.dataset.switchDocument===type;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-current-document',active);});
+    const activeButton=document.querySelector('[data-switch-document="'+type+'"]');
+    for(const view of ['quote','invitation','agency']){const heading=document.querySelector('#view-'+view+' > .page-head h2');if(heading&&activeButton)heading.textContent=activeButton.textContent;}
+    $('document-top-tools')?.querySelectorAll('details[open]').forEach(popup=>popup.open=false);
   }
   function initDocumentNavigation() {
     const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',invitation:'商务邀请函'};
@@ -7438,7 +7242,7 @@
     syncCatalogSelectors();
   }
 
-  window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote, printStandardHistory, importMachineryReferenceProducts, exportProductCatalogPdf, renderVehiclePreview, printVehicleQuote, getActiveFreightTarget:activeFreightTarget, applyFreightResult };
+  window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote, printStandardHistory, exportProductCatalogPdf, renderVehiclePreview, printVehicleQuote, getActiveFreightTarget:activeFreightTarget, applyFreightResult };
   window.quoteSettingsContext={
     get settings(){return settings;},
     save:async(next)=>{const candidate={...settings,...next};const result=await api('/api/settings',{method:'PUT',body:JSON.stringify(candidate)});settings=result.settings||candidate;save(keys.settings,settings);renderAllSelectors();renderSettings();window.OptionManager?.mount();renderProducts();if(currentQuote){renderQuoteItems();renderQuoteTerms();}renderPreview();},

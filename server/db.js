@@ -306,6 +306,7 @@ function runSchema() {
   addColumns("compatibility_rules", [["transport_length","REAL DEFAULT 0"],["transport_width","REAL DEFAULT 0"],["transport_height","REAL DEFAULT 0"],["transport_cbm","REAL DEFAULT 0"],["dimension_unit","TEXT DEFAULT 'meter'"],["transport_method","TEXT DEFAULT 'Bulk Cargo'"]]);
   addColumns("freight_rates", [["billing_mode","TEXT DEFAULT 'cbm'"],["container_type","TEXT DEFAULT ''"],["partner_id","TEXT DEFAULT ''"],["included_fees_json","TEXT DEFAULT '[]'"],["excluded_fees_json","TEXT DEFAULT '[]'"],["minimum_charge","REAL DEFAULT 0"]]);
   addColumns("products", [["record_type","TEXT DEFAULT 'model'"],["model_product_id","TEXT DEFAULT ''"],["inventory_code","TEXT DEFAULT ''"],["year","TEXT DEFAULT ''"],["working_hours","REAL"],["specific_price","REAL"],["currency","TEXT DEFAULT 'USD'"],["price_status","TEXT DEFAULT 'pending'"],["transport_data_status","TEXT DEFAULT 'reference'"],["transport_plans_json","TEXT DEFAULT '[]'"],["raw_import_text","TEXT DEFAULT ''"]]);
+  addColumns("products", [["template_name","TEXT DEFAULT ''"],["values_json","TEXT DEFAULT '{}'" ]]);
   addColumns("freight_rates", [["quote_date","TEXT DEFAULT ''"],["valid_until","TEXT DEFAULT ''"],["transit_days","TEXT DEFAULT ''"],["cargo_limit","TEXT DEFAULT ''"],["charge_rule","TEXT DEFAULT 'standard'"],["rate_status","TEXT DEFAULT 'quoted'"],["fee_items_json","TEXT DEFAULT '[]'"]]);
   addColumns("quotations", [["logistics_snapshot_json","TEXT DEFAULT '{}'" ],["series_id","TEXT DEFAULT ''"],["version","INTEGER DEFAULT 0"],["is_formal","INTEGER DEFAULT 0"],["source_quote_id","TEXT DEFAULT ''"],["formalized_at","TEXT"]]);
   db.exec("CREATE INDEX IF NOT EXISTS idx_quotations_series_version ON quotations(series_id, version DESC)");
@@ -485,9 +486,9 @@ function seed() {
   const settingsCount = db.prepare("SELECT COUNT(*) AS count FROM company_settings").get().count;
   if (!settingsCount) {
     db.prepare("INSERT INTO company_settings (id, data_json, created_at, updated_at) VALUES (1, ?, ?, ?)").run(JSON.stringify({
-      companyNameEn: "Jinwanwa International Trading Co., Ltd.",
-      companyNameZh: "合肥金万挖工程机械有限公司",
-      contactPerson: "Ethan",
+      companyNameEn: "Example Trading Co., Ltd.",
+      companyNameZh: "示例贸易有限公司",
+      contactPerson: "张三",
       companyPhone: "",
       companyEmail: "",
       companyAddressEn: "Hefei, China",
@@ -515,7 +516,7 @@ function seed() {
   }
   seedDefaultPorts();
 
-  if (!db.prepare("SELECT COUNT(*) AS count FROM products").get().count) {
+  if (!settingsCount && !db.prepare("SELECT COUNT(*) AS count FROM products").get().count) {
     const products = [
       ["product-sany-215c", "Excavator", "SANY", "SANY 215C", "三一215, 三一215C, 31215, 31215C, SANY215, SANY 215C, SY215, SY215C, 215C", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Transport dimension required", "", "Active"],
       ["product-cat-320c", "Excavator", "CAT", "CAT 320C", "卡特320, 卡特320C, CAT320, CAT320C, Caterpillar 320C, 320C", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Large excavator. Accurate transport dimension required.", "", "Active"],
@@ -527,7 +528,9 @@ function seed() {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     products.forEach((p) => stmt.run(...p, normalize(p.join(" ")), now(), now()));
   }
-  db.prepare("UPDATE products SET transport_cbm=85, dimension_unit='meter', updated_at=? WHERE id='product-cat-320c' AND (transport_cbm IS NULL OR transport_cbm<=0)").run(now());
+  if(!settingsCount){
+    db.prepare("INSERT INTO customers (name,country,requirement,created_at,updated_at) VALUES (?,?,?,?,?)").run('张三','中国','演示客户，可编辑或删除。',now(),now());
+  }
 
   if (!db.prepare("SELECT COUNT(*) AS count FROM vehicle_types").get().count) {
     const rows = [["truck-crane","随车吊","Truck-mounted crane"],["garbage-compactor","垃圾压缩车","Garbage compactor truck"],["sewer-cleaner","清洗吸污车","Sewer cleaning truck"],["sprinkler","洒水车","Water sprinkler truck"],["fuel-tanker","油罐车","Fuel tanker truck"],["aerial-platform","高空作业车","Aerial work platform"]];
