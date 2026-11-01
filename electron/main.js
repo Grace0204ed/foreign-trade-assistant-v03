@@ -255,6 +255,18 @@ function safePdfFileName(name) {
   return value.toLowerCase().endsWith(".pdf") ? value : `${value || "quotation"}.pdf`;
 }
 
+ipcMain.handle('export-catalog-pdf',async(event,html)=>{
+  const parent=BrowserWindow.fromWebContents(event.sender);
+  const result=await dialog.showSaveDialog(parent,{title:'导出产品目录 PDF',defaultPath:path.join(app.getPath('desktop'),'产品目录.pdf'),filters:[{name:'PDF',extensions:['pdf']}]});
+  if(result.canceled||!result.filePath)return null;
+  const preview=await require('./catalog-output.cjs')(BrowserWindow,html,parent);
+  try{const pdf=await preview.webContents.printToPDF({pageSize:'A4',printBackground:true,preferCSSPageSize:true});fs.writeFileSync(result.filePath,pdf);return result.filePath;}finally{preview.destroy();}
+});
+ipcMain.handle('print-catalog',async(event,html)=>{
+  const preview=await require('./catalog-output.cjs')(BrowserWindow,html,BrowserWindow.fromWebContents(event.sender));
+  try{return await new Promise((resolve,reject)=>preview.webContents.print({silent:false,printBackground:true},(success,reason)=>success?resolve(true):reason==='cancelled'?resolve(false):reject(Error(reason||'打印未完成'))));}finally{preview.destroy();}
+});
+
 ipcMain.handle("export-current-pdf", async (event, fileName) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const result = await dialog.showSaveDialog(win, {

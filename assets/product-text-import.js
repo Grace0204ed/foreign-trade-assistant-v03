@@ -21,7 +21,7 @@
     if(quoted)throw new Error('引号未闭合，请检查粘贴文本。');
     row.push(cell.trim());if(row.some(Boolean))rows.push(row);return rows;
   }
-  function inspect(text){const rows=parse(text);if(!rows.length)throw new Error('请先粘贴产品文本。');const mapped=rows[0].map(header);const hasHeader=mapped.filter(Boolean).length>=2;return {rows:hasHeader?rows.slice(1):rows,headings:hasHeader?rows[0]:rows[0].map((_,i)=>'第 '+(i+1)+' 列'),mapping:hasHeader?mapped:rows[0].map(()=>''),hasHeader};}
+  function inspect(text,customFields=[]){const rows=parse(text);if(!rows.length)throw new Error('请先粘贴产品文本。');const mapped=rows[0].map(value=>customFields.find(f=>[f.zh,f.en,f.fieldKey].filter(Boolean).some(n=>normalize(n)===normalize(value)))?.fieldKey||header(value));const hasHeader=mapped.filter(Boolean).length>=2;return {rows:hasHeader?rows.slice(1):rows,headings:hasHeader?rows[0]:rows[0].map((_,i)=>'第 '+(i+1)+' 列'),mapping:hasHeader?mapped:rows[0].map(()=>''),hasHeader};}
   function records(analysis,mapping){
     const selected=mapping.filter(Boolean);if(!selected.length)throw new Error('请先选择列对应的字段。');
     if(new Set(selected).size!==selected.length)throw new Error('同一个字段不能对应多列。');

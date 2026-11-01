@@ -26,6 +26,20 @@ app.use((req,res,next)=>{
   ensureAutomaticOwner(req);next();
 });
 app.use(express.json({ limit: "50mb" }));
+// Local preview only. Importing is a separate, explicit confirmation step.
+app.post('/api/products/parse-file', requireLogin, (req,res)=>{
+  try{
+    if(typeof req.body.data!=='string'||req.body.data.length>7*1024*1024)throw Error('请选择不超过5MB的表格。');
+    const buffer=Buffer.from(req.body.data,'base64');
+    if(!buffer.length||buffer.length>5*1024*1024)throw Error('表格为空或超过5MB。');
+    const XLSX=require('xlsx'),book=XLSX.read(buffer,{type:'buffer',cellFormula:false,bookVBA:false,sheetRows:2001});
+    const sheet=book.Sheets[book.SheetNames[0]];
+    if(!sheet?.['!ref'])throw Error('第一个工作表没有数据。');
+    const range=XLSX.utils.decode_range(sheet['!ref']);
+    if(range.e.r>=2000||range.e.c>=100)throw Error('一次最多导入1999行、100列，请拆分表格。');
+    res.json({text:XLSX.utils.sheet_to_csv(sheet)});
+  }catch(error){res.status(400).json({message:'无法读取表格：'+error.message});}
+});
 require("./work-drafts")(app, db);
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use("/uploads", express.static(uploadDir));

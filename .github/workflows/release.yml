@@ -42,6 +42,8 @@ jobs:
         run: npm run test:refinement
       - name: Verify product edit modal and procurement navigation
         run: npm run test:product-modal
+      - name: Verify approved demo product workflows and application lock
+        run: npm run test:demo-workflow
       - name: Verify real PDF exports and column alignment
         run: npm run test:pdf
       - name: Verify seven document field persistence and PDF output

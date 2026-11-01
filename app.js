@@ -1258,6 +1258,7 @@
       desc: tpl.desc || "",
       productMode: tpl.productMode || "linked",
       productTemplateId: tpl.productTemplateId || "",
+      specificationFields: Array.isArray(tpl.specificationFields)?structuredClone(tpl.specificationFields):undefined,
       fields: (tpl.fields || [])
         .map(normalizeField)
         .filter((field) => !field.deletedAt && !["freight", "truckingToPort"].includes(field.fieldKey))
@@ -3968,17 +3969,18 @@
     const fields = (tpl?.fields || [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .filter((field) => !field.deletedAt && field.active !== false && field.fieldType !== "calculated" && field.fieldType !== "image");
+      .filter((field) => !field.deletedAt && field.active !== false && field.fieldType !== "calculated" && field.fieldType !== "image" && field.fieldKey !== 'params');
     host.innerHTML = fields.map((field) => `
       <label class="${field.fieldType === "textarea" ? "wide" : ""}">
-        <span>${escapeHtml(field.en)} / ${escapeHtml(field.zh)}${field.required ? " *" : ""}</span>
-        ${renderProductLibraryFieldInput(field, values[field.fieldKey] || "")}
+        <span>${escapeHtml(field.zh||field.en)}${field.required ? " *" : ""}</span>
+        ${renderProductLibraryFieldInput(field, values[field.fieldKey] ?? "")}
       </label>
     `).join("");
     // One editable source per field; keep stable IDs for smart paste and draft recovery.
     for(const [key,id] of Object.entries({year:'product-year',hours:'product-working-hours',unitPrice:'product-specific-price',currency:'product-currency'})){
       const input=host.querySelector('[data-product-field="'+key+'"]');if(input)input.id=id;
     }
+    window.ProductWorkflow?.mount(product,tpl);
   }
 
   function renderProductLibraryFieldInput(field, value) {
@@ -4061,12 +4063,19 @@
 
   function reviewProductTextImport() {
     let analysis;
-    try{analysis=ProductTextImport.inspect($('price-import-text').value);}catch(error){return toast(error.message);}
+    const importTemplate=$('product-import-template')?.value||settings.templates[0]?.name;
+    const templateFields=settings.templates.find(t=>t.name===importTemplate)?.fields||[];
+    const importFields={...ProductTextImport.fields,...Object.fromEntries(templateFields.filter(f=>f.active!==false&&f.fieldType!=='image'&&f.fieldType!=='calculated').map(f=>[f.fieldKey,f.zh||f.en||f.fieldKey]))};
+    try{analysis=ProductTextImport.inspect($('price-import-text').value,templateFields);}catch(error){return toast(error.message);}
+    $('product-import-modal')?.close();
     let modal=$('product-import-review');if(!modal){modal=document.createElement('div');modal.id='product-import-review';modal.className='modal no-print';document.body.append(modal);}
     modal.innerHTML=`<div class="modal-card import-review-card" role="dialog" aria-modal="true" aria-labelledby="product-import-title"><header><div><h3 id="product-import-title">核对产品资料</h3><p>${analysis.hasHeader?'已识别表头，请核对每列。':'未识别表头，请先为各列选择字段。'} 确认前不会写入产品库。</p></div><button data-import-close type="button">关闭</button></header><div class="import-mapping">${analysis.headings.map((heading,i)=>`<label><span>${escapeHtml(heading)}</span><select data-import-column="${i}"><option value="">忽略此列</option>${Object.entries(ProductTextImport.fields).map(([key,label])=>`<option value="${key}" ${analysis.mapping[i]===key?'selected':''}>${label}</option>`).join('')}</select></label>`).join('')}</div><div class="library-table-scroll"><table class="library-table"><thead><tr>${analysis.headings.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${analysis.rows.slice(0,8).map(row=>`<tr>${row.map(cell=>`<td>${escapeHtml(cell)||'—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div><footer><label>资料模板<select id="import-product-template">${settings.templates.map(t=>`<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('')}</select></label><label>同品牌／型号或同名产品<select id="import-duplicate-mode"><option value="skip">跳过已有产品</option><option value="update">仅更新非空字段</option><option value="new">作为新产品新增</option></select></label><p id="import-review-status" role="status">共 ${analysis.rows.length} 条，将保存至本机数据库。</p><button type="button" class="primary" id="import-review-save">确认入库</button></footer></div>`;
     modal.hidden=false;let saving=false,queue=null,success=0,skipped=0;
+    $('import-product-template').value=importTemplate;
+    modal.querySelectorAll('[data-import-column]').forEach((select,i)=>{select.innerHTML='<option value="">忽略此列</option>'+Object.entries(importFields).map(([key,label])=>`<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');select.value=analysis.mapping[i]||'';});
     const close=()=>{if(!saving)modal.hidden=true;};modal.querySelector('[data-import-close]').onclick=close;modal.onclick=e=>{if(e.target===modal)close();};modal.onkeydown=e=>{if(e.key==='Escape')close();};
     modal.querySelectorAll('select').forEach(input=>input.onchange=()=>{queue=null;success=0;skipped=0;});
+    $('import-product-template').onchange=()=>{queue=null;success=0;skipped=0;const fields=settings.templates.find(t=>t.name===$('import-product-template').value)?.fields||[],choices={...ProductTextImport.fields,...Object.fromEntries(fields.filter(f=>!f.deletedAt&&f.active!==false&&!['image','calculated'].includes(f.fieldType)).map(f=>[f.fieldKey,f.zh||f.en||f.fieldKey]))};modal.querySelectorAll('[data-import-column]').forEach((select,i)=>{const old=select.value;select.innerHTML='<option value="">忽略此列</option>'+Object.entries(choices).map(([key,label])=>`<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');select.value=Object.hasOwn(choices,old)?old:ProductTextImport.inspect(analysis.headings.join('\t'),fields).mapping[i]||'';});};
     $('import-review-save').onclick=async()=>{
       if(saving)return;const button=$('import-review-save'),status=$('import-review-status');
       try{
@@ -4092,6 +4101,7 @@
     const existing=products.find(product=>product.id===editingProductId)||{};
     const values = {...productValues(existing)};
     document.querySelectorAll("[data-product-field]").forEach((input) => values[input.dataset.productField] = input.multiple?[...input.selectedOptions].map(option=>option.value).join(','):input.type==='checkbox'?input.checked:input.value);
+    Object.assign(values,window.ProductWorkflow?.collect()||{});
     return {
       ...existing,
       id: editingProductId || uid("product"),
@@ -4316,36 +4326,11 @@
   }
 
   function exportProductCatalogPdf() {
-    const list = products.slice().sort((a, b) => String(a.category || "").localeCompare(String(b.category || ""), "zh-Hans-CN") || String(a.brand || "").localeCompare(String(b.brand || ""), "zh-Hans-CN") || String(a.model || "").localeCompare(String(b.model || ""), "zh-Hans-CN"));
-    if (!list.length) return toast("产品库为空，无法导出产品目录。");
-    const rows = list.map((product, index) => {
-      const values = productValues(product);
-      return `<tr>
-        <td>${index + 1}</td>
-        <td>${escapeHtml(values.productType || product.category || "")}</td>
-        <td>${escapeHtml(values.brand || product.brand || "")}</td>
-        <td>${escapeHtml(values.model || product.model || "")}</td>
-        <td>${escapeHtml(values.tonnage || product.tonnage || "")}</td>
-        <td>${escapeHtml(values.year || product.year || "")}</td>
-        <td>${escapeHtml(values.hours || product.hours || "")}</td>
-        <td>${escapeHtml(values.unitPrice || values.referencePrice || product.referencePrice || "Please ask")}</td>
-        <td>${escapeHtml(values.remark || product.remark || "")}</td>
-      </tr>`;
-    }).join("");
-    const win = window.open("", "_blank");
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Product Catalog</title><style>
-      body{font-family:Arial,'Microsoft YaHei',sans-serif;color:#172033;padding:28px}
-      h1{margin:0 0 6px;color:#0f4c81} .meta{color:#64748b;margin-bottom:18px}
-      table{width:100%;border-collapse:collapse;font-size:10px} th,td{border:1px solid #d7e0ea;padding:6px;vertical-align:top}
-      th{background:#17365D;color:white} tr:nth-child(even){background:#f6f9fc}
-      @media print{body{padding:12mm} table{font-size:8px} th,td{padding:4px}}
-    </style></head><body>
-      <h1>Product Catalog / 产品目录</h1>
-      <div class="meta">${escapeHtml(settings.companyNameEn || "")} / ${escapeHtml(settings.companyNameZh || "")} · ${new Date().toISOString().slice(0, 10)}</div>
-      <table><thead><tr><th>#</th><th>Category</th><th>Brand</th><th>Model</th><th>Spec</th><th>Year Range</th><th>Hours/Mileage</th><th>Price Range</th><th>Remark</th></tr></thead><tbody>${rows}</tbody></table>
-      <script>window.onload=()=>setTimeout(()=>window.print(),200)<\/script>
-    </body></html>`);
-    win.document.close();
+    const selected=new Set([...document.querySelectorAll('[data-library-select]:checked')].map(n=>n.dataset.librarySelect));
+    const chosen=products.filter(p=>selected.has(p.id));
+    const listForPreview=chosen.length?chosen:products;
+    if(!listForPreview.length)return toast('产品库为空，无法预览。');
+    return window.ProductWorkflow.catalog(listForPreview,settings.templates,settings);
   }
 
   function renderQuoteEditor() {
@@ -6745,7 +6730,8 @@
     $('product-editor-modal').addEventListener('cancel',event=>{event.preventDefault();closeProductEditorModal();});
     $('product-editor-modal').addEventListener('close',()=>document.body.classList.remove('product-editor-open'));
     $('library-configure')?.addEventListener('click',()=>openSettingsSection('product-config'));
-    $('library-import')?.addEventListener('click',()=>{$('price-import-text').closest('.panel').scrollIntoView({behavior:'smooth',block:'start'});$('price-import-text').focus();});
+    window.ProductWorkflow?.init(window.quoteSettingsContext);
+    $('library-import')?.addEventListener('click',()=>window.ProductWorkflow.openImport());
     $('library-catalog')?.addEventListener('click',exportProductCatalogPdf);
     $("product-category-filter")?.addEventListener("change", renderProducts);
     $("product-condition-filter")?.addEventListener("change", renderProducts);
@@ -7196,13 +7182,14 @@
 
   function updateDocumentSwitchState() {
     const type=activeViewName==='invitation'?'invitation':activeViewName==='agency'?AgencyDocuments.type(currentAgentAuthorization):currentQuote?.documentType||'quotation';
-    document.querySelectorAll('[data-switch-document]').forEach(button=>{const active=button.dataset.switchDocument===type;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-current-document',active);});
-    const activeButton=document.querySelector('[data-switch-document="'+type+'"]');
+    const navigationType=type==='agreement'?'statement':type;
+    document.querySelectorAll('[data-switch-document]').forEach(button=>{const active=button.dataset.switchDocument===navigationType;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-current-document',active);});
+    const activeButton=document.querySelector('[data-switch-document="'+navigationType+'"]');
     for(const view of ['quote','invitation','agency']){const heading=document.querySelector('#view-'+view+' > .page-head h2');if(heading&&activeButton)heading.textContent=activeButton.textContent;}
     $('document-top-tools')?.querySelectorAll('details[open]').forEach(popup=>popup.open=false);
   }
   function initDocumentNavigation() {
-    const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',procurement:'委托采购',invitation:'商务邀请函'};
+    const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',statement:'佣金结算单',procurement:'委托采购',invitation:'商务邀请函'};
     const drafts=new Map();let sharedBuyer={};
     function capture(){
       if(activeViewName==='quote'){collectQuoteFromForm();sharedBuyer={...currentQuote.buyer};drafts.set(currentQuote.documentType,structuredClone(currentQuote));}
@@ -7215,7 +7202,7 @@
         if(drafts.has(type))currentInvitation=structuredClone(drafts.get(type));else{newInvitation();Object.assign(currentInvitation,{visitorName:sharedBuyer.contact||'',visitorCompany:sharedBuyer.company||'',country:sharedBuyer.country||''});}
         bindInvitationToForm();switchView('invitation');updateDocumentSwitchState();return;
       }
-      if(type==='authorization'||type==='procurement'){
+      if(type==='authorization'||type==='procurement'||type==='statement'){
         if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization();Object.assign(currentAgentAuthorization,{documentType:type,authorizationNumber:AgencyDocuments.number(type,today(),agentAuthorizations),agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
         bindAgentAuthorizationForm();switchView('agency');updateDocumentSwitchState();return;
       }
@@ -7227,8 +7214,8 @@
       bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();
     }
     const section=document.createElement('section');section.id='view-create';section.className='view no-print';
-    const symbols={quotation:'报',invoice:'PI',contract:'合',commercial:'票',packing:'箱',authorization:'授',procurement:'采',invitation:'函'};
-    const english={quotation:'Quotation',invoice:'Proforma Invoice',contract:'Sales Contract',commercial:'Commercial Invoice',packing:'Packing List',authorization:'Agency Documents',procurement:'Personal Procurement',invitation:'Business Invitation'};
+    const symbols={quotation:'报',invoice:'PI',contract:'合',commercial:'票',packing:'箱',authorization:'授',statement:'佣',procurement:'采',invitation:'函'};
+    const english={quotation:'Quotation',invoice:'Proforma Invoice',contract:'Sales Contract',commercial:'Commercial Invoice',packing:'Packing List',authorization:'Agency Documents',statement:'Commission Statement',procurement:'Personal Procurement',invitation:'Business Invitation'};
     section.innerHTML='<header class="page-head"><h2>新建单证</h2></header><div class="entry-grid">'+Object.entries(types).map(([key,label])=>`<button class="entry-card" data-create-document="${key}"><i aria-hidden="true">${symbols[key]||'文'}</i><div><b>${label}</b><span>${english[key]||''}</span></div><em aria-hidden="true">›</em></button>`).join('')+'</div>';
     document.querySelector('main').append(section);
     for(const view of ['quote','invitation','agency']){
@@ -7237,6 +7224,7 @@
       const batch=document.createElement('details');
       batch.innerHTML='<summary>同时准备多份单证</summary><div class="actions">'+Object.entries(types).map(([key,label])=>`<label><input type="checkbox" value="${key}"> ${label}</label>`).join('')+'</div><button type="button">准备所选草稿</button><small>只准备独立草稿；请逐份补充资料、核对后保存，不自动签发。</small>';
       batch.querySelector('button').onclick=()=>{const selected=[...batch.querySelectorAll('input:checked')].map(el=>el.value);if(!selected.length)return toast('请先选择单证');selected.forEach(open);open(selected[0]);toast('已准备 '+selected.length+' 份独立草稿，可用上方选择框切换核对和保存。');};
+      batch.querySelector('.actions').classList.add('document-batch-choices');
       bar.append(batch);
       const host=$('view-'+view);host.prepend(bar);
     }

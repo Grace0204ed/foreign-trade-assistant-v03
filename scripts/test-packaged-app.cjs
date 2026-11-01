@@ -74,7 +74,9 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/�
   await assert.rejects(page.evaluate(token=>window.quotationDesktop.exportBatchPdf(token,'expired.pdf'),token),/重新选择/);
   console.log('PASS actual packaged window close/relaunch recovery and real PDF IPC: batch same-name isolation, cancel, grant revocation');
   await page.click('.desktop-rail [data-view="products"]');await page.click('#library-new-product');
-  await page.locator('[data-product-field="model"]').fill('PACKAGE UNSAVED PRODUCT');await page.fill('#product-smart-paste','preserve partial import');
+  await page.locator('[data-product-field="model"]').fill('PACKAGE UNSAVED PRODUCT');
+  await page.locator('#product-smart-paste').evaluate(el=>{el.closest('details').open=true;});
+  await page.fill('#product-smart-paste','preserve partial import');
   await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});
   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Product window close timed out')),20000);if(app.process().exitCode!==null){clearTimeout(timer);resolve();}else app.process().once('exit',()=>{clearTimeout(timer);resolve();});});
   app=await electron.launch({executablePath,env,timeout:60000});page=await app.firstWindow();

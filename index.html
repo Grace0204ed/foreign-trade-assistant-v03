@@ -280,8 +280,11 @@
             <div id="product-filter-summary" class="product-filter-summary"></div>
             <div id="product-list" class="list"></div>
           </div>
-          <div class="panel">
-            <h3>导入产品资料</h3>
+          <dialog id="product-import-modal" class="workflow-dialog" aria-labelledby="product-import-heading"><header><h3 id="product-import-heading">导入产品资料</h3><button type="button" data-import-dismiss aria-label="关闭导入">✕</button></header><div class="workflow-body">
+            <div class="workflow-import-head"><label>产品模板<select id="product-import-template"></select></label><button type="button" id="product-import-header">下载表头模板</button></div>
+            <nav class="workflow-tabs"><button type="button" data-import-tab="text" aria-pressed="true">粘贴文本</button><button type="button" data-import-tab="file" aria-pressed="false">上传文件</button></nav>
+            <label id="product-import-file-zone" class="workflow-upload" hidden>选择 CSV 或 Excel 表格<input type="file" id="product-import-file" accept=".csv,.xlsx,.xls"><span id="product-import-file-status" role="status"></span></label>
+            <div id="product-import-text-zone">
             <p class="hint">① 粘贴文本　② 识别并核对字段　③ 确认入库。支持 Excel 表格及带引号的逗号分隔文本。</p>
             <textarea id="price-import-text" class="import-textarea" placeholder="示例：
 挖掘机 SANY 215C 2021 3200 20000 底价
@@ -289,12 +292,12 @@
 
 也支持带表头：
 分类	品牌	型号	年份	工时	底价	备注"></textarea>
-            <div class="actions">
+            </div><div class="actions">
               <button id="import-price-btn" class="primary" type="button">识别与核对</button>
               <button id="clear-import-text-btn" type="button">清空文本</button>
             </div>
             <div id="price-import-result" class="import-result"></div>
-          </div>
+          </div></dialog>
           </div>
           <div class="panel"><div class="row-head"><div><h3>系统数据与使用记录</h3><p class="hint">查看客户、产品、普通报价、跟进记录及最近操作。</p></div><button id="refresh-admin-overview-btn" type="button">刷新</button></div><div id="admin-data-counts" class="admin-stats"></div><div class="history-table-wrap"><table class="history-table"><thead><tr><th>时间</th><th>操作</th><th>业务对象</th><th>原因</th></tr></thead><tbody id="admin-audit-list"></tbody></table></div></div>
         </section>
@@ -447,7 +450,7 @@
           </div>
           <div class="no-print quote-editor">
             <div class="panel"><h3 id="agency-basic-title">基本信息</h3><div class="form-grid">
-              <label><span>文件类型</span><select id="agency-document-type"><option value="authorization">代理授权书</option><option value="agreement">销售代理佣金协议</option><option value="statement">订单佣金结算单</option><option value="procurement">个人委托采购协议</option></select></label>
+              <label><span>文件类型</span><select id="agency-document-type"><option value="authorization">代理授权书</option><option value="agreement" hidden>历史销售代理佣金协议</option><option value="statement">佣金结算单</option><option value="procurement">个人委托采购协议</option></select></label>
               <label><span>使用已保存模板</span><select id="agency-template"><option value="">选择模板…</option></select></label>
               <div class="actions wide"><button id="agency-use-template" type="button">使用模板新建</button><button id="agency-save-template" type="button">另存为模板</button><button id="agency-export-document" type="button">导出当前文件 PDF</button></div>
               <label><span>文件编号</span><input id="agency-number" /></label>
@@ -528,7 +531,7 @@
               <input id="history-date" type="date" />
               <button id="history-search-btn" type="button">搜索筛选</button>
               <select id="history-status"><option value="active">有效报价（草稿及正式）</option><option value="void">已作废</option><option value="deleted">回收站</option><option value="all">全部</option></select>
-              <select id="history-document-type" aria-label="单证类型"><option value="">全部单证</option><option value="quotation">报价单</option><option value="invoice">形式发票</option><option value="contract">销售合同</option><option value="commercial">商业发票</option><option value="packing">装箱单</option><option value="authorization">代理授权书</option><option value="agreement">佣金协议</option><option value="statement">佣金结算单</option><option value="procurement">委托采购</option><option value="invitation">商务邀请函</option></select>
+              <select id="history-document-type" aria-label="单证类型"><option value="">全部单证</option><option value="quotation">报价单</option><option value="invoice">形式发票</option><option value="contract">销售合同</option><option value="commercial">商业发票</option><option value="packing">装箱单</option><option value="authorization">代理授权书</option><option value="commission">佣金结算单</option><option value="procurement">委托采购</option><option value="invitation">商务邀请函</option></select>
             </div>
             <div class="history-actions"><label><input type="checkbox" id="history-select-all"> 全选当前结果</label><span id="history-selected-count">已选0份</span><button id="history-bulk-delete" class="danger" type="button" disabled>删除所选（移入回收站）</button></div>
           </div>
@@ -629,6 +632,7 @@
     <script src="./assets/document-template-copy.js"></script>
     <script src="./assets/document-presentation.js"></script>
     <script src="./assets/product-text-import.js"></script>
+    <script src="./assets/product-workflow.js"></script>
     <script src="./app.js?v=20261101-refinement"></script>
     <link rel="stylesheet" href="./assets/next-upgrade.css">
     <script src="./assets/translation-workspace.js"></script>
@@ -641,6 +645,7 @@
     <script src="./assets/option-manager.js"></script>
     <link rel="stylesheet" href="./assets/refinement-workspace.css">
     <link rel="stylesheet" href="./assets/demo-document-editor.css">
+    <link rel="stylesheet" href="./assets/workflow-redesign.css">
   </body>
 </html>
 

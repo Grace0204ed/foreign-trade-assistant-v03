@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer, webFrame } = require("electron");
 
 contextBridge.exposeInMainWorld("quotationDesktop", {
+  exportCatalogPdf: html => ipcRenderer.invoke('export-catalog-pdf',html),
+  printCatalog: html => ipcRenderer.invoke('print-catalog',html),
   selectPdfDirectory: () => ipcRenderer.invoke('select-pdf-directory'),
   exportBatchPdf: (token,name) => ipcRenderer.invoke('export-batch-pdf',token,name),
   finishPdfBatch: token => ipcRenderer.invoke('finish-pdf-batch',token),

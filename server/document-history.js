@@ -8,7 +8,7 @@ module.exports=function documentHistory(db,query={},invitationSummaries=[]){
   if(!type||ordinary.includes(type))index.push(...db.prepare(`SELECT id,quote_number number,quote_date date,status,updated_at sort,
     COALESCE(json_extract(settings_snapshot_json,'$._quoteMeta.documentType'),'quotation') documentType,
     buyer_json search,'standard' source FROM quotations`).all());
-  if(!type||['authorization','agreement','statement','procurement'].includes(type))index.push(...db.prepare(`SELECT id,authorization_number number,
+  if(!type||['authorization','agreement','statement','commission','procurement'].includes(type))index.push(...db.prepare(`SELECT id,authorization_number number,
     COALESCE(json_extract(data_json,'$.date'),substr(updated_at,1,10)) date,status,updated_at sort,
     COALESCE(json_extract(data_json,'$.documentType'),'authorization') documentType,
     agent_name||' '||country||' '||COALESCE(json_extract(data_json,'$.company'),'') search,
@@ -17,7 +17,7 @@ module.exports=function documentHistory(db,query={},invitationSummaries=[]){
     if(!Array.isArray(invitationSummaries)||invitationSummaries.length>10000)throw Error('邀请函摘要列表无效');
     index.push(...invitationSummaries.map(r=>({id:String(r.id||''),number:String(r.number||''),date:String(r.date||''),status:'Active',sort:String(r.sort||r.date||''),documentType:'invitation',search:[r.company,r.contact,r.country].map(s=>String(s||'').slice(0,500)).join(' '),source:'invitation',buyer:{company:r.company,contact:r.contact,country:r.country}})).filter(r=>r.id));
   }
-  index=index.filter(r=>(!type||r.documentType===type)&&(!date||r.date===date)&&(status==='all'||(status==='deleted'?r.status==='Deleted':status==='void'?r.status==='Void':!['Void','Deleted'].includes(r.status))));
+  index=index.filter(r=>(!type||r.documentType===type||(type==='commission'&&['agreement','statement'].includes(r.documentType)))&&(!date||r.date===date)&&(status==='all'||(status==='deleted'?r.status==='Deleted':status==='void'?r.status==='Void':!['Void','Deleted'].includes(r.status))));
   if(keyword){
     // Product keywords are evaluated with SQLite's indexed list projection logic.
     const matchingQuotes=new Set();let page=1,pages=1;
