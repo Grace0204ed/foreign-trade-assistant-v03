@@ -42,6 +42,8 @@ jobs:
         run: npm run test:refinement
       - name: Verify real PDF exports and column alignment
         run: npm run test:pdf
+      - name: Verify seven document field persistence and PDF output
+        run: npm run test:fields
       - name: Build installer without concurrent release creation
         run: npm run rebuild:electron && npx electron-builder --win nsis --publish never
       - name: Publish one complete release atomically

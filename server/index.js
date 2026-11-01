@@ -893,11 +893,13 @@ app.get("/api/system/browser-state", requireLogin, (req, res) => {
 });
 
 app.put("/api/system/browser-state", requireLogin, (req, res) => {
+  const previousState=fs.existsSync(browserStatePath)?JSON.parse(fs.readFileSync(browserStatePath,"utf8")):{};
   const state = {
     updatedAt: now(),
     settings: req.body?.settings || {},
     products: Array.isArray(req.body?.products) ? req.body.products : [],
-    quotes: Array.isArray(req.body?.quotes) ? req.body.quotes : []
+    quotes: Array.isArray(req.body?.quotes) ? req.body.quotes : [],
+    invitations: Array.isArray(req.body?.invitations) ? req.body.invitations : (previousState.invitations || [])
   };
   fs.writeFileSync(browserStatePath, JSON.stringify(state, null, 2), "utf8");
   ok(res, { updatedAt: state.updatedAt, path: browserStatePath, message: "Local data backup saved.", zh: "本地数据备份已保存。" });

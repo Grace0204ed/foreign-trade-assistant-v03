@@ -26,9 +26,10 @@ console.log('PI print regression passed: aligned headers/cells and isolated comp
 const customerContext=vm.createContext({
   normalizeCustomerQuoteFields:()=>{},settings:{customerQuoteFields:[]},
   configuredBlockFields:()=>[{fieldKey:'country',en:'Buyer Country',zh:'买方国家'},{fieldKey:'company',en:'Buyer Company',zh:'买方公司'},{fieldKey:'reference',en:'Reference',zh:'内部编号'}],
+  displayMode:()=> 'en',OptionCatalog:{fieldOptions:()=>[]},
   labelText:en=>en,escapeHtml:value=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 });
-vm.runInContext(extract('customerPreviewFields'),customerContext);
+vm.runInContext(['configuredValueText','customerPreviewFields'].map(extract).join('\n'),customerContext);
 const customer=customerContext.customerPreviewFields({company:'Arby',country:'Kenya',reference:'REF-01',phone:'HIDDEN'});
 assert(customer.includes('Buyer Country:</b> <bdi>Kenya'));
 assert(customer.indexOf('Kenya')<customer.indexOf('Arby'));

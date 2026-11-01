@@ -52,5 +52,22 @@
  .document-top-tools{margin-left:20px!important}
  #view-invitation .quote-editor>.panel,#view-agency .quote-editor>.panel{border-radius:14px;padding:20px}
 }
+@media screen {
+ #view-invitation.active,#view-agency.active{display:block!important}
+ #view-invitation>.quote-preview,#view-agency>.quote-preview{position:static!important;max-height:none!important;overflow:visible!important;width:100%!important;max-width:100%!important;margin:24px auto!important}
+ #view-invitation .quote-editor,#view-agency .quote-editor{width:100%;min-width:0}
+ #view-invitation .quote-editor>.panel,#view-agency .quote-editor>.panel{border:1px solid #e3e9f3;background:#fff;border-radius:14px;box-shadow:0 4px 20px #20334e04;margin-bottom:18px}
+ .standalone-editor-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:18px 22px!important}
+ .standalone-editor-grid>label{display:flex;flex-direction:column;gap:7px;min-width:0}
+ .standalone-editor-grid>label[hidden]{display:none!important}
+ .standalone-editor-grid>label:has(textarea),.standalone-editor-grid>.wide{grid-column:1/-1}
+ .standalone-editor-grid>label>span{font-size:12px;color:#65758d;font-weight:500}
+ .standalone-editor-grid input:not([type=checkbox]),.standalone-editor-grid select{min-height:40px!important;border-radius:8px!important;font-size:13px!important;width:100%;min-width:0}
+ .standalone-editor-grid textarea{min-height:96px;border-radius:8px;font-size:13px}
+ .standalone-editor-grid input[type=checkbox]{width:18px!important;height:18px!important;min-height:18px!important;margin:10px 0!important;accent-color:#285dcc;align-self:flex-start}
+ .standalone-group-heading{grid-column:1/-1;margin:12px 0 0;padding:0 0 12px;border-bottom:1px solid #e8eef7;color:#20334e;font-size:14px}
+ .standalone-custom-fields p{white-space:pre-wrap;overflow-wrap:anywhere}
+}
+@media screen and (max-width:700px){.standalone-editor-grid{grid-template-columns:minmax(0,1fr)!important}}
 @media screen and (max-width:1100px){#view-quote .demo-basic-grid,#view-quote #quote-terms{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media screen and (max-width:640px){#view-quote .demo-basic-grid,#view-quote #quote-terms{grid-template-columns:minmax(0,1fr)!important}.document-top-tools{margin-left:0!important}}

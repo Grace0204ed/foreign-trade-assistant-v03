@@ -4447,6 +4447,8 @@
     $("invitation-signer-title").value = currentInvitation.signerTitle || party.signerTitle;
     $("invitation-reason").value = currentInvitation.reason || settings.invitationDefaultReason || "";
     $("invitation-notes").value = currentInvitation.notes || "";
+    applyStandaloneDocumentForm('invitation',standaloneFieldMappings.invitation,currentInvitation,$('invitation-date').closest('.form-grid'));
+    arrangeStandaloneEditor('invitation',standaloneFieldMappings.invitation);
   }
 
   function collectInvitationFromForm() {
@@ -4471,6 +4473,7 @@
     currentInvitation.signerTitle = $("invitation-signer-title")?.value.trim() || invitationPartyInfo().signerTitle;
     currentInvitation.reason = $("invitation-reason")?.value.trim() || settings.invitationDefaultReason || "";
     currentInvitation.notes = $("invitation-notes")?.value.trim() || "";
+    collectStandaloneCustomFields(currentInvitation,$('view-invitation'));
     currentInvitation.updatedAt = new Date().toISOString();
   }
 
@@ -4495,7 +4498,11 @@
   }
 
   function invitationField(labelKey, value, mode) {
-    return `<p><b>${escapeHtml(invitationText(labelKey, mode))}:</b> ${escapeHtml(value || "-")}</p>`;
+    const key=({name:'visitorName',company:'visitorCompany',passport:'passportNo'})[labelKey]||labelKey;
+    const configured=(settings.documentConfigs?.invitation?.blocks?.customer||[]).concat(settings.documentConfigs?.invitation?.blocks?.terms||[]).find(field=>fieldKeyOf(field)===key);
+    if(configured&&(configured.deletedAt||configured.visible===false||configured.active===false))return '';
+    const title=configured?labelText(configured.en,configured.zh,mode):invitationText(labelKey,mode);
+    return `<p data-field-key="${escapeHtml(key)}"><b>${escapeHtml(title)}:</b> ${escapeHtml(value || "-")}</p>`;
   }
 
   function localizedSlashValue(value, mode) {
@@ -4587,6 +4594,7 @@
           <h3>${escapeHtml(invitationText("responsibility", mode))}</h3>
           <p>${escapeHtml(invitationResponsibilityParagraph(mode)).replace(/\n/g, "<br>")}</p>
         </div>
+        ${standaloneCustomPreview('invitation',currentInvitation)}
         <footer class="invitation-footer">
           <div class="invitation-company-block">
             <p>${escapeHtml(party.nameEn || "")}</p>
@@ -4710,6 +4718,8 @@
     updateAgencyDocumentControls();
     if ($("agency-show-commission")) $("agency-show-commission").checked = a.showCommission !== false;
     renderAgencyProductOptions();
+    applyStandaloneDocumentForm('agency',standaloneFieldMappings.agency,a,$('agency-number').closest('.form-grid'));
+    arrangeStandaloneEditor('agency',standaloneFieldMappings.agency);
   }
 
   function renderAgencyProductOptions() {
@@ -4732,6 +4742,7 @@
     currentAgentAuthorization.documentType=val('agency-document-type')||'authorization';
     Object.entries(agencyDocumentFields).forEach(([id,key])=>{currentAgentAuthorization[key]=val(id);});
     currentAgentAuthorization.allowManualCompletion=$('agency-manual-completion').checked;
+    collectStandaloneCustomFields(currentAgentAuthorization,$('view-agency'));
     updateAgencyDocumentControls();
   }
 
@@ -4850,6 +4861,8 @@
     if(AgencyDocuments.type(currentAgentAuthorization)!=='authorization'){
       $('agency-preview').dataset.language=currentAgentAuthorization.language||'bilingual';
       $('agency-preview').innerHTML=AgencyDocuments.render(currentAgentAuthorization,settings);
+      const sheet=$('agency-preview').querySelector('.agency-sheet')||$('agency-preview').firstElementChild;
+      if(sheet)sheet.insertAdjacentHTML('beforeend',standaloneCustomPreview('agency',currentAgentAuthorization));
       return;
     }
     const a = currentAgentAuthorization, stamp = a.companySnapshot?.stampDataUrl || settings.stampDataUrl || "", showCommission=a.showCommission !== false;
@@ -4866,6 +4879,7 @@
       <section class="agency-scope-summary"><b>${agencyText("Authorized Product Scope","授权产品范围","Productos autorizados","Produits autorisés")}</b><p>${escapeHtml(agencySelectedProductText(a))}</p></section>
       ${showCommission?`<section class="agency-commission-section"><h2>${agencyText("Commission and Settlement","佣金及结算","Comisión y liquidación","Commission et règlement")}</h2><ol class="agency-terms"><li>${escapeHtml(agencyText(`The indicative commission range is ${a.commissionMin}%-${a.commissionMax}%. The final rate must be confirmed in writing for each order.`,`参考佣金比例为${a.commissionMin}%-${a.commissionMax}%，每笔订单的最终比例须另行书面确认。`,`La comisión orientativa es del ${a.commissionMin}%-${a.commissionMax}%; la tasa final se confirmará por escrito para cada pedido.`,`La commission indicative est de ${a.commissionMin}%-${a.commissionMax}%; le taux final est confirmé par écrit pour chaque commande.`))}</li><li>${escapeHtml(a.commissionTerms||"-")}</li><li>${escapeHtml(agencyText(`Payment: ${a.paymentMethods||"-"}; settlement: ${a.settlementDays||"-"} after all conditions are met.`,`支付方式：${a.paymentMethods||"-"}；全部结算条件满足后${a.settlementDays||"-"}支付。`,`Pago: ${a.paymentMethods||"-"}; liquidación: ${a.settlementDays||"-"} después de cumplirse todas las condiciones.`,`Paiement : ${a.paymentMethods||"-"}; règlement : ${a.settlementDays||"-"} après satisfaction de toutes les conditions.`))}</li><li>${escapeHtml(agencyText(a.markupAllowed?"A reasonable markup is permitted, subject to customer acceptance and our final written confirmation.":"No markup is permitted without prior written approval.",a.markupAllowed?"允许在我方基础报价上合理加价，但须经客户接受并由我方最终书面确认。":"未经我方事先书面同意不得加价。",a.markupAllowed?"Se permite un margen razonable, sujeto a la aceptación del cliente y nuestra confirmación final por escrito.":"No se permite margen sin autorización previa por escrito.",a.markupAllowed?"Une marge raisonnable est autorisée, sous réserve de l’acceptation du client et de notre confirmation écrite finale.":"Aucune marge n’est autorisée sans accord écrit préalable."))}</li></ol></section>`:""}
       ${a.extraTerms?`<section class="agency-additional"><h2>${agencyText("Additional Terms","补充条款","Condiciones adicionales","Conditions supplémentaires")}</h2><p>${escapeHtml(a.extraTerms)}</p></section>`:""}
+      ${standaloneCustomPreview('agency',a)}
       <p class="agency-validity">${agencyText("This authorization becomes effective on the date of signature and seal.", "本授权书自签字盖章之日起生效。")}</p>
       <footer class="agency-signature"><div class="agency-seal-side">${stamp ? `<img src="${stamp}" alt="Company Stamp">` : `<div class="agency-stamp-placeholder">${agencyText("Company Stamp", "公司公章")}</div>`}<p>${agencyText("Authorizing Party", "授权方")}：${escapeHtml(a.company || "-")}</p></div><div class="agency-signer-side"><p>${agencyText("Authorized Signatory", "授权签署人")}：<b>${escapeHtml(a.authorizer||'')}</b></p><p>${agencyText("Title", "职务")}：${escapeHtml(a.authorizerTitle || "-")}</p><p>${agencyText("Signature", "签字")}：____________________</p><p class="agency-issue-date">${agencyText("Date of Issue", "签发日期","Fecha de emisión","Date d’émission")}：${escapeHtml(a.date||"-")}</p></div></footer>
     </section>`;
@@ -4874,6 +4888,17 @@
   const renderAgentAuthorizationWithoutSignature = renderAgentAuthorizationPreview;
   renderAgentAuthorizationPreview = function () {
     renderAgentAuthorizationWithoutSignature();
+    const rows=[...($('agency-preview')?.querySelectorAll('.agency-info-grid>p')||[])];
+    const keys=['country','agentName','idNumber','phone','email','address','officeAddress'];
+    const fields=settings.documentConfigs?.agency?.blocks?.customer||[];
+    rows.forEach((row,index)=>{
+      const field=fields.find(field=>fieldKeyOf(field)===keys[index]);
+      if(!field)return;
+      row.hidden=!!field.deletedAt||field.active===false||field.visible===false;
+      row.dataset.fieldKey=keys[index];
+      const caption=row.querySelector('b');if(caption)caption.textContent=labelText(field.en,field.zh,currentAgentAuthorization.language||'bilingual');
+      row.style.order=Number(field.sortOrder||0);
+    });
     applyAgencySignature();
   };
 
@@ -4980,8 +5005,81 @@
       .sort((a,b)=>Number(a.sortOrder||0)-Number(b.sortOrder||0)));
   }
 
+  const standaloneFieldMappings={
+    invitation:{date:'invitation-date',embassy:'invitation-embassy',language:'invitation-language',style:'invitation-style',visitorName:'invitation-name',visitorCompany:'invitation-company',country:'invitation-country',gender:'invitation-gender',birthDate:'invitation-birth-date',passportNo:'invitation-passport',arrivalDate:'invitation-arrival',departureDate:'invitation-departure',visitPlace:'invitation-visit-place',visaType:'invitation-visa-type',relationship:'invitation-relationship',expenseSource:'invitation-expense-source',inviter:'invitation-inviter',signerTitle:'invitation-signer-title',reason:'invitation-reason',notes:'invitation-notes'},
+    agency:{authorizationNumber:'agency-number',date:'agency-date',validUntil:'agency-valid-until',language:'agency-language',company:'agency-company',authorizer:'agency-authorizer',authorizerTitle:'agency-authorizer-title',country:'agency-country',agentName:'agency-agent-name',idNumber:'agency-id-number',phone:'agency-phone',email:'agency-email',address:'agency-address',officeAddress:'agency-office-address',extraTerms:'agency-extra-terms',selectedProducts:'agency-product-options'}
+  };
+
+  function arrangeStandaloneEditor(type,mapping) {
+    const root=$(`view-${type}`),grid=$(Object.values(mapping)[0])?.closest('.form-grid');
+    if(!root||!grid)return;
+    grid.classList.add('standalone-editor-grid');
+    grid.querySelectorAll('.standalone-group-heading').forEach(node=>node.remove());
+    const sections=type==='invitation'
+      ? [['邀请方与单据信息',['date','embassy','style','inviter','signerTitle']],['来访人信息',['visitorName','visitorCompany','country','gender','birthDate','passportNo']],['行程与费用',['arrivalDate','departureDate','visitPlace','visaType','relationship','expenseSource','reason','notes']]]
+      : [['授权方与文件信息',['authorizationNumber','date','validUntil','company','authorizer','authorizerTitle']],['代理人信息',['country','agentName','idNumber','phone','email','address','officeAddress']]];
+    const used=new Set();
+    sections.forEach(([title,keys],index)=>{
+      const heading=document.createElement('h4');heading.className='standalone-group-heading';heading.textContent=`0${index+1}  ${title}`;grid.append(heading);
+      const configured=standaloneDocumentFields(type);
+      const ordered=keys.map(key=>({key,field:configured.find(field=>field.fieldKey===key)}));
+      ordered.sort((a,b)=>Number(a.field?.sortOrder??999)-Number(b.field?.sortOrder??999));
+      ordered.forEach(({key})=>{const label=$(mapping[key])?.closest('label');if(label&&label.parentElement===grid){used.add(label);grid.append(label);}});
+      const block=index===0?'basic':index===1?'customer':'terms';
+      const blocks=type==='invitation'&&index===2?['items','terms']:[block];
+      const customKeys=new Set(blocks.flatMap(key=>settings.documentConfigs?.[type]?.blocks?.[key]||[]).map(field=>fieldKeyOf(field)));
+      grid.querySelectorAll('[data-standalone-custom]').forEach(label=>{if(customKeys.has(label.dataset.standaloneCustom)){used.add(label);grid.append(label);}});
+    });
+    // Keep existing business controls not represented by the new field schema.
+    [...grid.children].filter(node=>node.matches('label')&&!used.has(node)).forEach(label=>grid.append(label));
+  }
+
+  // One control contract for settings, editor values and saved document data.
+  function readConfiguredControl(input) {
+    return input.multiple ? [...input.selectedOptions].map(option=>option.value).join(',')
+      : input.type==='checkbox' ? input.checked : input.value;
+  }
+
+  function createConfiguredControl(field,value) {
+    let input;
+    if(['select','dictionary','hierarchy','multiselect','combobox'].includes(field.fieldType)) {
+      const options=OptionCatalog.fieldOptions(field,value).filter(option=>option.visible!==false);
+      if(field.fieldType==='combobox') {
+        input=document.createElement('input');
+        const list=document.createElement('datalist');list.id=`choices-${uid()}`;
+        options.forEach(option=>list.append(new Option(option.labelZh||option.labelEn||option.value,option.value)));
+        input.setAttribute('list',list.id);input._choiceList=list;
+      } else {
+        input=document.createElement('select');input.multiple=field.fieldType==='multiselect';
+        if(!input.multiple)input.append(new Option('请选择',''));
+        options.forEach(option=>input.append(new Option(option.labelZh||option.labelEn||option.value||'',option.value??'')));
+      }
+    } else if(['textarea','richtext'].includes(field.fieldType))input=document.createElement('textarea');
+    else {input=document.createElement('input');input.type=field.fieldType==='date'?'date':['number','money'].includes(field.fieldType)?'number':field.fieldType==='checkbox'?'checkbox':'text';}
+    if(input.multiple) {
+      const selected=new Set(Array.isArray(value)?value:String(value??'').split(','));
+      [...input.options].forEach(option=>option.selected=selected.has(option.value));
+    } else if(input.type==='checkbox') input.checked=value===true||value==='true';
+    else input.value=value??'';
+    input.setAttribute('aria-label',field.zh||field.en||field.fieldKey);
+    return input;
+  }
+
+  function configuredValueText(field,value,mode=displayMode()) {
+    if(value===true)return labelText('Yes','是',mode);
+    if(value===false)return labelText('No','否',mode);
+    if(['select','dictionary','hierarchy','multiselect','combobox'].includes(field.fieldType)) {
+      const options=OptionCatalog.fieldOptions(field,value);
+      return (Array.isArray(value)?value:String(value??'').split(',')).map(part=>{
+        const option=options.find(item=>String(item.value)===String(part));
+        return option?labelText(option.labelEn||part,option.labelZh||part,mode):part;
+      }).join(', ');
+    }
+    return value??'';
+  }
+
   function applyStandaloneDocumentForm(type, mapping, record, grid) {
-    if(!grid)return;
+    if(!grid||!settings.documentConfigs?.[type]?.blocks)return;
     grid.querySelectorAll('[data-standalone-custom]').forEach(label=>label.remove());
     Object.values(mapping).forEach(id=>{const label=$(id)?.closest('label');if(label)label.hidden=true;});
     standaloneDocumentFields(type).forEach(field=>{
@@ -4989,35 +5087,30 @@
       if(id&&$(id)){
         if(field.fieldKey==='language')syncConfiguredLanguageOptions($(id),field);
         const label=$(id).closest('label'),caption=label?.querySelector('span');
-        if(label){label.hidden=false;if(caption)caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;if(field.fieldKey!=='language')grid.appendChild(label);}
+        if(label){label.hidden=false;if(caption)caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;if(field.fieldKey!=='language'&&label.parentElement===grid)grid.appendChild(label);}
         return;
       }
       const label=document.createElement('label');label.dataset.standaloneCustom=field.fieldKey;
       if(field.fieldType==='textarea')label.classList.add('wide');
       const caption=document.createElement('span');caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;
       const value=record?.customFields?.[field.fieldKey]??field.defaultValue??'';
-      let input;
-      if(['select','dictionary','hierarchy'].includes(field.fieldType)){
-        input=document.createElement('select');input.append(new Option('请选择',''));
-        OptionCatalog.fieldOptions(field,value).forEach(option=>input.append(new Option(option.labelZh||option.labelEn||option.value||'',option.value??option.labelZh??'')));
-      }else if(field.fieldType==='textarea')input=document.createElement('textarea');
-      else{input=document.createElement('input');input.type=field.fieldType==='date'?'date':field.fieldType==='number'||field.fieldType==='money'?'number':field.fieldType==='checkbox'?'checkbox':'text';}
+      const input=createConfiguredControl(field,value);
       input.dataset.standaloneField=field.fieldKey;
-      if(input.type==='checkbox')input.checked=value===true||value==='true';else input.value=value;
-      label.append(caption,input);grid.appendChild(label);
+      for(const event of ['input','change'])input.addEventListener(event,()=>type==='invitation'?renderInvitationPreview():renderAgentAuthorizationPreview());
+      label.append(caption,input);if(input._choiceList)label.append(input._choiceList);grid.appendChild(label);
     });
   }
 
   function collectStandaloneCustomFields(record,root){
     record.customFields={...(record.customFields||{})};
-    root?.querySelectorAll('[data-standalone-field]').forEach(input=>{record.customFields[input.dataset.standaloneField]=input.type==='checkbox'?input.checked:input.value;});
+    root?.querySelectorAll('[data-standalone-field]').forEach(input=>{record.customFields[input.dataset.standaloneField]=readConfiguredControl(input);});
   }
 
   function standaloneCustomPreview(type,record){
     const rows=standaloneDocumentFields(type).filter(field=>!({invitation:['date','embassy','language','style','visitorName','visitorCompany','country','gender','passportNo','birthDate','arrivalDate','departureDate','visitPlace','visaType','reason','relationship','expenseSource','notes','inviter','signerTitle'],agency:['authorizationNumber','date','validUntil','language','company','authorizer','authorizerTitle','agentName','idNumber','phone','email','address','country','selectedProducts','authorizationType','extraTerms']}[type]||[]).includes(field.fieldKey)).map(field=>{
-      const value=record?.customFields?.[field.fieldKey];return value!==''&&value!=null&&value!==false?`<p><b>${escapeHtml(labelText(field.en,field.zh))}:</b> ${escapeHtml(value===true?'Yes':value)}</p>`:'';
+      const value=record?.customFields?.[field.fieldKey],mode=record.language||'bilingual';return value!==''&&value!=null?`<p><b>${escapeHtml(labelText(field.en,field.zh,mode))}:</b> ${escapeHtml(configuredValueText(field,value,mode))}</p>`:'';
     }).filter(Boolean);
-    return rows.length?`<section class="preview-panel standalone-custom-fields"><h3>${escapeHtml(labelText('Additional Information','补充信息'))}</h3>${rows.join('')}</section>`:'';
+    return rows.length?`<section class="preview-panel standalone-custom-fields"><h3>${escapeHtml(labelText('Additional Information','补充信息',record.language||'bilingual'))}</h3>${rows.join('')}</section>`:'';
   }
 
   function quoteProductTemplate(type = currentQuote?.documentType || "quotation") {
@@ -5083,6 +5176,7 @@
     currentQuote.currencyDisplay ||= 'single';
     currentQuote.customerId = null;
     currentQuote.buyer = {
+      ...(currentQuote.buyer||{}),
       country: $("buyer-country").value,
       company: $("buyer-company").value,
       contact: $("buyer-contact").value,
@@ -5092,9 +5186,9 @@
     };
     currentQuote.basicFields = {...(currentQuote.basicFields || {})};
     document.querySelectorAll('[data-basic-custom]').forEach((input) => {
-      currentQuote.basicFields[input.dataset.basicCustom] = input.type === 'checkbox' ? input.checked : input.value;
+      currentQuote.basicFields[input.dataset.basicCustom] = readConfiguredControl(input);
     });
-    document.querySelectorAll('[data-buyer-custom]').forEach(input=>currentQuote.buyer[input.dataset.buyerCustom]=input.value);
+    document.querySelectorAll('[data-buyer-custom]').forEach(input=>currentQuote.buyer[input.dataset.buyerCustom]=readConfiguredControl(input));
     currentQuote.terms = {...currentQuote.terms};
     document.querySelectorAll("[data-termfield]").forEach((input) => currentQuote.terms[input.dataset.termfield] = input.value);
     const lineRows = Array.from(document.querySelectorAll(".quote-line"));
@@ -5807,7 +5901,7 @@
 
   function customerPreviewFields(buyer = {}) {
     normalizeCustomerQuoteFields();
-    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <bdi>${escapeHtml(buyer[field.fieldKey] ?? "")}</bdi></p>`).join("");
+    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <bdi>${escapeHtml(configuredValueText(field,buyer[field.fieldKey]))}</bdi></p>`).join("");
   }
 
   function applyCustomerQuoteFieldLabels() {
@@ -5820,8 +5914,8 @@
       if(!ids[field.fieldKey] && grid){
         const label=document.createElement('label');label.dataset.customBuyerLabel='true';label.hidden=!field.visible;
         const caption=document.createElement('span');caption.textContent=`${field.zh} / ${field.en}`;
-        const input=document.createElement(field.fieldType==='textarea'?'textarea':'input');input.dataset.buyerCustom=field.fieldKey;input.value=currentQuote.buyer?.[field.fieldKey]??'';
-        label.append(caption,input);grid.append(label);return;
+        const input=createConfiguredControl(field,currentQuote.buyer?.[field.fieldKey]??field.defaultValue??'');input.dataset.buyerCustom=field.fieldKey;
+        label.append(caption,input);if(input._choiceList)label.append(input._choiceList);grid.append(label);return;
       }
       const input=$(ids[field.fieldKey]); const label=input?.closest("label"); if(!label)return;
       label.hidden=!field.visible;
@@ -5854,12 +5948,8 @@
       }
       const label=document.createElement('label');label.dataset.customBasicLabel='true';
       const caption=document.createElement('span');caption.textContent=`${field.zh} / ${field.en}${field.required?' *':''}`;
-      let input;
-      if(['select','dictionary','hierarchy'].includes(field.fieldType)){
-        input=document.createElement('select');OptionCatalog.fieldOptions(field,currentQuote.basicFields?.[field.fieldKey]).filter(o=>o.visible!==false).forEach(option=>{const el=document.createElement('option');el.value=option.value??'';el.textContent=option.labelZh||option.labelEn||option.value||'';input.appendChild(el);});
-      }else if(field.fieldType==='textarea') input=document.createElement('textarea');
-      else {input=document.createElement('input');input.type=field.fieldType==='date'?'date':field.fieldType==='checkbox'?'checkbox':field.fieldType==='number'||field.fieldType==='money'?'number':'text';}
-      input.dataset.basicCustom=field.fieldKey;const value=currentQuote.basicFields?.[field.fieldKey];if(input.type==='checkbox')input.checked=!!value;else input.value=value??'';label.append(caption,input);grid.append(label);
+      const input=createConfiguredControl(field,currentQuote.basicFields?.[field.fieldKey]??field.defaultValue??'');
+      input.dataset.basicCustom=field.fieldKey;label.append(caption,input);if(input._choiceList)label.append(input._choiceList);grid.append(label);
     });
     arrangeEditorSections();
   }
@@ -5920,7 +6010,7 @@
     const values={quoteNumber:currentQuote.quoteNumber,quoteDate:currentQuote.quoteDate,validUntil:currentQuote.validUntil,...(currentQuote.basicFields||{})};
     configuredBlockFields("basic",[]).filter(field=>field.fieldKey!=='pdfLanguage').forEach(field=>{
       const value=values[field.fieldKey];
-      if(value!==''&&value!=null&&value!==false)rows.push(`<p>${labelText(field.en,field.zh)}：${escapeHtml(value===true?'Yes':value)}</p>`);
+      if(value!==''&&value!=null)rows.push(`<p>${escapeHtml(labelText(field.en,field.zh))}：${escapeHtml(configuredValueText(field,value))}</p>`);
     });
     return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
   }
@@ -6831,7 +6921,7 @@
 
   // Document workspace: recovery snapshots never overwrite formal quotation history.
   let draftDatabase, workspaceReady = false;
-  const documentExtraFields = ['templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography'];
+  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography'];
   let packingSourceBusy = false;
   async function refreshPackingSources() {
     const select=$('packing-source-select');
