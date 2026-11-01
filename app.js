@@ -864,8 +864,10 @@
     return String(date || today()).replaceAll("-", "");
   }
 
-  function nextQuoteNumber(date = today(), advance = false) {
+  function nextQuoteNumber(date = today(), advance = false, documentType = 'quotation') {
     const key = quoteDateKey(date);
+    const prefix=({invoice:'PI',contract:'SC',commercial:'CI',packing:'PL'})[documentType]||'QA';
+    const sequenceKey=prefix==='QA'?key:`${prefix}-${key}`;
     let data = {};
     try {
       data = JSON.parse(localStorage.getItem(keys.quoteSequence) || "{}");
@@ -873,20 +875,20 @@
       data = {};
     }
     const sameDayQuotes = quotes
-      .map((quote) => String(quote.quoteNumber || "").match(new RegExp(`QA-${key}-(\\d+)$`)))
+      .map((quote) => String(quote.quoteNumber || "").match(new RegExp(`${prefix}-${key}-(\\d+)$`)))
       .filter(Boolean)
       .map((match) => Number(match[1] || 0));
-    const currentSeq = Math.max(Number(data[key] || 0), ...sameDayQuotes, 0);
+    const currentSeq = Math.max(Number(data[sequenceKey] || 0), ...sameDayQuotes, 0);
     const seq = advance ? currentSeq + 1 : Math.max(currentSeq, 1);
     if (advance) {
-      data[key] = seq;
+      data[sequenceKey] = seq;
       localStorage.setItem(keys.quoteSequence, JSON.stringify(data));
     }
-    return `QA-${key}-${String(seq).padStart(3, "0")}`;
+    return `${prefix}-${key}-${String(seq).padStart(3, "0")}`;
   }
 
   function syncQuoteSequenceFromNumber(number) {
-    const match = String(number || "").match(/^QA-(\d{8})-(\d+)$/);
+    const match = String(number || "").match(/^(QA|PI|SC|CI|PL)-(\d{8})-(\d+)$/);
     if (!match) return;
     let data = {};
     try {
@@ -894,7 +896,8 @@
     } catch {
       data = {};
     }
-    data[match[1]] = Math.max(Number(data[match[1]] || 0), Number(match[2] || 0));
+    const key=match[1]==='QA'?match[2]:`${match[1]}-${match[2]}`;
+    data[key] = Math.max(Number(data[key] || 0), Number(match[3] || 0));
     localStorage.setItem(keys.quoteSequence, JSON.stringify(data));
   }
 
@@ -4333,7 +4336,7 @@
       sourceQuoteId: "",
       documentType: docType,
       quoteStyle: normalizedQuoteStyle(settings.quoteStyle),
-      quoteNumber: nextQuoteNumber(d, advanceNumber),
+      quoteNumber: nextQuoteNumber(d, advanceNumber, docType),
       quoteDate: d,
       validUntil: addDays(7),
       validityRangeText: "",
@@ -5324,13 +5327,17 @@
       item.values={...(currentQuote.packing?.[item.id]||{}),...(item.values||{})};
     });
     const columns = quoteLineColumns();
+    const primaryKeys = new Set(['description','model','qty','unitPrice','currency','amount','packages','grossWeight','netWeight','cbm']);
+    const primary = columns.filter(column => primaryKeys.has(column.key));
+    const secondary = columns.filter(column => !primaryKeys.has(column.key) && column.key !== 'image');
+    const tracks = primary.map(column => column.key === 'description' ? 'minmax(240px,2.5fr)' : 'minmax(96px,1fr)').concat('minmax(170px,1.3fr)').join(' ');
     $("quote-items").innerHTML = `
-      <div class="quote-line-table-wrap">
-        <table class="quote-line-table">
+      <div class="quote-line-table-wrap demo-editor-table-wrap">
+        <table class="quote-line-table demo-editor-table" style="--editor-tracks:${tracks}">
           <thead>
             <tr>
-              ${columns.map((column) => `<th class="quote-input-col-${escapeHtml(column.key)}">${escapeHtml(column.labelZh)}${column.required ? " *" : ""}</th>`).join("")}
-              <th class="quote-input-col-actions">操作</th>
+              ${primary.map((column) => `<th class="quote-input-col-${escapeHtml(column.key)}">${escapeHtml(column.labelZh)}${column.required ? " *" : ""}</th>`).join("")}
+              <th class="quote-input-col-actions">图片 / 操作</th>
             </tr>
           </thead>
           <tbody>
@@ -5339,8 +5346,9 @@
               const currency = values.currency || settings.currency;
               return `
                 <tr class="quote-line ${item.imageDataUrl?"has-product-image":""}" data-id="${escapeHtml(item.id || uid("item"))}" data-kind="${escapeHtml(item.kind || "product")}" data-image="${escapeHtml(item.imageDataUrl || "")}" data-freight-snapshot="${item.freightSnapshot ? encodeURIComponent(JSON.stringify(item.freightSnapshot)) : ""}">
-                  ${columns.map((column) => `<td class="quote-input-col-${escapeHtml(column.key)}" data-label="${escapeHtml(column.labelZh)}${column.required ? " *" : ""}">${renderQuoteLineInput(column, item)}</td>`).join("")}
-                  <td class="quote-input-col-actions" data-label="操作"><div class="quote-row-actions"><div class="quote-action-image-preview"${item.imageDataUrl ? "" : " hidden"}><img src="${item.imageDataUrl || ""}" alt="已上传的产品图片"><span>已加入预览和PDF</span></div><label class="file-btn">从本地上传图片<input class="quote-line-image-input" type="file" accept="image/*" /></label><button class="clear-line-image" type="button"${item.imageDataUrl ? "" : " hidden"}>移除图片</button><button class="remove-quote-item" type="button">删除产品</button></div></td>
+                  ${primary.map((column) => `<td class="quote-input-col-${escapeHtml(column.key)}" data-label="${escapeHtml(column.labelZh)}${column.required ? " *" : ""}">${renderQuoteLineInput(column, item)}</td>`).join("")}
+                  <td class="quote-input-col-actions" data-label="图片 / 操作"><div class="quote-row-actions"><div class="quote-action-image-preview"${item.imageDataUrl ? "" : " hidden"}><img src="${item.imageDataUrl || ""}" alt="已上传的产品图片"></div><label class="file-btn">上传图片<input class="quote-line-image-input" type="file" accept="image/*" /></label><button class="clear-line-image" type="button"${item.imageDataUrl ? "" : " hidden"}>移除图片</button><button class="remove-quote-item" type="button">删除</button></div></td>
+                  ${secondary.length ? `<td class="quote-extra-cell" colspan="${primary.length+1}"><details class="quote-extra-fields"><summary>更多字段 <span>${secondary.map(column=>escapeHtml(column.labelZh)).join(' · ')}</span></summary><div class="quote-extra-grid">${secondary.map(column=>`<label><span>${escapeHtml(column.labelZh)}${column.required?' *':''}</span>${renderQuoteLineInput(column,item)}</label>`).join('')}</div></details></td>` : ''}
                 </tr>
               `;
             }).join("")}
@@ -5853,6 +5861,22 @@
       else {input=document.createElement('input');input.type=field.fieldType==='date'?'date':field.fieldType==='checkbox'?'checkbox':field.fieldType==='number'||field.fieldType==='money'?'number':'text';}
       input.dataset.basicCustom=field.fieldKey;const value=currentQuote.basicFields?.[field.fieldKey];if(input.type==='checkbox')input.checked=!!value;else input.value=value??'';label.append(caption,input);grid.append(label);
     });
+    arrangeEditorSections();
+  }
+
+  function arrangeEditorSections() {
+    const grid=$('quote-number')?.closest('.form-grid');
+    if(!grid)return;
+    grid.classList.add('demo-basic-grid');
+    grid.querySelectorAll('.editor-field-group-title').forEach(node=>node.remove());
+    for(const label of grid.querySelectorAll(':scope > label')){
+      const buyer=!!label.querySelector('[id^="buyer-"],[data-buyer-custom]');
+      label.classList.toggle('editor-buyer-field',buyer);
+      label.style.order=buyer?'2':'0';
+    }
+    for(const [title,order] of [['单据信息','-1'],['客户信息','1']]){
+      const heading=document.createElement('h4');heading.className='editor-field-group-title';heading.textContent=title;heading.style.order=order;grid.append(heading);
+    }
   }
 
   function bankValueText(field, mode = displayMode()) {
@@ -6294,7 +6318,7 @@
     const nowIso = new Date().toISOString();
     q.id = uid("quote");
     q.quoteDate = today();
-    q.quoteNumber = nextQuoteNumber(q.quoteDate, true);
+    q.quoteNumber = nextQuoteNumber(q.quoteDate, true, q.documentType);
     q.validUntil = addDays(7);
     q.validityRangeText = `${q.quoteDate} - ${q.validUntil}`;
     q.sourceQuoteId = id;
