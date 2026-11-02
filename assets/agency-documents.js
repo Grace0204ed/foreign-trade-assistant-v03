@@ -4,6 +4,9 @@
   else root.AgencyDocuments = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
+  const fixed=typeof module==='object'&&module.exports?require('./document-fixed-locales.js'):globalThis.DocumentFixedLocales;
+  const locale=()=>typeof module==='object'&&module.exports?require('./document-locales.js'):globalThis.DocumentLocales;
+  const missingTranslations=new Set();
   const types = {authorization:'代理授权书', agreement:'销售代理佣金协议', statement:'订单佣金结算单', procurement:'个人委托采购协议'};
   const titles = {
     authorization:['代理授权书','Letter of Authorization','Lettre d’autorisation','Carta de autorización'],
@@ -24,6 +27,12 @@
   };
   function text(v, mode='bilingual') {
     const [zh,en,fr=en,es=en]=v;
+    if(fixed.languages.includes(mode)){
+      const translated=fixed.lookup(en,mode)||locale()?.label(en,mode)||((mode==='fr'&&fr!==en)?fr:(mode==='es'&&es!==en)?es:'');
+      if(translated)return translated;
+      missingTranslations.add(mode+':'+en);
+      return `[${mode}: ${zh}]`;
+    }
     return ({zh,en,fr,es,'zh-fr':`${fr} / ${zh}`,'zh-es':`${es} / ${zh}`,bilingual:`${en} / ${zh}`})[mode] || `${en} / ${zh}`;
   }
   function type(a) { return Object.hasOwn(types,a.documentType) ? a.documentType : 'authorization'; }
@@ -48,7 +57,7 @@
   function validate(a,final=false) {
     if(type(a)==='procurement'){
       if(!a.authorizationNumber?.trim())return '请填写文件编号。';
-      if(!['bilingual','en','zh'].includes(a.language))return '个人采购模板支持中英双语、纯英文或纯中文。';
+      if(!['bilingual','zh-en','en','zh','zh-fr','zh-es',...fixed.languages].includes(a.language))return '请选择系统支持的单证语言。';
       for(const k of ['purchaseAmount','purchaseFee'])if(a[k]!==''&&a[k]!=null&&(!Number.isFinite(Number(a[k]))||Number(a[k])<0))return '采购金额和佣金须为非负金额。';
       if(final&&!a.isTemplate&&(!a.personalLegalName?.trim()||!a.agentName?.trim()||!a.purchaseMachine?.trim()||!a.purchaseCancellation?.trim()))return '正式导出前请填写甲方证件姓名、乙方姓名、设备及取消采购时佣金处理约定；空白模板可另存为模板后导出。';
       return '';
@@ -97,7 +106,7 @@
     return `<section class="agency-sheet agency-commercial commission-statement"><header class="agency-letterhead"><div><b>${esc(a.company||s.companyNameEn||'')}</b><span>${esc(s.companyAddressEn||s.companyAddressZh||'')}</span></div></header><h1>${t(a.commissionAgreement?['佣金结算合同','Commission Settlement Agreement']:titles.statement)}</h1><div class="agency-meta">${t(['编号','No.'])}: ${esc(a.authorizationNumber)} · ${esc(a.date||'')}</div>
       ${a.commissionAgreement?`<p class="commission-parties-intro"><b>${t(['甲方（公司）','Party A (company)'])}:</b> ${esc(a.company||s.companyNameEn||'')}<br><b>${t(['乙方（个人佣金结算人）','Party B (individual commission recipient)'])}:</b> ${esc(a.agentName||'________________')}</p>`:""}<h2>${t(['乙方佣金结算人','Party B commission recipient'])}</h2><section class="agency-info-grid">${row(['姓名或全名','Full name'],a.agentName)}${row(['证件号码','ID or passport number'],a.idNumber)}${row(['联系电话','Telephone'],a.phone)}${row(['邮箱','Email'],a.email)}${row(['国家','Country'],a.country)}${row(['公司名称（如适用）','Company if applicable'],a.recipientCompany)}${row(['地址','Address'],a.address,true)}</section>
       <h2>${t(['关联合同及佣金','Related sales contract and commission'])}</h2><section class="agency-info-grid">${row(['销售合同编号','Sales contract number'],a.salesContractNumber)}${row(['客户姓名或公司','Customer or company'],a.customerName)}${row(['销售合同金额','Sales contract amount'],a.contractAmount?money(a.contractAmount):'')}${row(['佣金币种','Commission currency'],a.currency||'USD')}${row(['佣金方式','Commission basis'],text(a.commissionBasis==='fixed'?['固定金额','Fixed amount']:['按合同金额比例','Percentage of contract amount'],mode))}${a.commissionBasis==='fixed'?row(['固定佣金金额','Fixed commission amount'],amount==null?'':money(amount)):row(['佣金比例','Commission rate'],a.orderRate===''||a.orderRate==null?'':`${a.orderRate}%`)}${row(['约定佣金金额','Agreed commission amount'],money(amount),true)}</section>
-      <h2>${t(crypto?['乙方USDT收款资料','Party B USDT receiving details']:['乙方银行收款资料','Party B bank receiving details'])}</h2><section class="agency-info-grid">${row(['已选收款方式','Selected payment method'],crypto?'USDT':'Bank remittance')}${crypto?row(['区块链网络','Blockchain network'],a.cryptoNetwork)+row(['钱包地址（逐字核对）','Wallet address verify every character'],a.walletAddress,true):row(['收款人全名','Beneficiary full legal name'],a.beneficiaryFullName)+row(['银行名称','Bank name'],a.bankName)+row(['银行账号','Account number'],a.bankAccount)+row(['SWIFT或BIC代码','SWIFT or BIC'],a.bankSwift)+row(['银行或路由代码（如适用）','Bank or routing code if applicable'],a.bankRouting)+row(['IBAN（如适用）','IBAN if applicable'],a.bankIban)+row(['银行国家','Bank country'],a.bankCountry)+row(['银行地址','Bank address'],a.bankAddress,true)+row(['收款人地址','Beneficiary address'],a.beneficiaryAddress,true)}</section>
+      <h2>${t(crypto?['乙方USDT收款资料','Party B USDT receiving details']:['乙方银行收款资料','Party B bank receiving details'])}</h2><section class="agency-info-grid">${row(['已选收款方式','Selected payment method'],crypto?'USDT':text(['银行汇款','Bank remittance'],mode))}${crypto?row(['区块链网络','Blockchain network'],a.cryptoNetwork)+row(['钱包地址（逐字核对）','Wallet address verify every character'],a.walletAddress,true):row(['收款人全名','Beneficiary full legal name'],a.beneficiaryFullName)+row(['银行名称','Bank name'],a.bankName)+row(['银行账号','Account number'],a.bankAccount)+row(['SWIFT或BIC代码','SWIFT or BIC'],a.bankSwift)+row(['银行或路由代码（如适用）','Bank or routing code if applicable'],a.bankRouting)+row(['IBAN（如适用）','IBAN if applicable'],a.bankIban)+row(['银行国家','Bank country'],a.bankCountry)+row(['银行地址','Bank address'],a.bankAddress,true)+row(['收款人地址','Beneficiary address'],a.beneficiaryAddress,true)}</section>
       ${clauses.map(([title,body],i)=>`<h2>${i+1}. ${t(title)}</h2><p class="agency-clause">${t(body)}</p>`).join('')}${a.documentNotes?`<h2>${t(['补充约定','Additional terms'])}</h2><p class="agency-clause">${esc(a.documentNotes)}</p>`:''}
       <footer class="agency-signature"><div class="commission-party-a"><p>${t(['甲方公司','Party A company'])}: ${esc(a.company||s.companyNameEn||'')}</p><p>${t(['负责人','Responsible person'])}: ${esc(a.authorizer||'')}</p><p>${t(['职务','Title'])}: ${esc(a.authorizerTitle||'')}</p>${sign}${stamp?`<span class="commission-stamp-overlay"><img class="commission-signature-stamp" src="${esc(stamp)}" alt="Company electronic stamp"></span>`:''}<p>${t(['日期','Date'])}: ${esc(a.date||'')}</p></div><div><p>${t(['乙方签署','Party B signature'])}: ${esc(a.agentName||'')}</p><p>${t(['签字','Signature'])}: ${blank}</p><p>${t(['日期','Date'])}: ${blank}</p></div></footer></section>`;
   }
@@ -140,5 +149,5 @@
       ${a.documentNotes?`<p class="agency-clause">${esc(a.documentNotes)}</p>`:''}
       <footer class="agency-signature"><div class="agency-signer-side"><p>${t(['甲方签署','For Party A','Pour la partie A','Por la parte A'])}: <b>${esc(a.authorizer||'')}</b></p><p>${esc(a.authorizerTitle||'')}</p><p>____________________</p>${stamp?`<img class="agency-commercial-stamp" src="${esc(stamp)}" alt="Company stamp">`:''}<p>${esc(a.date)}</p></div><div><p>${t(['乙方签署','Party B','Partie B','Parte B'])}: ${esc(a.agentName)}</p><p>${t(['签名','Signature','Signature','Firma'])}: ____________________</p><p>${t(['日期','Date','Date','Fecha'])}: ____________________</p></div></footer></section>`;
   }
-  return {types,titles,clauses,text,type,number,calculate,validate,render};
+  return {types,titles,clauses,text,type,number,calculate,validate,render,missingTranslations};
 });

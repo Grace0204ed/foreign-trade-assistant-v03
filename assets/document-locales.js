@@ -218,8 +218,42 @@ Commission and Settlement|Commission et règlement|Comisión y liquidación`;
     'Draft quotation: some items are pending pricing and excluded from the subtotal.':['見積草稿：未確定価格の項目は小計に含まれません。','Черновик: позиции без цены не включены в подытог.','مسودة: البنود غير المسعّرة غير مشمولة في المجموع الفرعي.','Bozza: le voci senza prezzo sono escluse dal subtotale.','Entwurf: Positionen ohne Preis sind nicht in der Zwischensumme enthalten.','견적 초안: 가격 미정 항목은 소계에서 제외됩니다.']
   };
   Object.entries(special).forEach(([key,values])=>labels[key]=Object.fromEntries(extra.map((lang,i)=>[lang,values[i]])));
+  const additionalLatinRows=`Quotation|Devis|Cotización
+Proforma Invoice|Facture proforma|Factura proforma
+Sales Contract|Contrat de vente|Contrato de venta
+Commercial Invoice|Facture commerciale|Factura comercial
+Packing List|Liste de colisage|Lista de empaque
+Invitation Letter|Lettre d’invitation professionnelle|Carta de invitación
+Letter of Authorization|Lettre d’autorisation|Carta de autorización
+Quotation Date|Date du devis|Fecha de cotización
+Agent|Agent commercial|Agente
+Pending quotation|Prix à confirmer|Precio pendiente
+Incomplete quotation: prices are required before formal issue.|Devis incomplet : veuillez renseigner les prix avant émission définitive.|Cotización incompleta: indique los precios antes de la emisión definitiva.
+Phone / WhatsApp|Téléphone / WhatsApp|Teléfono / WhatsApp
+Equipment|Équipement|Equipo
+No electronic signature configured|Aucune signature électronique configurée|No se ha configurado una firma electrónica
+Proforma Invoice No.|N° de facture proforma|N.º de factura proforma
+Invoice Date|Date de facture|Fecha de factura
+HS Code|Code douanier|Código arancelario
+Port of Loading|Port de chargement|Puerto de carga
+Port of Discharge|Port de déchargement|Puerto de descarga
+Contract No.|N° de contrat|N.º de contrato
+Contract Date|Date du contrat|Fecha del contrato
+Commercial Invoice No.|N° de facture commerciale|N.º de factura comercial
+Packing Date|Date d’emballage|Fecha de embalaje
+Notify Party|Partie à notifier|Parte a notificar
+Territory|Territoire|Territorio
+Representative|Représentant|Representante
+ID / Passport No.|N° de pièce d’identité / passeport|N.º de documento / pasaporte
+Contact Address|Adresse de contact|Dirección de contacto
+Gender|Sexe|Sexo
+Date of Birth|Date de naissance|Fecha de nacimiento
+Passport No.|N° de passeport|N.º de pasaporte
+Relationship|Relation commerciale|Relación comercial
+Purpose of Visit|Objet de la visite|Motivo de la visita`;
+  for(const row of additionalLatinRows.split('\n')){const [key,fr,es]=row.split('|');labels[key]={...labels[key],fr,es};}
   const keyIndex=Object.fromEntries(Object.keys(labels).map(key=>[key.toLowerCase(),key]));
-  function label(en,mode){const key=aliases[en]||keyIndex[String(en||'').toLowerCase()]||en;return labels[key]?.[mode]||'';}
+  function label(en,mode){const key=aliases[en]||keyIndex[String(en||'').toLowerCase()]||en;const fixed=typeof module==='object'&&module.exports?require('./document-fixed-locales.js'):globalThis.DocumentFixedLocales;return labels[en]?.[mode]||labels[key]?.[mode]||fixed?.lookup(en,mode)||'';}
   const supported=new Set([...Object.keys(languages),'zh','bilingual','zh-en','zh-es','zh-fr']);
   function options(){return [['bilingual','中英双语'],['zh','中文'],...Object.entries(languages),['zh-es','中西双语'],['zh-fr','中法双语']].map(([value,labelZh],i)=>({id:'language:'+value,value,labelZh,labelEn:value,active:true,sortOrder:(i+1)*10}));}
   function mergeOptions(existing=[]){const result=existing.map(o=>({...o}));for(const option of options())if(!result.some(o=>o.value===option.value))result.push({...option,sortOrder:Math.max(0,...result.map(o=>Number(o.sortOrder)||0))+10});return result;}

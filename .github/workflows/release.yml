@@ -48,6 +48,10 @@ jobs:
         run: npm run test:pdf
       - name: Verify seven document field persistence and PDF output
         run: npm run test:fields
+      - name: Verify all nine document types in nine languages
+        run: npm run test:language-matrix
+      - name: Verify 81 real language PDF exports
+        run: npx electron scripts/verify-language-pdfs.cjs
       - name: Build installer without concurrent release creation
         run: npm run rebuild:electron && npx electron-builder --win nsis --publish never
       - name: Publish one complete release atomically

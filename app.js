@@ -4532,6 +4532,8 @@
   function localizedSlashValue(value, mode) {
     const raw = String(value || "").trim();
     if (!raw) return "";
+    const fixed=DocumentFixedLocales.lookup(raw.split(/\s+\/\s+/)[0],mode);
+    if(fixed)return fixed;
     if (!raw.includes("/")) return raw;
     const parts = raw.split("/").map((part) => part.trim()).filter(Boolean);
     const hasZh = (text) => /[\u4e00-\u9fa5]/.test(text);
@@ -4545,13 +4547,13 @@
   }
 
   function invitationIntroParagraph(mode) {
-    const country = currentInvitation.country || "the visitor's country";
+    const country = currentInvitation.country || "—";
     const countryZh = countryZhName(country) || "该国家";
-    const name = currentInvitation.visitorName || "the visitor";
-    const company = currentInvitation.visitorCompany || "the customer's company";
+    const name = currentInvitation.visitorName || "—";
+    const company = currentInvitation.visitorCompany || "—";
     const arrival = formatInvitationDate(currentInvitation.arrivalDate, mode) || "-";
     const departure = formatInvitationDate(currentInvitation.departureDate, mode) || "-";
-    const visitPlace = currentInvitation.visitPlace || settings.companyAddressEn || "our factory in China";
+    const visitPlace = currentInvitation.visitPlace || settings.companyAddressEn || "—";
     const bundled=DocumentTemplateCopy.get(mode,'invite',{name,country,company,place:visitPlace,arrival,departure});if(bundled)return bundled;
     const text = {
       en: `Due to our business cooperation and order discussion, we hereby invite ${name} from ${country}, representing ${company}, to visit ${visitPlace} for business inspection, factory visit, machinery inspection and purchase discussion. The planned entry date is ${arrival}, and the planned departure date is ${departure}.`,
@@ -4564,8 +4566,8 @@
 
   function invitationResponsibilityParagraph(mode) {
     const bundled=DocumentTemplateCopy.get(mode,'responsibility');if(bundled)return bundled;
-    if(mode==='fr'||mode==='zh-fr')return currentInvitation.expenseSource||'';
     const text = {
+      fr: "Pendant la visite en Chine, tous les frais, notamment les transports internationaux et intérieurs, l’hébergement, les repas, l’assurance, les frais médicaux et les dépenses personnelles, sont à la charge du visiteur/client. Toute amende, perte, sanction ou responsabilité juridique résultant d’un dépassement de séjour, d’un départ retardé, d’une infraction aux lois locales ou d’un comportement personnel incombe exclusivement au visiteur/client. Notre société n’assume aucun de ces frais ni aucune de ces responsabilités.",
       en: "During the visit in China, all expenses including but not limited to international and domestic transportation, accommodation, meals, insurance, medical costs and personal expenses shall be borne by the visitor/customer. Any fines, losses, penalties or legal responsibilities caused by overstaying, delayed departure, violation of local laws or personal conduct shall be borne solely by the visitor/customer. Our company does not bear any such costs or liabilities.",
       zh: "来访人在华考察期间产生的所有费用，包括但不限于国际及境内交通、住宿、餐饮、保险、医疗及个人消费等，均由来访人/客户自行承担。如因逾期离境、延迟离境、违反当地法律法规或个人行为产生任何罚款、损失、处罚或法律责任，均由来访人/客户自行承担，我司不承担任何相关费用及责任。",
       es: "Durante la visita en China, todos los gastos, incluidos entre otros transporte internacional y nacional, alojamiento, comidas, seguro, gastos médicos y gastos personales, serán asumidos por el visitante/cliente. Cualquier multa, pérdida, sanción o responsabilidad legal causada por permanencia vencida, salida retrasada, violación de leyes locales o conducta personal será asumida únicamente por el visitante/cliente. Nuestra empresa no asumirá dichos costos ni responsabilidades."
@@ -4592,7 +4594,7 @@
         <div class="invitation-watermark">${escapeHtml(party.nameEn || party.nameZh || "")}</div>
         <h1>${escapeHtml(invitationTitle(mode))}</h1>
         <div class="invitation-date">${escapeHtml(invitationText("date", mode))}: ${escapeHtml(formatInvitationDate(currentInvitation.date, mode))}</div>
-        <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(currentInvitation.embassy || settings.invitationEmbassy || "")}</div>
+        <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(localizedSlashValue(currentInvitation.embassy || settings.invitationEmbassy || "",mode))}</div>
         <p class="invitation-paragraph">${escapeHtml(invitationIntroParagraph(mode)).replace(/\n/g, "<br>")}</p>
         <div class="invitation-info">
           <h3>${escapeHtml(invitationText("details", mode))}</h3>
@@ -4600,7 +4602,7 @@
             ${invitationField("name", currentInvitation.visitorName, mode)}
             ${invitationField("company", currentInvitation.visitorCompany, mode)}
             ${invitationField("country", currentInvitation.country, mode)}
-            ${invitationField("gender", currentInvitation.gender, mode)}
+            ${invitationField("gender", localizedSlashValue(currentInvitation.gender, mode), mode)}
             ${invitationField("birthDate", formatInvitationDate(currentInvitation.birthDate, mode), mode)}
             ${invitationField("passport", currentInvitation.passportNo, mode)}
             ${invitationField("arrivalDate", formatInvitationDate(currentInvitation.arrivalDate, mode), mode)}
@@ -4609,7 +4611,7 @@
             ${invitationField("visaType", localizedSlashValue(currentInvitation.visaType, mode), mode)}
             ${invitationField("relationship", localizedSlashValue(currentInvitation.relationship, mode), mode)}
             ${invitationField("expenseSource", localizedSlashValue(currentInvitation.expenseSource, mode), mode)}
-            ${invitationField("reason", currentInvitation.reason, mode)}
+            ${invitationField("reason", DocumentFixedLocales.lookup(currentInvitation.reason,mode)||currentInvitation.reason, mode)}
             ${currentInvitation.notes ? invitationField("notes", currentInvitation.notes, mode) : ""}
           </div>
         </div>
@@ -4687,7 +4689,7 @@
       fr:{payment:"Compte bancaire en USD ou USDT",settlement:"Dans un délai de 3 jours ouvrables",commission:"La commission est calculée uniquement sur les paiements clients effectivement et irrévocablement reçus par le mandant. Le fret, l’assurance, les taxes, remboursements, frais bancaires et éléments convenus séparément sont exclus. Le taux final de chaque commande doit être confirmé par écrit avant sa conclusion. Le paiement intervient dans le délai convenu après réception de toutes les sommes exigibles, en l’absence de litige et après fourniture de coordonnées de paiement conformes.",extra:"Cette autorisation d’agence commerciale est non exclusive et incessible. Le mandant peut en modifier la portée ou y mettre fin par notification écrite. Le représentant ne peut ouvrir de compte, emprunter, fournir de garantie ni prendre d’engagement dépassant la présente autorisation au nom du mandant."}
     };
     const pair=(foreign)=>({payment:`${copy[foreign].payment} / ${copy.zh.payment}`,settlement:`${copy[foreign].settlement} / ${copy.zh.settlement}`,commission:`${copy[foreign].commission}\n\n${copy.zh.commission}`,extra:`${copy[foreign].extra}\n\n${copy.zh.extra}`});
-    if(DocumentLocales.extra.includes(mode))return {...copy.en,extra:DocumentTemplateCopy.get(mode,'extra')};
+    if(DocumentLocales.extra.includes(mode))return {payment:DocumentFixedLocales.lookup(copy.en.payment,mode),settlement:DocumentFixedLocales.lookup(copy.en.settlement,mode),commission:DocumentFixedLocales.lookup(copy.en.commission,mode),extra:DocumentTemplateCopy.get(mode,'extra')};
     return mode==="bilingual"?pair("en"):mode==="zh-es"?pair("es"):mode==="zh-fr"?pair("fr"):(copy[mode]||copy.zh);
   }
 
@@ -4864,8 +4866,7 @@
     const mode = currentAgentAuthorization?.language || "bilingual";
     const fixed=DocumentTemplateCopy.authorizationText(en,mode,currentAgentAuthorization);if(fixed)return fixed;
     const bundled=DocumentLocales.label(en,mode);if(bundled)return bundled;
-    if(DocumentLocales.extra.includes(mode))return en;
-    return mode === "en" ? en : mode === "es" ? es : mode === "fr" ? fr : mode === "zh" ? zh : mode === "zh-es" ? `${es} / ${zh}` : mode === "zh-fr" ? `${fr} / ${zh}` : `${en} / ${zh}`;
+    return AgencyDocuments.text([zh,en,fr,es],mode);
   }
 
   function applyAgencyLanguageDefaults(){
@@ -4914,7 +4915,10 @@
   const renderAgentAuthorizationWithoutSignature = renderAgentAuthorizationPreview;
   renderAgentAuthorizationPreview = function () {
     renderAgentAuthorizationWithoutSignature();
-    const rows=[...($('agency-preview')?.querySelectorAll('.agency-info-grid>p')||[])];
+    // Only authorization rows follow the authorization customer-field order.
+    // Commission and procurement documents have their own, different schemas.
+    const rows=AgencyDocuments.type(currentAgentAuthorization)==='authorization'
+      ? [...($('agency-preview')?.querySelectorAll('.agency-info-grid>p')||[])] : [];
     const keys=['country','agentName','idNumber','phone','email','address','officeAddress'];
     const fields=settings.documentConfigs?.agency?.blocks?.customer||[];
     rows.forEach((row,index)=>{
@@ -6008,6 +6012,8 @@
     const en = raw.split(" / ")[0].trim();
     if (!Object.prototype.hasOwnProperty.call(copy, en)) return raw;
     const [fr, zh] = copy[en];
+    const translated=DocumentFixedLocales.lookup(en,mode);
+    if(translated)return translated;
     if (mode === "zh-fr") return `${fr} / ${zh}`;
     if (mode === "fr") return fr;
     if (mode === "en") return en;
