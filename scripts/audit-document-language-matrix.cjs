@@ -7,11 +7,11 @@ app.whenReady().then(async()=>{
  const run=s=>win.webContents.executeJavaScript(s),results=[];
  try{
   await win.loadURL('http://127.0.0.1:'+server.address().port);
-  for(let i=0;i<200&&!await run('!!window.quoteApp');i++)await new Promise(r=>setTimeout(r,40));
+  for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
   for(const type of ['quotation','invoice','contract','commercial','packing','authorization','statement','procurement','invitation']){
    await run(`document.querySelector('[data-create-document=${type}]').click()`);
    const selection=await run(`(()=>{const input=document.querySelector('#view-${['authorization','statement','procurement'].includes(type)?'agency':type==='invitation'?'invitation':'quote'} .document-batch-choices input');input.checked=false;const off=getComputedStyle(input).backgroundColor;input.checked=true;const on=getComputedStyle(input).backgroundColor,mark=getComputedStyle(input,'::before').content,border=getComputedStyle(input.closest('label')).borderTopColor;input.checked=false;return {off,on,mark,border}})()`);
-   assert.equal(selection.off,'rgb(148, 163, 184)',type+' unchecked grey');assert.equal(selection.on,'rgb(22, 163, 74)',type+' checked green');assert(selection.mark.includes('✓'),type+' check marker');assert.equal(selection.border,'rgb(22, 163, 74)',type+' checked border');
+   assert.equal(selection.off,'rgb(32, 41, 54)',type+' unchecked dark');assert.equal(selection.on,'rgb(29, 95, 206)',type+' checked blue');assert(selection.mark.includes('✓'),type+' check marker');assert.equal(selection.border,'rgb(29, 95, 206)',type+' checked border');
    const kind=['authorization','statement','procurement'].includes(type)?'agency':type==='invitation'?'invitation':'quote';
    const id=kind==='quote'?'pdf-language':kind+'-language',states={};
    for(const lang of ['bilingual','en','fr','ja','es','ru','ar','it','de','ko']){

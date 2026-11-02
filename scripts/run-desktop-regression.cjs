@@ -1,0 +1,4 @@
+const {spawnSync}=require('node:child_process'),fs=require('fs'),path=require('path');
+const names=process.argv.slice(2);if(!names.length)names.push('test:ui','test:customers','test:approved','test:next','test:refinement','test:product-modal','test:demo-workflow','test:fields','test:pdf','test:language-matrix','test:languages','test:readability','test:document-workflow');
+const results=[];for(const name of names){const started=Date.now();console.log('RUN '+name);const result=spawnSync(process.env.ComSpec,['/d','/s','/c','npm run '+name],{stdio:'inherit',env:process.env});results.push({name,status:result.status,seconds:Math.round((Date.now()-started)/1000)});if(result.error)console.error(result.error);}
+fs.mkdirSync('output/document-regression',{recursive:true});fs.writeFileSync('output/document-regression/results.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results));process.exit(results.some(r=>r.status!==0)?1:0);

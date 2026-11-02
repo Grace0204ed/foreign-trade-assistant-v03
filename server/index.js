@@ -731,7 +731,7 @@ app.post("/api/agent-authorizations", requireLogin, (req, res) => {
   const validation = agencyDocuments.validate(data);
   if(validation) return fail(res,400,'Invalid agency document.',validation);
   if(data.documentType && !Object.hasOwn(agencyDocuments.types,data.documentType))return fail(res,400,'Invalid document type.','文件类型不正确。');
-  if (!['statement','procurement'].includes(agencyDocuments.type(data))&&(!data.agentName || !data.country)) return fail(res, 400, "Agent name and country required.", "请填写代理人姓名和授权国家。");
+  if (data.recordClass!=='history'&&!['statement','procurement'].includes(agencyDocuments.type(data))&&(!data.agentName || !data.country)) return fail(res, 400, "Agent name and country required.", "请填写代理人姓名和授权国家。");
   const recordId = data.id || id("agency"), timestamp = now();
   const existing = db.prepare("SELECT created_at,data_json,status FROM agent_authorizations WHERE id=?").get(recordId);
   if(existing?.status==='Deleted')return fail(res,409,'Document deleted.','文件已删除，请复制为新文件。');

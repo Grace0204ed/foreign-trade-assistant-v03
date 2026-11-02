@@ -9,16 +9,16 @@ app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1440,height:1100,webPreferences:{backgroundThrottling:false}}),run=s=>win.webContents.executeJavaScript(s);
  const out=path.resolve('output/readability-qa');fs.mkdirSync(out,{recursive:true});const results=[];
  try{
-  await win.loadURL(base);for(let i=0;i<200&&!await run('!!window.quoteApp');i++)await new Promise(r=>setTimeout(r,40));
+  await win.loadURL(base);for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
   assert.equal(await run("!!document.getElementById('document-color-reset')"),false);
   for(const type of (process.env.READABILITY_DENSE_ONLY?[]:['quotation','invoice','contract','commercial','packing'])){
-   await run(`document.querySelector('[data-create-document=${type}]').click()`);
+   await run(`window.decideCloseWork?.('discard')`);await run(`document.querySelector('[data-create-document=${type}]').click()`);
    for(const lang of ['bilingual','en','fr','ja','es','ru','ar','it','de','ko']){
     const id='read-'+type+'-'+lang;
     const doc={id,quoteNumber:id,documentType:type,pdfLanguage:lang,settingsSnapshot:{companyNameEn:'QA Trading Company',companyAddressEn:'Hefei, China'},buyer:{company:'QA Buyer',country:'Kenya'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Mombasa',payment:'30/70'},documentExtras:{packing:{machine:{packages:'1',netWeight:'1200',grossWeight:'1300',cbm:'12',marks:'QA-123'}}},items:[{id:'machine',productSnapshot:{productName:'Dynapac CA402'},priceSnapshot:{quantity:1,unitPrice:23000,currency:'USD',values:{description:'Dynapac CA402 road roller',qty:'1',unitPrice:'23000',currency:'USD',billingUnit:'Unit',hsCode:'84294000'}}}]};
     doc.items[0].id='machine-'+id;doc.documentExtras.packing[doc.items[0].id]=doc.documentExtras.packing.machine;delete doc.documentExtras.packing.machine;
     assert((await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)})).ok);
-    await run(`window.quoteApp.editQuote(${JSON.stringify(id)})`);
+    await run(`window.decideCloseWork('discard')`);await run(`window.quoteApp.editQuote(${JSON.stringify(id)})`);
     for(const color of ['#2074b9','#fff2cc','#111111']){
      await run(`(()=>{const input=document.getElementById('document-table-color');input.value='${color}';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
      await run('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
@@ -51,7 +51,7 @@ app.whenReady().then(async()=>{
    const packing=Object.fromEntries(items.map(item=>[item.id,{packages:'1',netWeight:'1200',grossWeight:'1300',cbm:'12',marks:'QA-123'}]));
    const doc={id,quoteNumber:id,documentType:'packing',pdfLanguage:lang,tableHeaderColor:'#2074b9',settingsSnapshot:{companyNameEn:'QA Trading Company',companyAddressEn:'Hefei, China'},buyer:{company:'QA Buyer',country:'Kenya'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Mombasa'},documentExtras:{packing},items};
    assert((await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)})).ok);
-   await run(`window.quoteApp.editQuote('${id}')`);await run('document.fonts.ready');
+   await run(`window.decideCloseWork('discard')`);await run(`window.quoteApp.editQuote('${id}')`);await run('document.fonts.ready');
    assert.equal(await run("document.querySelectorAll('#quote-preview thead th').length"),14,'dense packing columns');
    assert.deepEqual(await run(`(${auditLayout.toString()})('quote-preview')`),[],lang+' dense screen text bounds');
    await run("document.body.classList.add('printing-standard')");
@@ -64,7 +64,7 @@ app.whenReady().then(async()=>{
   // New documents inherit the last chosen colour for their own type. Existing
   // stored documents retain their saved snapshots rather than adopting it.
   for(const type of ['quotation','invoice','contract','commercial','packing','authorization','statement','procurement','invitation']){
-   await run(`document.querySelector('[data-create-document=${type}]').click()`);
+   await run(`window.decideCloseWork?.('discard')`);await run(`document.querySelector('[data-create-document=${type}]').click()`);
    const input=type==='invitation'?'invitation-color':['authorization','statement','procurement'].includes(type)?'agency-color':'document-table-color';
    await run(`(()=>{const el=document.getElementById('${input}');el.value='#1f7047';el.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   }
@@ -73,7 +73,7 @@ app.whenReady().then(async()=>{
   const backed=await (await fetch(base+'/api/system/browser-state')).json();
   assert.equal(Object.keys(backed.state.settings.documentColorPreferences).length,9);
   // A fresh browser origin has no localStorage (as with a changed local port).
-  await win.loadURL(base.replace('127.0.0.1','localhost'));for(let i=0;i<200&&!await run('!!window.quoteApp');i++)await new Promise(r=>setTimeout(r,40));
+  await win.loadURL(base.replace('127.0.0.1','localhost'));for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
   const colors=await run("JSON.parse(localStorage.getItem('quote_assistant_v01_settings')).documentColorPreferences");assert.equal(Object.keys(colors).length,9);assert(Object.values(colors).every(v=>v==='#1f7047'));
   await run("window.quoteApp.editQuote('read-packing-en')");assert.equal(await run("document.getElementById('document-table-color').value"),'#285fc1','stored old snapshot should not use last colour');
   fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(results,null,2));console.log('PASS '+results.length+' screen/print layouts: 5 documents, bilingual + all 9 languages, 3 colours; 50 PDFs plus 10 dense 14-column multi-page PDFs; 9 colour preferences survive fresh origin; history untouched. '+out);

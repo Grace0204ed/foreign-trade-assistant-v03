@@ -33,8 +33,8 @@ app.whenReady().then(async()=>{
    assert.equal(await run(`document.querySelector('#${area} [${choice}="roundtrip_choice"]')?.tagName`),'SELECT',type+' dropdown');
    await run(`(()=>{const i=document.querySelector('${field('roundtrip_ref')}');i.value='SAVED-${type}';i.dispatchEvent(new Event('input',{bubbles:true}));const c=document.querySelector('#${area} [${choice}="roundtrip_choice"]');c.value='B';c.dispatchEvent(new Event('change',{bubbles:true}));})()`);
    await wait(`document.getElementById('${preview}').textContent.includes('SAVED-${type}')`);
-   assert(await run(`document.getElementById('${preview}').textContent.includes('Exhibition')`),type+' dropdown label in preview');
-   assert(await run(`document.getElementById('${preview}').textContent.includes('Renamed Customer')`),type+' renamed heading in preview');
+   assert(await run(`document.getElementById('${preview}').textContent.includes('${type==='invitation'?'展会':'Exhibition'}')`),type+' dropdown label in preview');
+   assert(await run(`document.getElementById('${preview}').textContent.includes('${type==='invitation'?'已改名客户':'Renamed Customer'}')`),type+' renamed heading in preview');
    if(type==='agency')await run(`for(const [id,value]of Object.entries({'agency-agent-name':'Test Agent','agency-country':'Zambia','agency-id-number':'ID-TEST','agency-phone':'+260700000000','agency-email':'test@example.com'})){document.getElementById(id).value=value;}document.querySelector('#agency-product-options input').checked=true`);
    const save=type==='invitation'?'save-invitation-btn':type==='agency'?'agency-save-btn':'save-quote-btn';
    await run(`document.getElementById('${save}').click()`);

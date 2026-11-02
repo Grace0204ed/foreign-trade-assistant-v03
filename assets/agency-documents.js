@@ -76,7 +76,7 @@
       }
       return '';
     }
-    if(!a.agentName?.trim()||!a.country?.trim())return '请填写代理人姓名和国家。';
+    if(a.recordClass!=='history'&&(!a.agentName?.trim()||!a.country?.trim()))return '请填写代理人姓名和国家。';
     if(!a.authorizationNumber?.trim())return '请填写文件编号。';
     if(type(a)==='statement') {
       if(a.contractAmount!==''&&a.contractAmount!=null&&calculate(a)===null)return '合同金额应大于0，佣金比例须为5%至100%；加价方式请填写非负加价金额。';

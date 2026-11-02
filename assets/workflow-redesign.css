@@ -25,8 +25,8 @@
 .app-lock-settings .lock-settings-enable input[type=checkbox]{background:#cbd5e4!important;border:0!important;padding:0!important;min-height:24px!important;height:24px!important;max-width:42px}.app-lock-settings .lock-settings-enable input[type=checkbox]:checked{background:#2862c6!important}
 #application-lock-screen .app-lock-card .password-with-eye input{background:transparent!important;color:#edf4ff!important;border:0!important;font-size:16px;letter-spacing:2px;text-align:left;margin:0;min-height:46px;padding:10px 13px}#application-lock-screen input::placeholder{font-size:14px;letter-spacing:0;color:#8ba6c0;opacity:1}#application-lock-screen .password-with-eye{overflow:hidden}#application-lock-screen .app-lock-card .password-with-eye button{background:transparent;color:#b6cae3}
 .document-batch-choices label{color:#475569!important;background:#f8fafc!important;border-color:#cbd5e1!important}
-.document-batch-choices label:has(input:checked){color:#087443!important;background:#dcfce7!important;border-color:#16a34a!important;font-weight:700}
-.document-batch-choices input[type=checkbox]{appearance:none!important;background:#94a3b8!important;border:0!important;opacity:1!important}
-.document-batch-choices input[type=checkbox]:checked{background:#16a34a!important}
-.document-batch-choices input[type=checkbox]:checked:before{content:'✓'!important;left:14px!important;display:grid;place-items:center;color:#087443;font-size:11px;font-weight:800}
-.document-batch-choices input[type=checkbox]:focus-visible{outline:2px solid #16a34a;outline-offset:3px}
+.document-batch-choices label:has(input:checked){color:#124baf!important;background:#edf3ff!important;border-color:#1d5fce!important;font-weight:700}
+.document-batch-choices input[type=checkbox]{appearance:none!important;background:#202936!important;border:0!important;opacity:1!important}
+.document-batch-choices input[type=checkbox]:checked{background:#1d5fce!important}
+.document-batch-choices input[type=checkbox]:checked:before{content:'✓'!important;left:14px!important;display:grid;place-items:center;color:#124baf;font-size:11px;font-weight:800}
+.document-batch-choices input[type=checkbox]:focus-visible{outline:2px solid #1d5fce;outline-offset:3px}

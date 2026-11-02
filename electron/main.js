@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu, net } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { getMachineId, getLicenseStatus, activateLicense } = require("./license");
+require('./document-output.cjs')({ipcMain,BrowserWindow,dialog,app,getBatchDirectory:(event,token)=>{const grant=pdfDirectories.get(token);if(!grant||grant.sender!==event.sender.id)throw Error('导出目录授权已失效');return grant.directory;}});
 // Some office networks interrupt GitHub release downloads over HTTP/2.
 app.commandLine.appendSwitch("disable-http2");
 
@@ -96,9 +97,10 @@ async function createWindow() {
       if(unsaved){
         const {response}=await dialog.showMessageBox(win,{
           type:'question',title:'保存草稿',message:'有未保存的内容，是否保存草稿后关闭软件？',
-          buttons:['保存草稿并关闭','取消'],defaultId:0,cancelId:1,noLink:true
+          buttons:['保存草稿并关闭','不保存并关闭','取消'],defaultId:0,cancelId:2,noLink:true
         });
-        if(response!==0)return;
+        if(response===2)return;
+        await win.webContents.executeJavaScript(`window.decideCloseWork?.(${JSON.stringify(response===1?'discard':'save')})`);
       }
       await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
       closeAllowed=true;win.close();

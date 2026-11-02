@@ -7,10 +7,10 @@ app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;
  const win=new BrowserWindow({show:false,width:1440,height:1050,webPreferences:{contextIsolation:true}}),errors=[];
- const run=s=>win.webContents.executeJavaScript(s);
+ const run=async s=>{try{return await win.webContents.executeJavaScript(s);}catch(e){throw Error(e.message+"\n"+s);}};
  win.webContents.on('console-message',(_e,level,message)=>{if(level===3)errors.push(message);});
  try{
-  await win.loadURL(base);for(let i=0;i<100&&!await run("!!document.querySelector('#pdf-language option[value=en]')");i++)await new Promise(r=>setTimeout(r,50));
+  await win.loadURL(base);for(let i=0;i<100&&!await run("!!window.decideCloseWork&&!!window.flushPendingWork");i++)await new Promise(r=>setTimeout(r,50));
   const asset=await run(`(()=>{const c=document.createElement('canvas');c.width=240;c.height=100;const x=c.getContext('2d');x.fillStyle='#1355a0';x.font='italic 35px serif';x.fillText('QA Sign',10,65);return c.toDataURL()})()`);
   const seal=await run(`(()=>{const c=document.createElement('canvas');c.width=120;c.height=120;const x=c.getContext('2d');x.strokeStyle='red';x.lineWidth=4;x.beginPath();x.arc(60,60,53,0,7);x.stroke();x.fillStyle='red';x.font='20px serif';x.fillText('QA SEAL',15,65);return c.toDataURL()})()`);
   const company={companyNameEn:'QA Export Company',companyAddressEn:'QA test address',agencyAuthorizer:'QA Signer',agencyAuthorizerTitle:'Manager',agencySignatureDataUrl:asset,stampDataUrl:seal};
@@ -18,7 +18,7 @@ app.whenReady().then(async()=>{
    const items=Array.from({length:18},(_,i)=>({id:type+'-'+i,productSnapshot:{productName:'QA Machine '+i,imageDataUrl:asset},priceSnapshot:{quantity:2,unitPrice:1234,currency:'USD',values:{description:'QA Machine '+i+' — long specification with dimensions and additional export packing requirements. '.repeat(i===0?5:1),qty:'2',unitPrice:'1234',billingUnit:'Unit',hsCode:'84295100',packages:'1',netWeight:'1200',grossWeight:'1300',cbm:'12',marks:'QA-'+i}}}));
    const packing=Object.fromEntries(items.map(i=>[i.id,{packages:'1',netWeight:'1200',grossWeight:'1300',cbm:'12',marks:i.id}]));
    const response=await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'pdf-'+type,quoteNumber:'QA-'+type,documentType:type,settingsSnapshot:company,buyer:{company:'QA Buyer',contact:'QA Contact',address:'QA Address'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Durban',payment:'30/70'},pdfLanguage:'en',documentExtras:{tableHeaderColor:'#276749',packing,outputOptions:{[type]:{signature:true}}},items})});assert(response.ok);
-   await run(`window.quoteApp.editQuote('pdf-${type}')`);await run('document.fonts.ready');
+   await run(`window.decideCloseWork('discard')`);await run(`window.quoteApp.editQuote('pdf-${type}')`);await run('document.fonts.ready');
    assert(await run("document.querySelector('.desktop-topbar').contains(document.querySelector('#pdf-language'))"),type+' top toolbar');
    assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='block'"),type+' editor must not be beside preview');
    assert(await run("!!document.querySelector('#quote-preview .compact-letterhead h1')"),type+' compact colored letterhead');
@@ -31,18 +31,18 @@ app.whenReady().then(async()=>{
     fs.writeFileSync(path.join(output,'contract-print-layout.json'),JSON.stringify(await run("['body','.app-shell','.main','#view-quote','.quote-split-workspace','.quote-output-pane','.quote-preview-viewport','#quote-preview','.document-signature-block'].map(s=>{const el=document.querySelector(s),c=getComputedStyle(el),r=el.getBoundingClientRect();return {s,top:r.top,height:r.height,padding:c.padding,margin:c.margin,minHeight:c.minHeight,display:c.display,overflow:c.overflow}})"),null,2));
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
    }
-   fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));
+   fs.writeFileSync(path.join(output,type+'.pdf'),await (async()=>{await run('window.prepareDocumentSigningImages?.()');return win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true})})());
    await run("document.body.classList.remove('printing-standard')");
   }
   for(const type of ['quotation','invoice']){
    const response=await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'short-'+type,quoteNumber:'SHORT-'+type,documentType:type,settingsSnapshot:company,buyer:{company:'QA Buyer',contact:'QA Contact',country:'Kenya',address:'QA Address'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Mombasa',payment:'30/70'},pdfLanguage:'en',documentExtras:{outputOptions:{[type]:{signature:true}}},items:[{id:'short-machine-'+type,productSnapshot:{productName:'Used road roller',imageDataUrl:asset},priceSnapshot:{quantity:1,unitPrice:23000,currency:'USD',values:{description:'Dynapac CA402 14-ton road roller',qty:'1',unitPrice:'23000',billingUnit:'Unit',hsCode:'84294000'}}}]})});assert(response.ok);
-   await run(`window.quoteApp.editQuote('short-${type}')`);await run('document.fonts.ready');
+   await run(`window.decideCloseWork('discard')`);await run(`window.quoteApp.editQuote('short-${type}')`);await run('document.fonts.ready');
    await run("document.body.classList.add('printing-standard')");
    win.webContents.debugger.attach('1.3');
    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
    fs.writeFileSync(path.join(output,'short-'+type+'-layout.json'),JSON.stringify(await run("['#quote-preview','.document-parties','.preview-panel','.document-payment','.bank-panel','.document-signature-block','.document-seller-signature','table tr:last-child','table tr:last-child img'].map(s=>{const el=document.querySelector(s);if(!el)return {s};const c=getComputedStyle(el),r=el.getBoundingClientRect();return {s,top:r.top,height:r.height,padding:c.padding,margin:c.margin,minHeight:c.minHeight,html:el.tagName==='IMG'?el.outerHTML:undefined}})"),null,2));
    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
-   fs.writeFileSync(path.join(output,'short-'+type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));
+   fs.writeFileSync(path.join(output,'short-'+type+'.pdf'),await (async()=>{await run('window.prepareDocumentSigningImages?.()');return win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true})})());
    await run("document.body.classList.remove('printing-standard')");
   }
   for(const [type,view,cls] of [['invitation','invitation','printing-invitation'],['authorization','agency','printing-agency'],['agreement','agency','printing-agency'],['statement','agency','printing-agency'],['procurement','agency','printing-agency']]){
@@ -52,15 +52,15 @@ app.whenReady().then(async()=>{
    fs.writeFileSync(path.join(output,type+'-preview.png'),(await win.webContents.capturePage()).toPNG());
    await run(`document.body.classList.add('${cls}')`);
    if(type==='invitation')fs.writeFileSync(path.join(output,'invitation-layout.json'),JSON.stringify(await run(`['.invitation-sheet','.invitation-info-grid','.invitation-info-grid p:nth-child(5)','.invitation-footer'].map(s=>{const e=document.querySelector(s),c=getComputedStyle(e),r=e.getBoundingClientRect();return {s,width:r.width,height:r.height,font:c.fontSize,gridColumn:c.gridColumn,margin:c.margin,padding:c.padding}})`),null,2));
-   fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));
+   fs.writeFileSync(path.join(output,type+'.pdf'),await (async()=>{await run('window.prepareDocumentSigningImages?.()');return win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true})})());
    await run(`document.body.classList.remove('${cls}')`);
   }
-  await run("window.quoteApp.editQuote('pdf-invoice')");
+  await run("window.decideCloseWork('discard')");await run("window.quoteApp.editQuote('pdf-invoice')");
   await run(`window.quoteSettingsContext.save({...${JSON.stringify(company)},agencyAuthorizer:'QA NEW SIGNER'})`);
-  await run("document.querySelector('#document-show-signature').click();document.querySelector('#document-show-signature').click()");
+  await run("document.querySelector('#document-show-signature').click();document.querySelector('#document-show-signature').click();{const c=document.querySelector('#signing-controls-quote [data-signature-choice]');c.value='en';c.dispatchEvent(new Event('change',{bubbles:true}));}");
   assert(await run("document.querySelector('.document-signature-block').textContent.includes('QA NEW SIGNER')"),'signer refresh');
   await run(`window.quoteSettingsContext.save({companyNameEn:'OTHER QA COMPANY',agencyAuthorizer:'WRONG SIGNER',stampDataUrl:''})`);
-  await run("document.querySelector('#document-show-signature').click();document.querySelector('#document-show-signature').click()");
+  await run("document.querySelector('#document-show-signature').click();document.querySelector('#document-show-signature').click();{const c=document.querySelector('#signing-controls-quote [data-signature-choice]');c.value='en';c.dispatchEvent(new Event('change',{bubbles:true}));}");
   assert(!await run("document.querySelector('.document-signature-block').textContent.includes('WRONG SIGNER')"),'company isolation');
   assert.equal(errors.length,0,errors.join('\n'));console.log('PASS real Electron A4 export: ten document types, signer refresh and company isolation; '+output);
  }finally{win.destroy();server.close();app.quit();}

@@ -516,21 +516,8 @@ function seed() {
   }
   seedDefaultPorts();
 
-  if (!settingsCount && !db.prepare("SELECT COUNT(*) AS count FROM products").get().count) {
-    const products = [
-      ["product-sany-215c", "Excavator", "SANY", "SANY 215C", "三一215, 三一215C, 31215, 31215C, SANY215, SANY 215C, SY215, SY215C, 215C", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Transport dimension required", "", "Active"],
-      ["product-cat-320c", "Excavator", "CAT", "CAT 320C", "卡特320, 卡特320C, CAT320, CAT320C, Caterpillar 320C, 320C", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Large excavator. Accurate transport dimension required.", "", "Active"],
-      ["product-cat-140h", "Motor Grader", "CAT", "CAT 140H", "卡特140H, CAT140H, Caterpillar 140H, 140H", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Transport dimension required", "", "Active"],
-      ["product-sdlg-956f", "Wheel Loader", "SDLG", "SDLG 956F", "临工956F, 956F, SDLG956F", "Used", null, null, null, null, "meter", null, "Bulk Cargo", null, "", "Transport dimension required", "", "Active"]
-    ];
-    const stmt = db.prepare(`INSERT INTO products
-      (id, category, brand, model, aliases, condition, transport_length, transport_width, transport_height, transport_cbm, dimension_unit, weight, transport_method, reference_price, params, remark, image_path, status, search_text, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    products.forEach((p) => stmt.run(...p, normalize(p.join(" ")), now(), now()));
-  }
-  if(!settingsCount){
-    db.prepare("INSERT INTO customers (name,country,requirement,created_at,updated_at) VALUES (?,?,?,?,?)").run('张三','中国','演示客户，可编辑或删除。',now(),now());
-  }
+  // Business customers/products are created only by an explicit user action.
+  // Startup and upgrades never inject demonstration business records.
 
   if (!db.prepare("SELECT COUNT(*) AS count FROM vehicle_types").get().count) {
     const rows = [["truck-crane","随车吊","Truck-mounted crane"],["garbage-compactor","垃圾压缩车","Garbage compactor truck"],["sewer-cleaner","清洗吸污车","Sewer cleaning truck"],["sprinkler","洒水车","Water sprinkler truck"],["fuel-tanker","油罐车","Fuel tanker truck"],["aerial-platform","高空作业车","Aerial work platform"]];

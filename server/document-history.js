@@ -7,16 +7,17 @@ module.exports=function documentHistory(db,query={},invitationSummaries=[]){
   let index=[];
   if(!type||ordinary.includes(type))index.push(...db.prepare(`SELECT id,quote_number number,quote_date date,status,updated_at sort,
     COALESCE(json_extract(settings_snapshot_json,'$._quoteMeta.documentType'),'quotation') documentType,
-    buyer_json search,'standard' source FROM quotations`).all());
+    buyer_json search,is_formal formal,json_extract(settings_snapshot_json,'$._quoteMeta.documentExtras.recordClass') recordClass,'standard' source FROM quotations WHERE COALESCE(json_extract(settings_snapshot_json,'$._quoteMeta.documentExtras.recordClass'),'history')<>'draft'`).all());
   if(!type||['authorization','agreement','statement','commission','procurement'].includes(type))index.push(...db.prepare(`SELECT id,authorization_number number,
     COALESCE(json_extract(data_json,'$.date'),substr(updated_at,1,10)) date,status,updated_at sort,
     COALESCE(json_extract(data_json,'$.documentType'),'authorization') documentType,
     agent_name||' '||country||' '||COALESCE(json_extract(data_json,'$.company'),'') search,
-    'agency' source FROM agent_authorizations WHERE COALESCE(json_extract(data_json,'$.isTemplate'),0)=0`).all());
+    json_extract(data_json,'$.recordClass') recordClass,'agency' source FROM agent_authorizations WHERE COALESCE(json_extract(data_json,'$.isTemplate'),0)=0 AND COALESCE(json_extract(data_json,'$.recordClass'),'history')<>'draft'`).all());
   if(!type||type==='invitation'){
     if(!Array.isArray(invitationSummaries)||invitationSummaries.length>10000)throw Error('邀请函摘要列表无效');
-    index.push(...invitationSummaries.map(r=>({id:String(r.id||''),number:String(r.number||''),date:String(r.date||''),status:'Active',sort:String(r.sort||r.date||''),documentType:'invitation',search:[r.company,r.contact,r.country].map(s=>String(s||'').slice(0,500)).join(' '),source:'invitation',buyer:{company:r.company,contact:r.contact,country:r.country}})).filter(r=>r.id));
+    index.push(...invitationSummaries.map(r=>({id:String(r.id||''),number:String(r.number||''),date:String(r.date||''),status:String(r.status||'Active'),recordClass:r.recordClass,sort:String(r.sort||r.date||''),documentType:'invitation',search:[r.company,r.contact,r.country].map(s=>String(s||'').slice(0,500)).join(' '),source:'invitation',buyer:{company:r.company,contact:r.contact,country:r.country}})).filter(r=>r.id));
   }
+  if(String(query.exportable)==='1')index=index.filter(r=>r.recordClass!=='draft'&&(r.formal||r.recordClass==='history'||!['Draft','草稿'].includes(r.status)));
   index=index.filter(r=>(!type||r.documentType===type||(type==='commission'&&['agreement','statement'].includes(r.documentType)))&&(!date||r.date===date)&&(status==='all'||(status==='deleted'?r.status==='Deleted':status==='void'?r.status==='Void':!['Void','Deleted'].includes(r.status))));
   if(keyword){
     // Product keywords are evaluated with SQLite's indexed list projection logic.

@@ -830,22 +830,7 @@
     return `${en} / ${zh}`;
   }
 
-  function formatInvitationDate(value, mode) {
-    if (!value) return "";
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return String(value);
-    if (mode === 'es' || DocumentLocales.extra.includes(mode)) return d.toLocaleDateString(mode, { year: 'numeric', month: 'long', day: 'numeric' });
-    const en = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-    const zh = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-    const es = d.toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
-    if (mode === "en") return en;
-    if (mode === "zh") return zh;
-    if (mode === "zh-es") return `${es} / ${zh}`;
-    const fr = d.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
-    if (mode === "fr") return fr;
-    if (mode === "zh-fr") return `${fr} / ${zh}`;
-    return `${en} / ${zh}`;
-  }
+  function formatInvitationDate(value, mode) { return DocumentWorkflow.dateText(value,mode); }
 
   function quoteHistoryTimeText(q) {
     const created = formatDateTime(q.createdAt);
@@ -1742,7 +1727,7 @@
   }
 
   function companyProfileData(source) {
-    return structuredClone(Object.fromEntries(Object.entries(source).filter(([key]) => /^(companyName|companyAddress|companyPhone$|companyEmail$|contactPerson$|contactFields$|bankFields$|paymentQrFields$|logoDataUrl$|logoPath$|stampDataUrl$|stampPath$|agencySignature|agencyAuthorizer|invitationCompany|invitationSigner|invitationSignature|businessLine)/.test(key))));
+    return structuredClone(Object.fromEntries(Object.entries(source).filter(([key]) => /^(companyName|companyAddress|companyPhone$|companyEmail$|contactPerson$|contactFields$|bankFields$|paymentQrFields$|logoDataUrl$|logoPath$|stampDataUrl$|stampPath$|stampTransparentDataUrl$|stampOriginalDataUrl$|companySignatures$|signerNameZh$|signerNameEn$|agencySignature|agencyAuthorizer|invitationCompany|invitationSigner|invitationSignature|businessLine)/.test(key))));
   }
 
   function storeActiveCompany() {
@@ -3116,7 +3101,8 @@
     const file = input.files?.[0];
     if (!file) return;
     collectSettingsDraft();
-    settings[key] = await fileToDataUrl(file);
+    const uploaded=await fileToDataUrl(file);
+    if(key==='stampDataUrl'){settings.stampOriginalDataUrl=uploaded;settings.stampTransparentDataUrl=await DocumentWorkflow.transparentImage(uploaded);settings[key]=settings.stampTransparentDataUrl;}else settings[key]=uploaded;
     storeActiveCompany();
     input.value = "";
     save(keys.settings, settings);
@@ -3132,6 +3118,7 @@
   async function clearSettingsAsset(key, message) {
     collectSettingsDraft();
     settings[key] = "";
+    if(key==='stampDataUrl'){settings.stampOriginalDataUrl="";settings.stampTransparentDataUrl="";}
     storeActiveCompany();
     save(keys.settings, settings);
     if (isAdmin()) {
@@ -3898,7 +3885,8 @@
     requestAnimationFrame(()=>dialog.querySelector('[data-product-field]')?.focus({preventScroll:true}));
   }
 
-  function closeProductEditorModal() {
+  async function closeProductEditorModal() {
+    if(!workRestoring&&hasCurrentChanges()&&!await askLeaveWork())return;
     if(workspaceReady)persistWork();
     $('product-editor-modal').close();
     document.body.classList.remove('product-editor-open');
@@ -4191,6 +4179,7 @@
     renderProductTransportPlans(p.transportPlans||[]);
     if ($("save-product-btn")) $("save-product-btn").textContent = "保存修改";
     openProductEditorModal();
+    if(!workRestoring)markWorkBaseline('products');
   }
 
   function deleteProduct(id) {
@@ -4419,7 +4408,9 @@
     currentInvitation = {
       id: uid("invitation"),
       tableHeaderColor: preferredDocumentColor('invitation'),
-      language: "bilingual",
+      language: "zh",
+      recipientType: "individual", people: [DocumentWorkflow.person({})], visitPlaces: [],
+      validityMonths: 3, validFrom: today(), validUntil: DocumentWorkflow.addMonths(today(),3), signatureChoice: "zh",
       style: "classic",
       date: today(),
       embassy: "",
@@ -4437,7 +4428,7 @@
       expenseSource: "Visitor/customer bears all expenses / 客户自理",
       inviter: party.signerName,
       signerTitle: party.signerTitle,
-      reason: settings.invitationDefaultReason || "The visitor is invited to China for business inspection, machinery inspection, order discussion and purchasing cooperation.",
+      reason: !settings.invitationDefaultReason||settings.invitationDefaultReason===defaultSettings.invitationDefaultReason?'商务考察、设备验机、订单洽谈及采购合作。':settings.invitationDefaultReason,
       notes: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -4456,6 +4447,7 @@
   }
 
   function bindInvitationToForm() {
+    currentInvitation=DocumentWorkflow.normalizeInvitation(currentInvitation);
     $("invitation-language").value = currentInvitation.language || "bilingual";
     $("invitation-style").value = currentInvitation.style || "classic";
     $("invitation-date").value = currentInvitation.date || today();
@@ -4479,6 +4471,7 @@
     $("invitation-notes").value = currentInvitation.notes || "";
     applyStandaloneDocumentForm('invitation',standaloneFieldMappings.invitation,currentInvitation,$('invitation-date').closest('.form-grid'));
     arrangeStandaloneEditor('invitation',standaloneFieldMappings.invitation);
+    DocumentWorkflowUI.mountInvitation(currentInvitation);
   }
 
   function collectInvitationFromForm() {
@@ -4502,8 +4495,9 @@
     currentInvitation.inviter = $("invitation-inviter")?.value.trim() || invitationPartyInfo().signerName;
     currentInvitation.signerTitle = $("invitation-signer-title")?.value.trim() || invitationPartyInfo().signerTitle;
     currentInvitation.reason = $("invitation-reason")?.value.trim() || settings.invitationDefaultReason || "";
-    currentInvitation.notes = $("invitation-notes")?.value.trim() || "";
+    currentInvitation.notes = $("invitation-notes")?.value || "";
     collectStandaloneCustomFields(currentInvitation,$('view-invitation'));
+    collectInvitationParty();
     currentInvitation.updatedAt = new Date().toISOString();
   }
 
@@ -4522,7 +4516,7 @@
   function invitationTitle(mode) {
     const custom = {
       en: settings.invitationTitleEn || invitationLangPack.en.titleFallback,
-      zh: settings.invitationTitleZh || invitationLangPack.zh.titleFallback
+      zh: settings.invitationTitleZh && settings.invitationTitleZh!=="邀请函" ? settings.invitationTitleZh : "商务邀请函"
     };
     return invitationLanguages(mode).map((lang) => custom[lang] || DocumentLocales.label('Invitation Letter',lang)||invitationLangPack[lang]?.titleFallback).filter(Boolean).join(" / ");
   }
@@ -4553,21 +4547,16 @@
   }
 
   function invitationIntroParagraph(mode) {
-    const country = currentInvitation.country || "—";
-    const countryZh = countryZhName(country) || "该国家";
-    const name = currentInvitation.visitorName || "—";
-    const company = currentInvitation.visitorCompany || "—";
-    const arrival = formatInvitationDate(currentInvitation.arrivalDate, mode) || "-";
-    const departure = formatInvitationDate(currentInvitation.departureDate, mode) || "-";
-    const visitPlace = currentInvitation.visitPlace || settings.companyAddressEn || "—";
-    const bundled=DocumentTemplateCopy.get(mode,'invite',{name,country,company,place:visitPlace,arrival,departure});if(bundled)return bundled;
-    const text = {
-      en: `Due to our business cooperation and order discussion, we hereby invite ${name} from ${country}, representing ${company}, to visit ${visitPlace} for business inspection, factory visit, machinery inspection and purchase discussion. The planned entry date is ${arrival}, and the planned departure date is ${departure}.`,
-      zh: `我司现邀请来自${countryZh}的客户${name}${currentInvitation.visitorCompany?`（${company}）`:''}来华访问${visitPlace}，进行商务考察、设备验机及采购合作洽谈。计划入境日期为${currentInvitation.arrivalDate}，计划离境日期为${currentInvitation.departureDate}。`,
-      fr: `Nous invitons ${name}, venant de ${String(country).split('/')[0].trim()}, à visiter ${String(visitPlace).split('/')[0].trim()} pour examiner des machines et discuter de leur achat. Son arrivée est prévue le ${currentInvitation.arrivalDate} et son départ le ${currentInvitation.departureDate}.`,
-      es: `Debido a nuestra cooperación comercial y negociación de pedidos, invitamos a ${name} de ${country}, representante de ${company}, a visitar ${visitPlace} para inspección comercial, visita a la fábrica, revisión de maquinaria y conversación de compra. La fecha prevista de entrada es ${arrival}, y la fecha prevista de salida es ${departure}.`
-    };
-    return invitationLanguages(mode).map((lang) => text[lang]).filter(Boolean).join("\n");
+    const d=currentInvitation,names=d.people.map(p=>p.visitorName).filter(Boolean).join(' / '),place=d.visitPlaces.map(p=>DocumentWorkflow.placeText(p,mode)).join('、');
+    if(mode==='zh')return `我司现邀请${d.recipientType==='company'&&d.visitorCompany?d.visitorCompany+'组织的':''}${names||'以下来访人员'}来华进行商务访问。共同来访地点：${place||'待填写'}。计划入境日期：${formatInvitationDate(d.arrivalDate,mode)}；计划离境日期：${formatInvitationDate(d.departureDate,mode)}。具体人员资料及来访安排如下。`;
+    const company=d.recipientType==='company'?d.visitorCompany:'';
+    return DocumentWorkflow.languages(mode).map(lang=>{
+      const cities=d.visitPlaces.map(p=>DocumentWorkflow.placeText(p,lang)).join(', ');
+      const localIntro={fr:`Nous invitons ${names}${company?', représentant '+company:''} à effectuer une visite professionnelle en Chine, à ${cities||'—'}, du ${formatInvitationDate(d.arrivalDate,lang)} au ${formatInvitationDate(d.departureDate,lang)}, pour des échanges commerciaux, une inspection du matériel et des discussions d’achat.`,es:`Invitamos a ${names}${company?', en representación de '+company:''} a realizar una visita de negocios en China, en ${cities||'—'}, del ${formatInvitationDate(d.arrivalDate,lang)} al ${formatInvitationDate(d.departureDate,lang)}, para reuniones comerciales, inspección de maquinaria y conversaciones de compra.`};
+      let text=lang==='zh'?`我司邀请${company?company+'组织的':''}${names}来华商务访问，人员及行程如下。`:localIntro[lang]||DocumentTemplateCopy.get(lang,'invite',{name:names,country:[...new Set(d.people.map(p=>DocumentWorkflow.countryText(p.country,lang)))].join(', '),company:company||'—',place:cities||'—',arrival:formatInvitationDate(d.arrivalDate,lang),departure:formatInvitationDate(d.departureDate,lang)})||`We invite ${names}${company?', representing '+company:''} to ${cities} for a business visit from ${formatInvitationDate(d.arrivalDate,lang)} to ${formatInvitationDate(d.departureDate,lang)}.`;
+      if(!company)for(const phrase of ['representing —, ','representing —','代表—','—を代表する',', представляющего компанию —','، ممثلاً لشركة —',' e rappresentante di —',', als Vertreter von —','—를 대표하는 '])text=text.replace(phrase,'');
+      return text;
+    }).join('\n');
   }
 
   function invitationResponsibilityParagraph(mode) {
@@ -4583,9 +4572,9 @@
 
   function renderInvitationPreview() {
     collectInvitationFromForm();
-    const mode = currentInvitation.language || "bilingual";
+    const mode = currentInvitation.language || "zh";
     const party = invitationPartyInfo();
-    const companyName = displayMode() === "zh" ? party.nameZh : party.nameEn;
+    const companyName = mode === "zh" ? party.nameZh || party.nameEn : party.nameEn || party.nameZh;
     $("invitation-preview").innerHTML = `
       <section class="invitation-sheet invitation-style-${escapeHtml(currentInvitation.style || "classic")}">
         <div class="invitation-corner invitation-corner-tl"></div>
@@ -4593,34 +4582,31 @@
         <header class="invitation-header">
           ${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}" alt="">` : ""}
           <div>
-            <h2>${escapeHtml(party.nameEn || party.nameZh || "")}</h2>
-            ${party.nameZh ? `<p>${escapeHtml(party.nameZh)}</p>` : ""}
+            <h2>${escapeHtml(companyName)}</h2>
+            ${mode!=="zh" && mode!=="en" && invitationLanguages(mode).includes("zh") && party.nameZh && party.nameZh!==companyName ? `<p>${escapeHtml(party.nameZh)}</p>` : ""}
           </div>
         </header>
         <div class="invitation-watermark">${escapeHtml(party.nameEn || party.nameZh || "")}</div>
         <h1>${escapeHtml(invitationTitle(mode))}</h1>
         <div class="invitation-date">${escapeHtml(invitationText("date", mode))}: ${escapeHtml(formatInvitationDate(currentInvitation.date, mode))}</div>
-        <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(localizedSlashValue(currentInvitation.embassy || settings.invitationEmbassy || "",mode))}</div>
+        <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(mode==='zh'&&/^Embassy of the People's Republic of China$/.test(currentInvitation.embassy||'')?'中华人民共和国驻外使领馆':localizedSlashValue(currentInvitation.embassy || settings.invitationEmbassy || "",mode))}</div>
         <p class="invitation-paragraph">${escapeHtml(invitationIntroParagraph(mode)).replace(/\n/g, "<br>")}</p>
         <div class="invitation-info">
           <h3>${escapeHtml(invitationText("details", mode))}</h3>
           <div class="invitation-info-grid">
-            ${invitationField("name", currentInvitation.visitorName, mode)}
-            ${invitationField("company", currentInvitation.visitorCompany, mode)}
-            ${invitationField("country", currentInvitation.country, mode)}
-            ${invitationField("gender", localizedSlashValue(currentInvitation.gender, mode), mode)}
-            ${invitationField("birthDate", formatInvitationDate(currentInvitation.birthDate, mode), mode)}
-            ${invitationField("passport", currentInvitation.passportNo, mode)}
+            ${invitationPeoplePreview(mode)}
+            ${currentInvitation.recipientType==='company'&&currentInvitation.visitorCompany?invitationField("company",currentInvitation.visitorCompany,mode):''}
             ${invitationField("arrivalDate", formatInvitationDate(currentInvitation.arrivalDate, mode), mode)}
             ${invitationField("departureDate", formatInvitationDate(currentInvitation.departureDate, mode), mode)}
-            ${invitationField("visitPlace", localizedSlashValue(currentInvitation.visitPlace, mode), mode)}
+            ${invitationField("visitPlace", currentInvitation.visitPlaces.map(value=>DocumentWorkflow.placeText(value,mode)).join(mode==='zh'?"、":", "), mode)}
             ${invitationField("visaType", localizedSlashValue(currentInvitation.visaType, mode), mode)}
             ${invitationField("relationship", localizedSlashValue(currentInvitation.relationship, mode), mode)}
             ${invitationField("expenseSource", localizedSlashValue(currentInvitation.expenseSource, mode), mode)}
-            ${invitationField("reason", DocumentFixedLocales.lookup(currentInvitation.reason,mode)||currentInvitation.reason, mode)}
-            ${currentInvitation.notes ? invitationField("notes", currentInvitation.notes, mode) : ""}
+            ${invitationField("reason", invitationReasonText(mode), mode)}
+            ${currentInvitation.notes ? `<div class="wide invitation-free-notes"><b>${escapeHtml(invitationText("notes",mode))}</b>\n${escapeHtml(currentInvitation.notes)}</div>` : ""}
           </div>
         </div>
+        <section class="invitation-closing-group">${invitationValidityPreview(mode)}
         <p class="invitation-paragraph">${escapeHtml(invitationText("closing", mode))}</p>
         <div class="invitation-responsibility">
           <h3>${escapeHtml(invitationText("responsibility", mode))}</h3>
@@ -4629,41 +4615,40 @@
         ${standaloneCustomPreview('invitation',currentInvitation)}
         <footer class="invitation-footer">
           <div class="invitation-company-block">
-            <p>${escapeHtml(party.nameEn || "")}</p>
-            ${party.nameZh ? `<p>${escapeHtml(party.nameZh)}</p>` : ""}
-            <p>${escapeHtml(party.addressEn || "")}</p>
-            <p>${escapeHtml(party.addressZh || "")}</p>
+
+            <p>${escapeHtml(mode==="zh"?party.addressZh||party.addressEn:party.addressEn||party.addressZh)}</p>
             <p>${escapeHtml(party.phone || "")} ${party.email ? ` | ${escapeHtml(party.email)}` : ""}</p>
+            <p><b>${escapeHtml(invitationText("inviter", mode))}:</b> ${escapeHtml(DocumentWorkflow.signing(currentInvitation,currentInvitation.companySnapshot||settings,"invitation").name)}</p>
+            ${DocumentWorkflow.signing(currentInvitation,currentInvitation.companySnapshot||settings,"invitation").title ? `<p>${escapeHtml(DocumentWorkflow.signing(currentInvitation,currentInvitation.companySnapshot||settings,"invitation").title)}</p>` : ""}
           </div>
           <div class="invitation-sign">
-            <div class="invitation-sign-assets">
-            ${settings.stampDataUrl ? `<img class="invitation-stamp" src="${settings.stampDataUrl}" alt="">` : ""}
-            ${(settings.invitationSignatureDataUrl || settings.agencySignatureDataUrl)?`<div class="invitation-electronic-signature"><img src="${escapeHtml(settings.invitationSignatureDataUrl || settings.agencySignatureDataUrl)}" alt="Signature" style="transform:rotate(${Number(settings.invitationSignatureDataUrl ? settings.invitationSignatureRotation : settings.agencySignatureRotation)||0}deg)"></div>`:''}
-            </div>
+            ${DocumentWorkflow.signingHTML(DocumentWorkflow.signing(currentInvitation,currentInvitation.companySnapshot||settings,'invitation'))}
             <div class="signature-line"></div>
             <p><b>${escapeHtml(invitationText("signature", mode))}</b></p>
-            <p>${escapeHtml(invitationText("inviter", mode))}: ${escapeHtml(currentInvitation.inviter || party.signerName || "")}</p>
-            ${currentInvitation.signerTitle ? `<p>${escapeHtml(currentInvitation.signerTitle)}</p>` : ""}
-            <p>${escapeHtml(companyName || "")}</p>
+
           </div>
-        </footer>
+        </footer></section>
       </section>
     `;
   }
 
   async function saveInvitation() {
     const workKey=currentWorkKey("invitation");
+    captureSigning(currentInvitation,"invitation");
+    currentInvitation.recordClass="history";
     renderInvitationPreview();
     const nowIso = new Date().toISOString();
     if (!currentInvitation.createdAt) currentInvitation.createdAt = nowIso;
     currentInvitation.updatedAt = nowIso;
     currentInvitation.companySnapshot ||= structuredClone(companyProfileData(settings));
     currentInvitation.documentConfigSnapshot ||= structuredClone(settings.documentConfigs?.invitation||{});
-    const idx = invitations.findIndex((item) => item.id === currentInvitation.id);
-    if (idx >= 0) invitations[idx] = structuredClone(currentInvitation);
-    else invitations.unshift(structuredClone(currentInvitation));
+    const nextInvitations = invitations.filter(item => item.id !== currentInvitation.id);
+    nextInvitations.unshift(structuredClone(currentInvitation));
+    const state = localStatePayload();
+    state.invitations = nextInvitations;
+    await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(state)});
+    invitations = nextInvitations;
     save(keys.invitations, invitations);
-    await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});
     await completeWork(workKey);
     toast("邀请函已保存。");
   }
@@ -4707,7 +4692,7 @@
     if(workspaceReady)persistWork();
     const date = today(), party = invitationPartyInfo();
     currentAgentAuthorization = {
-      id: "", documentType:"authorization", isTemplate:false, authorizationNumber: AgencyDocuments.number('authorization',date,agentAuthorizations),
+      id: "", companySnapshot:structuredClone(companyProfileData(settings)), documentType:"authorization", isTemplate:false, authorizationNumber: AgencyDocuments.number('authorization',date,agentAuthorizations),
       tableHeaderColor: preferredDocumentColor('authorization'),
       date, validUntil: "", language: "bilingual", company: [party.nameEn || settings.companyNameEn, party.nameZh || settings.companyNameZh].filter(Boolean).join(" / "),
       authorizer: settings.agencyAuthorizer || party.signerName || settings.contactPerson || "", authorizerTitle: settings.agencyAuthorizerTitle || party.signerTitle || "",
@@ -4813,7 +4798,7 @@
     $('agency-bank-fields').hidden=!statement||$('agency-payment-channel').value!=='bank';
     $('agency-crypto-fields').hidden=!statement||$('agency-payment-channel').value!=='crypto';
     $('agency-public-pdf-btn').hidden=commercial; $('agency-private-pdf-btn').hidden=commercial;
-    $('agency-save-btn').textContent=a.isTemplate?'保存模板':'保存文件';
+    $('agency-save-btn').textContent=a.isTemplate?'保存模板':'保存到历史';
     $('agency-new-btn').textContent='新建空白文件';
     const value=AgencyDocuments.calculate(a);
     $('agency-payable').value=value===null?'待填写':`${a.currency||'USD'} ${value.toFixed(2)}`;
@@ -4845,7 +4830,7 @@
         a.authorizer=settings.agencyAuthorizer||settings.contactPerson||'';a.authorizerTitle=settings.agencyAuthorizerTitle||'';
         a.signatureDataUrl=settings.agencySignatureDataUrl||'';a.signatureRotation=settings.agencySignatureRotation||0;
         a.paymentChannel='bank';a.commissionBasis='rate';a.orderRate='';a.fixedCommission='';a.allowManualCompletion=true;
-        a.companySnapshot={companyNameEn:settings.companyNameEn,companyNameZh:settings.companyNameZh,companyAddressEn:settings.companyAddressEn,companyAddressZh:settings.companyAddressZh,stampDataUrl:settings.stampDataUrl||'',agencySignatureDataUrl:settings.agencySignatureDataUrl||'',agencySignatureRotation:settings.agencySignatureRotation||0};
+        a.companySnapshot=structuredClone(companyProfileData(settings));
       }
     }
     bindAgentAuthorizationForm(); renderAgentAuthorizationPreview();
@@ -4894,7 +4879,7 @@
     collectAgentAuthorizationForm();
     if(AgencyDocuments.type(currentAgentAuthorization)!=='authorization'){
       $('agency-preview').dataset.language=currentAgentAuthorization.language||'bilingual';
-      $('agency-preview').innerHTML=AgencyDocuments.render(currentAgentAuthorization,settings);
+      $('agency-preview').innerHTML=AgencyDocuments.render({...currentAgentAuthorization,date:DocumentWorkflow.dateText(currentAgentAuthorization.date,currentAgentAuthorization.language),validUntil:DocumentWorkflow.dateText(currentAgentAuthorization.validUntil,currentAgentAuthorization.language)},settings);
       const sheet=$('agency-preview').querySelector('.agency-sheet')||$('agency-preview').firstElementChild;
       if(sheet)sheet.insertAdjacentHTML('beforeend',standaloneCustomPreview('agency',currentAgentAuthorization));
       return;
@@ -4905,7 +4890,7 @@
       <div class="agency-crest"><span class="agency-wheat left">❧</span><div class="agency-emblem">★</div><span class="agency-wheat right">❧</span></div>
       <header class="agency-letterhead">${settings.logoDataUrl ? `<img src="${settings.logoDataUrl}" alt="Logo">` : ""}<div><b>${escapeHtml(a.company || settings.companyNameEn || "Authorizing Company")}</b><span>${escapeHtml(settings.companyAddressEn || settings.companyAddressZh || "")}</span></div></header>
       <h1>${agencyText("LETTER OF AUTHORIZATION", "代理授权书", "CARTA DE AUTORIZACIÓN", "LETTRE D’AUTORISATION")}</h1>
-      <div class="agency-meta"><span>${agencyText("No.", "编号")}：${escapeHtml(a.authorizationNumber)}</span>${a.validUntil ? `<span>${agencyText("Valid Until", "有效期至")}：${escapeHtml(a.validUntil)}</span>` : ""}</div>
+      <div class="agency-meta"><span>${agencyText("No.", "编号")}：${escapeHtml(a.authorizationNumber)}</span>${a.validUntil ? `<span>${agencyText("Valid Until", "有效期至")}：${escapeHtml(DocumentWorkflow.dateText(a.validUntil,a.language))}</span>` : ""}</div>
       <p class="agency-lead">${escapeHtml(agencyText(`We hereby appoint ${a.agentName || "-"} as our non-exclusive sales representative in ${a.country || "-"}.`, `兹授权${a.agentName || "-"}作为我方在${a.country || "-"}的非独家销售代理。`, `Por la presente nombramos a ${a.agentName || "-"} como nuestro representante comercial no exclusivo en ${a.country || "-"}.`, `Nous nommons par la présente ${a.agentName || "-"} en qualité de représentant commercial non exclusif en ${a.country || "-"}.`))}</p>
       <section class="agency-info-grid"><p><b>${agencyText("Territory","授权国家/地区","Territorio","Territoire")}</b><span>${escapeHtml(a.country||"-")}</span></p><p><b>${agencyText("Representative","联系人姓名","Representante","Représentant")}</b><span>${escapeHtml(a.agentName||"-")}</span></p><p><b>${agencyText("ID / Passport No.","身份证/护照号","Documento de identidad / Pasaporte","N° d’identité / passeport")}</b><span>${escapeHtml(a.idNumber||"-")}</span></p><p><b>${agencyText("Telephone","联系电话","Teléfono","Téléphone")}</b><span>${escapeHtml(a.phone||"-")}</span></p><p><b>${agencyText("Email","电子邮箱","Correo electrónico","E-mail")}</b><span>${escapeHtml(a.email||"-")}</span></p><p class="wide"><b>${agencyText("Contact Address","联系人地址","Dirección de contacto","Adresse du contact")}</b><span>${escapeHtml(a.address||"-")}</span></p>${a.officeAddress?`<p class="wide"><b>${agencyText("Store / Office Address","门店或办公室地址","Dirección de tienda / oficina","Adresse du magasin / bureau")}</b><span>${escapeHtml(a.officeAddress)}</span></p>`:""}</section>
       <h2>${agencyText("Terms of Authorization","授权条款","Condiciones de autorización","Conditions de l’autorisation")}</h2>
@@ -4915,7 +4900,7 @@
       ${a.extraTerms?`<section class="agency-additional"><h2>${agencyText("Additional Terms","补充条款","Condiciones adicionales","Conditions supplémentaires")}</h2><p>${escapeHtml(a.extraTerms)}</p></section>`:""}
       ${standaloneCustomPreview('agency',a)}
       <p class="agency-validity">${agencyText("This authorization becomes effective on the date of signature and seal.", "本授权书自签字盖章之日起生效。")}</p>
-      <footer class="agency-signature"><div class="agency-seal-side">${stamp ? `<img src="${stamp}" alt="Company Stamp">` : `<div class="agency-stamp-placeholder">${agencyText("Company Stamp", "公司公章")}</div>`}<p>${agencyText("Authorizing Party", "授权方")}：${escapeHtml(a.company || "-")}</p></div><div class="agency-signer-side"><p>${agencyText("Authorized Signatory", "授权签署人")}：<b>${escapeHtml(a.authorizer||'')}</b></p><p>${agencyText("Title", "职务")}：${escapeHtml(a.authorizerTitle || "-")}</p><p>${agencyText("Signature", "签字")}：____________________</p><p class="agency-issue-date">${agencyText("Date of Issue", "签发日期","Fecha de emisión","Date d’émission")}：${escapeHtml(a.date||"-")}</p></div></footer>
+      <footer class="agency-signature"><div class="agency-seal-side">${stamp ? `<img src="${stamp}" alt="Company Stamp">` : `<div class="agency-stamp-placeholder">${agencyText("Company Stamp", "公司公章")}</div>`}<p>${agencyText("Authorizing Party", "授权方")}：${escapeHtml(a.company || "-")}</p></div><div class="agency-signer-side"><p>${agencyText("Authorized Signatory", "授权签署人")}：<b>${escapeHtml(a.authorizer||'')}</b></p><p>${agencyText("Title", "职务")}：${escapeHtml(a.authorizerTitle || "-")}</p><p>${agencyText("Signature", "签字")}：____________________</p><p class="agency-issue-date">${agencyText("Date of Issue", "签发日期","Fecha de emisión","Date d’émission")}：${escapeHtml(DocumentWorkflow.dateText(a.date,a.language)||"-")}</p></div></footer>
     </section>`;
   }
 
@@ -4936,7 +4921,7 @@
       const caption=row.querySelector('b');if(caption)caption.textContent=labelText(field.en,field.zh,currentAgentAuthorization.language||'bilingual');
       row.style.order=Number(field.sortOrder||0);
     });
-    applyAgencySignature();
+    applyUnifiedAgencySigning();
   };
 
   function applyAgencySignature() {
@@ -4949,12 +4934,9 @@
 
   async function saveAgentAuthorization() {
     collectAgentAuthorizationForm();
-    if (!['statement','procurement'].includes(AgencyDocuments.type(currentAgentAuthorization))&&(!currentAgentAuthorization.agentName || !currentAgentAuthorization.country || !currentAgentAuthorization.idNumber || !currentAgentAuthorization.phone || !currentAgentAuthorization.email)) return toast("请填写授权国家、联系人姓名、身份证/护照号、联系电话和电子邮箱。");
-    if (currentAgentAuthorization.email&&!/^\S+@\S+\.\S+$/.test(currentAgentAuthorization.email)) return toast("电子邮箱格式不正确。");
-    if (AgencyDocuments.type(currentAgentAuthorization)==='authorization'&&!currentAgentAuthorization.selectedProducts.length) return toast("请至少勾选一个授权产品。");
-    const validation=AgencyDocuments.validate(currentAgentAuthorization);
-    if(validation)return toast(validation);
-    if(!currentAgentAuthorization.companySnapshot)currentAgentAuthorization.companySnapshot={companyNameEn:settings.companyNameEn,companyNameZh:settings.companyNameZh,companyAddressEn:settings.companyAddressEn,companyAddressZh:settings.companyAddressZh,stampDataUrl:settings.stampDataUrl||''};
+    captureSigning(currentAgentAuthorization,currentAgentAuthorization.documentType);
+    currentAgentAuthorization.recordClass="history";
+    if(!currentAgentAuthorization.companySnapshot)currentAgentAuthorization.companySnapshot=structuredClone(companyProfileData(settings));
     currentAgentAuthorization.documentConfigSnapshot ||= structuredClone(settings.documentConfigs?.agency||{});
     const data = await api("/api/agent-authorizations", { method:"POST", body:JSON.stringify(currentAgentAuthorization) });
     await completeWork(currentWorkKey("agency"));
@@ -4966,12 +4948,12 @@
 
   function renderAgentAuthorizationHistory() {
     const host = $("agency-history-list"); if (!host) return;
-    host.innerHTML = agentAuthorizations.map((a) => `<article class="list-item"><div><b>${escapeHtml(a.authorizationNumber || "代理文件")} · ${escapeHtml(AgencyDocuments.types[AgencyDocuments.type(a)])}${a.isTemplate?' · 模板':''}</b><p>${escapeHtml(a.agentName || "-")} · ${escapeHtml(a.country || "-")} · ${escapeHtml(a.company || "-")}</p></div><div class="actions"><button type="button" data-agency-action="open" data-id="${a.id}">查看/编辑</button><button type="button" data-agency-action="delete" data-id="${a.id}">删除</button></div></article>`).join("") || `<p class="empty">暂无历史代理文件。</p>`;
+    host.innerHTML = agentAuthorizations.filter(a=>a.recordClass!=="draft").map((a) => `<article class="list-item"><div><b>${escapeHtml(a.authorizationNumber || "代理文件")} · ${escapeHtml(AgencyDocuments.types[AgencyDocuments.type(a)])}${a.isTemplate?' · 模板':''}</b><p>${escapeHtml(a.agentName || "-")} · ${escapeHtml(a.country || "-")} · ${escapeHtml(a.company || "-")}</p></div><div class="actions"><button type="button" data-agency-action="open" data-id="${a.id}">查看/编辑</button><button type="button" data-agency-action="delete" data-id="${a.id}">删除</button></div></article>`).join("") || `<p class="empty">暂无历史代理文件。</p>`;
   }
 
   function renderInvitationHistory() {
     const host=$("invitation-history-list"); if(!host)return;
-    host.innerHTML=invitations.map(item=>`<article class="list-item"><div><b>${escapeHtml(item.visitorName||"未填写姓名")}</b><p>${escapeHtml(item.visitorCompany||"-")} · ${escapeHtml(item.country||"-")} · ${escapeHtml(item.date||item.updatedAt?.slice(0,10)||"")}</p></div><div class="actions"><button type="button" data-invitation-history="open" data-id="${item.id}">查看/编辑</button><button class="danger" type="button" data-invitation-history="delete" data-id="${item.id}">删除</button></div></article>`).join("")||`<p class="empty">暂无历史邀请函。</p>`;
+    host.innerHTML=invitations.filter(item=>item.recordClass!=="draft"&&!['Deleted','Void'].includes(item.status)).map(item=>`<article class="list-item"><div><b>${escapeHtml(item.visitorName||"未填写姓名")}</b><p>${escapeHtml(item.visitorCompany||"-")} · ${escapeHtml(item.country||"-")} · ${escapeHtml(item.date||item.updatedAt?.slice(0,10)||"")}</p></div><div class="actions"><button type="button" data-invitation-history="open" data-id="${item.id}">查看/编辑</button><button class="danger" type="button" data-invitation-history="delete" data-id="${item.id}">删除</button></div></article>`).join("")||`<p class="empty">暂无历史邀请函。</p>`;
   }
 
   function handleInvitationHistory(event) {
@@ -5103,6 +5085,7 @@
   }
 
   function configuredValueText(field,value,mode=displayMode()) {
+    if((field.fieldType==='date'||['quoteDate','validUntil'].includes(field.fieldKey))&&DocumentWorkflow.parseDate(value))return DocumentWorkflow.dateText(value,mode);
     if(value===true)return labelText('Yes','是',mode);
     if(value===false)return labelText('No','否',mode);
     if(['select','dictionary','hierarchy','multiselect','combobox'].includes(field.fieldType)) {
@@ -6100,6 +6083,7 @@
   }
 
   function refreshDocumentSigning() {
+    if(currentQuote?.savedAt||currentQuote?.signingSnapshot)return;
     const snapshot=currentQuote.companySnapshot ||= companyProfileData(settings);
     const sameCompany=data=>data&&((snapshot.companyNameEn&&data.companyNameEn===snapshot.companyNameEn)||(snapshot.companyNameZh&&data.companyNameZh===snapshot.companyNameZh));
     const source=sameCompany(settings)?settings:(settings.companyProfiles||[]).map(profile=>profile.data).find(sameCompany);
@@ -6212,7 +6196,11 @@
         if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>5*1024*1024)throw new Error('请上传5MB以内的PNG、JPG或WebP签名图片');
         data=await fileToDataUrl(file);const image=new Image();image.src=data;await image.decode();
       }
-      collectSettingsDraft();settings.agencySignatureDataUrl=data;storeActiveCompany();
+      collectSettingsDraft();
+      const lang=signatureEditLanguage;collectSignatureNames(lang);settings.companySignatures||={};
+      settings.companySignatures[lang]={...settings.companySignatures[lang],original:data,transparent:data?await DocumentWorkflow.transparentImage(data):'',version:uid('signature'),rotation:0};
+      if(lang==='en')settings.agencySignatureDataUrl=settings.companySignatures[lang].transparent;
+      storeActiveCompany();
       if(isAdmin())await api('/api/settings',{method:'PUT',body:JSON.stringify(settings)});
       save(keys.settings,settings);refreshDocumentSigning();renderSettings();renderPreview();toast(remove?'当前公司签名已删除':'当前公司签名已上传并保存');
     }catch(error){settings=original;renderSettings();toast('签名保存失败：'+error.message);}
@@ -6221,7 +6209,8 @@
   async function saveDrawnCompanySignature(data) {
     const original=structuredClone(settings);
     try {
-      collectSettingsDraft();settings.agencySignatureDataUrl=data;settings.agencySignatureRotation=0;storeActiveCompany();
+      collectSettingsDraft();const lang=signatureEditLanguage;collectSignatureNames(lang);settings.companySignatures||={};settings.companySignatures[lang]={...settings.companySignatures[lang],original:data,transparent:await DocumentWorkflow.transparentImage(data),version:uid('signature'),rotation:0};
+      if(lang==='en'){settings.agencySignatureDataUrl=settings.companySignatures[lang].transparent;settings.agencySignatureRotation=0;}storeActiveCompany();
       if(isAdmin())await api('/api/settings',{method:'PUT',body:JSON.stringify(settings)});
       save(keys.settings,settings);refreshDocumentSigning();renderSettings();renderPreview();toast('手写电子签名已保存');
     } catch(error) {settings=original;renderSettings();toast('签名保存失败：'+error.message);}
@@ -6242,9 +6231,8 @@
   }
   function renderDocumentSignature(type) {
     const e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
-    const angle=[-90,0,90,180].includes(Number(settings.agencySignatureRotation))?Number(settings.agencySignatureRotation):0;
-    const image=settings.agencySignatureDataUrl?`<img class="document-signature-image" src="${e(settings.agencySignatureDataUrl)}" style="transform:rotate(${angle}deg);width:${Math.abs(angle)===90?60:145}px;height:${Math.abs(angle)===90?145:60}px" alt="${l('Electronic Signature','电子签名')}">`:`<span class="document-signature-missing">${l('No electronic signature configured','本公司尚未设置电子签名')}</span>`;
-    const seller=`<div class="document-seller-signature"><h3>${l('For and on behalf of the Seller','卖方公司授权签署')}</h3><p><b>${l('Company','公司全称')}:</b> ${e(localizedText(settings.companyNameEn,settings.companyNameZh))}</p><p><b>${l('Authorized Signatory','授权签字人')}:</b> ${e(settings.agencyAuthorizer||settings.contactPerson||'')}</p><p><b>${l('Title','职务')}:</b> ${e(localizedSlashValue(settings.agencyAuthorizerTitle||'',displayMode()))}</p><div class="document-sign-assets"><div>${image}</div>${settings.stampDataUrl?`<img class="document-company-seal" src="${e(settings.stampDataUrl)}" alt="${l('Company Seal','公司公章')}">`:''}</div><p>${l('Date','日期')}: ${e(currentQuote.quoteDate)}</p></div>`;
+    const signed=DocumentWorkflow.signing(currentQuote,currentQuote.companySnapshot||settings,type);
+    const seller=`<div class="document-seller-signature"><h3>${l('For and on behalf of the Seller','卖方公司授权签署')}</h3><p><b>${l('Company','公司全称')}:</b> ${e(localizedText(settings.companyNameEn,settings.companyNameZh))}</p><p><b>${l('Authorized Signatory','授权签字人')}:</b> ${e(signed.name)}</p><p><b>${l('Title','职务')}:</b> ${e(signed.title)}</p>${DocumentWorkflow.signingHTML(signed)}<p>${l('Date','日期')}: ${e(DocumentWorkflow.dateText(currentQuote.quoteDate,displayMode()))}</p></div>`;
     const buyer=type==='contract'?`<div class="document-buyer-signature"><h3>${l('Buyer signature','买方签署')}</h3><p>${e(currentQuote.buyer.company||currentQuote.buyer.contact||'')}</p><p>${l('Authorized Signatory','授权签字人')}: ____________________</p><p>${l('Title','职务')}: ____________________</p><p>${l('Signature','签字')}: ____________________</p><p>${l('Date','日期')}: ____________________</p></div>`:'';
     return `<section class="document-signature-block ${type==='contract'?'document-dual-signatures':''}">${seller}${buyer}</section>`;
   }
@@ -6309,6 +6297,9 @@
 
   async function saveQuote() {
     const workKey=currentWorkKey("quote");
+    captureSigning(currentQuote,currentQuote.documentType);
+    currentQuote.recordClass="history";
+    if(!currentQuote.isFormal)currentQuote.status="Saved";
     renderPreview();
     syncQuoteSequenceFromNumber(currentQuote.quoteNumber);
     const nowIso = new Date().toISOString();
@@ -6326,12 +6317,6 @@
       currencyDisplay: currentQuote.currencyDisplay,
       exchangeRate: currentQuote.exchangeRate
     });
-    if(!currentQuote.isFormal) {
-      const idx = quotes.findIndex((q) => q.id === currentQuote.id);
-      if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
-      else quotes.unshift(structuredClone(currentQuote));
-      save(keys.quotes, quotes);
-    }
     if (currentUser) {
       const apiItems = (currentQuote.items || []).map((item) => {
         const qty = Number(item.values.qty || 0);
@@ -6396,8 +6381,13 @@
       });
       if (saved.id !== currentQuote.id) {
         currentQuote.id=saved.id;currentQuote.isFormal=false;currentQuote.version=0;currentQuote.status="草稿";currentQuote.sourceQuoteId=priorId;
-        quotes.unshift(structuredClone(currentQuote));save(keys.quotes,quotes);
       }
+    }
+    if(!currentQuote.isFormal) {
+      const idx = quotes.findIndex((q) => q.id === currentQuote.id);
+      if (idx >= 0) quotes[idx] = structuredClone(currentQuote);
+      else quotes.unshift(structuredClone(currentQuote));
+      save(keys.quotes, quotes);
     }
     await completeWork(workKey);
     toast("单证已保存。");
@@ -6499,7 +6489,7 @@
     try {
       const normalParams=new URLSearchParams(); if(keyword)normalParams.set("q",keyword);if(date)normalParams.set("date",date);
       normalParams.set('status',filter);normalParams.set('page',historyPage);normalParams.set('pageSize','30');if(documentType)normalParams.set('type',documentType);
-      const summaries=invitations.map(r=>({id:r.id,number:r.invitationNumber||r.number||r.id,date:r.date||r.updatedAt?.slice(0,10)||'',sort:r.updatedAt||r.date,company:r.visitorCompany,contact:r.visitorName,country:r.country}));
+      const summaries=invitations.filter(r=>r.recordClass!=='draft'&&!['Deleted','Void'].includes(r.status)).map(r=>({id:r.id,number:r.invitationNumber||r.number||r.id,date:r.date||r.updatedAt?.slice(0,10)||'',sort:r.updatedAt||r.date,company:r.visitorCompany,contact:r.visitorName,country:r.country}));
       const normalResult=await api(`/api/history/documents?${normalParams}`,{method:'POST',body:JSON.stringify({invitations:summaries})});
       if(request!==historyRequest)return;
       historyPage=normalResult.page;
@@ -6550,7 +6540,7 @@
 
   async function printStandardHistory(id) {
     await editQuote(id);
-    exportPdf();
+    previewCurrentOutput();
   }
 
   function renderVehiclePreview(data = {}) {
@@ -6706,7 +6696,7 @@
     $("refresh-admin-overview-btn")?.addEventListener("click", renderAdminOverview);
     $("logo-input").addEventListener("change", e => updateSettingsAsset(e.target, "logoDataUrl", "Logo uploaded. / Logo 已上传。"));
     $("background-input").addEventListener("change", e => updateSettingsAsset(e.target, "backgroundDataUrl", "Background uploaded. / 背景图已上传。"));
-    $("stamp-input").addEventListener("change", e => updateSettingsAsset(e.target, "stampDataUrl", "Electronic seal uploaded. / 电子公章已上传。"));
+    $("stamp-input").addEventListener("change", e => updateSettingsAsset(e.target, "stampDataUrl", "Electronic seal uploaded. / 电子公章已上传。").catch(error=>toast("公章处理失败，原素材保持不变："+error.message)));
     $('company-signature-input').addEventListener('change',event=>changeCompanySignature(event.target));
     $('remove-company-signature').addEventListener('click',()=>changeCompanySignature(null,true));
     $('company-signature-rotation').addEventListener('change',()=>{settings.agencySignatureRotation=Number($('company-signature-rotation').value)||0;renderCompanySignatureSettings();});
@@ -6970,7 +6960,7 @@
 
   // Document workspace: recovery snapshots never overwrite formal quotation history.
   let draftDatabase, workspaceReady = false;
-  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography'];
+  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass'];
   let packingSourceBusy = false;
   async function refreshPackingSources() {
     const select=$('packing-source-select');
@@ -7065,6 +7055,7 @@
     host.querySelectorAll('.packing-summary,.packing-route,.document-related-order').forEach(el=>el.remove());
     const pendingPrices=currentQuote.items.some(item=>item.values?.unitPrice===''||item.values?.unitPrice==null);
     const totalBox=host.querySelector('.preview-total');if(totalBox)totalBox.textContent=(pendingPrices?labelText('Priced items subtotal','已报价项目小计'):labelText('Total','总金额'))+': '+dualMoneyText(total(),currentQuote.currency||settings.currency);
+    host.querySelectorAll('.quote-incomplete-warning').forEach(node=>node.remove());
     const incompleteNotice=host.querySelector('.quote-incomplete-warning');
     if(incompleteNotice)incompleteNotice.textContent=labelText('Draft quotation: some items are pending pricing and excluded from the subtotal.','报价草稿：部分项目价格待补，不计入小计。');
     const warning=host.querySelector('.quote-incomplete-warning');if(warning)warning.textContent=labelText('Incomplete quotation: prices are required before formal issue.','报价未完整：正式出具前请补齐价格。');
@@ -7287,11 +7278,13 @@
       const kind=activeViewName,key=currentWorkKey(kind);if(markDirty)dirtyWork.add(key);if(!dirtyWork.has(key))return;
       let data;
       if(kind==='quote'){collectQuoteFromForm();data=structuredClone(currentQuote);data.companySnapshot||=structuredClone(companyProfileData(settings));}
-      else if(kind==='products'){data={product:collectProductForm(),editingId:editingProductId};data.product.id=editingProductId||key;}
+      else if(kind==='products'){data={product:collectProductForm(),editingId:editingProductId};data.product.id=editingProductId||productWorkId;}
       else if(kind==='invitation'){collectInvitationFromForm();data=structuredClone(currentInvitation);data.companySnapshot||=structuredClone(companyProfileData(settings));}
       else{collectAgentAuthorizationForm();data=structuredClone(currentAgentAuthorization);data.companySnapshot||=structuredClone(companyProfileData(settings));}
       const label=data.quoteNumber||data.visitorName||data.authorizationNumber||data.product?.values?.description||data.product?.model||'未命名';
-      const row={key,kind,data,user:currentUser?.id||'local-owner',savedAt:new Date().toISOString(),label};
+      if(!meaningfulWork(kind,data)){if(workRecords[key]&&!workRecords[key].completedAt)queueWork({...workRecords[key],completedAt:new Date().toISOString()});return;}
+      if(workBaselines.has(key)&&workFingerprint(data)===workBaselines.get(key).fingerprint)return;
+      const row={key,kind,data,category:'recovery',user:currentUser?.id||'local-owner',savedAt:new Date().toISOString(),label};
       workCaptureError=null;queueWork(row);if($('quote-autosave-status'))$('quote-autosave-status').textContent='草稿保存中…';
       workQueue.then(()=>{if(!pendingWork.size&&$('quote-autosave-status'))$('quote-autosave-status').textContent='未完成工作已自动保存 · '+new Date().toLocaleTimeString();}).catch(()=>{});
     }catch(error){workCaptureError=error;toast('自动保存失败：'+error.message);}
@@ -7299,6 +7292,7 @@
   async function completeWork(key=currentWorkKey()){
     dirtyWork.delete(key);
     if(workRecords[key])await queueWork({...workRecords[key],completedAt:new Date().toISOString()});
+    const source=activeViewName==='products'?productDraftSource:workflowDocument()?.sourceDraftKey;if(source&&workRecords[source])await queueWork({...workRecords[source],completedAt:new Date().toISOString()});
   }
   async function installWorkRecovery(){
     const saved=await api('/api/work-drafts');for(const row of saved.drafts||[])if(!pendingWork.has(row.key))workRecords[row.key]=row;
@@ -7310,27 +7304,34 @@
     }
     for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency'))persistWork(true);});
     document.addEventListener('click',()=>persistWork(),true);
-    window.hasUnsavedWork=()=>dirtyWork.size>0||pendingWork.size>0||Boolean(workCaptureError);
+    window.hasUnsavedWork=()=>hasCurrentChanges()||Boolean(workCaptureError);
     window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
     window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
-    // Recovery stays available on demand; only the desktop close action prompts.
+    // Prompt once per renderer session; later access remains available in the draft box.
+    if(Object.values(workRecords).some(r=>!r.completedAt)&&!sessionStorage.getItem('fta-recovery-prompted')){sessionStorage.setItem('fta-recovery-prompted','1');showWorkRecovery();}
   }
   function showWorkRecovery(){
     const rows=Object.values(readWork()).filter(r=>!r.completedAt).sort((a,b)=>b.savedAt.localeCompare(a.savedAt));if(!rows.length)return toast('暂无未完成工作');
     document.getElementById('work-recovery-modal')?.remove();const modal=document.createElement('div');modal.id='work-recovery-modal';modal.className='modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-label','恢复未完成工作');
     const names={quote:'单证',products:'产品编辑',invitation:'邀请函',agency:'代理文件'};
-    modal.innerHTML='<div class="modal-card"><h3>继续上次未完成的工作</h3><p>稍后处理会保留全部草稿。恢复为独立副本，保存前请核对客户和公司。</p>'+rows.map((r,i)=>'<article><p>'+escapeHtml((names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+(r.data.buyer?.company||r.data.agentName||'')+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
+    modal.innerHTML='<div class="modal-card"><h3>草稿箱与异常恢复</h3><p>稍后处理会保留全部草稿。恢复为独立副本，保存前请核对客户和公司。</p>'+rows.map((r,i)=>'<article><p>'+escapeHtml((r.category==='draft'?'已保存草稿':'异常恢复缓存')+' · '+(names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+(r.data.buyer?.company||r.data.agentName||'')+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
     modal.onclick=async e=>{try{
       if(e.target.matches('[data-close]'))return modal.remove();
       if(e.target.dataset.discard!=null){const row=rows[e.target.dataset.discard];if(!confirm('确认放弃此草稿？其他草稿和业务记录保持不变。'))return;
         await workQueue.catch(()=>{});await api('/api/work-drafts/'+encodeURIComponent(row.key),{method:'DELETE'});pendingWork.delete(row.key);dirtyWork.delete(row.key);delete workRecords[row.key];modal.remove();return showWorkRecovery();}
       if(e.target.dataset.resume==null)return;const row=rows[e.target.dataset.resume];persistWork();await workQueue;workRestoring=true;
-      if(row.kind==='quote'){currentQuote=structuredClone(row.data);currentQuote.sourceQuoteId||=currentQuote.id;currentQuote.id=uid('recovered');currentQuote.isFormal=false;currentQuote.status='Draft';currentQuote.version=0;bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();}
+      if(row.kind==='quote'){currentQuote=structuredClone(row.data);currentQuote.sourceQuoteId||=currentQuote.id;currentQuote.id=uid('recovered');currentQuote.isFormal=false;currentQuote.status='Draft';currentQuote.recordClass='draft';delete currentQuote.savedAt;currentQuote.version=0;bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();}
       else if(row.kind==='products'){const p=structuredClone(row.data.product);p.id=uid('recovered-product');products.push(p);switchView('products');editProduct(p.id);products=products.filter(x=>x!==p);editingProductId='';productWorkId=uid('product-work');syncProductEditorPresentation();}
-      else if(row.kind==='invitation'){currentInvitation=structuredClone(row.data);currentInvitation.id=uid('recovered-invitation');bindInvitationToForm();switchView('invitation');renderInvitationPreview();}
-      else{currentAgentAuthorization=structuredClone(row.data);currentAgentAuthorization.id=uid('recovered-agency');bindAgentAuthorizationForm();switchView('agency');renderAgentAuthorizationPreview();}
-      recoveredKeys.set(currentWorkKey(row.kind),row.key);dirtyWork.add(row.key);modal.remove();toast('已恢复独立草稿，原业务记录未被覆盖。');
+      else if(row.kind==='invitation'){currentInvitation=structuredClone(row.data);currentInvitation.id=uid('recovered-invitation');currentInvitation.recordClass='draft';delete currentInvitation.savedAt;bindInvitationToForm();switchView('invitation');renderInvitationPreview();}
+      else{currentAgentAuthorization=structuredClone(row.data);currentAgentAuthorization.id=uid('recovered-agency');currentAgentAuthorization.recordClass='draft';currentAgentAuthorization.isTemplate=false;delete currentAgentAuthorization.savedAt;bindAgentAuthorizationForm();switchView('agency');renderAgentAuthorizationPreview();}
+      if(row.category==='draft'){
+        if(row.kind==='products')productDraftSource=row.key;else workflowDocument(row.kind).sourceDraftKey=row.key;
+        markWorkBaseline(row.kind);
+      }else{
+        recoveredKeys.set(currentWorkKey(row.kind),row.key);markWorkBaseline(row.kind);dirtyWork.add(row.key);
+      }
+      modal.remove();toast('已恢复独立草稿，原业务记录未被覆盖。');
     }catch(error){toast('恢复失败，原草稿已保留：'+error.message);}finally{workRestoring=false;}};
   }
   async function exportPdfFile(fileName){
@@ -7340,44 +7341,276 @@
     }
     applyPrintTitle();window.print();return {status:'print-dialog'};
   }
-  async function choosePdfExports(includeCommission){
+  async function choosePdfExports(){
+    if($('pdf-selection-modal'))return;
     try{
-      if($('pdf-selection-modal'))return;persistWork();
-      if(activeViewName==='quote')collectQuoteFromForm();else if(activeViewName==='invitation')collectInvitationFromForm();else collectAgentAuthorizationForm();
-      const original={view:activeViewName,quote:structuredClone(currentQuote),invitation:structuredClone(currentInvitation),agency:structuredClone(currentAgentAuthorization)};
-      const kind=activeViewName==='invitation'?'invitation':activeViewName==='agency'?'agency':'quote', current=original[kind];
-      const rows=[{kind,data:current,label:'当前'+(kind==='quote'?documentTypeOf(current.documentType).labelZh:kind==='invitation'?'邀请函':'代理文件')+'（含未保存编辑）',draft:true,current:true}];
-      const saved=await api('/api/quotations?includeInactive=0');
-      for(const q of saved.quotations||[])if(!(kind==='quote'&&q.id===current.id))rows.push({kind:'quote',id:q.id,label:(documentTypeOf(q.settingsSnapshot?._quoteMeta?.documentType||'quotation').labelZh||'单证')+' · '+(q.quote_number||q.id)+' · '+(q.buyer?.company||q.buyer?.contact||'未填写客户')+' · '+(q.is_formal?'正式单证':'已保存草稿'),draft:!q.is_formal});
-      for(const q of invitations)if(!(kind==='invitation'&&q.id===current.id))rows.push({kind:'invitation',data:structuredClone(q),label:'邀请函 · '+(q.visitorName||q.id),draft:false});
-      const agencySaved=await api('/api/agent-authorizations');
-      for(const q of agencySaved.authorizations||[])if(!q.isTemplate&&!(kind==='agency'&&q.id===current.id))rows.push({kind:'agency',data:structuredClone(q),label:(AgencyDocuments.types[AgencyDocuments.type(q)]||'代理文件')+' · '+(q.authorizationNumber||q.id),draft:false});
-      const modal=document.createElement('div');modal.className='modal';modal.id='pdf-selection-modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-label','选择导出单证');
-      modal.innerHTML='<div class="modal-card"><h3>选择导出的单证</h3><p>默认只选当前单证。批量导出时选择一个文件夹，每份单证独立生成PDF，同名文件自动编号。</p><button data-all>全选</button><button data-none>取消全选</button><output data-count></output><div class="pdf-selection-list">'+rows.map((r,i)=>'<label><input type="checkbox" data-pdf-row="'+i+'" '+(i===0?'checked':'')+'>'+escapeHtml(r.label)+'</label>').join('')+'</div><p data-results role="status"></p><button data-export>导出所选PDF</button><button data-close>返回编辑</button></div>';document.body.append(modal);
-      const update=()=>{const count=modal.querySelectorAll('[data-pdf-row]:checked').length;modal.querySelector('[data-count]').textContent='已选 '+count+' 份';modal.querySelector('[data-export]').disabled=!count;};update();modal.onchange=update;
-      modal.onclick=async e=>{
-        if(e.target.matches('[data-close]'))return modal.remove();if(e.target.matches('[data-all],[data-none]')){modal.querySelectorAll('[data-pdf-row]').forEach(i=>i.checked=e.target.matches('[data-all]'));return update();}if(!e.target.matches('[data-export]'))return;
-        const selected=[...modal.querySelectorAll('[data-pdf-row]:checked')].map(i=>rows[i.dataset.pdfRow]);if(!selected.length)return;
-        if(selected.some(r=>r.draft)&&!confirm('已选清单包含草稿。确认按当前内容导出这些草稿？此操作不会生成正式业务记录。'))return;
-        modal.querySelectorAll('button,input').forEach(b=>b.disabled=true);const results=[];workRestoring=true;pdfSnapshotMode=true;
-        try{
-          if(selected.length>1&&window.quotationDesktop?.selectPdfDirectory){pdfBatchToken=await window.quotationDesktop.selectPdfDirectory();if(!pdfBatchToken){results.push('已取消选择导出文件夹，未导出任何单证。');return;}}
-          for(const row of selected){try{
-            pdfSnapshotMode=!row.current;
-            let result;
-            if(row.kind==='quote'){if(row.id)currentQuote=serverQuotationToLocal(await api('/api/quotations/'+encodeURIComponent(row.id)));else currentQuote=structuredClone(row.data);bindQuoteToForm();renderQuoteItems();switchView('quote');result=await exportPdf();}
-            else if(row.kind==='invitation'){currentInvitation=structuredClone(row.data);bindInvitationToForm();switchView('invitation');result=await exportInvitationPdf();}
-            else{currentAgentAuthorization=structuredClone(row.data);bindAgentAuthorizationForm();switchView('agency');result=await exportAgentAuthorizationPdf(row.current&&typeof includeCommission==='boolean'?includeCommission:currentAgentAuthorization.showCommission!==false);}
-            results.push(row.label+'：'+(result?.status==='exported'?'已导出 '+result.filePath:result?.status==='cancelled'?'已取消，未生成文件':'已打开打印对话框，文件保存结果未验证'));
-          }catch(error){results.push(row.label+'：失败 '+error.message);}}
-        }catch(error){results.push('导出失败：'+error.message);}finally{
-          try{if(pdfBatchToken)await window.quotationDesktop?.finishPdfBatch?.(pdfBatchToken);}catch(error){results.push('导出目录授权清理失败：'+error.message);}
-          pdfBatchToken=null;pdfSnapshotMode=false;currentQuote=original.quote;currentInvitation=original.invitation;currentAgentAuthorization=original.agency;
-          bindQuoteToForm();renderQuoteItems();bindInvitationToForm();if(currentAgentAuthorization)bindAgentAuthorizationForm();switchView(original.view);renderPreview();renderInvitationPreview();if(currentAgentAuthorization)renderAgentAuthorizationPreview();workRestoring=false;
-          modal.querySelector('[data-results]').textContent=results.join('\n');modal.querySelectorAll('button,input').forEach(b=>b.disabled=false);update();
-        }
+      const params=new URLSearchParams({status:'active',exportable:'1',pageSize:'100',q:$('history-keyword')?.value.trim()||'',date:$('history-date')?.value||'',type:$('history-document-type')?.value||''});
+      const summaries=invitations.filter(q=>q.recordClass!=='draft'&&!['Deleted','Void'].includes(q.status)).map(q=>({id:q.id,number:q.invitationNumber||q.number||q.id,date:q.date,sort:q.updatedAt,company:q.visitorCompany,contact:q.visitorName,country:q.country,status:q.status,recordClass:q.recordClass}));
+      const rows=[];let page=1,pages=1;do{params.set('page',page);const result=await api('/api/history/documents?'+params,{method:'POST',body:JSON.stringify({invitations:summaries})});rows.push(...result.quotations);pages=result.pages;page++;}while(page<=pages);
+      const modal=document.createElement('div');modal.className='modal no-print';modal.id='pdf-selection-modal';modal.innerHTML='<div class="modal-card"><h3>批量导出已保存历史单证</h3><p>全部导出仅指当前历史筛选范围内的有效已保存单证，排除草稿箱、异常恢复、删除和作废记录。每份单证生成独立PDF。</p><button data-all>全部导出（全选当前筛选）</button><button data-none>取消全选</button><output data-count></output><div class="pdf-selection-list">'+rows.map((r,i)=>'<label><input type="checkbox" data-pdf-row="'+i+'">'+escapeHtml((r.settingsSnapshot?._quoteMeta?.documentType||'单证')+' · '+r.quote_number+' · '+(r.buyer?.company||r.buyer?.contact||''))+'</label>').join('')+'</div><p data-results role="status"></p><button data-export disabled>预览选中单证</button><button data-close>返回编辑</button></div>';document.body.append(modal);
+      const update=()=>{const n=modal.querySelectorAll('[data-pdf-row]:checked').length;modal.querySelector('[data-count]').textContent='已选 '+n+' 份';modal.querySelector('[data-export]').disabled=!n;};update();modal.onchange=update;
+      modal.onclick=async event=>{const button=event.target.closest('button');if(!button)return;if(button.hasAttribute('data-close'))return modal.remove();if(button.matches('[data-all],[data-none]')){modal.querySelectorAll('[data-pdf-row]').forEach(input=>input.checked=button.hasAttribute('data-all'));return update();}if(!button.hasAttribute('data-export'))return;
+        const selected=[...modal.querySelectorAll('[data-pdf-row]:checked')].map(input=>rows[input.dataset.pdfRow]);if(!selected.length)return;modal.querySelectorAll('button,input').forEach(el=>el.disabled=true);
+        try{await previewHistoryBatch(selected);}catch(error){modal.querySelector('[data-results]').textContent='批量预览失败，当前编辑已保留：'+error.message;}finally{modal.querySelectorAll('button,input').forEach(el=>el.disabled=false);update();}
       };
-    }catch(error){toast('无法读取导出清单，编辑内容已保留：'+error.message);}
+    }catch(error){toast('读取清单失败：'+error.message);}
+  }
+
+  function collectInvitationParty(){
+    const d=currentInvitation;if(!d)return;
+    d.recipientType=$('invitation-recipient-type')?.value||d.recipientType||'individual';
+    d.people||=[DocumentWorkflow.person(d)];d.people[0]=DocumentWorkflow.person(d);
+    document.querySelectorAll('#invitation-extra-people [data-person]').forEach(row=>{const p=d.people[Number(row.dataset.person)];if(p)row.querySelectorAll('[data-person-field]').forEach(input=>p[input.dataset.personField]=input.value);});
+    d.validityMonths=Number($('invitation-validity-months')?.value||d.validityMonths||3);
+    d.validFrom=$('invitation-valid-from')?.value||d.validFrom||d.date;
+    d.validUntil=$('invitation-valid-until')?.value||d.validUntil||DocumentWorkflow.addMonths(d.validFrom,d.validityMonths);
+    d.visitPlaces||=d.visitPlace?[d.visitPlace]:[];d.visitPlace=d.visitPlaces.join('、');
+    const errors=DocumentWorkflow.validateInvitation(d);if($('invitation-validation'))$('invitation-validation').textContent=errors.join('；');
+  }
+  function invitationPeoplePreview(mode){
+    const e=escapeHtml,d=currentInvitation;
+    if(d.people.length===1)return invitationField('name',d.people[0].visitorName,mode)+invitationField('country',DocumentWorkflow.countryText(d.people[0].country,mode),mode)+invitationField('gender',localizedSlashValue(d.people[0].gender,mode),mode)+invitationField('birthDate',formatInvitationDate(d.people[0].birthDate,mode),mode)+invitationField('passport',d.people[0].passportNo,mode);
+    return `<div class="wide"><table class="invitation-people-table"><thead><tr><th>#</th>${['name','passport','country','birthDate','gender'].map(key=>`<th>${e(invitationText(key,mode))}</th>`).join('')}</tr></thead><tbody>${d.people.map((p,i)=>`<tr><td>${i+1}</td><td>${e(p.visitorName)}</td><td>${e(p.passportNo)}</td><td>${e(DocumentWorkflow.countryText(p.country,mode))}</td><td>${e(formatInvitationDate(p.birthDate,mode))}</td><td>${e(localizedSlashValue(p.gender,mode))}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  function invitationReasonText(mode){
+    const raw=currentInvitation.reason;if(raw!==defaultSettings.invitationDefaultReason&&raw!=='商务考察、设备验机、订单洽谈及采购合作。')return raw;
+    const copy={zh:'商务考察、设备验机、订单洽谈及采购合作。',en:'Business inspection, machinery inspection, order discussion and purchasing cooperation.',fr:'Inspection commerciale, inspection des machines, négociation des commandes et coopération en matière d’achat.',es:'Inspección comercial y de maquinaria, negociación de pedidos y cooperación de compras.',ja:'商務視察、機械検査、注文協議および購買協力。',ru:'Деловой визит, осмотр техники, обсуждение заказов и сотрудничество по закупкам.',ar:'زيارة عمل وفحص الآلات ومناقشة الطلبات والتعاون في المشتريات.',it:'Visita commerciale, ispezione dei macchinari, discussione degli ordini e collaborazione negli acquisti.',de:'Geschäftsbesuch, Maschineninspektion, Auftragsbesprechung und Einkaufskooperation.',ko:'사업 시찰, 기계 검사, 주문 협의 및 구매 협력.'};return DocumentWorkflow.languages(mode).map(lang=>copy[lang]).join('\n');
+  }
+  function invitationValidityPreview(mode){
+    const labels={zh:['邀请函有效期','仅指本邀请函的有效期，不代表签证有效期或获批停留期限。'],en:['Invitation validity','Validity of this invitation only; not visa validity or an approved period of stay.'],fr:['Validité de l’invitation','Validité de cette invitation uniquement ; ne constitue pas la validité du visa ni une durée de séjour autorisée.'],es:['Vigencia de la invitación','Solo corresponde a esta invitación; no es la vigencia del visado ni una estancia autorizada.'],ja:['招待状の有効期間','招待状の有効期間であり、査証の有効期間や許可された滞在期間ではありません。'],ru:['Срок действия приглашения','Это срок действия приглашения, а не визы или разрешённого пребывания.'],ar:['صلاحية خطاب الدعوة','صلاحية هذا الخطاب فقط، وليست صلاحية التأشيرة أو مدة الإقامة المعتمدة.'],it:['Validità dell’invito','Validità del solo invito; non indica la validità del visto o il soggiorno autorizzato.'],de:['Gültigkeit der Einladung','Gilt nur für diese Einladung, nicht für das Visum oder einen genehmigten Aufenthalt.'],ko:['초청장 유효기간','초청장의 유효기간이며 비자 유효기간이나 승인된 체류기간이 아닙니다.']};
+    return `<section class="invitation-validity-block">${DocumentWorkflow.languages(mode).map(lang=>`<b>${escapeHtml(labels[lang][0])}</b><p>${escapeHtml(DocumentWorkflow.dateText(currentInvitation.validFrom,lang))} — ${escapeHtml(DocumentWorkflow.dateText(currentInvitation.validUntil,lang))}</p><small>${escapeHtml(labels[lang][1])}</small>`).join('')}</section>`;
+  }
+  function captureSigning(doc,type){if(!doc)return;doc.signingSnapshot||=DocumentWorkflow.signing(doc,doc.companySnapshot||settings,type);}
+  const signingImageCopies=new Map();
+  async function prepareSigningImages(root=document){
+    await Promise.all([...root.querySelectorAll('.signing-composite img')].map(async img=>{
+      const original=img.getAttribute('src');if(!original||img.dataset.signingPrepared==='1')return;
+      try{
+        if(!signingImageCopies.has(original))signingImageCopies.set(original,DocumentWorkflow.transparentImage(original));
+        const copy=await signingImageCopies.get(original);signingImageCopies.set(copy,Promise.resolve(copy));
+        if(img.isConnected){img.src=copy;img.dataset.signingPrepared='1';await img.decode();}
+      }catch(error){img.hidden=true;console.warn('签章图片无法读取，已保留原素材并隐藏损坏图片',error.message);}
+    }));
+  }
+  function applyUnifiedAgencySigning(){
+    const host=$('agency-preview'),d=currentAgentAuthorization;if(!host||!d)return;
+    const footer=host.querySelector('.agency-signature');if(!footer)return;
+    const signed=DocumentWorkflow.signing(d,d.companySnapshot||settings,d.documentType);
+    footer.querySelectorAll('img,.commission-electronic-signature,.commission-stamp-overlay,.agency-stamp-placeholder').forEach(node=>node.remove());
+    const signer=footer.querySelector('.commission-party-a,.agency-signer-side')||footer.firstElementChild;
+    if(signer){signer.querySelectorAll('p').forEach(p=>{if(p.textContent.includes('____________________'))p.remove();});signer.insertAdjacentHTML('beforeend',DocumentWorkflow.signingHTML(signed));}
+    if(AgencyDocuments.type(d)==='authorization'){
+      const name=footer.querySelector('.agency-signer-side p b');if(name)name.textContent=signed.name;
+    }
+    else if(signer){for(const p of signer.querySelectorAll('p')){if(d.authorizer&&p.textContent.includes(d.authorizer))p.textContent=p.textContent.replace(d.authorizer,signed.name);if(d.authorizerTitle&&p.textContent.includes(d.authorizerTitle))p.textContent=p.textContent.replace(d.authorizerTitle,signed.title);}}
+  }
+  function workflowDocument(kind=activeViewName){return kind==='quote'?currentQuote:kind==='invitation'?currentInvitation:kind==='agency'?currentAgentAuthorization:null;}
+  function renderSigningControls(){
+    for(const kind of ['quote','invitation','agency']){
+      const doc=workflowDocument(kind);if(!doc)continue;
+      let host=$('signing-controls-'+kind);if(!host){host=document.createElement('section');host.id='signing-controls-'+kind;host.className='document-signing-controls no-print';host.innerHTML=`<label>电子签名<select data-signature-choice><option value="zh">中文签名</option><option value="en">英文签名</option><option value="none">不显示签名</option></select></label><label><input type="checkbox" data-signature-visible>显示签名</label><label><input type="checkbox" data-seal-visible>显示公章</label><small>签名选择与输出语言独立；保存后固定素材版本。</small>`;const editor=document.querySelector('#view-'+kind+' .quote-editor');editor?.prepend(host);
+        host.onchange=event=>{const d=workflowDocument(kind);if(!d)return;const select=host.querySelector('[data-signature-choice]'),visible=host.querySelector('[data-signature-visible]');if(select.value==='none')visible.checked=false;else if(event.target===select&&(d.signatureChoice==='none'||d.signingSnapshot?.choice==='none'))visible.checked=true;d.signatureChoice=host.querySelector('[data-signature-choice]').value;d.signingOptions={signature:host.querySelector('[data-signature-visible]').checked,seal:host.querySelector('[data-seal-visible]').checked};delete d.signingSnapshot;const source=signingSourceForSelection(d);d.signingSnapshot=DocumentWorkflow.signing(d,source,kind);(kind==='quote'?renderPreview:kind==='invitation'?renderInvitationPreview:renderAgentAuthorizationPreview)();persistWork(true);};
+      }
+      host.querySelector('[data-signature-choice]').value=doc.signingSnapshot?.choice||doc.signatureChoice||(kind==='invitation'?'zh':'en');host.querySelector('[data-signature-visible]').checked=host.querySelector('[data-signature-choice]').value!=='none'&&(doc.signingOptions?.signature??doc.signingSnapshot?.showSignature??true);host.querySelector('[data-signature-visible]').disabled=host.querySelector('[data-signature-choice]').value==='none';host.querySelector('[data-seal-visible]').checked=doc.signingOptions?.seal??doc.signingSnapshot?.showSeal??true;
+    }
+  }
+  let signatureEditLanguage='en';
+  function collectSignatureNames(lang){
+    const name=document.querySelector(`[data-signature-name="${lang}"]`),title=document.querySelector(`[data-signature-title="${lang}"]`),rotation=document.querySelector(`[data-signature-rotation="${lang}"]`);
+    settings.companySignatures||={};settings.companySignatures[lang]={...settings.companySignatures[lang],...(name?{name:name.value}:{}),...(title?{title:title.value}:{}),...(rotation?{rotation:Number(rotation.value)}:{})};
+  }
+  function signingSourceForSelection(d){
+    const snapshot=d.companySnapshot;if(!snapshot)return settings;
+    const match=s=>s&&((snapshot.companyNameEn&&s.companyNameEn===snapshot.companyNameEn)||(snapshot.companyNameZh&&s.companyNameZh===snapshot.companyNameZh));
+    if(match(settings))return settings;
+    return (settings.companyProfiles||[]).map(p=>p.data).find(match)||snapshot;
+  }
+  function renderBilingualSignatureSettings(){
+    const panel=$('company-signature-settings');if(!panel)return;
+    let host=$('bilingual-signature-settings');if(!host){host=document.createElement('div');host.id='bilingual-signature-settings';panel.append(host);}
+    host.innerHTML=['zh','en'].map(lang=>{const item=settings.companySignatures?.[lang]||{};return `<section class="signature-language-settings"><h4>${lang==='zh'?'中文':'英文'}电子签名</h4><div class="form-grid"><label>签署人姓名<input data-signature-name="${lang}" value="${escapeHtml(item.name||settings[lang==='zh'?'signerNameZh':'signerNameEn']||'')}"></label><label>签署人职务<input data-signature-title="${lang}" value="${escapeHtml(item.title||'')}"></label><label>方向<select data-signature-rotation="${lang}">${[0,-90,90,180].map(n=>`<option value="${n}" ${Number(item.rotation||0)===n?'selected':''}>${n}°</option>`).join('')}</select></label></div><div class="actions"><label class="file-btn">上传${lang==='zh'?'中文':'英文'}签名<input type="file" data-signature-upload="${lang}" accept="image/png,image/jpeg,image/webp"></label><button data-draw-signature="${lang}" type="button">鼠标手写</button>${!item.transparent&&(settings.invitationSignatureDataUrl||settings.agencySignatureDataUrl)?`<button data-convert-signature="${lang}" type="button">将旧素材用于此语言（另存透明副本）</button>`:''}<button data-save-signature="${lang}" type="button">保存姓名与设置</button><button data-remove-signature="${lang}" type="button">移除此版本</button></div>${item.transparent?`<p>透明化结果（原始素材另行保留）</p><img src="${escapeHtml(item.transparent)}" alt="${lang}透明签名">`:''}${item.original?`<details><summary>查看保留的原始素材</summary><img src="${escapeHtml(item.original)}" alt="原始签名"></details>`:''}</section>`;}).join('');
+    host.onchange=async event=>{const lang=event.target.dataset.signatureUpload;if(lang){signatureEditLanguage=lang;await changeCompanySignature(event.target);}};
+    host.onclick=async event=>{const button=event.target.closest('button');if(!button)return;const lang=button.dataset.drawSignature||button.dataset.saveSignature||button.dataset.removeSignature||button.dataset.convertSignature;if(!lang)return;signatureEditLanguage=lang;
+      if(button.hasAttribute('data-convert-signature'))return saveDrawnCompanySignature(settings.invitationSignatureDataUrl||settings.agencySignatureDataUrl);
+      if(button.hasAttribute('data-draw-signature'))return $('draw-company-signature').click();
+      if(button.hasAttribute('data-remove-signature')){if(!confirm('移除此语言签名？已保存单证的素材快照不变。'))return;settings.companySignatures||={};delete settings.companySignatures[lang];}
+      else{settings.companySignatures||={};settings.companySignatures[lang]={...settings.companySignatures[lang],name:host.querySelector(`[data-signature-name="${lang}"]`).value,title:host.querySelector(`[data-signature-title="${lang}"]`).value,rotation:Number(host.querySelector(`[data-signature-rotation="${lang}"]`).value)};}
+      try{storeActiveCompany();await api('/api/settings',{method:'PUT',body:JSON.stringify(settings)});save(keys.settings,settings);renderBilingualSignatureSettings();toast('签名设置已保存，历史快照保持不变。');}catch(error){toast('保存失败：'+error.message);}
+    };
+  }
+  function installDocumentWorkflow(){
+    const baseSettings=renderSettings;renderSettings=function(){baseSettings();renderBilingualSignatureSettings();};
+    for(const [name,get,set] of [['quote',()=>renderPreview,f=>renderPreview=f],['invitation',()=>renderInvitationPreview,f=>renderInvitationPreview=f],['agency',()=>renderAgentAuthorizationPreview,f=>renderAgentAuthorizationPreview=f]]){const original=get();set(function(...args){const live=settings,doc=workflowDocument(name);if(name!=='quote'&&doc?.companySnapshot)settings={...settings,...structuredClone(doc.companySnapshot)};if(name!=='quote'&&doc?.documentConfigSnapshot)settings.documentConfigs={...settings.documentConfigs,[name]:structuredClone(doc.documentConfigSnapshot)};let result;try{result=original(...args);}finally{settings=live;}renderSigningControls();prepareSigningImages();return result;});}
+    window.prepareDocumentSigningImages=prepareSigningImages;
+    const view=$('view-invitation');
+    view.addEventListener('change',event=>{
+      const d=currentInvitation,id=event.target.id;
+      if(id==='invitation-recipient-type'){
+        const previous=d.recipientType;collectInvitationFromForm();const target=event.target.value;if(target==='individual'&&d.people.length>1){if(!confirm('切换个人后只输出第一人，其余人员暂存，可切回恢复。')){event.target.value=previous;d.recipientType=previous;return;}d.peopleStash=structuredClone(d.people);d.people=d.people.slice(0,1);}else if(target!=='individual'&&d.peopleStash?.length>d.people.length){d.people=structuredClone(d.peopleStash);delete d.peopleStash;}
+        if(target==='group'&&d.people.length===1)d.people.push(DocumentWorkflow.person({}));d.recipientType=target;d.previousRecipientType=target;DocumentWorkflowUI.mountInvitation(d);
+      }
+      if(id==='invitation-arrival'){d.departureDate=DocumentWorkflow.addDays(d.arrivalDate,29);$('invitation-departure').value=d.departureDate;}
+      if(id==='invitation-date'){d.validFrom=d.date;d.validUntil=DocumentWorkflow.addMonths(d.date,d.validityMonths);$('invitation-valid-from').value=d.validFrom;$('invitation-valid-until').value=d.validUntil;}
+      if(id==='invitation-validity-months'||id==='invitation-valid-from'){$('invitation-valid-until').value=DocumentWorkflow.addMonths($('invitation-valid-from').value,Number($('invitation-validity-months').value));}
+      renderInvitationPreview();persistWork(true);
+    });
+    view.addEventListener('input',event=>{if(event.target.matches('[data-person-field]')){renderInvitationPreview();persistWork(true);}});
+    view.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;collectInvitationFromForm();const d=currentInvitation;
+      if(button.id==='invitation-add-person'&&d.people.length<5)d.people.push(DocumentWorkflow.person({}));
+      else if(button.dataset.removePerson!=null){if(d.people.length<=(d.recipientType==='group'?2:1))return toast('当前类型人数不能再减少');const index=Number(button.dataset.removePerson);d.people.splice(index,1);if(index===0){Object.assign(d,DocumentWorkflow.person(d.people[0]));bindInvitationToForm();}}
+      else if(button.id==='invitation-add-place'){const value=$('invitation-place-search').value.trim();if(value&&!d.visitPlaces.includes(value))d.visitPlaces.push(value);$('invitation-place-search').value='';}
+      else if(button.dataset.removePlace!=null)d.visitPlaces.splice(Number(button.dataset.removePlace),1);else return;
+      DocumentWorkflowUI.mountInvitation(d);renderInvitationPreview();persistWork(true);
+    });
+    installOutputWorkflow();installDraftWorkflow();
+    renderBilingualSignatureSettings();renderSigningControls();DocumentWorkflowUI.dates();
+  }
+
+  function currentOutputKind(){return ['quote','invitation','agency'].includes(activeViewName)?activeViewName:'quote';}
+  function renderOutputKind(kind){(kind==='quote'?renderPreview:kind==='invitation'?renderInvitationPreview:renderAgentAuthorizationPreview)();}
+  function outputFileName(kind){return kind==='quote'?currentPdfFileName():kind==='invitation'?currentInvitationPdfFileName():`${currentAgentAuthorization.authorizationNumber||'agency'}.pdf`;}
+  function outputMarkup(kind){
+    const host=$(kind==='quote'?'quote-preview':kind+'-preview'),clone=host.cloneNode(true);
+    clone.querySelectorAll('.quote-incomplete-warning').forEach(node=>node.remove());clone.style.zoom='1';
+    const styles=[...document.querySelectorAll('link[rel=stylesheet],style')].map(node=>node.outerHTML).join('');
+    const content=kind==='quote'?`<div class="quote-split-workspace"><div class="quote-output-pane">${clone.outerHTML}</div></div>`:clone.outerHTML;
+    return `<html><head><base href="${escapeHtml(location.origin+'/')}">${styles}<style>.no-print{display:none!important}body{background:white!important}#${host.id}{zoom:1!important;transform:none!important}</style></head><body class="auth-ready printing-${kind==='quote'?'standard':kind==='invitation'?'invitation':'agency'}"><div class="app-shell"><main class="main"><section id="view-${kind}" class="view active">${content}</section></main></div></body></html>`;
+  }
+  async function saveOutputHistory(kind){
+    const d=workflowDocument(kind);
+    const existing=(kind==='quote'?quotes:kind==='invitation'?invitations:agentAuthorizations).some(record=>record.id===d.id);
+    if((existing||d.isFormal)&&!hasCurrentChanges())return true;
+    d.recordClass='history';
+    if(kind==='quote'){if(!d.isFormal)d.status='Saved';await saveQuote();}
+    else if(kind==='invitation')await saveInvitation();else await saveAgentAuthorization();
+    markWorkBaseline(kind);return true;
+  }
+  async function previewCurrentOutput(){
+    if($('document-output-preview'))return;
+    const kind=currentOutputKind();renderOutputKind(kind);const d=workflowDocument(kind);
+    const invalid=[...document.querySelectorAll('#view-'+kind+' [data-date-input]')].find(input=>input.value&&!DocumentWorkflow.parseDate(input.value));
+    if(invalid)return toast('日期无效，请输入真实的 YYYY-MM-DD 日期：'+invalid.value);
+    if(kind==='invitation'){const errors=DocumentWorkflow.validateInvitation(d);if(errors.length)return toast(errors.join('；'));}
+    captureSigning(d,kind);renderOutputKind(kind);
+    if(!window.quotationDesktop?.createDocumentPreview)return toast('分页预览需要桌面版输出引擎；当前编辑内容已保留。');
+    const modal=document.createElement('div');modal.id='document-output-preview';modal.className='modal document-output-preview no-print';modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');
+    modal.innerHTML='<div class="modal-card"><h3>当前单证 · 最终页面预览</h3><div class="preview-tools"><button data-prev>上一页</button><label>页码<input data-page-number type="number" min="1" value="1"></label><button data-next>下一页</button><span data-page-count></span><label>缩放<select data-zoom><option value="0.55">55%</option><option value="0.75" selected>75%</option><option value="1">100%</option><option value="1.25">125%</option></select></label><label>打印机<select data-printer><option value="">系统默认／打印对话框选择</option></select></label><label>打印页码<input data-print-pages placeholder="全部，或1-3,5"></label></div><div class="preview-pages"><p>正在按最终 PDF 规则分页…</p></div><p data-output-status role="status"></p><div class="actions"><button data-export-preview disabled>导出当前PDF</button><button data-print-preview disabled>打印当前单证</button><button data-batch-preview>批量导出历史单证</button><button data-return-preview>返回修改</button></div></div>';document.body.append(modal);
+    let preview,working=false,historySaved=false;
+    const status=text=>modal.querySelector('[data-output-status]').textContent=text;
+    try{
+      await prepareSigningImages();preview=await window.quotationDesktop.createDocumentPreview({html:outputMarkup(kind),fileName:outputFileName(kind)});
+      const pages=modal.querySelector('.preview-pages');pages.innerHTML=preview.pages.map((p,i)=>`<img src="${escapeHtml(p.image)}" data-preview-page="${i+1}" alt="第${i+1}页" style="width:${p.width*.75}px">`).join('');
+      modal.querySelector('[data-page-count]').textContent=`共 ${preview.pages.length} 页`;modal.querySelector('[data-page-number]').max=preview.pages.length;
+      modal.querySelector('[data-printer]').insertAdjacentHTML('beforeend',(preview.printers||[]).map(p=>`<option value="${escapeHtml(p.name)}">${escapeHtml(p.displayName||p.name)}</option>`).join(''));
+      modal.querySelector('[data-export-preview]').disabled=false;modal.querySelector('[data-print-preview]').disabled=false;
+      status('当前预览来自实际 PDF 页面。仅打开预览不会保存到历史。缺失业务字段可返回补充，也可按当前内容导出。');
+      const go=page=>{const n=Math.max(1,Math.min(preview.pages.length,Number(page)||1));modal.querySelector('[data-page-number]').value=n;modal.querySelector(`[data-preview-page="${n}"]`).scrollIntoView({block:'start'});};
+      modal.onchange=event=>{if(event.target.matches('[data-zoom]'))pages.querySelectorAll('img').forEach((img,i)=>img.style.width=preview.pages[i].width*Number(event.target.value)+'px');if(event.target.matches('[data-page-number]'))go(event.target.value);};
+      modal.onclick=async event=>{const b=event.target.closest('button');if(!b||working)return;
+        if(b.hasAttribute('data-prev'))return go(Number(modal.querySelector('[data-page-number]').value)-1);if(b.hasAttribute('data-next'))return go(Number(modal.querySelector('[data-page-number]').value)+1);
+        if(b.hasAttribute('data-return-preview')||b.hasAttribute('data-batch-preview')){await window.quotationDesktop.closeDocumentPreview(preview.token);modal.remove();if(b.hasAttribute('data-batch-preview'))await choosePdfExports();return;}
+        if(!b.matches('[data-export-preview],[data-print-preview]'))return;working=true;modal.querySelectorAll('button').forEach(button=>button.disabled=true);
+        try{
+          const result=b.hasAttribute('data-export-preview')?await window.quotationDesktop.exportDocumentPreview(preview.token):await window.quotationDesktop.printDocumentPreview(preview.token,{deviceName:modal.querySelector('[data-printer]').value,pages:modal.querySelector('[data-print-pages]').value});
+          if(['exported','submitted'].includes(result?.status)){
+            if(!historySaved){try{await saveOutputHistory(kind);historySaved=true;}catch(error){status('输出已完成，但历史保存失败；请点击“保存到历史”重试：'+error.message);return;}}
+            status(result.status==='exported'?'PDF已导出，当前单证已保存到历史：'+result.filePath:'系统已确认提交打印任务，当前单证已保存到历史；未验证实际出纸。');
+          }else status('已取消，没有新增历史记录。');
+        }catch(error){status('操作失败，当前编辑内容保留，未因失败新增历史：'+error.message);}finally{working=false;modal.querySelectorAll('button').forEach(button=>button.disabled=false);}
+      };
+    }catch(error){status('预览失败，编辑内容保留：'+error.message);modal.querySelector('[data-return-preview]').onclick=()=>modal.remove();}
+  }
+  function installOutputWorkflow(){
+    for(const id of ['export-pdf-btn','export-invitation-pdf-btn','agency-public-pdf-btn','agency-private-pdf-btn','agency-export-document']){
+      const old=$(id);if(!old)continue;const button=old.cloneNode(true);old.replaceWith(button);button.onclick=()=>{if(id==='agency-public-pdf-btn'||id==='agency-private-pdf-btn'){const input=$('agency-show-commission');input.checked=id==='agency-private-pdf-btn';input.dispatchEvent(new Event('change',{bubbles:true}));}previewCurrentOutput().catch(error=>toast(error.message));};
+    }
+    for(const kind of ['quote','invitation','agency']){
+      const host=document.querySelector('#view-'+kind+' .page-head .actions');if(host&&!$('print-current-'+kind)){const button=document.createElement('button');button.id='print-current-'+kind;button.textContent='预览／打印';button.onclick=()=>previewCurrentOutput().catch(error=>toast(error.message));host.prepend(button);}
+    }
+    const stylesheet=document.querySelector('link[href*="document-workflow.css"]');if(stylesheet)document.body.append(stylesheet);
+  }
+
+  async function previewHistoryBatch(rows){
+    if(!window.quotationDesktop?.createDocumentPreview)throw Error('请使用桌面版的分页输出引擎');
+    const original={view:activeViewName,quote:structuredClone(currentQuote),invitation:structuredClone(currentInvitation),agency:structuredClone(currentAgentAuthorization)},previews=[];
+    const restore=()=>{pdfSnapshotMode=false;currentQuote=original.quote;currentInvitation=original.invitation;currentAgentAuthorization=original.agency;bindQuoteToForm();renderQuoteItems();bindInvitationToForm();if(currentAgentAuthorization)bindAgentAuthorizationForm();switchView(original.view);renderPreview();renderInvitationPreview();if(currentAgentAuthorization)renderAgentAuthorizationPreview();workRestoring=false;};
+    workRestoring=true;pdfSnapshotMode=true;
+    try{
+      for(const row of rows){let kind;
+        try{
+          if(row._source==='invitation'){kind='invitation';currentInvitation=structuredClone(invitations.find(q=>q.id===row.id));if(!currentInvitation)throw Error('邀请函已不存在');bindInvitationToForm();}
+          else if(row._source==='agency'){kind='agency';currentAgentAuthorization=structuredClone(agentAuthorizations.find(q=>q.id===row.id));if(!currentAgentAuthorization){await loadAgentAuthorizations();currentAgentAuthorization=structuredClone(agentAuthorizations.find(q=>q.id===row.id));}if(!currentAgentAuthorization)throw Error('代理文件已不存在');bindAgentAuthorizationForm();}
+          else{kind='quote';currentQuote=serverQuotationToLocal(await api('/api/quotations/'+encodeURIComponent(row.id)));bindQuoteToForm();renderQuoteItems();}
+          switchView(kind);renderOutputKind(kind);await prepareSigningImages();const preview=await window.quotationDesktop.createDocumentPreview({html:outputMarkup(kind),fileName:outputFileName(kind),batch:true});previews.push({...preview,label:row.quote_number||row.id});
+        }catch(error){throw Error((row.quote_number||row.id)+'：'+error.message);}
+      }
+    }catch(error){for(const preview of previews)await window.quotationDesktop.closeDocumentPreview(preview.token).catch(()=>{});throw error;}finally{restore();}
+    const modal=document.createElement('div');modal.id='document-output-preview';modal.className='modal no-print document-output-preview';modal.innerHTML='<div class="modal-card"><h3>批量导出 · 最终PDF页面</h3><p>每份单证保留自身模板、语言、配色、签章和分页。可取消勾选；不写入新的历史副本。</p><label>缩放<select data-batch-zoom><option value="0.6">60%</option><option value="0.8" selected>80%</option><option value="1">100%</option></select></label><div class="preview-pages">'+previews.map((preview,i)=>`<section><label><input type="checkbox" data-batch-document="${i}" checked>${escapeHtml(preview.label)} · ${preview.pages.length} 页</label>${preview.pages.map(page=>`<img src="${escapeHtml(page.image)}" data-original-width="${page.width}" style="width:${page.width*.8}px" alt="${escapeHtml(preview.label)}第${page.number}页">`).join('')}</section>`).join('')+'</div><p data-output-status role="status"></p><div class="actions"><button data-batch-export>导出已选PDF</button><button data-batch-back>返回重新选择</button></div></div>';document.body.append(modal);
+    modal.onchange=event=>{if(event.target.matches('[data-batch-zoom]'))modal.querySelectorAll('img').forEach(img=>img.style.width=Number(img.dataset.originalWidth)*Number(event.target.value)+'px');};
+    let busy=false;modal.onclick=async event=>{const b=event.target.closest('button');if(!b||busy)return;
+      if(b.hasAttribute('data-batch-back')){for(const preview of previews)await window.quotationDesktop.closeDocumentPreview(preview.token);return modal.remove();}
+      if(!b.hasAttribute('data-batch-export'))return;const selected=[...modal.querySelectorAll('[data-batch-document]:checked')].map(input=>previews[input.dataset.batchDocument]);if(!selected.length){modal.querySelector('[role=status]').textContent='请至少选择一份单证';return;}
+      busy=true;modal.querySelectorAll('button,input').forEach(el=>el.disabled=true);let token;const results=[];
+      try{if(selected.length>1){token=await window.quotationDesktop.selectPdfDirectory();if(!token){results.push('已取消选择文件夹，未导出任何单证。');return;}}
+        for(const preview of selected)try{const result=await window.quotationDesktop.exportDocumentPreview(preview.token,token);results.push(preview.label+'：'+(result.status==='exported'?'已导出 '+result.filePath:'已取消'));}catch(error){results.push(preview.label+'：失败 '+error.message);}
+      }finally{if(token)await window.quotationDesktop.finishPdfBatch(token);modal.querySelector('[role=status]').textContent=results.join('\n');busy=false;modal.querySelectorAll('button,input').forEach(el=>el.disabled=false);}
+    };
+  }
+
+  const workBaselines=new Map(),workPreviousRows=new Map();let leaveReplaying=false,leavePending=false,productDraftSource='';
+  function workFingerprint(data){return JSON.stringify(data,(key,value)=>['createdAt','updatedAt','savedAt','completedAt','revision','companySnapshot','documentConfigSnapshot'].includes(key)?undefined:value);}
+  function currentWorkData(kind=activeViewName){if(kind==='quote'){collectQuoteFromForm();return structuredClone(currentQuote);}if(kind==='invitation'){collectInvitationFromForm();return structuredClone(currentInvitation);}if(kind==='agency'){collectAgentAuthorizationForm();return structuredClone(currentAgentAuthorization);}return {product:{...collectProductForm(),id:editingProductId||productWorkId},editingId:editingProductId};}
+  function markWorkBaseline(kind=activeViewName,fromModel=false){if(!['quote','invitation','agency','products'].includes(kind))return;const key=currentWorkKey(kind),data=fromModel&&kind!=='products'?structuredClone(workflowDocument(kind)):currentWorkData(kind);workBaselines.set(key,{kind,data,fingerprint:workFingerprint(data)});workPreviousRows.set(key,workRecords[key]?structuredClone(workRecords[key]):null);dirtyWork.delete(key);}
+  function hasCurrentChanges(){const kind=activeViewName;if(!['quote','invitation','agency','products'].includes(kind))return false;const key=currentWorkKey(kind),baseline=workBaselines.get(key);if(!dirtyWork.has(key)||!baseline)return false;return workFingerprint(currentWorkData(kind))!==baseline.fingerprint;}
+  function meaningfulWork(kind,data){
+    const baseline=workBaselines.get(currentWorkKey(kind))?.data;const changed=fields=>baseline&&fields.some(key=>JSON.stringify(data[key])!==JSON.stringify(baseline[key]));
+    if(kind==='quote'&&changed(['quoteDate','validUntil','terms','basicFields']))return true;
+    if(kind==='invitation'&&changed(['date','arrivalDate','departureDate','validFrom','validUntil']))return true;
+    if(kind==='agency'&&changed(['date','validUntil','extraTerms','customFields']))return true;
+    if(kind==='quote')return Boolean(Object.values(data.buyer||{}).some(v=>typeof v==='string'?v.trim():v&&Object.values(v).some(Boolean))||(data.items||[]).some(item=>['description','brand','model','productId','remark','unitPrice','params','hsCode','serialNo'].some(k=>String(item.values?.[k]??'').trim()))||data.shipmentDetails?.consignee||data.shipmentDetails?.notes);
+    if(kind==='invitation')return Boolean(data.visitorName||data.passportNo||data.visitorCompany||data.notes||data.visitPlaces?.length||(data.people||[]).some(p=>p.visitorName||p.passportNo||p.country||p.birthDate));
+    if(kind==='agency')return Boolean(data.agentName||data.idNumber||data.country||data.phone||data.email||data.purchaseMachine||data.recipientCompany||data.documentNotes);
+    return Boolean(data.product&&(data.product.imageDataUrl||data.product.rawImportText||Object.entries(data.product.values||{}).some(([k,v])=>!['currency','productType','condition','unit'].includes(k)&&String(v||'').trim())));
+  }
+  async function saveCurrentDraft(){
+    persistWork(true);await workQueue;const key=currentWorkKey(),row=workRecords[key];if(!row||row.completedAt)return;
+    const source=activeViewName==='products'?productDraftSource:workflowDocument()?.sourceDraftKey,draftKey=source||'draft:'+key;
+    await queueWork({...row,key:draftKey,category:'draft',completedAt:null});
+    await queueWork({...row,completedAt:new Date().toISOString()});markWorkBaseline();
+  }
+  async function discardCurrentChanges(){
+    const kind=activeViewName,key=currentWorkKey(kind),baseline=workBaselines.get(key),prior=workPreviousRows.get(key);await workQueue.catch(()=>{});pendingWork.delete(key);dirtyWork.delete(key);
+    if(prior){await queueWork(prior);}else{await api('/api/work-drafts/'+encodeURIComponent(key),{method:'DELETE'});delete workRecords[key];}
+    workRestoring=true;try{if(baseline){if(kind==='quote'){currentQuote=structuredClone(baseline.data);bindQuoteToForm();renderQuoteItems();renderPreview();}if(kind==='invitation'){currentInvitation=structuredClone(baseline.data);bindInvitationToForm();renderInvitationPreview();}if(kind==='agency'){currentAgentAuthorization=structuredClone(baseline.data);bindAgentAuthorizationForm();renderAgentAuthorizationPreview();}if(kind==='products'){const originalId=editingProductId,temporary={...structuredClone(baseline.data.product),id:uid('restore-product')};products.push(temporary);editProduct(temporary.id);products=products.filter(p=>p!==temporary);editingProductId=baseline.data.editingId||'';syncProductEditorPresentation();}}}finally{workRestoring=false;}
+  }
+  async function askLeaveWork(){
+    if(!hasCurrentChanges())return true;if(leavePending)return false;leavePending=true;
+    return new Promise(resolve=>{const modal=document.createElement('dialog');modal.id='leave-work-modal';modal.className='modal no-print';modal.innerHTML='<div class="modal-card" role="dialog" aria-modal="true"><h3>当前内容尚未保存</h3><p>草稿仅进入草稿箱；不保存会丢弃本次修改，原历史单证和其他草稿保持不变。</p><button data-leave-save>保存草稿并离开</button><button data-leave-discard>不保存并离开</button><button data-leave-cancel>取消</button><p role="status"></p></div>';document.body.append(modal);modal.showModal();modal.addEventListener('cancel',event=>{event.preventDefault();modal.remove();leavePending=false;resolve(false);});
+      modal.onclick=async event=>{const b=event.target.closest('button');if(!b)return;modal.querySelectorAll('button').forEach(x=>x.disabled=true);try{if(b.hasAttribute('data-leave-save'))await saveCurrentDraft();else if(b.hasAttribute('data-leave-discard'))await discardCurrentChanges();else{modal.remove();leavePending=false;resolve(false);return;}modal.remove();leavePending=false;resolve(true);}catch(error){modal.querySelector('[role=status]').textContent='处理失败，当前页面保留：'+error.message;modal.querySelectorAll('button').forEach(x=>x.disabled=false);}};
+    });
+  }
+  function installDraftWorkflow(){
+    // Establish baselines when entering a document, and after explicit saves.
+    const switchBase=switchView;switchView=function(name,...args){const result=switchBase(name,...args);if(!workRestoring&&['quote','invitation','agency','products'].includes(activeViewName)&&!workBaselines.has(currentWorkKey()))markWorkBaseline(activeViewName,true);return result;};
+    for(const [get,set] of [[()=>newQuote,f=>newQuote=f],[()=>newInvitation,f=>newInvitation=f],[()=>newAgentAuthorization,f=>newAgentAuthorization=f]]){const base=get();set(function(...args){const result=base(...args);if(!workRestoring&&['quote','invitation','agency'].includes(activeViewName))markWorkBaseline();return result;});}
+    for(const kind of ['quote','invitation','agency'])if(workflowDocument(kind))markWorkBaseline(kind);
+    const saveBase=saveQuote;saveQuote=async function(...args){const result=await saveBase(...args);markWorkBaseline('quote');return result;};
+    const inviteBase=saveInvitation;saveInvitation=async function(...args){const result=await inviteBase(...args);markWorkBaseline('invitation');return result;};
+    const agencyBase=saveAgentAuthorization;saveAgentAuthorization=async function(...args){const result=await agencyBase(...args);markWorkBaseline('agency');return result;};
+    const productClear=clearProductForm;clearProductForm=function(...args){const result=productClear(...args);productDraftSource='';if(!workRestoring&&activeViewName==='products')markWorkBaseline('products');return result;};
+    for(const [get,set] of [[()=>editQuote,f=>editQuote=f],[()=>copyQuote,f=>copyQuote=f],[()=>editProduct,f=>editProduct=f]]){const base=get();set(function(...args){if(!workRestoring&&hasCurrentChanges())return askLeaveWork().then(ok=>{if(ok)return base(...args);});const result=base(...args);if(result?.then)return result.then(value=>{if(!workRestoring)markWorkBaseline();return value;});if(!workRestoring)markWorkBaseline();return result;});}
+    if(window.quoteApp)Object.assign(window.quoteApp,{editQuote,copyQuote,editProduct});
+    const menuBase=handleDesktopMenuAction;handleDesktopMenuAction=async function(action){if(['settings','users','data','help','logout'].includes(action)&&!await askLeaveWork())return;return menuBase(action);};
+    window.hasUnsavedWork=()=>hasCurrentChanges();
+    window.decideCloseWork=async choice=>{if(choice==='discard')await discardCurrentChanges();else if(hasCurrentChanges())await saveCurrentDraft();return true;};
+    document.addEventListener('click',event=>{
+      if(leaveReplaying||workRestoring||event.target.closest('#leave-work-modal,#document-output-preview,#pdf-selection-modal'))return;
+      const target=event.target.closest('[data-view],[data-view-target],[data-switch-document],[data-create-document],#new-quote-btn,#new-invitation-btn,#agency-new-btn,#global-back-btn,#document-draft-box,[data-invitation-history="open"],[data-agency-action="open"],[data-history-action="open"]');if(!target)return;
+      if(target.dataset.view===activeViewName||target.dataset.viewTarget===activeViewName)return;
+      if(!hasCurrentChanges())return;event.preventDefault();event.stopImmediatePropagation();askLeaveWork().then(ok=>{if(ok){leaveReplaying=true;try{target.click();}finally{leaveReplaying=false;}}});
+    },true);
+    const draftButton=document.createElement('button');draftButton.type='button';draftButton.textContent='草稿箱／异常恢复';draftButton.id='document-draft-box';draftButton.onclick=()=>showWorkRecovery();document.querySelector('.desktop-rail')?.append(draftButton);
+    for(const id of ['save-quote-btn','save-invitation-btn','agency-save-btn']){const b=$(id);if(b)b.textContent='保存到历史';}
   }
 
   async function init() {
@@ -7388,7 +7621,7 @@
     initDocumentNavigation();
     organizeManagementModules();
     window.freightWorkspace?.init();
-    window.quotationDesktop?.onMenuAction?.(handleDesktopMenuAction);
+    window.quotationDesktop?.onMenuAction?.(action=>handleDesktopMenuAction(action));
     applySidebarState();
     removeLegacyCostFields();
     renderAllSelectors();
@@ -7399,6 +7632,7 @@
     await checkLogin();
     if(activeViewName==='home'){updateDesktopTopbar('home');await renderHomeDashboard();}
     initDocumentWorkspace();
+    installDocumentWorkflow();
     await loadCustomHsCodes();
     applyAuthLock();
     window.AppLock?.configure(settings.applicationLock || defaultSettings.applicationLock);

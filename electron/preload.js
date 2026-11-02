@@ -1,6 +1,10 @@
 const { contextBridge, ipcRenderer, webFrame } = require("electron");
 
 contextBridge.exposeInMainWorld("quotationDesktop", {
+  createDocumentPreview: payload => ipcRenderer.invoke('document-preview-create',payload),
+  exportDocumentPreview: (token,batchToken) => ipcRenderer.invoke('document-preview-export',token,batchToken),
+  printDocumentPreview: (token,options) => ipcRenderer.invoke('document-preview-print',token,options),
+  closeDocumentPreview: token => ipcRenderer.invoke('document-preview-close',token),
   exportCatalogPdf: html => ipcRenderer.invoke('export-catalog-pdf',html),
   printCatalog: html => ipcRenderer.invoke('print-catalog',html),
   selectPdfDirectory: () => ipcRenderer.invoke('select-pdf-directory'),

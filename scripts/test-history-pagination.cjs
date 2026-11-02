@@ -28,5 +28,12 @@ try{
   const payload=JSON.stringify(first);assert(!payload.includes('base64'));assert(payload.length<50000);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM quotations').get().n,101);
   assert.equal(JSON.parse(db.prepare('SELECT settings_snapshot_json s FROM quotations LIMIT 1').get().s).stampDataUrl,image);
+  db.exec('CREATE TABLE agent_authorizations(id TEXT,authorization_number TEXT,agent_name TEXT,country TEXT,status TEXT,data_json TEXT,updated_at TEXT)');
+  const agency=db.prepare('INSERT INTO agent_authorizations VALUES (?,?,?,?,?,?,?)');
+  agency.run('old-agency-draft','OLD-DRAFT','QA','QA','Draft','{}','2026-11-02');
+  agency.run('saved-agency','SAVED','QA','QA','Active','{}','2026-11-02');
+  const docs=require('../server/document-history'),summaries=[{id:'old-invite-draft',status:'Draft'},{id:'saved-invite'},{id:'explicit-draft',recordClass:'draft'}];
+  const exported=docs(db,{exportable:'1'},summaries).quotations;
+  assert.deepEqual(new Set(exported.map(r=>r.id)),new Set(['saved-agency','saved-invite']),'batch export excludes old draft statuses across all document families');
   console.log(`PASS history pagination/filter/search/snapshot retention: 101 large snapshots; first page ${elapsed.toFixed(1)} ms, ${payload.length} characters (test database only).`);
 }finally{db.close();if(process.versions.electron)require('electron').app.quit();}

@@ -2,7 +2,7 @@
 // Opening a record still uses /api/quotations/:id and its original snapshot.
 module.exports = function quotationHistory(db, query = {}) {
   const pageSize = Math.min(100, Math.max(1, parseInt(query.pageSize, 10) || 30));
-  const where = [], args = [];
+  const where = ["COALESCE(json_extract(q.settings_snapshot_json,'$._quoteMeta.documentExtras.recordClass'),'history')<>'draft'"], args = [];
   const status = String(query.status || 'active');
   if(Array.isArray(query.ids)){if(!query.ids.length)where.push('0');else{where.push(`q.id IN (${query.ids.map(()=>'?').join(',')})`);args.push(...query.ids);}}
   if (status === 'active') where.push("q.status NOT IN ('Void','Deleted')");

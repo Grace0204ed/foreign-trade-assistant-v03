@@ -14,7 +14,7 @@ app.whenReady().then(async()=>{
   await win.loadURL(base);await wait("document.querySelectorAll('#overview-metrics article').length===4");
   assert.equal(await run('quoteSettingsContext.settings.companyNameEn'),'Example Trading Co., Ltd.');
   assert.equal(await run("quoteSettingsContext.settings.bankFields.find(f=>f.id==='bank-account-number').value"),'');
-  assert.equal((await request('/api/customers'))[0].name,'张三');
+  assert.equal((await request('/api/customers')).length,0,'fresh installation has no demonstration customers');
   await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click()");
   for(const key of ['year','hours','unitPrice','currency'])assert.equal(await run(`document.querySelectorAll('#product-edit-panel [data-product-field="${key}"]').length`),1,key+' single source');
   assert.equal(await run("document.querySelectorAll('#product-year').length"),1);
@@ -60,7 +60,7 @@ app.whenReady().then(async()=>{
   assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='block'"));
   fs.writeFileSync(path.join(output,'editor.png'),(await win.webContents.capturePage()).toPNG());
   win.setSize(1024,900);await run("document.querySelector('#quote-items').scrollIntoView();new Promise(r=>setTimeout(r,200))");fs.writeFileSync(path.join(output,'editor-1024.png'),(await win.webContents.capturePage()).toPNG());
-  const customer=(await request('/api/customers'))[0];
+  await request('/api/customers',{name:'ISOLATED CRM TEST',company:'QA',stage:'潜在客户'});const customer=(await request('/api/customers'))[0];
   await request('/api/quotations',{formal:true,customerId:customer.id,quoteNumber:'QA-INDEPENDENT',buyer:{company:'QA'},items:[]});
   assert.equal((await request('/api/customers/'+customer.id)).stage,customer.stage,'formal document must not change CRM stage');
   const db=require('../server/db').db;db.prepare('DELETE FROM quotation_items').run();db.prepare('DELETE FROM quotations').run();db.prepare('DELETE FROM products').run();db.prepare('DELETE FROM customers').run();

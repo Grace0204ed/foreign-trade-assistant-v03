@@ -1,0 +1,68 @@
+.signing-composite{position:relative;isolation:isolate;width:300px;max-width:100%;height:142px;margin:5px 0 8px;break-inside:avoid;overflow:visible}
+.signing-ink{position:absolute;left:0;top:15px;width:225px;height:110px;display:flex;align-items:center;justify-content:center;z-index:1}
+.signing-ink img{width:var(--signature-width,215px)!important;height:var(--signature-height,96px)!important;max-width:none!important;max-height:none!important;object-fit:contain!important;transform:rotate(var(--signature-angle,0deg));mix-blend-mode:multiply}
+.signing-composite .signing-seal{position:absolute!important;right:0!important;left:auto!important;top:2px!important;width:128px!important;height:128px!important;object-fit:contain!important;transform:none!important;z-index:2;opacity:1;mix-blend-mode:multiply;max-width:none!important;max-height:none!important}
+.signing-composite:not(.has-signature){width:150px}.signing-composite:not(.has-seal){width:235px}
+.agency-sheet:not(.agency-commercial) .agency-seal-side{min-height:0;padding-top:0}
+.agency-sheet:not(.agency-commercial) .agency-info-grid>.wide{grid-column:auto}
+.document-wide table.document-data-table td+td{border-inline-start:1px solid #e1e7f0}
+@media print{
+ #invitation-preview,#agency-preview{box-shadow:none!important;border:0!important;border-radius:0!important}
+ .agency-sheet:not(.agency-commercial) .agency-crest{height:40px}
+ .agency-sheet:not(.agency-commercial) .agency-letterhead{padding-bottom:6px}
+ .agency-sheet:not(.agency-commercial) h1{margin:12px 0 6px}
+ .agency-sheet:not(.agency-commercial) .agency-meta{margin-bottom:8px}
+ .agency-sheet:not(.agency-commercial) .agency-lead{margin:8px 0}
+ .agency-sheet:not(.agency-commercial) .agency-info-grid{margin:10px 0}
+ .agency-sheet:not(.agency-commercial) .agency-info-grid p{padding:4px 12px}
+ .agency-sheet:not(.agency-commercial) h2{margin:12px 0 6px}
+ .agency-sheet:not(.agency-commercial) .agency-terms li{margin:4px 0;line-height:1.6}
+ .agency-sheet:not(.agency-commercial) .agency-scope-summary{margin:8px 0}
+ .agency-sheet:not(.agency-commercial) .agency-signature{margin-top:16px}
+}
+.invitation-sign .signing-composite{margin-left:auto}.agency-signature .signing-composite{width:300px;grid-column:1/-1}.signing-composite+*{position:relative;z-index:3}
+.signature-language-settings{padding:12px;border:1px solid #aebbd1;border-radius:10px;margin:10px 0}.signature-language-settings img{max-width:280px;max-height:140px;object-fit:contain;background:repeating-conic-gradient(#eee 0 25%,white 0 50%) 0/16px 16px}
+.document-signing-controls{display:flex;gap:14px;flex-wrap:wrap;padding:10px 0}.document-signing-controls label{display:flex;align-items:center;gap:6px}
+.date-input-control{display:flex;gap:5px;align-items:center}.date-input-control input{min-width:0;flex:1}.date-input-control button{flex:none;padding:8px}.invalid-date{border-color:#bb2020!important}
+.date-calendar{width:360px;max-width:95vw;border:1px solid #8798b3;border-radius:12px;padding:20px}.date-calendar::backdrop{background:#11182780}.date-calendar header,.calendar-controls{display:flex;justify-content:space-between;gap:12px}.calendar-controls input{width:110px}.calendar-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px}.calendar-days b{text-align:center}.calendar-days button{padding:8px 0}
+.invitation-person{border:1px solid #aebbd1;border-radius:8px;margin:12px 0;padding:12px}.invitation-places{margin-top:16px}.place-chip{display:inline-flex;gap:5px;align-items:center;background:#eaf1ff;color:#142c52;padding:3px 10px;border-radius:14px;margin:5px}.place-chip button{padding:2px 5px}
+.invitation-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.invitation-info-grid>.wide{grid-column:1/-1!important;min-width:0}.invitation-info-grid>p{min-width:0;overflow-wrap:break-word;word-break:normal}.invitation-info-grid>[data-field-key=passportNo]{grid-column:1/-1!important}.invitation-info-grid>[data-field-key=reason]{grid-column:1/-1!important}.invitation-corner{display:none!important}
+.invitation-people-table{width:100%;table-layout:fixed;border-collapse:collapse;margin:12px 0;font-size:12px}.invitation-people-table th,.invitation-people-table td{border:1px solid #97a4b8;padding:7px 6px;line-height:1.5;overflow-wrap:break-word;word-break:normal}.invitation-people-table th{background:var(--document-table-color,#285fc1);color:var(--document-header-text,#fff)}.invitation-people-table th:nth-child(1){width:6%}.invitation-people-table th:nth-child(2){width:22%}.invitation-people-table th:nth-child(3){width:23%}.invitation-people-table th:nth-child(4){width:20%}.invitation-people-table th:nth-child(5){width:19%}.invitation-people-table td:nth-child(3),.invitation-people-table td:nth-child(5){overflow-wrap:normal;word-break:normal}.invitation-people-table tr{break-inside:avoid}.invitation-people-table thead{display:table-header-group}
+.invitation-validity-block{border-left:3px solid var(--document-table-color,#285fc1);padding:8px 12px;margin:14px 0;break-inside:avoid}.invitation-free-notes{white-space:pre-wrap;overflow-wrap:break-word;line-height:1.7}.invitation-preview .invitation-footer{break-inside:avoid}.invitation-preview .invitation-watermark{opacity:.025}
+/* The whole label activates its native input; colour is reinforced by the mark,
+   border, text, focus and disabled states. This replaces the earlier green UI. */
+.document-simple-options label,.document-batch-choices label,.document-signing-controls label:has(input[type=checkbox]),.pdf-selection-list label{cursor:pointer;border:2px solid #202936!important;background:#f0f2f5!important;color:#172033!important;padding:10px;border-radius:8px}
+.document-simple-options label:has(input:checked),.document-batch-choices label:has(input:checked),.document-signing-controls label:has(input:checked),.pdf-selection-list label:has(input:checked){border-color:#1d5fce!important;background:#edf3ff!important;color:#124baf!important}
+.document-simple-options input,.document-batch-choices input,.document-signing-controls input,.pdf-selection-list input{accent-color:#1d5fce!important}.document-simple-options label:has(input:checked)::after,.document-batch-choices label:has(input:checked)::after{content:'✓ 已开启';color:#124baf!important}.document-batch-choices label:not(:has(input:checked))::after{content:'未选中';color:#172033!important}.document-simple-options label:focus-within,.document-signing-controls label:focus-within,.pdf-selection-list label:focus-within{outline:3px solid #8bb5ff;outline-offset:2px}label:has(input:disabled){opacity:.55;cursor:not-allowed}
+.document-output-preview,#pdf-selection-modal,#work-recovery-modal{z-index:2000}
+.document-output-preview .modal-card{width:min(1300px,96vw);height:94vh;max-height:94vh;display:flex;flex-direction:column}.document-output-preview .preview-pages{flex:1;overflow:auto;background:#566273;text-align:center;padding:18px}.document-output-preview .preview-pages img{display:block;max-width:none;margin:0 auto 14px;box-shadow:0 3px 12px #0006}.document-output-preview .actions{flex-shrink:0}.document-output-preview [data-output-status]{white-space:pre-wrap}.document-output-preview .preview-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.document-output-preview [data-page-number]{width:75px}
+@media print{.main,.invitation-preview{background:#fff!important}.document-signing-controls,.date-calendar,.document-output-preview,#leave-work-modal{display:none!important}.signing-composite{break-inside:avoid}.invitation-people-table{font-size:11px}.invitation-people-table th,.invitation-people-table td{padding:6px}.invitation-preview .invitation-sheet{padding:24px 28px}.invitation-free-notes{orphans:3;widows:3}}
+
+.document-simple-options input[type=checkbox],.document-batch-choices input[type=checkbox]{background:#202936!important;border-color:#202936!important}.document-simple-options input[type=checkbox]:checked,.document-batch-choices input[type=checkbox]:checked{background:#1d5fce!important;border-color:#1d5fce!important}.document-batch-choices input[type=checkbox]::before{color:#124baf!important}
+
+.document-batch-choices input[type=checkbox]:focus-visible{outline:3px solid #1d5fce!important;outline-offset:3px}
+:is(#view-quote,#view-invitation,#view-agency) label:has(>input[type=checkbox]){cursor:pointer;background:#f0f2f5!important;border-color:#202936!important;color:#172033!important}
+:is(#view-quote,#view-invitation,#view-agency) label:has(>input[type=checkbox]:checked){background:#edf3ff!important;border-color:#1d5fce!important;color:#124baf!important}
+:is(#view-quote,#view-invitation,#view-agency) input[type=checkbox]{accent-color:#1d5fce!important}
+:is(#view-quote,#view-invitation,#view-agency) label:has(>input[type=checkbox]):focus-within{outline:3px solid #8bb5ff;outline-offset:2px}
+.quote-preview .document-seller-signature:has(.signing-composite){padding-right:320px;min-height:142px}
+.quote-preview .document-seller-signature>.signing-composite{position:absolute;right:0;top:0;margin:0}
+.quote-preview .document-dual-signatures .document-seller-signature:has(.signing-composite){padding-right:0;padding-bottom:142px}
+.quote-preview .document-dual-signatures .document-seller-signature>.signing-composite{top:auto;bottom:0;right:auto;left:0}
+#quote-preview.document-wide:not(.trade-layout) .document-seller-signature:has(.signing-composite){min-height:120px}
+#quote-preview.document-wide:not(.trade-layout) .signing-composite{height:120px}
+#quote-preview.document-wide:not(.trade-layout) .signing-composite .signing-seal{width:120px!important;height:120px!important;top:0!important}
+#quote-preview.document-wide:not(.trade-layout) .signing-ink{top:5px}
+#quote-preview.document-wide:not(.trade-layout)>.bank-panel{margin-bottom:0}
+.invitation-header h2,.invitation-people-table td:nth-child(2),.invitation-people-table td:nth-child(3){unicode-bidi:plaintext}
+.invitation-sheet h1{letter-spacing:normal;font-kerning:normal}
+.invitation-closing-group{break-inside:avoid}
+.invitation-sign:not(:has(.signing-composite)){min-height:0;padding-top:0}
+.invitation-sheet{box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.invitation-header{padding-bottom:8px}.invitation-sheet h1{font-size:30px;margin:12px 0 6px}.invitation-to{margin:8px 0}
+.invitation-info{margin:12px 0;padding:12px}.invitation-info h3{margin-bottom:8px}
+.invitation-people-table{margin:8px 0}.invitation-people-table th,.invitation-people-table td{padding-top:5px;padding-bottom:5px}
+.invitation-validity-block{margin:10px 0;padding-top:6px;padding-bottom:6px}.invitation-footer{margin-top:14px}
+/* Keep the final business section with its signatures instead of creating a signature-only page. */
+@media print{#quote-preview>:has(+.document-signature-block),.agency-sheet>:has(+.agency-signature){break-inside:avoid!important;page-break-inside:avoid!important;break-after:avoid;page-break-after:avoid}.document-signature-block,.agency-signature{break-before:avoid;page-break-before:avoid}}
+@media print{html:has(body.printing-invitation),body.printing-invitation,body.printing-invitation .app-shell,body.printing-invitation .main,body.printing-invitation #view-invitation,body.printing-invitation #invitation-preview{background:white!important}.invitation-people-table th,.invitation-people-table td{padding-top:4px;padding-bottom:4px}}

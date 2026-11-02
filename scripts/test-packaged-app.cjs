@@ -32,8 +32,16 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/å
   const pdf=await app.evaluate(async({BrowserWindow})=>Array.from(await BrowserWindow.getAllWindows()[0].webContents.printToPDF({printBackground:true,pageSize:'A4'})));
   fs.writeFileSync(path.join(dir,'quotation.pdf'),Buffer.from(pdf));assert.ok(pdf.length>10000);
   await page.evaluate(()=>document.body.classList.remove('printing-standard'));
+
+  await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},path.join(dir,'preview-export.pdf'));
+  await page.click('#export-pdf-btn');await page.waitForSelector('[data-export-preview]:not(:disabled)',{timeout:60000});
+  assert(await page.locator('.preview-pages img').first().evaluate(img=>img.naturalWidth>500),'packaged runtime renders actual PDF pages');
+  await page.click('[data-export-preview]');await page.waitForFunction(()=>document.querySelector('[data-output-status]').textContent.includes('PDFå·²å¯¼å‡º'));
+  assert(fs.statSync(path.join(dir,'preview-export.pdf')).size>10000);
+  assert.equal((await page.evaluate(async()=>await(await fetch('/api/quotations')).json())).quotations.length,data.quotations.length,'export saved record without duplicates');
+  await page.click('[data-return-preview]');console.log('PASS packaged PDF preview image renderer and exact-memory PDF export without external Node');
   // Confirm/cancel the native close prompt without human input.
-  await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:1});});
+  await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:2});});
   await page.fill('#buyer-company','CANCEL CLOSE MUST STAY OPEN');
   await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});
   await page.waitForTimeout(300);assert.equal(await page.locator('#buyer-company').inputValue(),'CANCEL CLOSE MUST STAY OPEN');
@@ -55,7 +63,7 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/å
   app=await electron.launch({executablePath,env,timeout:60000});page=await app.firstWindow();
   await page.waitForSelector('#restore-quote-draft',{state:'attached',timeout:60000});
   await page.waitForFunction(()=>!!window.flushPendingWork);
-  assert.equal(await page.locator('#work-recovery-modal').count(),0,'no intrusive recovery dialog on startup');
+  await page.waitForSelector('#work-recovery-modal [data-resume]');assert.equal(await page.locator('#work-recovery-modal').count(),1,'unfinished work is offered once at startup');
   await page.locator('#restore-quote-draft').evaluate(el=>el.click());
   await page.waitForSelector('#work-recovery-modal [data-resume]',{timeout:60000});
   await page.locator('#work-recovery-modal [data-resume]').first().click();
