@@ -2067,10 +2067,55 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
 /* Keep configured columns within the same A4 geometry in preview and export. */
 .quote-preview.trade-layout table { table-layout:fixed; }
 .quote-preview.trade-layout table th,.quote-preview.trade-layout table td { padding:5px 2px; overflow-wrap:anywhere; min-width:0; font-size:9px; }
+.quote-preview table.document-data-table{table-layout:fixed!important;width:100%!important;min-width:0!important}
+.quote-preview table.document-data-table th{font-weight:700;line-height:1.4!important;word-break:normal!important;overflow-wrap:anywhere!important;hyphens:auto;padding:7px 3px!important;vertical-align:middle;letter-spacing:0!important}
+.quote-preview table.document-data-table th small{color:inherit!important;opacity:1!important;font-size:10px!important;line-height:1.4!important;font-weight:600;letter-spacing:0!important}
+.quote-preview table.document-data-table td{color:#172033;line-height:1.45!important;padding:6px 3px!important;word-break:normal!important;overflow-wrap:anywhere!important}
+@media screen{.quote-preview-viewport[data-preview-mode] #quote-preview.document-wide{width:297mm!important;min-width:297mm!important;max-width:none!important;min-height:210mm}}
+@page trade-wide{size:A4 landscape;margin:6mm}
+@media print{html:has(body.printing-standard #quote-preview.document-wide),body.printing-standard:has(#quote-preview.document-wide){width:285mm!important;max-width:285mm!important}body.printing-standard:has(#quote-preview.document-wide){page:trade-wide}body.printing-standard #quote-preview.document-wide{width:285mm!important;max-width:285mm!important;min-height:0!important;padding:0!important}}
 .quote-preview.trade-layout table .preview-col-description { width:28%; }
 .quote-preview.trade-layout table .preview-col-sequence { width:4%; }
 .quote-preview.trade-layout table .preview-col-image { width:12%; }
 .quote-preview .document-signature-block { break-inside:avoid; }
+/* Keep sparse landscape quotations and certificate signatures on a balanced
+   sheet. These rules are shared by preview and print, without shrinking text. */
+#quote-preview.document-wide:not(.trade-layout) > .preview-panel { margin:4px 0; padding:6px 10px; }
+#quote-preview.document-wide:not(.trade-layout) .compact-letterhead { padding-top:8px; padding-bottom:6px; }
+#quote-preview.document-wide:not(.trade-layout) .compact-letterhead h1 { margin-top:3px; }
+#quote-preview.document-wide:not(.trade-layout) .compact-document-meta { padding:5px 12px!important; margin-bottom:6px!important; }
+#quote-preview.document-wide:not(.trade-layout) .preview-panel h3 { margin:0 0 7px; font-size:12px; }
+#quote-preview.document-wide:not(.trade-layout) .preview-fields { gap:3px 12px; }
+#quote-preview.document-wide:not(.trade-layout) .preview-fields p { margin:2px 0; }
+#quote-preview.document-wide:not(.trade-layout) .terms-content p { padding:1px 0; margin:0; }
+#quote-preview.document-wide:not(.trade-layout) .bank-grid p { margin:3px 0; }
+#quote-preview.document-wide:not(.trade-layout) { font-size:11px; line-height:1.4; }
+#quote-preview.document-wide:not(.trade-layout) .preview-total { margin-top:4px; padding:4px 0; font-size:18px; }
+#quote-preview.document-wide:not(.trade-layout) .document-seller-signature:not(:has(img)) { min-height:80px; }
+#quote-preview.document-wide:not(.trade-layout) .preview-row-with-image:not(:has(img)) td { height:auto; }
+#quote-preview.document-wide:not(.trade-layout) .bank-grid { gap:0 14px; }
+#quote-preview.document-wide:not(.trade-layout) { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:14px; align-items:start; }
+#quote-preview.document-wide:not(.trade-layout) > * { grid-column:1/-1; }
+#quote-preview.document-wide:not(.trade-layout) > .terms-panel,
+#quote-preview.document-wide:not(.trade-layout) > .bank-panel { grid-column:auto; margin-top:0; }
+#quote-preview.document-wide:not(.trade-layout) > .terms-panel:not(:has(~ .bank-panel:not([hidden]))) { grid-column:1/-1; }
+#quote-preview.document-wide:not(.trade-layout) .bank-grid { display:block; }
+.agency-sheet:not(.agency-commercial) { font-size:12px; }
+.agency-sheet:not(.agency-commercial) .agency-crest { height:54px; }
+.agency-sheet:not(.agency-commercial) h1 { margin:20px 0 10px; font-size:26px; }
+.agency-sheet:not(.agency-commercial) .agency-meta { margin-bottom:18px; }
+.agency-sheet:not(.agency-commercial) .agency-info-grid { margin:14px 0; }
+.agency-sheet:not(.agency-commercial) .agency-info-grid p { padding:8px 12px; gap:3px; }
+.agency-sheet:not(.agency-commercial) h2 { margin:18px 0 8px; }
+.agency-sheet:not(.agency-commercial) .agency-terms li { margin:6px 0; line-height:1.6; }
+.agency-sheet:not(.agency-commercial) .agency-lead,.agency-sheet:not(.agency-commercial) .agency-validity { font-size:13px; line-height:1.6; }
+.agency-sheet:not(.agency-commercial) .agency-scope-summary { margin:12px 0; padding:10px 12px; }
+.agency-sheet:not(.agency-commercial) .agency-signature { margin-top:24px; }
+.agency-sheet:not(.agency-commercial) .agency-seal-side { min-height:120px; padding-top:70px; }
+.agency-sheet:not(.agency-commercial) .agency-commission-section { break-inside:avoid; break-after:avoid; }
+.agency-sheet:not(.agency-commercial) .agency-validity { break-after:avoid; }
+.commission-statement .agency-info-grid p { padding:6px 10px; }
+.commission-statement h2 { margin-top:18px; }
 .document-appearance-toolbar input[type=color]{width:100%;min-height:42px;padding:4px}
 .dictionary-modal td input,.dictionary-modal td select{min-width:110px;width:100%}
 .dictionary-modal td:first-child input{min-width:65px;width:75px}
@@ -2115,6 +2160,10 @@ body.auth-locked.sidebar-collapsed .sidebar > nav:not(.sidebar-toggle) { display
 }
 
 @media print { #work-recovery-modal,#pdf-selection-modal { display:none!important; } }
+@media print {
+ body.printing-standard #view-quote,body.printing-standard .quote-output-pane { margin:0!important; padding:0!important; }
+ body.printing-standard #view-quote > :not(.quote-split-workspace) { display:none!important; }
+}
 
 #work-recovery-modal .modal-card,#pdf-selection-modal .modal-card{max-height:85vh;overflow:auto;width:min(760px,92vw)}
 #work-recovery-modal article{padding:12px 0;border-bottom:1px solid #dbe2ea}

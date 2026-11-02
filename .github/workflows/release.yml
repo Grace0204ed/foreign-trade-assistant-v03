@@ -52,6 +52,8 @@ jobs:
         run: npm run test:language-matrix
       - name: Verify 81 real language PDF exports
         run: npx electron scripts/verify-language-pdfs.cjs
+      - name: Verify multilingual readable tables, colours and multi-page wide lists
+        run: npm run test:readability
       - name: Build installer without concurrent release creation
         run: npm run rebuild:electron && npx electron-builder --win nsis --publish never
       - name: Publish one complete release atomically

@@ -10,6 +10,10 @@ assert(C.validate(rows));assert.throws(()=>C.validate([...rows,{id:'4',value:'d'
 assert.throws(()=>C.validate(rows.map(r=>({...r,parentId:r.id==='1'?'3':r.parentId}))),/循环/);
 assert.equal(C.fieldOptions({options:rows.map(r=>({...r,active:r.id!=='1'}))}).length,0);
 assert.equal(P.contrast('#ffffff'),'#111111');assert.equal(P.contrast('#000000'),'#ffffff');
+assert(P.contrastRatio('#ffffff','#2074b9')>=4.5);assert(P.contrastRatio('#111111','#fff2cc')>=4.5);
+assert.equal(P.contrastRatio('#ffffff','rgba(0, 0, 0, 0)'),1);
+const allocated=P.columnWidths(['description','qty','amount'],[150,45,85],400);assert(allocated[0]*4>=150);assert(allocated[1]*4>=45);assert(allocated[2]*4>=85);assert(Math.abs(allocated.reduce((a,b)=>a+b,0)-100)<.0001);
+for(const keys of [['description','qty','unitPrice','amount'],['sequence','itemType','description','packages','netWeight','grossWeight','hsCode','qty','cbm','billingUnit','marks','unitPrice','currency','amount']]){const widths=P.columnWidths(keys);assert(widths.every(w=>w>0));assert(Math.abs(widths.reduce((a,b)=>a+b,0)-100)<.0001);}
 assert.equal(P.typography().product.fontWeight,700);assert.equal(P.typography({product:{fontWeight:400,color:'#ff0000'}}).product.color,'#ff0000');
 assert.equal(P.typography({product:{fontSize:100}}).product.fontSize,32);
 assert(P.terms('en').endsWith('rejected or delayed.'));assert(P.terms('zh').includes('中国香港'));assert(!P.terms('en').includes('DHBK'));

@@ -289,7 +289,8 @@ async function writeWindowPdf(win,filePath,exclusive) {
   const pdf = await win.webContents.printToPDF({
     printBackground: true,
     marginsType: 0,
-    pageSize: "A4"
+    pageSize: "A4",
+    preferCSSPageSize: true
   });
   fs.writeFileSync(filePath, pdf, exclusive?{flag:'wx'}:undefined);
   return filePath;

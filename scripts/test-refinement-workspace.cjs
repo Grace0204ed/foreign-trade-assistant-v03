@@ -48,6 +48,7 @@ app.whenReady().then(async()=>{
    await run(`document.querySelector('.view.active [data-switch-document="${type}"]').click()`);
    assert(await run(`document.querySelector('.view.active [data-switch-document="${type}"]').classList.contains('is-current-document')`),type+' green selection');
    assert(await run("!document.querySelector('#document-top-tools').hidden"),type+' toolbar');
+   await run('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
    await run("document.querySelector('#document-top-tools [data-tools-view]:not([hidden]) .document-text-options summary').click()");
    assert(await run("!!document.querySelector('#document-top-tools details[open]')"),type+' text style opens');
    await run("document.querySelector('.desktop-topbar').click()");assert(!await run("!!document.querySelector('#document-top-tools details[open]')"));

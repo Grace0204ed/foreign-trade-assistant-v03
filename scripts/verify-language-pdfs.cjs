@@ -1,6 +1,7 @@
 const {app,BrowserWindow}=require('electron');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
 const locales=require('../assets/document-locales.js');
+const auditLayout=require('./document-layout-audit.cjs');
 process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-language-qa-'));
 app.setPath('userData',path.join(process.env.QUOTE_DATA_DIR,'profile'));app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
@@ -44,8 +45,12 @@ app.whenReady().then(async()=>{
     if(type==='invitation'){assert(state.text.includes('QA-PASS-789'));assert(!state.text.includes('Male / 男'),`${lang} gender must follow output language`);if(lang!=='en')assert(state.text.includes(require('../assets/document-fixed-locales.js').lookup('Male',lang)),`${lang} localized gender`);}
     if(!standalone&&lang!=='en')assert(!state.text.includes('Port of Discharge'),`${type}/${lang} untranslated destination port label`);
     if(!standalone){assert(state.text.includes('QA Buyer 123'));if(await run(`!!document.querySelector('#${host} .preview-col-hsCode')`))assert(state.text.includes('84294000'));assert(state.text.includes('Dynapac CA402'));assert(state.columns.every(n=>n===state.headers),`${type}/${lang} columns mismatch`);}
+    assert.deepEqual(await run(`(${auditLayout.toString()})('${host}')`),[],`${type}/${lang} screen layout`);
     const cls=standalone?'printing-'+kind:'printing-standard';await run(`document.body.classList.add('${cls}')`);
-    const file=path.join(output,`${type}-${lang}.pdf`);fs.writeFileSync(file,await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4'}));
+    win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
+    assert.deepEqual(await run(`(${auditLayout.toString()})('${host}')`),[],`${type}/${lang} print layout`);
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
+    const file=path.join(output,`${type}-${lang}.pdf`);fs.writeFileSync(file,await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));
     await run(`document.body.classList.remove('${cls}')`);results.push({type,lang,file});
    }
   }

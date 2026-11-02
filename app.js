@@ -4347,6 +4347,10 @@
 
   function normalizedQuoteStyle(value){return ({business:'blue-white',modern:'burgundy',minimal:'slate',gold:'classic'})[value]||value||'classic';}
 
+  let documentColorSaveQueue=Promise.resolve();
+  function preferredDocumentColor(type){const colors=settings.documentColorPreferences||load('quote_assistant_document_colors',{});return /^#[0-9a-f]{6}$/i.test(colors[type]||'')?colors[type]:'#285fc1';}
+  function rememberDocumentColor(type,color){if(!/^#[0-9a-f]{6}$/i.test(color))return;settings.documentColorPreferences={...load('quote_assistant_document_colors',{}),...settings.documentColorPreferences,[type]:color};save(keys.settings,settings);documentColorSaveQueue=documentColorSaveQueue.then(()=>api('/api/settings/document-color',{method:'PUT',body:JSON.stringify({documentType:type,color})})).catch(error=>{console.warn('Document colour save failed',error);toast('颜色已在本机暂存，持久保存失败，请检查本机服务。');});}
+
   function newQuote(advanceNumber = false, documentType = "quotation") {
     if(workspaceReady)persistWork();
     const d = today();
@@ -4359,6 +4363,7 @@
       isFormal: false,
       sourceQuoteId: "",
       documentType: docType,
+      tableHeaderColor: preferredDocumentColor(docType),
       quoteStyle: normalizedQuoteStyle(settings.quoteStyle),
       quoteNumber: nextQuoteNumber(d, advanceNumber, docType),
       quoteDate: d,
@@ -4413,6 +4418,7 @@
     const party = invitationPartyInfo();
     currentInvitation = {
       id: uid("invitation"),
+      tableHeaderColor: preferredDocumentColor('invitation'),
       language: "bilingual",
       style: "classic",
       date: today(),
@@ -4702,6 +4708,7 @@
     const date = today(), party = invitationPartyInfo();
     currentAgentAuthorization = {
       id: "", documentType:"authorization", isTemplate:false, authorizationNumber: AgencyDocuments.number('authorization',date,agentAuthorizations),
+      tableHeaderColor: preferredDocumentColor('authorization'),
       date, validUntil: "", language: "bilingual", company: [party.nameEn || settings.companyNameEn, party.nameZh || settings.companyNameZh].filter(Boolean).join(" / "),
       authorizer: settings.agencyAuthorizer || party.signerName || settings.contactPerson || "", authorizerTitle: settings.agencyAuthorizerTitle || party.signerTitle || "",
       signatureDataUrl: settings.agencySignatureDataUrl || "", signatureRotation: settings.agencySignatureRotation || 0,
@@ -7138,7 +7145,7 @@
     const viewport=$('quote-preview')?.closest('.quote-preview-viewport'),preview=$('quote-preview'),mode=$('quote-preview-mode'),scaleOutput=$('quote-preview-scale'),reset=$('quote-preview-reset');
     if(!viewport||!preview||!mode||!scaleOutput||!reset)return;
     let scale=1;
-    const apply=()=>{viewport.dataset.previewMode=mode.value;if(mode.value==='fit'){preview.style.zoom='1';preview.style.width='100%';scaleOutput.value='适应宽度';}else{preview.style.width='210mm';preview.style.zoom=String(scale);scaleOutput.value=`${Math.round(scale*100)}%`;}};
+    const apply=()=>{viewport.dataset.previewMode=mode.value;if(mode.value==='fit'){preview.style.width='100%';preview.style.zoom=preview.classList.contains('document-wide')?String(Math.min(1,(viewport.clientWidth-48)/preview.offsetWidth)):'1';scaleOutput.value='适应宽度';}else{preview.style.width=preview.classList.contains('document-wide')?'297mm':'210mm';preview.style.zoom=String(scale);scaleOutput.value=`${Math.round(scale*100)}%`;}};
     mode.addEventListener('change',()=>{scale=1;apply();});
     reset.addEventListener('click',()=>{mode.value='center';scale=1;apply();});
     viewport.addEventListener('wheel',event=>{if(!event.ctrlKey)return;event.preventDefault();mode.value='center';scale=Math.min(2,Math.max(.4,Math.round((scale+(event.deltaY<0?.1:-.1))*10)/10));apply();},{passive:false});
@@ -7163,9 +7170,8 @@
     $('pdf-language').addEventListener('change',()=>{if($('document-language-editor')?.open)renderDocumentLanguageEditor();});
     $('document-language-rows')?.addEventListener('input',event=>{const input=event.target;if(!input.dataset.documentText)return;currentQuote.translations||={};currentQuote.translations[input.dataset.documentLanguage]||={};currentQuote.translations[input.dataset.documentLanguage][input.dataset.documentText]=input.value;renderPreview();});
     $('quote-photo-appendix').addEventListener('change',()=>{currentQuote.photoAppendix=$('quote-photo-appendix').checked;renderPreview();});
-    for(const name of ['input','change'])$('document-table-color')?.addEventListener(name,event=>{currentQuote.tableHeaderColor=event.target.value;renderPreview();scheduleDraftRecovery();});
+    for(const name of ['input','change'])$('document-table-color')?.addEventListener(name,event=>{currentQuote.tableHeaderColor=event.target.value;rememberDocumentColor(currentQuote.documentType||'quotation',event.target.value);renderPreview();scheduleDraftRecovery();});
     $('apply-pi-payment-shipping')?.addEventListener('click',()=>{if(currentQuote.documentType!=='invoice')return;collectQuoteFromForm();if(currentQuote.terms.notes&&!confirm('用新版30%订金、70%装船前尾款条款替换当前备注？保存前不会修改历史原单。'))return;currentQuote.terms.notes=DocumentPresentation.terms('bilingual');renderQuoteTerms();renderPreview();scheduleDraftRecovery();});
-    $('document-color-reset')?.addEventListener('click',()=>{currentQuote.tableHeaderColor='';renderPreview();scheduleDraftRecovery();});
     const setProductType=(patch)=>{currentQuote.documentTypography=DocumentPresentation.typography(currentQuote.documentTypography);Object.assign(currentQuote.documentTypography.product,patch);renderPreview();scheduleDraftRecovery();};
     $('document-product-style')?.addEventListener('change',event=>{const type=event.target.value;setProductType({fontWeight:type==='regular'?400:700,...(type==='bold-black'?{color:'#000000'}:{})});});
     $('document-product-color')?.addEventListener('input',event=>setProductType({color:event.target.value}));
@@ -7209,7 +7215,7 @@
         bindInvitationToForm();switchView('invitation');updateDocumentSwitchState();return;
       }
       if(type==='authorization'||type==='procurement'||type==='statement'){
-        if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization();Object.assign(currentAgentAuthorization,{documentType:type,authorizationNumber:AgencyDocuments.number(type,today(),agentAuthorizations),agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
+        if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization();Object.assign(currentAgentAuthorization,{documentType:type,tableHeaderColor:preferredDocumentColor(type),authorizationNumber:AgencyDocuments.number(type,today(),agentAuthorizations),agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
         bindAgentAuthorizationForm();switchView('agency');updateDocumentSwitchState();return;
       }
       if(drafts.has(type))currentQuote=structuredClone(drafts.get(type));else{
@@ -7247,8 +7253,8 @@
   const renderAgencyPresentationBase=renderAgentAuthorizationPreview;
   renderAgentAuthorizationPreview=function(){const previous=settings;try{if(currentAgentAuthorization?.companySnapshot)settings={...settings,...currentAgentAuthorization.companySnapshot};if(pdfSnapshotMode&&currentAgentAuthorization?.documentConfigSnapshot)settings={...settings,documentConfigs:{...settings.documentConfigs,agency:currentAgentAuthorization.documentConfigSnapshot}};renderAgencyPresentationBase();}finally{settings=previous;}if(currentAgentAuthorization){DocumentPresentation.apply($('agency-preview'),currentAgentAuthorization);if($('agency-color'))$('agency-color').value=currentAgentAuthorization.tableHeaderColor||'#285fc1';}};
   function bindStandalonePresentation(){
-    $('invitation-color')?.addEventListener('input',event=>{currentInvitation.tableHeaderColor=event.target.value;renderInvitationPreview();});
-    $('agency-color')?.addEventListener('input',event=>{currentAgentAuthorization.tableHeaderColor=event.target.value;renderAgentAuthorizationPreview();});
+    $('invitation-color')?.addEventListener('input',event=>{currentInvitation.tableHeaderColor=event.target.value;rememberDocumentColor('invitation',event.target.value);renderInvitationPreview();});
+    $('agency-color')?.addEventListener('input',event=>{currentAgentAuthorization.tableHeaderColor=event.target.value;rememberDocumentColor(currentAgentAuthorization.documentType||'authorization',event.target.value);renderAgentAuthorizationPreview();});
   }
 
 
@@ -7305,7 +7311,7 @@
     for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency'))persistWork(true);});
     document.addEventListener('click',()=>persistWork(),true);
     window.hasUnsavedWork=()=>dirtyWork.size>0||pendingWork.size>0||Boolean(workCaptureError);
-    window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
+    window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
     window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
     // Recovery stays available on demand; only the desktop close action prompts.

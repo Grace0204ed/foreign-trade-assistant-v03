@@ -31,7 +31,7 @@ app.whenReady().then(async()=>{
     fs.writeFileSync(path.join(output,'contract-print-layout.json'),JSON.stringify(await run("['body','.app-shell','.main','#view-quote','.quote-split-workspace','.quote-output-pane','.quote-preview-viewport','#quote-preview','.document-signature-block'].map(s=>{const el=document.querySelector(s),c=getComputedStyle(el),r=el.getBoundingClientRect();return {s,top:r.top,height:r.height,padding:c.padding,margin:c.margin,minHeight:c.minHeight,display:c.display,overflow:c.overflow}})"),null,2));
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
    }
-   fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4'}));
+   fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));
    await run("document.body.classList.remove('printing-standard')");
   }
   for(const type of ['quotation','invoice']){
@@ -42,7 +42,7 @@ app.whenReady().then(async()=>{
    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
    fs.writeFileSync(path.join(output,'short-'+type+'-layout.json'),JSON.stringify(await run("['#quote-preview','.document-parties','.preview-panel','.document-payment','.bank-panel','.document-signature-block','.document-seller-signature','table tr:last-child','table tr:last-child img'].map(s=>{const el=document.querySelector(s);if(!el)return {s};const c=getComputedStyle(el),r=el.getBoundingClientRect();return {s,top:r.top,height:r.height,padding:c.padding,margin:c.margin,minHeight:c.minHeight,html:el.tagName==='IMG'?el.outerHTML:undefined}})"),null,2));
    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
-   fs.writeFileSync(path.join(output,'short-'+type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4'}));
+   fs.writeFileSync(path.join(output,'short-'+type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));
    await run("document.body.classList.remove('printing-standard')");
   }
   for(const [type,view,cls] of [['invitation','invitation','printing-invitation'],['authorization','agency','printing-agency'],['agreement','agency','printing-agency'],['statement','agency','printing-agency'],['procurement','agency','printing-agency']]){
@@ -52,7 +52,7 @@ app.whenReady().then(async()=>{
    fs.writeFileSync(path.join(output,type+'-preview.png'),(await win.webContents.capturePage()).toPNG());
    await run(`document.body.classList.add('${cls}')`);
    if(type==='invitation')fs.writeFileSync(path.join(output,'invitation-layout.json'),JSON.stringify(await run(`['.invitation-sheet','.invitation-info-grid','.invitation-info-grid p:nth-child(5)','.invitation-footer'].map(s=>{const e=document.querySelector(s),c=getComputedStyle(e),r=e.getBoundingClientRect();return {s,width:r.width,height:r.height,font:c.fontSize,gridColumn:c.gridColumn,margin:c.margin,padding:c.padding}})`),null,2));
-   fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4'}));
+   fs.writeFileSync(path.join(output,type+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));
    await run(`document.body.classList.remove('${cls}')`);
   }
   await run("window.quoteApp.editQuote('pdf-invoice')");

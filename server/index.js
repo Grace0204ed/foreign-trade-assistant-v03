@@ -755,6 +755,16 @@ app.get("/api/settings", requireLogin, (req, res) => {
   ok(res, { settings: JSON.parse(row.data_json) });
 });
 
+// Persist one document colour without replacing unrelated company settings.
+app.put("/api/settings/document-color", requireLogin, requireAdmin, (req, res) => {
+  const {documentType,color}=req.body||{};
+  if(!['quotation','invoice','contract','commercial','packing','authorization','statement','procurement','invitation'].includes(documentType)||!/^#[0-9a-f]{6}$/i.test(color||''))return fail(res,400,'Invalid document colour.','单证类型或颜色无效。');
+  const current=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json);
+  current.documentColorPreferences={...current.documentColorPreferences,[documentType]:color};
+  db.prepare('UPDATE company_settings SET data_json=? WHERE id=1').run(JSON.stringify(current));
+  ok(res,{documentType,color});
+});
+
 
 app.put("/api/settings", requireLogin, requireAdmin, (req, res) => {
   try {

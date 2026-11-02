@@ -8,6 +8,7 @@ const P=require('../assets/document-presentation'),compact=s=>s.normalize('NFKC'
    const parser=new PDFParse({data:fs.readFileSync(file)});
    try{const text=await parser.getText();assert(text.pages.length>0);for(const page of text.pages)assert(compact(page.text).length>20,'Blank page: '+file);
      const name=path.basename(file);let all=compact(text.pages.map(p=>p.text).join(''));
+     if(['quotation.pdf','invoice.pdf','contract.pdf','commercial.pdf','packing.pdf'].includes(name))for(let i=0;i<18;i++)assert(all.includes(compact('QA Machine '+i)),'Missing long-table product '+i+': '+name);
      if(name==='invitation.pdf')assert.equal(text.pages.length,1,'Ordinary invitation signature should fit on its first page');
      if(name.startsWith('short-'))assert.equal(text.pages.length,1,'Short document with bank and signature must fit one A4 page: '+name);
      if(name.startsWith('pi-')){

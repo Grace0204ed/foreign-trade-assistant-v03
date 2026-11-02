@@ -16,7 +16,7 @@ app.whenReady().then(async()=>{
   if(pdfMode==='cancel')return null;if(pdfMode==='fail')throw Error('QA simulated disk failure');
   await run('(async()=>{await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));})()');
   const file=path.join(folder,pdfs.length+'-'+name.replace(/[\\/:*?"<>|]/g,'_'));
-  fs.writeFileSync(file,await win.webContents.printToPDF({printBackground:true,pageSize:'A4',marginsType:0}));pdfs.push(file);return file;
+  fs.writeFileSync(file,await win.webContents.printToPDF({printBackground:true,pageSize:'A4',marginsType:0,preferCSSPageSize:true}));pdfs.push(file);return file;
  });
  try{
   await win.loadURL(base);await wait("!!document.querySelector('#overview-metrics article')&&!!window.flushPendingWork");
@@ -84,7 +84,9 @@ app.whenReady().then(async()=>{
    const files=JSON.parse(fs.readFileSync(path.join(folder,'pdfs.json'),'utf8'));const {PDFParse}=require('pdf-parse');const texts=[];
    for(const file of files){const parser=new PDFParse({data:fs.readFileSync(file)});const text=(await parser.getText()).text;texts.push(text);assert(!text.includes('继续上次未完成'));assert(!text.includes('选择导出的单证'));await parser.destroy();}
    assert(texts[0].includes('CURRENT UNSAVED INVITATION'));assert(texts.some(t=>t.includes('UNIQUE AGENT FOUR')&&!t.includes('MACHINE ONE CHANGED')));assert(!texts[0].includes('MACHINE ONE CHANGED'));
-   assert(texts.some(t=>t.includes('MACHINE ONE CHANGED')&&!t.includes('MACHINE TWO DIFFERENT')));assert(texts.some(t=>t.includes('MACHINE TWO DIFFERENT')&&!t.includes('MACHINE ONE CHANGED')));
+   // PDF extraction inserts whitespace at legitimate table wrapping points.
+   const content=texts.map(t=>t.replace(/\s/g,''));
+   assert(content.some(t=>t.includes('MACHINEONECHANGED')&&!t.includes('MACHINETWODIFFERENT')));assert(content.some(t=>t.includes('MACHINETWODIFFERENT')&&!t.includes('MACHINEONECHANGED')));
    const output=path.resolve('output/iteration-qa/recovery');fs.mkdirSync(output,{recursive:true});
    for(let i=0;i<files.length;i++)fs.copyFileSync(files[i],path.join(output,'batch-'+i+'.pdf'));
    const parser=new PDFParse({data:fs.readFileSync(files[1])});const shots=await parser.getScreenshot({scale:1,first:1});fs.writeFileSync(path.join(output,'batch-first-page.png'),shots.pages[0].data);await parser.destroy();
