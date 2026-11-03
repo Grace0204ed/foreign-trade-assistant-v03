@@ -34,6 +34,8 @@ jobs:
       - run: npm test
       - name: Verify formal lock, hierarchy, fields, top settings, calculator and commission
         run: npm run test:iteration
+      - name: Verify approved demo alignment and real pointer sorting
+        run: npm run test:demo-alignment
       - name: Verify configured customer workflow in Electron
         run: npm run test:customers
       - name: Verify approved layout and history pagination in Electron
