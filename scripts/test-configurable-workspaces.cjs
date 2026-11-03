@@ -20,7 +20,8 @@ assert.ok(appText.includes('currencyDisplay:meta.currencyDisplay')&&appText.incl
 assert.ok(appText.includes("data-basic-custom"),'custom basic fields are not wired to the document');
 assert.ok(workspaceText.includes('data-quote-template-config'),'quote settings cannot switch business templates');
 assert.ok(workspaceText.includes('多级选项')&&workspaceText.includes('parentId'),'hierarchical option configuration is missing');
-assert.ok(workspaceText.includes('历史产品模板')&&workspaceText.includes('data-history-restore'),'product template history is missing');
+assert.ok(workspaceText.includes('ProductSchema.ensure')&&workspaceText.includes('data-product-settings-tab="fields"'),'shared product schema settings are missing');
+assert.ok(!workspaceText.includes('历史产品模板'),'retired fixed product-template UI must not return');
 assert.ok(workspaceText.includes('data-field-edit')&&workspaceText.includes('data-field-child'),'hierarchical field editing is missing');
 assert.ok(!indexText.includes('id="product-condition"'),'retired fixed equipment condition input is still visible');
 assert.ok(workspaceText.includes('draggable="true"')&&workspaceText.includes('ondrop'),'drag sorting is missing');

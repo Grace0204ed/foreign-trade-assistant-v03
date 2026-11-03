@@ -58,13 +58,17 @@
   const draw=()=>host.innerHTML=selectMarkup(editingSelection);
   host.onchange=e=>{const index=Number(e.target.dataset.productHierarchy);editingSelection[index]=e.target.value;editingSelection=editingSelection.slice(0,index+1);draw();syncBrand();};draw();syncBrand();
  }
- function syncBrand(){const selection=model.selection(config(),editingSelection);for(const [key,value] of [['brand',selection?.labels[2]],['productType',selection?.labels[1]]]){const input=document.querySelector('[data-product-field="'+key+'"]');if(input){if(value)input.value=value;input.closest('label').hidden=Boolean(selection);}}}
+ function syncBrand(){document.dispatchEvent(new CustomEvent('product-classification-changed',{detail:editingSelection.slice()}));const selection=model.selection(config(),editingSelection);for(const [key,value] of [['brand',selection?.labels[2]],['productType',selection?.labels[1]]]){const input=document.querySelector('[data-product-field="'+key+'"]');if(input){if(value)input.value=value;input.closest('label').hidden=Boolean(selection);}}}
  function setEditorSelection(ids){editingSelection=ids;document.getElementById('product-hierarchy-fields').innerHTML=selectMarkup(ids);syncBrand();}
  function collect(){const selected=model.selection(config(),editingSelection);return selected?{_classification:selected,productType:selected.labels[1],brand:selected.labels[2]}:{};}
  function mountFilters(){
-  if(!context)return;let host=document.getElementById('library-hierarchy-filters');if(!host){host=document.createElement('div');host.id='library-hierarchy-filters';host.className='form-grid';document.querySelector('#product-library-list-panel .search-row').after(host);}
+  if(!context)return;let host=document.getElementById('library-hierarchy-filters');if(!host){host=document.createElement('div');host.id='library-hierarchy-filters';host.className='form-grid';document.querySelector('#product-library-list-panel .search-row').before(host);}
   host.innerHTML=selectMarkup(filters,true).replaceAll('data-product-hierarchy','data-library-hierarchy').replaceAll('请选择','全部');
   host.onchange=e=>{const index=Number(e.target.dataset.libraryHierarchy);filters[index]=e.target.value;filters=filters.slice(0,index+1);mountFilters();context.renderProducts();};
+  let trail=document.getElementById('library-classification-context');if(!trail){trail=document.createElement('div');trail.id='library-classification-context';document.querySelector('#product-library-list-panel .search-row').after(trail);}
+  const labels=filters.map(id=>config().nodes.find(n=>n.id===id)?.label).filter(Boolean);
+  trail.innerHTML='<span>'+esc(labels.join(' › ')||'全部产品')+'</span>'+(filters.length===3&&filters.every(Boolean)?'<button type="button" class="primary" data-library-new-model>＋ 新增型号</button>':'');
+  const add=trail.querySelector('[data-library-new-model]');if(add)add.onclick=()=>{context.newProduct();setEditorSelection(filters.slice());};
  }
  const matches=p=>!context||filters.every((id,i)=>!id||model.resolve(config(),p)[i]===id);
  function init(ctx){context=ctx;mountFilters();}

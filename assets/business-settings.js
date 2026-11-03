@@ -15,7 +15,7 @@
   const titles=c.settings.companyJobTitles||['CEO','总经理','销售经理','销售主管','负责人'];jobs.innerHTML='<h3>公司职务选项</h3><p>每行一个职务，可新增、编辑或删除；签署人仍可直接填写其他职务。不会改写既有签署信息。</p><textarea data-job-titles rows="5">'+esc(titles.join('\n'))+'</textarea><button type="button" data-save-jobs>保存设置</button><datalist id="company-job-title-options">'+titles.map(v=>'<option value="'+esc(v)+'"></option>').join('')+'</datalist>';
   jobs.onclick=async e=>{if(!e.target.matches('[data-save-jobs]'))return;try{await c.save({companyJobTitles:[...new Set(jobs.querySelector('[data-job-titles]').value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean))]});c.toast('职务选项已保存。');}catch(error){c.toast(error.message);}};
   document.querySelectorAll('#invitation-title,#agency-authorizer-title,#company-signer-title,[data-signature-title]').forEach(n=>{if(n.tagName==='INPUT')n.setAttribute('list','company-job-title-options');});
-  mountTransportMapping(c);
+  document.getElementById('product-transport-mapping')?.remove();
  }
  const transportTargets={transportLength:'长度',transportWidth:'宽度',transportHeight:'高度',transportCbm:'单件体积',weight:'单件重量（吨）'};
  function mountTransportMapping(c){let host=document.getElementById('product-transport-mapping');if(!host){host=document.createElement('section');host.id='product-transport-mapping';host.className='panel';host.dataset.settingsPanel='product-config';const parent=document.getElementById('settings-product-config-host');parent?.after(host);host.hidden=parent?.hidden??true;}

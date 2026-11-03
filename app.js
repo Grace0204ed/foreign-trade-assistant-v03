@@ -3968,14 +3968,14 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     $("product-template")?.closest('label')?.setAttribute('hidden','');
     const tpl = productTemplateByName($("product-template")?.value || product.templateName);
     const values = productValues(product);
-    const fields = (tpl?.fields || [])
+    const fields = ProductSchema.fields(settings)
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .filter((field) => !field.deletedAt && field.active !== false && field.fieldType !== "calculated" && field.fieldKey !== 'productImage' && field.fieldKey !== 'params');
     host.innerHTML = fields.map((field) => `
       <label class="${field.fieldType === "textarea" ? "wide" : ""}">
         <span>${escapeHtml(field.zh||field.en)}${field.required ? " *" : ""}</span>
-        ${renderProductLibraryFieldInput(field, values[field.fieldKey] ?? "")}
+        ${renderProductLibraryFieldInput(field, ProductSchema.value(product,field.fieldKey))}
       </label>
     `).join("");
     fields.filter(f=>['image','richtext'].includes(f.fieldType)).forEach(field=>{const input=host.querySelector('[data-product-field="'+CSS.escape(field.fieldKey)+'"]');if(input){ConfiguredFields.enhance(input,field);input.after(input._choiceList);}});
@@ -3992,7 +3992,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const val = escapeHtml(value);
     const catalogKey={billingUnit:'billingUnits',unit:'billingUnits',transportMethod:'shippingMethods',shippingMethod:'shippingMethods',containerType:'containerTypes',paymentCondition:'paymentConditions'}[field.fieldKey];
     if(catalogKey)return `<select data-product-field="${key}">${catalogOptions(catalogKey,value,true)}</select>`;
-    if (field.fieldKey === "currency") return renderCurrencySelectFor("product", field.fieldKey, value);
+    if (field.fieldKey === "currency" || field.fieldType === "currency") return renderCurrencySelectFor("product", field.fieldKey, value);
     if (["textarea","richtext"].includes(field.fieldType)) return `<textarea data-product-field="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-product-field="${key}" type="date" value="${val}" />`;
     if (field.fieldKey === "unitPrice" || field.fieldType === "money") return `<input data-product-field="${key}" type="text" value="${val}" placeholder="可留空或填写价格范围" />`;
@@ -4068,7 +4068,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function reviewProductTextImport() {
     let analysis;
     const importTemplate=$('product-import-template')?.value||settings.templates[0]?.name;
-    const templateFields=settings.templates.find(t=>t.name===importTemplate)?.fields||[];
+    const templateFields=ProductSchema.fields(settings);
     const importFields={...ProductTextImport.fields,...Object.fromEntries(templateFields.filter(f=>f.active!==false&&f.fieldType!=='image'&&f.fieldType!=='calculated').map(f=>[f.fieldKey,f.zh||f.en||f.fieldKey]))};
     try{analysis=ProductTextImport.inspect($('price-import-text').value,templateFields);}catch(error){return toast(error.message);}
     $('product-import-modal')?.close();
@@ -4079,7 +4079,6 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     modal.querySelectorAll('[data-import-column]').forEach((select,i)=>{select.innerHTML='<option value="">忽略此列</option>'+Object.entries(importFields).map(([key,label])=>`<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');select.value=analysis.mapping[i]||'';});
     const close=()=>{if(!saving)modal.hidden=true;};modal.querySelector('[data-import-close]').onclick=close;modal.onclick=e=>{if(e.target===modal)close();};modal.onkeydown=e=>{if(e.key==='Escape')close();};
     modal.querySelectorAll('select').forEach(input=>input.onchange=()=>{queue=null;success=0;skipped=0;});
-    $('import-product-template').onchange=()=>{queue=null;success=0;skipped=0;const fields=settings.templates.find(t=>t.name===$('import-product-template').value)?.fields||[],choices={...ProductTextImport.fields,...Object.fromEntries(fields.filter(f=>!f.deletedAt&&f.active!==false&&!['image','calculated'].includes(f.fieldType)).map(f=>[f.fieldKey,f.zh||f.en||f.fieldKey]))};modal.querySelectorAll('[data-import-column]').forEach((select,i)=>{const old=select.value;select.innerHTML='<option value="">忽略此列</option>'+Object.entries(choices).map(([key,label])=>`<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');select.value=Object.hasOwn(choices,old)?old:ProductTextImport.inspect(analysis.headings.join('\t'),fields).mapping[i]||'';});};
     $('import-review-save').onclick=async()=>{
       if(saving)return;const button=$('import-review-save'),status=$('import-review-status');
       try{
@@ -4229,22 +4228,17 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const hierarchy=window.ProductHierarchyWorkspace?.config();
     const classification=p=>hierarchy?ProductHierarchy.resolve(hierarchy,p).map(id=>hierarchy.nodes.find(n=>n.id===id)?.label||''):[];
     window.ProductHierarchyWorkspace?.mountFilters();
-    const matched=list.filter(p=>(!selectedTemplate||p.templateName===selectedTemplate)&&(!window.ProductHierarchyWorkspace||window.ProductHierarchyWorkspace.matches(p))).sort((a,b)=>String(a.model||a.values?.model||productDisplayName(a)).localeCompare(String(b.model||b.values?.model||productDisplayName(b)),'zh-CN',{numeric:true,sensitivity:'base'}));
+    const matched=list.filter(p=>(!selectedTemplate||p.templateName===selectedTemplate)&&(!window.ProductHierarchyWorkspace||window.ProductHierarchyWorkspace.matches(p)));
+    if(window.ProductHierarchyWorkspace?.getFilter()?.some(Boolean))matched.sort((a,b)=>String(a.model||a.values?.model||productDisplayName(a)).localeCompare(String(b.model||b.values?.model||productDisplayName(b)),'zh-CN',{numeric:true,sensitivity:'base'}));
     const filterKey=JSON.stringify([kw,category,condition,selectedTemplate,window.ProductHierarchyWorkspace?.getFilter()]);
     libraryMatchedIds=matched.map(p=>p.id);
     if(filterKey!==libraryFilterKey){libraryPage=1;libraryFilterKey=filterKey;}
     const pageCount=Math.max(1,Math.ceil(matched.length/libraryPageSize));
     libraryPage=Math.max(1,Math.min(libraryPage,pageCount));
     const shown=matched.slice((libraryPage-1)*libraryPageSize,libraryPage*libraryPageSize);
-    const templates=settings.templates||[];
-    const columns=new Map();
-    const excluded=new Set(['productImage','image','totalAmount','amount','qty','itemType','condition']);
-    for(const tpl of templates.filter(t=>!selectedTemplate||t.name===selectedTemplate))for(const field of [...(tpl.fields||[])].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0)))if(field.visible!==false&&field.active!==false&&!excluded.has(field.fieldKey)&&!columns.has(field.fieldKey))columns.set(field.fieldKey,field);
-    if(!columns.size)for(const [fieldKey,zh] of [['brand','品牌'],['model','型号'],['params','规格参数'],['unitPrice','价格']])columns.set(fieldKey,{fieldKey,zh});
-    const fields=[...columns.values()];
-    $('product-library-summary').innerHTML=[['产品总数',products.length+' 条'],['产品类型',new Set(products.map(p=>classification(p)[0]||'未分类')).size+' 种'],['已有图片',products.filter(p=>p.imageDataUrl).length+' 条']].map(([label,value])=>`<article class="overview-metric"><span>${label}</span><strong>${value}</strong></article>`).join('');
-    if($('product-filter-summary'))$('product-filter-summary').textContent=`当前显示 ${shown.length} 条，共 ${products.length} 条产品。`;
-$('product-list').innerHTML='<div class="library-table-scroll"><table class="library-table"><thead><tr><th><input type="checkbox" id="library-select-all" aria-label="全选当前列表"></th><th>图片</th><th>商品名称／型号</th>'+fields.map(f=>`<th>${escapeHtml(f.zh||f.en||f.fieldKey)}</th>`).join('')+'<th>分类</th><th>操作</th></tr></thead><tbody>'+shown.map(p=>`<tr data-library-row="${escapeHtml(p.id)}"><td><input type="checkbox" data-library-select="${escapeHtml(p.id)}" aria-label="选择 ${escapeHtml(productDisplayName(p))}"></td><td>${p.imageDataUrl?`<img class="library-thumb" src="${escapeHtml(p.imageDataUrl)}" alt="${escapeHtml(productDisplayName(p))}" loading="lazy">`:'<div class="library-thumb library-no-image">暂无图片</div>'}</td><td><button type="button" class="library-product-name" data-library-detail="${escapeHtml(p.id)}">${escapeHtml(productDisplayName(p))}</button><small>${escapeHtml(p.inventoryCode||'')}</small></td>${fields.map(f=>`<td><div class="library-cell-value">${ConfiguredFields.html(f,productLibraryValue(p,f))}</div></td>`).join('')}<td><span class="library-type-badge">${escapeHtml(classification(p).join(' › ')||'未分类')}</span></td><td><div class="library-row-actions"><button type="button" data-library-detail="${escapeHtml(p.id)}">详情</button><button type="button" data-library-use="${escapeHtml(p.id)}">引用</button><button type="button" data-library-edit="${escapeHtml(p.id)}">编辑</button></div></td></tr>`).join('')+`</tbody></table>${shown.length?'':'<p class="empty">暂无匹配产品，可新增产品或调整筛选条件。</p>'}</div>`;
+    if($('product-library-summary'))$('product-library-summary').hidden=true;
+    if($('product-filter-summary'))$('product-filter-summary').textContent=`当前显示 ${shown.length} 条，共 ${matched.length} 条产品。`;
+    $('product-list').innerHTML='<div class="library-table-scroll"><table class="library-table library-compact"><thead><tr><th><input type="checkbox" id="library-select-all" aria-label="全选当前列表"></th><th>图片</th><th>名称／型号</th><th>小类</th><th>品牌</th><th>价格</th><th>操作</th></tr></thead><tbody>'+shown.map(p=>`<tr data-library-row="${escapeHtml(p.id)}"><td><input type="checkbox" data-library-select="${escapeHtml(p.id)}" aria-label="选择 ${escapeHtml(productDisplayName(p))}"></td><td>${p.imageDataUrl?`<img class="library-thumb" src="${escapeHtml(p.imageDataUrl)}" alt="产品图片" loading="lazy">`:'<div class="library-thumb library-no-image">暂无图片</div>'}</td><td><button type="button" class="library-product-name" data-library-detail="${escapeHtml(p.id)}">${escapeHtml(productDisplayName(p))}</button><small>${escapeHtml(p.inventoryCode||'')}</small></td><td>${escapeHtml(classification(p)[1]||'—')}</td><td>${escapeHtml(classification(p)[2]||p.brand||'—')}</td><td>${escapeHtml(productLibraryValue(p,{fieldKey:'unitPrice',fieldType:'money'}))}</td><td><div class="library-row-actions"><button type="button" data-library-edit="${escapeHtml(p.id)}">编辑</button><button type="button" data-library-detail="${escapeHtml(p.id)}">预览</button></div></td></tr>`).join('')+`</tbody></table>${shown.length?'':'<p class="empty">暂无匹配产品，可新增产品或调整筛选条件。</p>'}</div>`;
     const pagination=document.createElement('div');pagination.className='actions library-pagination';
     pagination.innerHTML=`<button type="button" data-library-page="${libraryPage-1}" ${libraryPage===1?'disabled':''}>上一页</button><span>第 ${libraryPage} / ${pageCount} 页 · 匹配 ${matched.length} 条 · 每页 ${libraryPageSize} 条</span><button type="button" data-library-page="${libraryPage+1}" ${libraryPage===pageCount?'disabled':''}>下一页</button><small>全选和批量删除仅作用于当前页；翻页或筛选后清除选择。</small>`;
     $('product-list').append(pagination);
@@ -4277,7 +4271,7 @@ $('product-list').innerHTML='<div class="library-table-scroll"><table class="lib
   }
   function productLibraryValue(product,field){
     const values=productValues(product),key=field.fieldKey;
-    const value=key==='unitPrice'?(product.specificPrice??values.unitPrice):values[key]??product[key];
+    const value=ProductSchema.value(product,key);
     if(value===undefined||value===null||value==='')return '—';
     if(key==='unitPrice'||field.fieldType==='money')return (product.currency||values.currency||settings.currency||'USD')+' '+String(value);
     if(typeof value==='boolean')return value?'是':'否';
@@ -4287,7 +4281,8 @@ $('product-list').innerHTML='<div class="library-table-scroll"><table class="lib
     const p=products.find(item=>item.id===id);if(!p)return;
     let modal=$('library-detail-modal');
     if(!modal){modal=document.createElement('div');modal.id='library-detail-modal';modal.className='modal no-print';modal.innerHTML='<div class="modal-card library-detail-card" role="dialog" aria-modal="true" aria-labelledby="library-detail-title"></div>';document.body.append(modal);modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('[data-library-close]')){modal.hidden=true;document.querySelector('[data-library-detail="'+CSS.escape(id)+'"]')?.focus();}});modal.addEventListener('keydown',e=>{if(e.key==='Escape')modal.hidden=true;});}
-    const fields=(productTemplateByName(p.templateName)?.fields||[]).filter(f=>f.visible!==false&&f.active!==false&&!['image','productImage'].includes(f.fieldKey)).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+    const fields=ProductSchema.fields(settings).filter(f=>!['image','productImage'].includes(f.fieldKey));
+    if(p.values?.params||p.params)fields.push({fieldKey:'params',zh:'规格参数',fieldType:'textarea'});
     modal.firstElementChild.innerHTML=`<header><div><small>${escapeHtml(ProductHierarchy.resolve(window.ProductHierarchyWorkspace?.config()||ProductHierarchy.seed(products),p).map(id=>(window.ProductHierarchyWorkspace?.config()?.nodes||[]).find(n=>n.id===id)?.label).filter(Boolean).join(' › ')||'产品详情')}</small><h3 id="library-detail-title">${escapeHtml(productDisplayName(p))}</h3></div><button type="button" data-library-close>关闭</button></header><div class="library-detail-content">${p.imageDataUrl?`<img src="${escapeHtml(p.imageDataUrl)}" alt="商品图片">`:'<div class="library-detail-no-image">暂无产品图片</div>'}<dl>${fields.map(f=>`<div><dt>${escapeHtml(f.zh||f.en||f.fieldKey)}</dt><dd>${ConfiguredFields.html(f,productLibraryValue(p,f))}</dd></div>`).join('')}</dl></div><footer><button type="button" id="library-detail-edit">编辑资料</button><button type="button" class="primary" id="library-detail-use">引用到单证</button></footer>`;
     $('library-detail-edit').onclick=()=>{modal.hidden=true;editProduct(id);};$('library-detail-use').onclick=()=>{if(useLibraryProduct(id))modal.hidden=true;};
     modal.hidden=false;modal.querySelector('[data-library-close]').focus();
@@ -6800,6 +6795,7 @@ $('product-list').innerHTML='<div class="library-table-scroll"><table class="lib
     $('product-editor-modal').addEventListener('cancel',event=>{event.preventDefault();closeProductEditorModal();});
     $('product-editor-modal').addEventListener('close',()=>document.body.classList.remove('product-editor-open'));
     $('library-configure')?.addEventListener('click',()=>openSettingsSection('product-config'));
+    document.querySelectorAll('[data-help-copy]').forEach(button=>button.onclick=async()=>{try{await navigator.clipboard.writeText(button.dataset.helpCopy);document.querySelector('[data-help-status]').textContent='已复制。';}catch{document.querySelector('[data-help-status]').textContent='复制失败，请手动复制上方联系方式。';}});
     window.ProductWorkflow?.init(window.quoteSettingsContext);
     $('library-import')?.addEventListener('click',()=>window.ProductWorkflow.openImport());
     $('library-catalog')?.addEventListener('click',exportProductCatalogPdf);
@@ -7723,6 +7719,7 @@ $('product-list').innerHTML='<div class="library-table-scroll"><table class="lib
     get settings(){return settings;},
     get products(){return products;},
     collectProduct:collectProductForm,
+    renderProductField:renderProductLibraryFieldInput,
     documentType:kind=>kind==='invitation'?'invitation':kind==='agency'?(currentAgentAuthorization?.documentType||'authorization'):(currentQuote?.documentType||'quotation'),
     openSettings:openSettingsSection,
     outputHtml:kind=>{renderOutputKind(kind);return outputMarkup(kind);},

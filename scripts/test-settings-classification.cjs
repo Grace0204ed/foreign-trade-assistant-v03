@@ -38,7 +38,8 @@ app.whenReady().then(async()=>{
   assert.equal(await run("document.getElementById('library-template-filter')"),null);
   await run("document.querySelector('[data-view=products]').click()");
   await wait("!!document.querySelector('[data-library-edit]')");
-  assert.match(await run("document.querySelector('.library-type-badge').textContent"),/机械设备.*TLB.*JCB/);
+  assert.equal(await run("document.querySelectorAll('.library-compact tbody tr').length"),1);
+  assert.match(await run("document.querySelector('.library-compact tbody').textContent"),/TLB.*JCB/s);
   await run("document.querySelector('[data-library-edit]').click()");
   await wait("document.querySelectorAll('[data-product-hierarchy]').length===3");
   assert.equal(await run("getComputedStyle(document.querySelector('#product-template').closest('label')).display"),'none');

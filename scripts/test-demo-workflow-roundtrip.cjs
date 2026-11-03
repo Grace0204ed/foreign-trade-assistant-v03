@@ -11,35 +11,31 @@ app.whenReady().then(async()=>{
  const products=async()=>(await(await fetch(base+'/api/products')).json()).products;
  try{
   await win.loadURL(base);await wait("document.querySelectorAll('#overview-metrics article').length===4");
-  await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click();document.querySelector('[data-product-field=model]').value='DEMO-SPEC';document.querySelector('[data-spec-mode=fields]').click();document.querySelector('[data-spec-value=spec_0]').value='0';document.querySelector('[data-spec-value=spec_1]').value='2.5';document.querySelector('[data-spec-design]').click()");
-  await run("document.querySelector('dialog.workflow-dialog [data-name]').value='总长度';document.querySelector('dialog.workflow-dialog [data-save]').click()");
-  assert.equal(await run("document.querySelector('[data-spec-value=spec_0]').value"),'0');
+  await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click();document.querySelector('[data-product-field=model]').value='DEMO-SPEC';document.querySelector('[data-spec-mode=fields]').click();document.querySelector('[data-spec-value=spec_power]').value='0';document.querySelector('[data-spec-value=spec_weight]').value='2.5'");
+  assert.equal(await run("document.querySelector('[data-spec-value=spec_power]').value"),'0');
   await run("document.querySelector('#save-product-btn').click()");await wait("!document.querySelector('#product-editor-modal').open");
-  const record=(await products()).find(p=>p.model==='DEMO-SPEC');assert(record);assert(record.values.params.includes('总长度: 0 m'));assert.equal(record.values._specification.values.spec_1,'2.5');
+  const record=(await products()).find(p=>p.model==='DEMO-SPEC');assert(record);assert(record.values.params.includes('额定功率: 0'));assert.equal(record.values._specification.values.spec_weight,'2.5');
   await win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");
   await run(`document.querySelector('[data-view=products]').click();window.quoteApp.editProduct('${record.id}')`);
-  assert.equal(await run("document.querySelector('[data-spec-value=spec_0]').value"),'0');
+  assert.equal(await run("document.querySelector('[data-spec-value=spec_power]').value"),'0');
   await run("document.querySelector('[data-spec-mode=text]').click();document.querySelector('[data-spec-text]').value='发动机：原厂\\n尺寸：12×2.5×3.5m';document.querySelector('#save-product-btn').click()");await wait("!document.querySelector('#product-editor-modal').open");
   assert.equal((await products()).find(p=>p.id===record.id).values.params,'发动机：原厂\n尺寸：12×2.5×3.5m');
   // Custom field schemas remain supported; the retired fixed industry library is absent.
   assert.equal(await run('typeof window.ProductWorkflow.templateLibrary'),'undefined');
-  await run(`quoteSettingsContext.save({templates:[...quoteSettingsContext.settings.templates,{id:'qa-custom-chemical',name:'DEMO化工',fields:[['name','产品名称'],['model','牌号'],['purity','纯度'],['packaging','包装'],['params','规格参数','textarea'],['qty','数量','number'],['unitPrice','单价','money'],['currency','币种'],['remark','备注','textarea']].map(([fieldKey,zh,fieldType='text'],i)=>({id:'qa-field-'+i,fieldKey,zh,en:fieldKey,fieldType,active:true,visible:true,sortOrder:i*10})),termFields:[]}]})`);
-  await wait("window.quoteSettingsContext.settings.templates.some(t=>t.name==='DEMO化工')");
-  await run("(()=>{const c=window.quoteSettingsContext,t=c.settings.templates.find(t=>t.name==='DEMO化工');window.ProductWorkflow.design(t,()=>c.save({templates:c.settings.templates}));})()");
-  await run("document.querySelector('dialog.workflow-dialog [data-add]').click();document.querySelector('dialog.workflow-dialog [data-name]').value='有效成分';document.querySelector('dialog.workflow-dialog [data-unit]').value='%';document.querySelector('dialog.workflow-dialog [data-save]').click()");
-  await wait("!document.querySelector('dialog.workflow-dialog[open]')");
+  await run(`(()=>{const schema=ProductSchema.ensure(quoteSettingsContext.settings);schema.fields.find(f=>f.fieldKey==='model').zh='牌号';schema.fields.push(...[['purity','纯度'],['packaging','包装']].map(([fieldKey,zh],i)=>({id:'qa-field-'+i,fieldKey,zh,en:zh,fieldType:'text',active:true,visible:true,sortOrder:80+i*10})));return quoteSettingsContext.save({productSchema:schema});})()`);
   await win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");
-  assert.equal(await run("window.quoteSettingsContext.settings.templates.find(t=>t.name==='DEMO化工').specificationFields[0].label"),'有效成分');
-  await run("document.querySelector('[data-view=products]').click();window.ProductWorkflow.openImport();document.querySelector('#product-import-template').value='DEMO化工';document.querySelector('#price-import-text').value='产品名称,牌号,纯度,包装,规格参数,数量,单价,币种,备注\\n涂料样品,P100,99%,桶装,可水洗,2,100,USD,测试';document.querySelector('#import-price-btn').click()");
+  assert.equal(await run("ProductSchema.fields(quoteSettingsContext.settings).find(f=>f.fieldKey==='purity').zh"),'纯度');
+  await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click()");
+  assert(await run("!!document.querySelector('[data-product-field=purity]')"));
+  await run("document.querySelector('#product-editor-modal').close();window.ProductWorkflow.openImport();document.querySelector('#price-import-text').value='产品名称,牌号,纯度,包装,规格参数,数量,单价,币种,备注\\n涂料样品,P100,99%,桶装,可水洗,2,100,USD,测试';document.querySelector('#import-price-btn').click()");
   await wait("!!document.querySelector('#import-product-template')");
-  assert.equal(await run("document.querySelector('#import-product-template').value"),'DEMO化工');
   // Cancel the review: parsing must not silently persist records.
   assert(!(await products()).some(p=>p.model==='P100'),'import review does not write automatically');
   await run("document.querySelector('[data-import-close]').click()");
-  await run("window.ProductWorkflow.openImport();document.querySelector('#product-import-template').value='DEMO化工';document.querySelector('#import-price-btn').click()");
+  await run("window.ProductWorkflow.openImport();document.querySelector('#import-price-btn').click()");
   await run("document.querySelector('#import-review-save').click()");
   await wait("document.querySelector('#product-import-review').hidden");
-  const imported=(await products()).find(p=>p.model==='P100');assert(imported);assert.equal(imported.values.purity,'99%');assert.equal(imported.templateName,'DEMO化工');
+  const imported=(await products()).find(p=>p.model==='P100');assert(imported);assert.equal(imported.values.purity,'99%');
   await run("document.querySelector('[data-view=products]').click();window.ProductWorkflow.openImport()");
   await run('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
   fs.writeFileSync(path.join(output,'import-modal.png'),(await win.webContents.capturePage()).toPNG());

@@ -107,7 +107,7 @@
           <div class="settings-tabs">
             <button class="settings-tab" data-settings-section="document-settings" type="button">单证设置</button>
             <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
-            <button class="settings-tab" data-settings-section="product-config" type="button">产品模板</button>
+            <button class="settings-tab" data-settings-section="product-config" type="button">产品设置</button>
             <button class="settings-tab" data-settings-section="quotation-config" type="button">报价单设置</button>
             <button class="settings-tab" data-settings-section="invoice-config" type="button">PI／形式发票设置</button>
             <button class="settings-tab" data-settings-section="contract-config" type="button">销售合同设置</button>
@@ -223,12 +223,11 @@
         <section id="view-products" class="view no-print">
           <header class="page-head">
             <h2>产品库</h2>
-            <p>图片在前，规格与价格一目了然。点击商品查看完整资料，或引用到正在编辑的单证。</p>
           </header>
 
           <div id="legacy-product-editor" class="legacy-product-area">
           <div id="product-library-summary" class="overview-metrics product-library-summary"></div>
-          <div class="product-library-toolbar"><button type="button" class="primary" id="library-new-product">＋ 新增产品</button><button type="button" id="library-delete-selected" disabled>删除选中（0）</button><button type="button" id="library-configure">配置产品分类与字段</button><button type="button" id="library-import">导入产品资料</button><button type="button" id="library-catalog">导出产品目录 PDF</button></div>
+          <div class="product-library-toolbar"><button type="button" class="primary" id="library-new-product">＋ 新增产品</button><button type="button" id="library-delete-selected" disabled>删除选中（0）</button><button type="button" id="library-configure">产品设置</button><button type="button" id="library-import">导入资料</button><button type="button" id="library-catalog">产品预览／导出</button></div>
           <dialog id="product-editor-modal" aria-labelledby="product-edit-heading">
           <div class="panel" id="product-edit-panel">
             <div class="row-head product-editor-header"><div><small>产品库</small><h3 id="product-edit-heading">新增产品</h3></div><button type="button" id="library-close-editor" aria-label="关闭产品编辑">✕</button></div>
@@ -304,11 +303,14 @@
         </section>
 
         <section id="view-help" class="view no-print">
-          <header class="page-head"><h2>声明与帮助</h2><p>用于整理客户、产品和外贸单证；输出前请核对实际业务资料。</p></header>
+          <header class="page-head"><h2>声明与帮助</h2></header>
+          <section class="help-hero"><h3>让外贸制单更简单</h3><p>外贸助手用于整理产品与客户资料，制作、预览、打印和导出外贸业务单证。业务资料保存在本机。</p></section>
           <div class="help-grid">
+            <article class="panel"><h3>使用声明</h3><p>导出前请核对公司、客户、金额、账户、条款和相关资料。软件辅助制作文件，不代替业务审核。</p></article>
+            <article class="panel"><h3>问题反馈与获取帮助</h3><p>反馈时请提供软件版本、操作步骤和错误截图。发送前请遮盖账号、证件等敏感资料。</p></article>
             <article class="panel"><h3>数据保存与备份</h3><p>桌面版的客户、产品、历史单证、草稿及公司素材保存在本机数据目录。导出的 PDF 保存在用户选择的位置。请在管理后台备份数据库及本机资料；更换电脑前先核对备份和恢复结果。</p></article>
             <article class="panel"><h3>制作与输出</h3><p>在设置中维护公司、产品字段和单证设置。制作页的“导出 PDF”先显示最终分页，可保存 PDF 或提交打印。取消输出不新增正式历史；未完成内容可保存至历史记录中的草稿箱。</p></article>
-            <article class="panel help-contact"><h3>问题反馈与帮助</h3><p>反馈时请说明软件版本、操作步骤及错误信息，避免公开客户、证件和收款资料。</p><p>电话：15209867156<br>微信：18555403955<br>邮箱：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p></article>
+            <article class="panel help-contact"><h3>联系 Ethan</h3><div class="help-contact-grid"><div><small>联系电话</small><p>15209867156</p><button type="button" data-help-copy="15209867156">复制联系电话</button></div><div><small>微信</small><p>18555403955</p><button type="button" data-help-copy="18555403955">复制微信</button></div><div><small>电子邮箱</small><p>6083999@gmail.com</p><button type="button" data-help-copy="6083999@gmail.com">复制电子邮箱</button></div></div><p data-help-status role="status"></p></article>
           </div>
         </section>
 
@@ -634,7 +636,8 @@
     <script src="./assets/document-workflow-ui.js"></script>
     <script src="./assets/document-presentation.js"></script>
     <script src="./assets/product-text-import.js"></script>
-    <script src="./assets/product-hierarchy.js"></script>
+<script src="./assets/product-hierarchy.js"></script>
+<script src="./assets/product-schema.js"></script>
     <script src="./assets/product-hierarchy-workspace.js"></script>
     <link rel="stylesheet" href="./assets/product-hierarchy.css">
     <script src="./assets/product-workflow.js"></script>
