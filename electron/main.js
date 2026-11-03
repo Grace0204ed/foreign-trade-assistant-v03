@@ -12,6 +12,8 @@ let localServer;
 let desktopPort = 18765;
 let downloadedUpdateFile = "";
 let fallbackRelease = null;
+const {singleFlight,createDownloader}=require('./update-download.cjs');
+let fallbackDownloader;
 async function githubUpdateFallback(download=false) {
   const base="https://api.github.com/repos/Grace0204ed/foreign-trade-assistant-v03";
   const headers={"User-Agent":"ForeignTradeAssistant","Accept":"application/vnd.github+json"};
@@ -25,14 +27,11 @@ async function githubUpdateFallback(download=false) {
   }
   if(!download){publishUpdateState({status:'available',version:fallbackRelease.version,message:`发现新版本 ${fallbackRelease.version}（备用连接）`});return {status:'checked',version:fallbackRelease.version};}
   const {asset,version}=fallbackRelease;
-  const response=await net.fetch(asset.url,{headers:{...headers,Accept:'application/octet-stream'}});
-  if(!response.ok)throw new Error(`更新下载返回 ${response.status}`);
-  const folder=path.join(dataDir(),'updates');fs.mkdirSync(folder,{recursive:true});
-  const target=path.join(folder,asset.name),partial=target+'.partial';
-  const handle=fs.openSync(partial,'w'),hash=require('crypto').createHash('sha256');let bytes=0;
-  try {for await(const chunk of response.body){fs.writeSync(handle,chunk);hash.update(chunk);bytes+=chunk.length;publishUpdateState({status:'downloading',version,percent:Math.min(99,Math.round(bytes/asset.size*100)),message:`正在下载 ${Math.min(99,Math.round(bytes/asset.size*100))}%`});}} finally {fs.closeSync(handle);}
-  if(bytes!==asset.size||`sha256:${hash.digest('hex')}`!==asset.digest)throw new Error('更新文件校验失败，请重新下载');
-  fs.renameSync(partial,target);downloadedUpdateFile=target;
+  if(!fallbackDownloader)fallbackDownloader=createDownloader({folder:path.join(dataDir(),'updates'),
+    fetchAsset:a=>net.fetch(a.url,{headers:{...headers,Accept:'application/octet-stream'},signal:AbortSignal.timeout(600000)}),
+    progress:percent=>publishUpdateState({status:'downloading',percent,message:`正在下载 ${percent}%`})});
+  publishUpdateState({status:'downloading',version,percent:0,message:'正在校验缓存或下载安装包…'});
+  downloadedUpdateFile=await fallbackDownloader(asset);
   publishUpdateState({status:'downloaded',version,percent:100,message:'更新已下载并通过校验，可以重启安装'});return true;
 }
 let latestUpdateState = { status: "idle", message: "尚未检查更新" };
@@ -149,7 +148,7 @@ function publishUpdateState(payload) {
 }
 function configureUpdater() {
   autoUpdater.autoDownload=false;
-  autoUpdater.autoInstallOnAppQuit=true;
+  autoUpdater.autoInstallOnAppQuit=false;
   autoUpdater.allowPrerelease=false;
   autoUpdater.disableDifferentialDownload=true;
   autoUpdater.on("checking-for-update",()=>publishUpdateState({status:"checking",message:"正在检查更新…"}));
@@ -169,8 +168,9 @@ async function installDownloadedUpdate() {
   if (downloadedUpdateFile && fs.existsSync(downloadedUpdateFile)) {
     publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});
     // Start setup only after this process releases its executable and SQLite files.
-    const quote=value=>"'"+String(value).replace(/'/g,"''")+"'";
-    const command=`$targetPid=${process.pid}; $deadline=(Get-Date).AddSeconds(45); while ((Get-Process -Id $targetPid -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }; if (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) { exit 1 }; Start-Process -FilePath ${quote(downloadedUpdateFile)} -ArgumentList '/S','--updated' -Wait`;
+    const {prepareInstall}=require('./update-install.cjs');
+    const command=prepareInstall({dataDirectory:dataDir(),installer:downloadedUpdateFile,version:latestUpdateState.version,
+      installDirectory:path.dirname(process.execPath),pid:process.pid,sourceVersion:app.getVersion()});
     const child=process.platform==='win32'
       ?spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{detached:true,stdio:'ignore',windowsHide:true})
       :spawn(downloadedUpdateFile,[],{detached:true,stdio:'ignore'});
@@ -206,7 +206,10 @@ if(ownsInstance)app.whenReady().then(() => {
     app.exit(0);
     return;
   }
-  installChineseMenu();configureUpdater();return openLicensedApplication();
+  installChineseMenu();configureUpdater();
+  const installResult=require('./update-install.cjs').readInstallResult(dataDir(),app.getVersion());
+  if(installResult)publishUpdateState(installResult);
+  return openLicensedApplication();
 }).catch(error=>{
   if (packagedSelfTest) {
     console.error("FTA_PACKAGED_SELF_TEST_FAILED", error?.stack || error);
@@ -350,8 +353,9 @@ ipcMain.handle("select-import-json", async () => {
 
 ipcMain.handle("get-app-version",()=>({version:app.getVersion(),platform:process.platform,arch:process.arch,packaged:app.isPackaged}));
 ipcMain.handle("get-update-state",()=>latestUpdateState);
-ipcMain.handle("check-for-updates",async()=>{
+ipcMain.handle("check-for-updates",singleFlight(async()=>{
   if(!app.isPackaged)return {status:"development",message:"开发模式不执行在线更新"};
+  if(['downloading','downloaded','installing'].includes(latestUpdateState.status))return latestUpdateState;
   fallbackRelease=null;
   publishUpdateState({status:'checking',message:'正在检查更新…'});
   try {return await githubUpdateFallback();}
@@ -359,11 +363,11 @@ ipcMain.handle("check-for-updates",async()=>{
     try{const result=await autoUpdater.checkForUpdates();return {status:'checked',version:result?.updateInfo?.version||''};}
     catch(error){const message=`检查更新失败：${apiError.message}；备用连接：${String(error.message).split('\n')[0]}`;publishUpdateState({status:'error',message});throw new Error(message);}
   }
-});
-ipcMain.handle("download-update",async()=>{
+}));
+ipcMain.handle("download-update",singleFlight(async()=>{
   if(!app.isPackaged)throw new Error("开发模式不能下载安装包");
-  if(fallbackRelease)return githubUpdateFallback(true);
   try {
+    if(fallbackRelease)return await githubUpdateFallback(true);
     for(let attempt=1;attempt<=3;attempt++){
       try { await autoUpdater.downloadUpdate();return true; }
       catch(error){
@@ -374,9 +378,9 @@ ipcMain.handle("download-update",async()=>{
     }
   }
   catch(error){publishUpdateState({status:"error",message:`下载更新失败：${error.message}`});throw error;}
-});
-ipcMain.handle("install-update",()=>{
+}));
+ipcMain.handle("install-update",singleFlight(()=>{
   if(!app.isPackaged)throw new Error("开发模式不能安装更新");
   return installDownloadedUpdate();
-});
+}));
 

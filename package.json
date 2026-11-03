@@ -1,6 +1,6 @@
 {
   "name": "foreign-trade-assistant",
-  "version": "0.11.25",
+  "version": "0.11.26",
   "description": "外贸助手：客户跟进、产品、报价与外贸单证桌面系统",
   "main": "electron/main.js",
   "private": true,
@@ -79,6 +79,7 @@
       "artifactName": "Foreign-Trade-Assistant-Setup-${version}-${arch}.${ext}"
     },
     "nsis": {
+      "include": "electron/installer.nsh",
       "oneClick": false,
       "perMachine": false,
       "deleteAppDataOnUninstall": false,

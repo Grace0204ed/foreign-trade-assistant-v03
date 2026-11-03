@@ -33,6 +33,7 @@ module.exports=async context=>{
   const root=path.resolve(context.appOutDir),target=path.resolve(root,'resources','default_app.asar');
   if(!target.startsWith(root+path.sep))throw Error('Invalid output path');
   await fs.rm(target,{force:true});
+  await fs.writeFile(path.join(root,'resources','release-version.json'),JSON.stringify({version:context.packager.appInfo.version}));
   // Optional official prebuilt binary for packaging while a development server has
   // its Node-ABI DLL locked. Never replace the DLL used by the running old app.
   if(process.env.SQLITE_ELECTRON_BINARY){
