@@ -34,7 +34,7 @@
         </nav>
         <nav class="rail-secondary">
           <button class="nav-btn" id="sidebar-lock-btn" type="button" title="快捷锁定 Ctrl+Shift+L"><i class="nav-icon" aria-hidden="true">▣</i><span>应用锁</span></button>
-          <button class="nav-btn" data-view="help" type="button"><i class="nav-icon" aria-hidden="true">?</i><span>使用说明</span></button>
+          <button class="nav-btn" data-view="help" type="button"><i class="nav-icon" aria-hidden="true">?</i><span>声明与帮助</span></button>
         </nav>
       </aside>
 
@@ -105,6 +105,7 @@
             <p>设置会保存在本机浏览器，不需要联网。</p>
           </header>
           <div class="settings-tabs">
+            <button class="settings-tab" data-settings-section="document-settings" type="button">单证设置</button>
             <button class="settings-tab active" data-settings-section="company" type="button">公司信息设置</button>
             <button class="settings-tab" data-settings-section="product-config" type="button">产品模板</button>
             <button class="settings-tab" data-settings-section="quotation-config" type="button">报价单设置</button>
@@ -115,11 +116,12 @@
             <button class="settings-tab" data-settings-section="invitation-config" type="button">邀请函设置</button>
             <button class="settings-tab" data-settings-section="agency-config" type="button">授权书设置</button>
             <button class="settings-tab" data-settings-section="customer-config" type="button">客户管理配置</button>
-            <button class="settings-tab" data-settings-section="translation" type="button">语言模板</button>
+            <button class="settings-tab" data-settings-section="translation" type="button">顶部设置</button>
             <button class="settings-tab" data-settings-section="software-update" type="button">软件更新</button>
             <button class="settings-tab" data-settings-section="data" type="button">管理后台</button>
           </div>
           <div data-settings-panel="product-config" id="settings-product-config-host"></div>
+          <div data-settings-panel="commission-config" id="settings-commission-config-host"></div>
           <div data-settings-panel="quotation-config" id="settings-quotation-config-host"></div>
           <div data-settings-panel="invoice-config" id="settings-invoice-config-host"></div>
           <div data-settings-panel="contract-config" id="settings-contract-config-host"></div>
@@ -137,7 +139,7 @@
           <div id="contact-modal" class="modal" hidden>
             <div class="modal-card small-modal contact-card" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title">
               <header><h3 id="contact-modal-title">联系我们</h3><button id="close-contact-modal-btn" type="button">关闭</button></header>
-              <p><b>Ethan</b></p>
+
               <p>电话：15209867156</p><p>微信：18555403955</p>
               <p>邮箱：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p>
             </div>
@@ -185,7 +187,7 @@
             <h3>公司授权签署与电子签名</h3>
             <p class="hint">沿用当前公司的签名，不与其他公司混用。签名图片不等同于数字证书签名；是否接受请按客户、银行和目的国要求确认。</p>
             <div class="form-grid">
-              <label>签署人姓名<input data-setting="agencyAuthorizer" placeholder="Ethan"></label>
+              <label>签署人姓名<input data-setting="agencyAuthorizer" placeholder="填写签署人姓名"></label>
               <label>签署人职务<input data-setting="agencyAuthorizerTitle" placeholder="General Manager, Africa / 非洲区总经理"></label>
               <label>签名方向<select data-setting="agencySignatureRotation" id="company-signature-rotation"><option value="0">原方向</option><option value="-90">逆时针90°</option><option value="90">顺时针90°</option><option value="180">旋转180°</option></select></label>
             </div>
@@ -245,7 +247,7 @@
               <label><span>库存编号</span><input id="product-inventory-code" placeholder="同型号多台设备分别编号"></label>
               <div id="product-dynamic-fields" class="wide product-dynamic-fields"></div>
               <fieldset class="wide product-logistics-fields">
-                <legend>运输资料（产品库、报价与悬浮运费计算器共用）</legend>
+                <legend>运输资料（产品库、报价与悬浮计算器共用）</legend>
                 <label><span>运输长</span><input id="product-transport-length" type="number" min="0" step="0.001"></label>
                 <label><span>运输宽</span><input id="product-transport-width" type="number" min="0" step="0.001"></label>
                 <label><span>运输高</span><input id="product-transport-height" type="number" min="0" step="0.001"></label>
@@ -303,15 +305,11 @@
         </section>
 
         <section id="view-help" class="view no-print">
-          <header class="page-head"><h2>使用说明</h2><p>外贸助手的客户、报价、产品和手机端使用方法。</p></header>
+          <header class="page-head"><h2>声明与帮助</h2><p>用于整理客户、产品和外贸单证；输出前请核对实际业务资料。</p></header>
           <div class="help-grid">
-            <article class="panel"><h3>1. 客户跟进</h3><p>先在“客户跟进”建立客户，填写国家、WhatsApp、客户等级、阶段和下一次跟进日期。到期未跟进的客户会进入提醒。</p></article>
-            <article class="panel"><h3>2. 新建业务单证</h3><p>进入“新建”选择报价单、形式发票或合同；公司、客户、产品和条款资料可以共用。</p></article>
-            <article class="panel"><h3>3. 产品与费用</h3><p>从产品库选择或手工填写产品、数量、单价和图片。右侧悬浮运费计算器可随时计算并经确认填入当前单证。</p></article>
-            <article class="panel"><h3>4. 历史报价复用</h3><p>历史报价显示客户、国家、目的港、产品、金额和状态。点击“复制”即可沿用相似报价，不会覆盖原记录。</p></article>
-            <article class="panel"><h3>5. 模板设置</h3><p>在设置中维护产品字段、客户字段、单证样式及多语言标题；已有业务数据不会因字段隐藏而删除。</p></article>
-            <article class="panel"><h3>6. 本地桌面使用</h3><p>业务数据保存在本机。升级或更换电脑前请先备份数据，安装新版后可继续使用原有客户、产品和历史单证。</p></article>
-            <article class="panel help-contact"><h3>需要帮助</h3><p>使用中遇到问题可以联系我：</p><p><b>Ethan</b><br>电话：15209867156<br>微信：18555403955<br>Email：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p></article>
+            <article class="panel"><h3>数据保存与备份</h3><p>桌面版的客户、产品、历史单证、草稿及公司素材保存在本机数据目录。导出的 PDF 保存在用户选择的位置。请在管理后台备份数据库及本机资料；更换电脑前先核对备份和恢复结果。</p></article>
+            <article class="panel"><h3>制作与输出</h3><p>在设置中维护公司、产品字段和单证设置。制作页的“导出 PDF”先显示最终分页，可保存 PDF 或提交打印。取消输出不新增正式历史；未完成内容可保存至历史记录中的草稿箱。</p></article>
+            <article class="panel help-contact"><h3>问题反馈与帮助</h3><p>反馈时请说明软件版本、操作步骤及错误信息，避免公开客户、证件和收款资料。</p><p>电话：15209867156<br>微信：18555403955<br>邮箱：<a href="mailto:6083999@gmail.com">6083999@gmail.com</a></p></article>
           </div>
         </section>
 
@@ -450,7 +448,7 @@
           </div>
           <div class="no-print quote-editor">
             <div class="panel"><h3 id="agency-basic-title">基本信息</h3><div class="form-grid">
-              <label><span>文件类型</span><select id="agency-document-type"><option value="authorization">代理授权书</option><option value="agreement" hidden>历史销售代理佣金协议</option><option value="statement">佣金结算单</option><option value="procurement">个人委托采购协议</option></select></label>
+              <label><span>文件类型</span><select id="agency-document-type"><option value="authorization">代理授权书</option><option value="agreement" hidden>历史销售代理佣金协议</option><option value="statement">佣金结算单</option><option value="procurement" hidden>历史个人委托采购协议</option></select></label>
               <label><span>使用已保存模板</span><select id="agency-template"><option value="">选择模板…</option></select></label>
               <div class="actions wide"><button id="agency-use-template" type="button">使用模板新建</button><button id="agency-save-template" type="button">另存为模板</button><button id="agency-export-document" type="button">导出当前文件 PDF</button></div>
               <label><span>文件编号</span><input id="agency-number" /></label>
@@ -459,7 +457,7 @@
               <label><span>有效期至</span><input id="agency-valid-until" type="date" /></label>
               <label><span>语言版本</span><select id="agency-language"><option value="bilingual">中英双语</option><option value="zh-es">中西双语</option><option value="zh-fr">中法双语</option><option value="zh">纯中文</option><option value="en">纯英文</option><option value="es">纯西班牙语</option><option value="fr">纯法语</option></select></label><label>单证主题颜色<input type="color" id="agency-color" value="#285fc1"></label>
               <label class="wide"><span>授权方公司（可自由输入）</span><input id="agency-company" list="agency-company-options" placeholder="例如：万挖机械 / Wanwa Machinery" /><datalist id="agency-company-options"></datalist></label>
-              <label><span>授权方签署人</span><input id="agency-authorizer" placeholder="Ethan" /></label>
+              <label><span>授权方签署人</span><input id="agency-authorizer" placeholder="填写签署人姓名" /></label>
               <label><span>签署人职务</span><input id="agency-authorizer-title" placeholder="General Manager / 总经理" /></label>
               <label><span>国家/地区</span><input id="agency-country" list="agency-country-options" placeholder="Nigeria / 尼日利亚" /><datalist id="agency-country-options"></datalist></label>
               <label><span>姓名或全名</span><input id="agency-agent-name" /></label>
@@ -621,7 +619,6 @@
       </div>
     </div>
     <script src="./assets/document-fixed-locales.js"></script>
-    <script src="./assets/agency-documents.js?v=20261101"></script>
     <script src="./assets/trade-document-layouts.js?v=20261012"></script>
     <script src="./assets/document-designer.js?v=20261023"></script>
     <script src="./assets/global-freight-calculator.js?v=20261023"></script>
@@ -630,15 +627,21 @@
     <script src="./assets/business-overview.js?v=20261030"></script>
     <script src="./assets/option-catalog.js"></script>
     <script src="./assets/document-locales.js"></script>
+    <script src="./assets/configured-fields.js"></script>
+    <script src="./assets/commission-statement.js"></script>
+    <script src="./assets/agency-documents.js?v=20261103"></script>
     <script src="./assets/document-template-copy.js"></script>
     <script src="./assets/document-workflow.js"></script>
     <script src="./assets/document-workflow-ui.js"></script>
     <script src="./assets/document-presentation.js"></script>
     <script src="./assets/product-text-import.js"></script>
+    <script src="./assets/product-hierarchy.js"></script>
+    <script src="./assets/product-hierarchy-workspace.js"></script>
+    <link rel="stylesheet" href="./assets/product-hierarchy.css">
     <script src="./assets/product-workflow.js"></script>
     <script src="./app.js?v=20261101-refinement"></script>
     <link rel="stylesheet" href="./assets/next-upgrade.css">
-    <script src="./assets/translation-workspace.js"></script>
+    <script src="./assets/top-settings.js"></script>
     <script src="./assets/publisher-workspace.js"></script>
     <script src="./assets/app-lock.js?v=20261101"></script>
     <link rel="stylesheet" href="./assets/customer-workspace.css">
@@ -646,6 +649,7 @@
     <script src="./assets/customer-workspace.js"></script>
     <script src="./assets/configurable-workspaces.js?v=20261023"></script>
     <script src="./assets/option-manager.js"></script>
+    <script src="./assets/business-settings.js"></script>
     <link rel="stylesheet" href="./assets/refinement-workspace.css">
     <link rel="stylesheet" href="./assets/demo-document-editor.css">
     <link rel="stylesheet" href="./assets/workflow-redesign.css">

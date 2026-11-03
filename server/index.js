@@ -2,6 +2,7 @@
 const path = require("path");
 const express = require("express");
 const OptionCatalog = require('../assets/option-catalog');
+const ProductHierarchy = require('../assets/product-hierarchy');
 
 
 const { db, id, now, normalize, dbPath } = require("./db");
@@ -311,7 +312,7 @@ app.post("/api/products", requireLogin, (req, res) => {
     brand: p.brand || "",
     model: p.model || "",
     aliases: p.aliases || "",
-    condition: p.condition || "Used",
+    condition: p.condition || "",
     transportLength: p.transportLength || null,
     transportWidth: p.transportWidth || null,
     transportHeight: p.transportHeight || null,
@@ -381,7 +382,7 @@ app.post("/api/products/bulk-upsert", requireLogin, (req, res) => {
         brand,
         model,
         aliases: p.aliases || existing?.aliases || "",
-        condition: p.condition || existing?.condition || "Used",
+        condition: p.condition ?? existing?.condition ?? "",
         transportLength: p.transportLength ?? existing?.transport_length ?? null,
         transportWidth: p.transportWidth ?? existing?.transport_width ?? null,
         transportHeight: p.transportHeight ?? existing?.transport_height ?? null,
@@ -770,6 +771,7 @@ app.put("/api/settings", requireLogin, requireAdmin, (req, res) => {
   try {
     const previous=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json);
     const settings=OptionCatalog.reconcile(req.body||{},previous);
+    if(settings.productHierarchy)ProductHierarchy.validate(settings.productHierarchy,previous.productHierarchy,db.prepare('SELECT id,category,brand,values_json FROM products').all().map(p=>({...p,values:JSON.parse(p.values_json||'{}')})));
     if(Array.isArray(settings.categories))OptionCatalog.validate(settings.categories.map(c=>({...c,value:c.id,sortOrder:c.sortOrder||0})));
     // Field option IDs and values remain stable in all document/product templates.
     const walk=(next,old)=>{

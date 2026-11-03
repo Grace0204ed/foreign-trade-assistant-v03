@@ -5,6 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const fixed=typeof module==='object'&&module.exports?require('./document-fixed-locales.js'):globalThis.DocumentFixedLocales;
+  const settlement=typeof module==='object'&&module.exports?require('./commission-statement.js'):globalThis.CommissionStatement;
   const locale=()=>typeof module==='object'&&module.exports?require('./document-locales.js'):globalThis.DocumentLocales;
   const missingTranslations=new Set();
   const types = {authorization:'代理授权书', agreement:'销售代理佣金协议', statement:'订单佣金结算单', procurement:'个人委托采购协议'};
@@ -125,6 +126,7 @@
     return `<section class="agency-sheet agency-commercial procurement-document"><h1>${t('个人委托采购服务协议','Personal Procurement Service Agreement')}</h1><div class="agency-meta">${v(a.authorizationNumber)} · ${v(a.date)}</div><h2>${t('甲方（个人受托采购人）','Party A (individual procurement service provider)')}</h2><section class="agency-info-grid">${row('证件姓名','Legal name',a.personalLegalName)}${row('常用名','Known as',a.authorizer)}${row('身份证号码','ID number',a.personalId)}${row('联系电话','Telephone',a.personalPhone)}${row('微信','WeChat',a.personalWechat)}${row('WhatsApp','WhatsApp',a.personalWhatsapp)}</section><h2>${t('乙方（委托采购人）','Party B (client)')}</h2><section class="agency-info-grid">${row('护照英文全名','Full legal name',a.agentName)}${row('国籍','Nationality',a.country)}${row('护照或当地证件号码（如适用）','Passport or local ID (if applicable)',a.idNumber)}${row('电话或WhatsApp','Telephone or WhatsApp',a.phone)}${row('邮箱','Email',a.email)}${row('地址','Address',a.address)}</section><h2>${t('采购设备及金额','Equipment and amounts')}</h2><section class="agency-info-grid">${row('设备及数量','Equipment and quantity',a.purchaseMachine)}${row('年份','Year',a.purchaseYear)}${row('设备采购款','Equipment price',money(a.purchaseAmount))}${row('采购服务佣金','Service fee',money(a.purchaseFee))}${row('合计（不含清洁和拖车）','Total (excluding cleaning and trucking)',a.purchaseAmount!==''&&a.purchaseAmount!=null&&a.purchaseFee!==''&&a.purchaseFee!=null?money(Number(a.purchaseAmount)+Number(a.purchaseFee)):'')}</section>${clauses.map(([zh,en,cz,ce],i)=>`<h2>${i+1}. ${t(zh,en)}</h2><p class="agency-clause">${t(cz,ce)}</p>`).join('')}<p class="agency-clause"><b>${t('取消或未完成采购时佣金处理（签署前填写）','Fee treatment on cancellation or unsuccessful purchase (complete before signing)')}:</b> ${v(a.purchaseCancellation)}</p><footer class="agency-signature"><div>${t('甲方签名','Party A signature')}: ____________________<p>${v(a.authorizer)}</p><p>${t('日期','Date')}: ____________________</p></div><div>${t('乙方签名','Party B signature')}: ____________________<p>${v(a.agentName)}</p><p>${t('日期','Date')}: ____________________</p></div></footer></section>`;
   }
   function render(a,settings) {
+    if(type(a)==='statement'&&a.settlementSchema===2)return settlement.render(a,settings,calculate);
     if(type(a)==='procurement')return renderProcurement(a);
     if(type(a)==='statement')return renderStatement(a,settings);
     const mode=a.language||'bilingual',t=v=>esc(text(v,mode)),kind=type(a),s=a.companySnapshot||settings;

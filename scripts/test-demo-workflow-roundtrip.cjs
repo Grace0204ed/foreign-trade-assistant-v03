@@ -21,7 +21,9 @@ app.whenReady().then(async()=>{
   assert.equal(await run("document.querySelector('[data-spec-value=spec_0]').value"),'0');
   await run("document.querySelector('[data-spec-mode=text]').click();document.querySelector('[data-spec-text]').value='发动机：原厂\\n尺寸：12×2.5×3.5m';document.querySelector('#save-product-btn').click()");await wait("!document.querySelector('#product-editor-modal').open");
   assert.equal((await products()).find(p=>p.id===record.id).values.params,'发动机：原厂\n尺寸：12×2.5×3.5m');
-  await run("window.ProductWorkflow.templateLibrary(window.quoteSettingsContext);document.querySelector('dialog [data-industry]').value='化工化学';document.querySelector('dialog [data-industry]').dispatchEvent(new Event('change'));document.querySelector('dialog [data-template-name]').value='DEMO化工';document.querySelector('dialog [data-copy]').click()");
+  // Custom field schemas remain supported; the retired fixed industry library is absent.
+  assert.equal(await run('typeof window.ProductWorkflow.templateLibrary'),'undefined');
+  await run(`quoteSettingsContext.save({templates:[...quoteSettingsContext.settings.templates,{id:'qa-custom-chemical',name:'DEMO化工',fields:[['name','产品名称'],['model','牌号'],['purity','纯度'],['packaging','包装'],['params','规格参数','textarea'],['qty','数量','number'],['unitPrice','单价','money'],['currency','币种'],['remark','备注','textarea']].map(([fieldKey,zh,fieldType='text'],i)=>({id:'qa-field-'+i,fieldKey,zh,en:fieldKey,fieldType,active:true,visible:true,sortOrder:i*10})),termFields:[]}]})`);
   await wait("window.quoteSettingsContext.settings.templates.some(t=>t.name==='DEMO化工')");
   await run("(()=>{const c=window.quoteSettingsContext,t=c.settings.templates.find(t=>t.name==='DEMO化工');window.ProductWorkflow.design(t,()=>c.save({templates:c.settings.templates}));})()");
   await run("document.querySelector('dialog.workflow-dialog [data-add]').click();document.querySelector('dialog.workflow-dialog [data-name]').value='有效成分';document.querySelector('dialog.workflow-dialog [data-unit]').value='%';document.querySelector('dialog.workflow-dialog [data-save]').click()");
@@ -69,6 +71,6 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('[data-hint]').click()");assert.equal(await run("document.querySelector('[data-pin-hint]').textContent"),'测试提示');
   await run("document.querySelector('#application-lock-screen input').value='0000';document.querySelector('[data-unlock]').click()");await wait("document.querySelector('.app-lock-error').textContent.includes('PIN不正确')");
   await run("document.querySelector('#application-lock-screen input').value='123456';document.querySelector('[data-unlock]').click()");await wait("!document.querySelector('#application-lock-screen')");
-  assert.deepEqual(errors,[]);console.log('PASS: structured specifications, zero values, save/reload, industry template persistence, import review + Excel, catalogue preview + real PDF, commission entry, lock settings/save/hint/wrong PIN/unlock');
+  assert.deepEqual(errors,[]);console.log('PASS: structured specifications, zero values, save/reload, custom field schema persistence, import review + Excel, catalogue preview + real PDF, commission entry, lock settings/save/hint/wrong PIN/unlock');
  }catch(error){console.error(await run("document.querySelector('dialog[open]')?.innerText || document.querySelector('#toast')?.textContent || ''"));throw error;}finally{win.destroy();server.close();app.quit();}
 }).catch(e=>{console.error(e);app.exit(1);});

@@ -1,0 +1,58 @@
+(() => {
+ 'use strict';
+ const model=window.ProductHierarchy,esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let context,editingSelection=[],filters=['','',''],inferredConfig;
+ // Keep inferred legacy paths stable while a recovered product is edited as a
+ // temporary copy. Removing that temporary list row must not erase its path.
+ const config=()=>{if(context.settings.productHierarchy)return context.settings.productHierarchy;const next=model.seed(context.products||[]);if(!inferredConfig)inferredConfig=next;else{for(const node of next.nodes)if(!inferredConfig.nodes.some(n=>n.id===node.id))inferredConfig.nodes.push(node);Object.assign(inferredConfig.legacyBindings,next.legacyBindings);}return inferredConfig;};
+ function mount(host,ctx){
+  context=ctx;let draft=structuredClone(config()),parent='',selected='',dirty=false;
+  const sync=()=>{const input=host.querySelector('[data-hierarchy-name]'),node=draft.nodes.find(n=>n.id===selected);if(input&&node)node.label=input.value;host.querySelectorAll('[data-level-name]').forEach(n=>draft.levelNames[+n.dataset.levelName]=n.value);};
+  const draw=()=>{
+   const rows=model.children(draft,parent,true),depth=parent?model.path(draft,parent).length:0;
+   if(!rows.some(n=>n.id===selected))selected=rows[0]?.id||'';
+   const node=draft.nodes.find(n=>n.id===selected),branch=node?model.path(draft,node.id):[];
+   const products=branch.length===3?(context.products||[]).filter(p=>model.resolve(draft,p)[2]===selected).sort((a,b)=>String(a.model).localeCompare(String(b.model),'zh-CN',{numeric:true})):[];
+   host.innerHTML=`<section class="panel hierarchy-settings"><header><h3>产品分类设置</h3><p>类型 → 小类 → 品牌 → 产品信息。关闭分类保留已有产品和历史；同级拖动手柄排序后保存。</p></header><div class="form-grid">${draft.levelNames.map((n,i)=>`<label>第${i+1}层名称<input data-level-name="${i}" value="${esc(n)}"></label>`).join('')}</div><nav class="hierarchy-breadcrumb"><button type="button" data-parent="">全部${esc(draft.levelNames[0])}</button>${(parent?model.path(draft,parent):[]).map(n=>`<span>›</span><button type="button" data-parent="${esc(n.id)}">${esc(n.label)}</button>`).join('')}</nav><div class="hierarchy-workspace"><div class="hierarchy-list" aria-label="${esc(draft.levelNames[depth])}列表">${rows.map(n=>`<div class="hierarchy-row ${n.id===selected?'selected':''}" data-hierarchy-row="${esc(n.id)}"><button type="button" data-hierarchy-handle aria-label="拖动排序 ${esc(n.label)}" title="按住拖动同级排序">⠿</button><button type="button" data-hierarchy-select="${esc(n.id)}">${esc(n.label)}</button><button type="button" class="business-toggle ${n.active!==false?'is-on':'is-off'}" data-hierarchy-toggle="${esc(n.id)}" aria-pressed="${n.active!==false}">${n.active!==false?'✓ 开启':'− 关闭'}</button></div>`).join('')||'<p class="empty">暂无分类，请在右侧新增。</p>'}</div><aside class="hierarchy-inspector"><h4>${esc(draft.levelNames[depth])}设置</h4>${node?`<label>名称<input data-hierarchy-name value="${esc(node.label)}"></label><p>归属：${esc(branch.slice(0,-1).map(n=>n.label).join(' › ')||'顶层类型')}</p>${depth<2?`<button type="button" data-hierarchy-next>管理${esc(draft.levelNames[depth+1])} →</button>`:`<p>当前品牌 ${products.length} 个产品</p><button type="button" data-hierarchy-product>新增产品</button><div class="hierarchy-products">${products.map(p=>`<button type="button" data-hierarchy-edit-product="${esc(p.id)}">${esc(p.values?.name||[p.brand,p.model].filter(Boolean).join(' '))}</button>`).join('')||'<p>此品牌暂无产品。</p>'}</div>`}`:'<p>请选择或新增分类。</p>'}<footer class="actions"><button type="button" data-hierarchy-add>新增</button><button type="button" data-hierarchy-delete ${node?'':'disabled'}>删除</button><button type="button" class="primary" data-hierarchy-save>保存</button></footer><p role="status" data-hierarchy-status>${dirty?'有未保存的分类修改':''}</p></aside></div></section>`;
+   host.oninput=()=>{dirty=true;sync();const status=host.querySelector('[data-hierarchy-status]');if(status)status.textContent='有未保存的分类修改';};
+   bindPointerSort(host,()=>{sync();dirty=true;const ordered=[...host.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow);ordered.forEach((id,i)=>draft.nodes.find(n=>n.id===id).sortOrder=(i+1)*10);host.querySelector('[data-hierarchy-status]').textContent='顺序已调整，点击保存后生效。';});
+  };
+  host.onclick=async e=>{
+   const button=e.target.closest('button');if(!button)return;sync();
+   try{
+    if(button.hasAttribute('data-parent')){parent=button.dataset.parent;selected='';return draw();}
+    if(button.dataset.hierarchySelect){selected=button.dataset.hierarchySelect;return draw();}
+    if(button.dataset.hierarchyToggle){const n=draft.nodes.find(n=>n.id===button.dataset.hierarchyToggle);n.active=n.active===false;dirty=true;return draw();}
+    if(button.hasAttribute('data-hierarchy-next')){parent=selected;selected='';return draw();}
+    if(button.hasAttribute('data-hierarchy-add')){const depth=parent?model.path(draft,parent).length:0;let label='新增'+draft.levelNames[depth],i=2;while(draft.nodes.some(n=>!n.deletedAt&&n.parentId===parent&&n.label===label))label='新增'+draft.levelNames[depth]+i++;selected='ph:'+crypto.randomUUID();draft.nodes.push({id:selected,parentId:parent,label,active:true,sortOrder:model.children(draft,parent,true).length*10+10});dirty=true;draw();host.querySelector('[data-hierarchy-name]').select();return;}
+    if(button.hasAttribute('data-hierarchy-delete')){if(draft.nodes.some(n=>n.parentId===selected&&!n.deletedAt)||(context.products||[]).some(p=>model.resolve(draft,p).includes(selected)))throw Error('此分类含有下级或产品，请先处理归属，或使用“关闭”保留数据。');if(!confirm('删除此空分类？历史单证和产品资料不会删除。'))return;draft.nodes.find(n=>n.id===selected).deletedAt=new Date().toISOString();dirty=true;selected='';return draw();}
+    if(button.hasAttribute('data-hierarchy-save')){model.validate(draft,context.settings.productHierarchy,context.products);button.disabled=true;await context.save({productHierarchy:draft});draft=structuredClone(context.settings.productHierarchy);dirty=false;draw();context.toast('分类及顺序已保存。');return;}
+    if(button.hasAttribute('data-hierarchy-product')||button.dataset.hierarchyEditProduct){if(dirty)throw Error('请先保存分类设置，再录入或编辑产品。');if(button.dataset.hierarchyEditProduct)context.editProduct(button.dataset.hierarchyEditProduct);else{context.newProduct();setEditorSelection(model.path(draft,selected).map(n=>n.id));}return;}
+   }catch(error){host.querySelector('[data-hierarchy-status]').textContent=error.message;context.toast(error.message);button.disabled=false;}
+  };draw();
+ }
+ function bindPointerSort(host,done){
+  const list=host.querySelector('.hierarchy-list');let drag=null;
+  list.onpointerdown=e=>{const handle=e.target.closest('[data-hierarchy-handle]');if(!handle||e.button!==0)return;e.preventDefault();const row=handle.closest('[data-hierarchy-row]');drag={row,handle,start:e.clientY,moved:false};handle.setPointerCapture(e.pointerId);row.classList.add('sorting');};
+  list.onpointermove=e=>{if(!drag||Math.abs(e.clientY-drag.start)<4&&!drag.moved)return;drag.moved=true;const others=[...list.querySelectorAll('[data-hierarchy-row]')].filter(n=>n!==drag.row),next=others.find(n=>e.clientY<n.getBoundingClientRect().top+n.getBoundingClientRect().height/2);list.insertBefore(drag.row,next||null);};
+  const finish=()=>{if(!drag)return;drag.row.classList.remove('sorting');if(drag.moved)done();drag=null;};list.onpointerup=finish;list.onpointercancel=finish;
+ }
+ function selectMarkup(ids,includeInactive=false){const c=config();return c.levelNames.map((name,i)=>{const parent=i?ids[i-1]:'';let rows=i&&!parent?[]:model.children(c,parent,includeInactive);const old=c.nodes.find(n=>n.id===ids[i]);if(old&&!rows.some(n=>n.id===old.id))rows=[old,...rows];return `<label>${esc(name)}<select data-product-hierarchy="${i}"><option value="">请选择${esc(name)}</option>${rows.map(n=>`<option value="${esc(n.id)}" ${ids[i]===n.id?'selected':''}>${esc(n.label)}${n.active===false?'（已关闭）':''}</option>`).join('')}</select></label>`;}).join('');}
+ function mountEditor(product){
+  if(!context)return;editingSelection=product?model.resolve(config(),product):[];
+  let host=document.getElementById('product-hierarchy-fields');if(!host){host=document.createElement('div');host.id='product-hierarchy-fields';host.className='form-grid wide';document.getElementById('product-dynamic-fields').before(host);}
+  const draw=()=>host.innerHTML=selectMarkup(editingSelection);
+  host.onchange=e=>{const index=Number(e.target.dataset.productHierarchy);editingSelection[index]=e.target.value;editingSelection=editingSelection.slice(0,index+1);draw();syncBrand();};draw();syncBrand();
+ }
+ function syncBrand(){const selection=model.selection(config(),editingSelection);for(const [key,value] of [['brand',selection?.labels[2]],['productType',selection?.labels[1]]]){const input=document.querySelector('[data-product-field="'+key+'"]');if(input){if(value)input.value=value;input.closest('label').hidden=Boolean(selection);}}}
+ function setEditorSelection(ids){editingSelection=ids;document.getElementById('product-hierarchy-fields').innerHTML=selectMarkup(ids);syncBrand();}
+ function collect(){const selected=model.selection(config(),editingSelection);return selected?{_classification:selected,productType:selected.labels[1],brand:selected.labels[2]}:{};}
+ function mountFilters(){
+  if(!context)return;let host=document.getElementById('library-hierarchy-filters');if(!host){host=document.createElement('div');host.id='library-hierarchy-filters';host.className='form-grid';document.querySelector('#product-library-list-panel .search-row').after(host);}
+  host.innerHTML=selectMarkup(filters,true).replaceAll('data-product-hierarchy','data-library-hierarchy').replaceAll('请选择','全部');
+  host.onchange=e=>{const index=Number(e.target.dataset.libraryHierarchy);filters[index]=e.target.value;filters=filters.slice(0,index+1);mountFilters();context.renderProducts();};
+ }
+ const matches=p=>!context||filters.every((id,i)=>!id||model.resolve(config(),p)[i]===id);
+ function init(ctx){context=ctx;mountFilters();}
+ window.ProductHierarchyWorkspace={init,mount,mountEditor,mountFilters,collect,matches,setEditorSelection,getFilter:()=>filters.slice(),config};
+})();

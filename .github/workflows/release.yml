@@ -32,6 +32,8 @@ jobs:
       - run: npm run ensure:sqlite
       - run: npm run check
       - run: npm test
+      - name: Verify formal lock, hierarchy, fields, top settings, calculator and commission
+        run: npm run test:iteration
       - name: Verify configured customer workflow in Electron
         run: npm run test:customers
       - name: Verify approved layout and history pagination in Electron
@@ -40,7 +42,7 @@ jobs:
         run: npm run test:next
       - name: Verify product edits, imports and seven document workspaces
         run: npm run test:refinement
-      - name: Verify product edit modal and procurement navigation
+      - name: Verify product modal and retired procurement history compatibility
         run: npm run test:product-modal
       - name: Verify approved demo product workflows and application lock
         run: npm run test:demo-workflow
@@ -52,9 +54,9 @@ jobs:
         run: npm run test:pdf
       - name: Verify seven document field persistence and PDF output
         run: npm run test:fields
-      - name: Verify all nine document types in nine languages
+      - name: Verify eight current document types and maintained output languages
         run: npm run test:language-matrix
-      - name: Verify 81 real language PDF exports
+      - name: Verify 90 real language PDF exports including legacy history
         run: npx electron scripts/verify-language-pdfs.cjs
       - name: Verify multilingual readable tables, colours and multi-page wide lists
         run: npm run test:readability

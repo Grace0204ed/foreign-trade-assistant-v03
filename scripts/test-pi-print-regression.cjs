@@ -8,7 +8,7 @@ const extract=name=>{
 const columns=[{key:'sequence',en:'No.',zh:'序号'},...['description','hsCode','qty','billingUnit','unitPrice','amount'].map(key=>({key,en:key,zh:key}))];
 const live={companyNameEn:'Current company',bankFields:[{value:'CURRENT'}]};
 const saved={companyNameEn:'Saved company',bankFields:[{value:'SAVED'}],agencySignatureDataUrl:'saved-signature',stampDataUrl:'saved-seal'};
-const context=vm.createContext({settings:live,currentQuote:{companySnapshot:saved,documentType:'invoice',items:[{kind:'product',values:{description:'Bobcat S550',hsCode:'84295100',qty:1,billingUnit:'Unit',unitPrice:19300,amount:19300}}]},structuredClone,
+const context=vm.createContext({ConfiguredFields:require('../assets/configured-fields.js'),settings:live,currentQuote:{companySnapshot:saved,documentType:'invoice',items:[{kind:'product',values:{description:'Bobcat S550',hsCode:'84295100',qty:1,billingUnit:'Unit',unitPrice:19300,amount:19300}}]},structuredClone,
   quotePreviewColumns:()=>columns,quoteLineColumns:()=>[],escapeHtml:String,labelHtml:String,labelText:String,
   quotePreviewCell:(item,col)=>String(item.values[col.key]??''),
   renderPreviewWithCompany:()=>{assert.equal(context.settings.companyNameEn,'Saved company');assert.equal(context.settings.bankFields[0].value,'SAVED');assert.equal(context.settings.agencySignatureDataUrl,'saved-signature');}
@@ -23,13 +23,13 @@ assert(row.includes('84295100'));
 context.renderPreviewWithCompany=()=>{throw Error('render failed');};
 assert.throws(()=>context.renderPreview());assert.equal(context.settings,live,'Restore global company even after render failure');
 console.log('PI print regression passed: aligned headers/cells and isolated company/payment/signature snapshot.');
-const customerContext=vm.createContext({
+const customerContext=vm.createContext({ConfiguredFields:require('../assets/configured-fields.js'),
   normalizeCustomerQuoteFields:()=>{},settings:{customerQuoteFields:[]},
   configuredBlockFields:()=>[{fieldKey:'country',en:'Buyer Country',zh:'买方国家'},{fieldKey:'company',en:'Buyer Company',zh:'买方公司'},{fieldKey:'reference',en:'Reference',zh:'内部编号'}],
   displayMode:()=> 'en',OptionCatalog:{fieldOptions:()=>[]},
   labelText:en=>en,escapeHtml:value=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 });
-vm.runInContext(['configuredValueText','customerPreviewFields'].map(extract).join('\n'),customerContext);
+vm.runInContext(['configuredValueText','configuredValueHtml','customerPreviewFields'].map(extract).join('\n'),customerContext);
 const customer=customerContext.customerPreviewFields({company:'Arby',country:'Kenya',reference:'REF-01',phone:'HIDDEN'});
 assert(customer.includes('Buyer Country:</b> <bdi>Kenya'));
 assert(customer.indexOf('Kenya')<customer.indexOf('Arby'));

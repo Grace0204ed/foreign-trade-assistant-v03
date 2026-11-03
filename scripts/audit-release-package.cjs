@@ -33,7 +33,7 @@ assert(map.files.length>0);
 for(const file of map.files){assert.equal(file.sizes.length,file.checksums.length);assert.equal(file.offset+file.sizes.reduce((a,b)=>a+b,0),bytes.length);}
 const update=fs.readFileSync(path.join(root,'dist/win-unpacked/resources/app-update.yml'),'utf8');
 assert(update.includes('Grace0204ed')&&update.includes('foreign-trade-assistant-v03'));
-fs.mkdirSync(path.join(root,'output/release-0.11.21'),{recursive:true});
+fs.mkdirSync(path.join(root,'output/release-'+version),{recursive:true});
 const result={version,sourceFilesCompared:files.length,archiveEntries:entries.length,privatePaths:0,installer,bytes:bytes.length,sha256:hash(bytes),blockmap:true,latestSha512:true};
-fs.writeFileSync(path.join(root,'output/release-0.11.21/package-audit.json'),JSON.stringify(result,null,2));
+fs.writeFileSync(path.join(root,'output/release-'+version+'/package-audit.json'),JSON.stringify(result,null,2));
 console.log('PASS package source/resources, no local data/private keys, installer/blockmap/latest.yml/update target',JSON.stringify(result));

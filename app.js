@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   const keys = {
     settings: "quote_assistant_v01_settings",
     products: "quote_assistant_v01_products",
@@ -752,7 +752,7 @@
       brand: values.brand || product.brand || "",
       model: values.model || product.model || "",
       aliases: product.aliases || "",
-      condition: product.condition || "Used",
+      condition: product.condition || "",
       referencePrice: values.unitPrice || values.referencePrice || product.referencePrice || null,
       recordType: product.recordType || "model",
       modelProductId: product.modelProductId || "",
@@ -1173,15 +1173,19 @@
     applySidebarState();
   }
 
+  const documentSettingsSections=['quotation-config','invoice-config','contract-config','commercial-config','packing-config','invitation-config','agency-config','commission-config'];
   function showSettingsSection(section) {
+    if(section==='document-settings')section=localStorage.getItem('fta-last-document-settings')||'quotation-config';
+    if(documentSettingsSections.includes(section))localStorage.setItem('fta-last-document-settings',section);
     activeSettingsSection = section || "company";
+    const settingsSave=document.querySelector('#view-settings>.sticky-actions');if(settingsSave)settingsSave.hidden=activeSettingsSection!=='company'&&activeSettingsSection!=='quote-settings';
     if (["quote-fields","quote-lines","vehicle-fields","terms"].includes(activeSettingsSection)) activeSettingsSection = "quote-settings";
     localStorage.setItem(keys.settingsSection, activeSettingsSection);
     document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
       panel.hidden = panel.dataset.settingsPanel !== activeSettingsSection || (panel.classList.contains("admin-only") && !isAdmin());
     });
     document.querySelectorAll(".settings-tab").forEach((tab) => {
-      tab.classList.toggle("active", tab.dataset.settingsSection === activeSettingsSection);
+      tab.classList.toggle("active", tab.dataset.settingsSection === activeSettingsSection || (tab.dataset.settingsSection==='document-settings'&&documentSettingsSections.includes(activeSettingsSection)));
     });
   }
 
@@ -1254,10 +1258,7 @@
 
   function normalizeTemplates() {
     const existing = Array.isArray(settings.templates) ? settings.templates : [];
-    const merged = [...existing];
-    defaultTemplates.forEach((preset) => {
-      if (!merged.some((item) => item.name === preset.name)) merged.push(structuredClone(preset));
-    });
+    const merged = Array.isArray(settings.templates) ? existing : structuredClone(defaultTemplates);
     settings.templates = merged.map(normalizeTemplate);
     settings.categoryFieldConfigs = settings.categoryFieldConfigs || {};
   }
@@ -3882,6 +3883,7 @@
     if(!dialog.open)dialog.showModal();
     document.body.classList.add('product-editor-open');
     dialog.querySelector('.product-editor-body').scrollTop=0;
+    if(workspaceReady&&!workRestoring&&!workBaselines.has(currentWorkKey('products')))markWorkBaseline('products');
     requestAnimationFrame(()=>dialog.querySelector('[data-product-field]')?.focus({preventScroll:true}));
   }
 
@@ -3957,18 +3959,20 @@
     const fields = (tpl?.fields || [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .filter((field) => !field.deletedAt && field.active !== false && field.fieldType !== "calculated" && field.fieldType !== "image" && field.fieldKey !== 'params');
+      .filter((field) => !field.deletedAt && field.active !== false && field.fieldType !== "calculated" && field.fieldKey !== 'productImage' && field.fieldKey !== 'params');
     host.innerHTML = fields.map((field) => `
       <label class="${field.fieldType === "textarea" ? "wide" : ""}">
         <span>${escapeHtml(field.zh||field.en)}${field.required ? " *" : ""}</span>
         ${renderProductLibraryFieldInput(field, values[field.fieldKey] ?? "")}
       </label>
     `).join("");
+    fields.filter(f=>['image','richtext'].includes(f.fieldType)).forEach(field=>{const input=host.querySelector('[data-product-field="'+CSS.escape(field.fieldKey)+'"]');if(input){ConfiguredFields.enhance(input,field);input.after(input._choiceList);}});
     // One editable source per field; keep stable IDs for smart paste and draft recovery.
     for(const [key,id] of Object.entries({year:'product-year',hours:'product-working-hours',unitPrice:'product-specific-price',currency:'product-currency'})){
       const input=host.querySelector('[data-product-field="'+key+'"]');if(input)input.id=id;
     }
     window.ProductWorkflow?.mount(product,tpl);
+    window.ProductHierarchyWorkspace?.mountEditor(product.id?product:null);
   }
 
   function renderProductLibraryFieldInput(field, value) {
@@ -3977,7 +3981,7 @@
     const catalogKey={billingUnit:'billingUnits',unit:'billingUnits',transportMethod:'shippingMethods',shippingMethod:'shippingMethods',containerType:'containerTypes',paymentCondition:'paymentConditions'}[field.fieldKey];
     if(catalogKey)return `<select data-product-field="${key}">${catalogOptions(catalogKey,value,true)}</select>`;
     if (field.fieldKey === "currency") return renderCurrencySelectFor("product", field.fieldKey, value);
-    if (field.fieldType === "textarea") return `<textarea data-product-field="${key}">${val}</textarea>`;
+    if (["textarea","richtext"].includes(field.fieldType)) return `<textarea data-product-field="${key}">${val}</textarea>`;
     if (field.fieldType === "date") return `<input data-product-field="${key}" type="date" value="${val}" />`;
     if (field.fieldKey === "unitPrice" || field.fieldType === "money") return `<input data-product-field="${key}" type="text" value="${val}" placeholder="可留空或填写价格范围" />`;
     if (field.fieldType === "number") return `<input data-product-field="${key}" type="number" value="${val}" />`;
@@ -4090,10 +4094,11 @@
     const values = {...productValues(existing)};
     document.querySelectorAll("[data-product-field]").forEach((input) => values[input.dataset.productField] = input.multiple?[...input.selectedOptions].map(option=>option.value).join(','):input.type==='checkbox'?input.checked:input.value);
     Object.assign(values,window.ProductWorkflow?.collect()||{});
-    return {
+    Object.assign(values,window.ProductHierarchyWorkspace?.collect()||{});
+    const product = {
       ...existing,
       id: editingProductId || uid("product"),
-      category: $("product-template")?.value || "",
+      category: values.productType || existing.category || "",
       templateName: $("product-template")?.value || settings.templates[0]?.name || "",
       values,
       brand: values.brand || "",
@@ -4123,15 +4128,17 @@
       ,weight: $("product-weight")?.value || values.tonnage || ""
       ,transportMethod: $("product-transport-method")?.value || "Bulk Cargo"
     };
+    return window.BusinessSettings?.mapProduct(product,settings)||product;
   }
 
   async function saveProduct() {
     const workKey=currentWorkKey("products");
-    const product = collectProductForm();
+    let product;try{product=collectProductForm();}catch(error){return toast(error.message);}
     if (!Object.values(product.values || {}).some(Boolean)) return toast("请至少填写一个产品字段。");
     const payload = serverProductFromLegacy(product);
     Object.assign(payload, { transportLength:product.transportLength, transportWidth:product.transportWidth, transportHeight:product.transportHeight, transportCbm:product.transportCbm, dimensionUnit:product.dimensionUnit, weight:product.weight, transportMethod:product.transportMethod, imagePath:product.imageDataUrl });
     try {
+      if(product.values._classification&&!settings.productHierarchy)await window.quoteSettingsContext.save({productHierarchy:window.ProductHierarchyWorkspace.config()});
       const existsOnServer = serverProducts.some(p => p.id === product.id);
       await api(existsOnServer ? `/api/products/${encodeURIComponent(product.id)}` : "/api/products", { method: existsOnServer ? "PUT" : "POST", body: JSON.stringify(payload) });
       products = products.filter(p => p.id !== product.id);
@@ -4190,7 +4197,7 @@
   }
 
 
-  let libraryPage=1,libraryFilterKey='';
+  let libraryPage=1,libraryFilterKey='',libraryMatchedIds=[];
   const libraryPageSize=20;
   function renderProducts() {
     if ($("product-transport-plan-list") && !$("product-transport-plan-list").children.length) renderProductTransportPlans([]);
@@ -4207,8 +4214,10 @@
     });
     if ($("product-filter-summary")) $("product-filter-summary").textContent = `当前显示 ${list.length} 条，共 ${products.length} 条产品；价格可在列表中直接填写并保存。`;
     const selectedTemplate=$('library-template-filter')?.value||'';
-    const matched=list.filter(p=>!selectedTemplate||p.templateName===selectedTemplate);
-    const filterKey=JSON.stringify([kw,category,condition,selectedTemplate]);
+    window.ProductHierarchyWorkspace?.mountFilters();
+    const matched=list.filter(p=>(!selectedTemplate||p.templateName===selectedTemplate)&&(!window.ProductHierarchyWorkspace||window.ProductHierarchyWorkspace.matches(p))).sort((a,b)=>String(a.model||a.values?.model||productDisplayName(a)).localeCompare(String(b.model||b.values?.model||productDisplayName(b)),'zh-CN',{numeric:true,sensitivity:'base'}));
+    const filterKey=JSON.stringify([kw,category,condition,selectedTemplate,window.ProductHierarchyWorkspace?.getFilter()]);
+    libraryMatchedIds=matched.map(p=>p.id);
     if(filterKey!==libraryFilterKey){libraryPage=1;libraryFilterKey=filterKey;}
     const pageCount=Math.max(1,Math.ceil(matched.length/libraryPageSize));
     libraryPage=Math.max(1,Math.min(libraryPage,pageCount));
@@ -4222,7 +4231,7 @@
     const fields=[...columns.values()];
     $('product-library-summary').innerHTML=[['产品总数',products.length+' 条'],['产品类型',new Set(products.map(p=>p.templateName||'未分类')).size+' 种'],['已有图片',products.filter(p=>p.imageDataUrl).length+' 条']].map(([label,value])=>`<article class="overview-metric"><span>${label}</span><strong>${value}</strong></article>`).join('');
     if($('product-filter-summary'))$('product-filter-summary').textContent=`当前显示 ${shown.length} 条，共 ${products.length} 条产品。点击名称查看详情；字段按所选模板展示。`;
-    $('product-list').innerHTML='<div class="library-table-scroll"><table class="library-table"><thead><tr><th><input type="checkbox" id="library-select-all" aria-label="全选当前列表"></th><th>图片</th><th>商品名称／型号</th>'+fields.map(f=>`<th>${escapeHtml(f.zh||f.en||f.fieldKey)}</th>`).join('')+'<th>分类</th><th>操作</th></tr></thead><tbody>'+shown.map(p=>`<tr data-library-row="${escapeHtml(p.id)}"><td><input type="checkbox" data-library-select="${escapeHtml(p.id)}" aria-label="选择 ${escapeHtml(productDisplayName(p))}"></td><td>${p.imageDataUrl?`<img class="library-thumb" src="${escapeHtml(p.imageDataUrl)}" alt="${escapeHtml(productDisplayName(p))}" loading="lazy">`:'<div class="library-thumb library-no-image">暂无图片</div>'}</td><td><button type="button" class="library-product-name" data-library-detail="${escapeHtml(p.id)}">${escapeHtml(productDisplayName(p))}</button><small>${escapeHtml(p.inventoryCode||'')}</small></td>${fields.map(f=>`<td><div class="library-cell-value">${escapeHtml(productLibraryValue(p,f))}</div></td>`).join('')}<td><span class="library-type-badge">${escapeHtml(p.templateName||p.category||'未分类')}</span></td><td><div class="library-row-actions"><button type="button" data-library-detail="${escapeHtml(p.id)}">详情</button><button type="button" data-library-use="${escapeHtml(p.id)}">引用</button><button type="button" data-library-edit="${escapeHtml(p.id)}">编辑</button></div></td></tr>`).join('')+`</tbody></table>${shown.length?'':'<p class="empty">暂无匹配产品，可新增产品或调整筛选条件。</p>'}</div>`;
+    $('product-list').innerHTML='<div class="library-table-scroll"><table class="library-table"><thead><tr><th><input type="checkbox" id="library-select-all" aria-label="全选当前列表"></th><th>图片</th><th>商品名称／型号</th>'+fields.map(f=>`<th>${escapeHtml(f.zh||f.en||f.fieldKey)}</th>`).join('')+'<th>分类</th><th>操作</th></tr></thead><tbody>'+shown.map(p=>`<tr data-library-row="${escapeHtml(p.id)}"><td><input type="checkbox" data-library-select="${escapeHtml(p.id)}" aria-label="选择 ${escapeHtml(productDisplayName(p))}"></td><td>${p.imageDataUrl?`<img class="library-thumb" src="${escapeHtml(p.imageDataUrl)}" alt="${escapeHtml(productDisplayName(p))}" loading="lazy">`:'<div class="library-thumb library-no-image">暂无图片</div>'}</td><td><button type="button" class="library-product-name" data-library-detail="${escapeHtml(p.id)}">${escapeHtml(productDisplayName(p))}</button><small>${escapeHtml(p.inventoryCode||'')}</small></td>${fields.map(f=>`<td><div class="library-cell-value">${ConfiguredFields.html(f,productLibraryValue(p,f))}</div></td>`).join('')}<td><span class="library-type-badge">${escapeHtml(p.templateName||p.category||'未分类')}</span></td><td><div class="library-row-actions"><button type="button" data-library-detail="${escapeHtml(p.id)}">详情</button><button type="button" data-library-use="${escapeHtml(p.id)}">引用</button><button type="button" data-library-edit="${escapeHtml(p.id)}">编辑</button></div></td></tr>`).join('')+`</tbody></table>${shown.length?'':'<p class="empty">暂无匹配产品，可新增产品或调整筛选条件。</p>'}</div>`;
     const pagination=document.createElement('div');pagination.className='actions library-pagination';
     pagination.innerHTML=`<button type="button" data-library-page="${libraryPage-1}" ${libraryPage===1?'disabled':''}>上一页</button><span>第 ${libraryPage} / ${pageCount} 页 · 匹配 ${matched.length} 条 · 每页 ${libraryPageSize} 条</span><button type="button" data-library-page="${libraryPage+1}" ${libraryPage===pageCount?'disabled':''}>下一页</button><small>全选和批量删除仅作用于当前页；翻页或筛选后清除选择。</small>`;
     $('product-list').append(pagination);
@@ -4239,6 +4248,15 @@
   async function deleteSelectedLibraryProducts(){
     const ids=[...document.querySelectorAll('[data-library-select]:checked')].map(input=>input.dataset.librarySelect);
     if(!ids.length||!confirm('确认删除选中的 '+ids.length+' 个产品？已被单证引用的产品将停用，历史单证内容保持不变。'))return;
+    return deleteLibraryProducts(ids);
+  }
+  async function deleteAllFilteredLibraryProducts(){
+    const ids=libraryMatchedIds.slice();if(!ids.length)return toast('当前筛选范围没有产品。');
+    if(!confirm('全部删除范围：当前类型、小类、品牌和搜索条件匹配的 '+ids.length+' 个产品，包含其他分页。是否继续核对？'))return;
+    if(!confirm('再次确认：删除上述范围内全部 '+ids.length+' 个产品？被历史单证引用的产品只会停用。此操作不会删除历史单证。'))return;
+    return deleteLibraryProducts(ids);
+  }
+  async function deleteLibraryProducts(ids){
     const button=$('library-delete-selected');button.disabled=true;let deleted=0,inactive=0,failed=0;const removed=new Set();
     for(const id of ids){try{const result=await api('/api/products/'+encodeURIComponent(id),{method:'DELETE'});result.mode==='inactive'?inactive++:deleted++;removed.add(id);}catch(_){failed++;}}
     products=products.filter(p=>!removed.has(p.id));save(keys.products,products);
@@ -4257,7 +4275,7 @@
     let modal=$('library-detail-modal');
     if(!modal){modal=document.createElement('div');modal.id='library-detail-modal';modal.className='modal no-print';modal.innerHTML='<div class="modal-card library-detail-card" role="dialog" aria-modal="true" aria-labelledby="library-detail-title"></div>';document.body.append(modal);modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('[data-library-close]')){modal.hidden=true;document.querySelector('[data-library-detail="'+CSS.escape(id)+'"]')?.focus();}});modal.addEventListener('keydown',e=>{if(e.key==='Escape')modal.hidden=true;});}
     const fields=(productTemplateByName(p.templateName)?.fields||[]).filter(f=>f.visible!==false&&f.active!==false&&!['image','productImage'].includes(f.fieldKey)).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
-    modal.firstElementChild.innerHTML=`<header><div><small>${escapeHtml(p.templateName||'产品详情')}</small><h3 id="library-detail-title">${escapeHtml(productDisplayName(p))}</h3></div><button type="button" data-library-close>关闭</button></header><div class="library-detail-content">${p.imageDataUrl?`<img src="${escapeHtml(p.imageDataUrl)}" alt="商品图片">`:'<div class="library-detail-no-image">暂无产品图片</div>'}<dl>${fields.map(f=>`<div><dt>${escapeHtml(f.zh||f.en||f.fieldKey)}</dt><dd>${escapeHtml(productLibraryValue(p,f))}</dd></div>`).join('')}</dl></div><footer><button type="button" id="library-detail-edit">编辑资料</button><button type="button" class="primary" id="library-detail-use">引用到单证</button></footer>`;
+    modal.firstElementChild.innerHTML=`<header><div><small>${escapeHtml(p.templateName||'产品详情')}</small><h3 id="library-detail-title">${escapeHtml(productDisplayName(p))}</h3></div><button type="button" data-library-close>关闭</button></header><div class="library-detail-content">${p.imageDataUrl?`<img src="${escapeHtml(p.imageDataUrl)}" alt="商品图片">`:'<div class="library-detail-no-image">暂无产品图片</div>'}<dl>${fields.map(f=>`<div><dt>${escapeHtml(f.zh||f.en||f.fieldKey)}</dt><dd>${ConfiguredFields.html(f,productLibraryValue(p,f))}</dd></div>`).join('')}</dl></div><footer><button type="button" id="library-detail-edit">编辑资料</button><button type="button" class="primary" id="library-detail-use">引用到单证</button></footer>`;
     $('library-detail-edit').onclick=()=>{modal.hidden=true;editProduct(id);};$('library-detail-use').onclick=()=>{if(useLibraryProduct(id))modal.hidden=true;};
     modal.hidden=false;modal.querySelector('[data-library-close]').focus();
   }
@@ -4337,6 +4355,7 @@
   function normalizedQuoteStyle(value){return ({business:'blue-white',modern:'burgundy',minimal:'slate',gold:'classic'})[value]||value||'classic';}
 
   let documentColorSaveQueue=Promise.resolve();
+  function documentDefaults(type){const workspace=window.TranslationWorkspace;return {documentTypography:DocumentPresentation.typography(workspace?.preference(settings,type)?.typography),language:workspace?.defaultLanguage(settings,type)||(type==='invitation'?'zh':'bilingual')};}
   function preferredDocumentColor(type){const colors=settings.documentColorPreferences||load('quote_assistant_document_colors',{});return /^#[0-9a-f]{6}$/i.test(colors[type]||'')?colors[type]:'#285fc1';}
   function rememberDocumentColor(type,color){if(!/^#[0-9a-f]{6}$/i.test(color))return;settings.documentColorPreferences={...load('quote_assistant_document_colors',{}),...settings.documentColorPreferences,[type]:color};save(keys.settings,settings);documentColorSaveQueue=documentColorSaveQueue.then(()=>api('/api/settings/document-color',{method:'PUT',body:JSON.stringify({documentType:type,color})})).catch(error=>{console.warn('Document colour save failed',error);toast('颜色已在本机暂存，持久保存失败，请检查本机服务。');});}
 
@@ -4359,7 +4378,8 @@
       validUntil: addDays(7),
       validityRangeText: "",
       showProductPhotos: true,
-      pdfLanguage: "bilingual",
+      pdfLanguage: documentDefaults(docType).language,
+      documentTypography: documentDefaults(docType).documentTypography,
       currency: settings.currency || "USD",
       currencyDisplay: "single",
       secondaryCurrency: (settings.currency || "USD") === "CNY" ? "USD" : "CNY",
@@ -4377,7 +4397,7 @@
         port: "",
         afterSales: "",
         warranty: "",
-        notes: docType==='invoice'?DocumentPresentation.terms('bilingual'):"Freight and/or inland trucking charges, if listed, are paid by seller on buyer's behalf only. The trade term remains EXW and seller does not assume CIF carrier or insurance liability. / 如报价中列明海运费或陆路运输费，该费用仅为我方代客户代付或垫付，贸易方式仍为 EXW，我方不承担 CIF 项下承运或保险责任。"
+        notes: ""
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -4408,7 +4428,8 @@
     currentInvitation = {
       id: uid("invitation"),
       tableHeaderColor: preferredDocumentColor('invitation'),
-      language: "zh",
+      language: documentDefaults('invitation').language,
+      documentTypography: documentDefaults('invitation').documentTypography,
       recipientType: "individual", people: [DocumentWorkflow.person({})], visitPlaces: [],
       validityMonths: 3, validFrom: today(), validUntil: DocumentWorkflow.addMonths(today(),3), signatureChoice: "zh",
       style: "classic",
@@ -4688,13 +4709,14 @@
     return agencyDefaultCopy(mode).commission;
   }
 
-  function newAgentAuthorization() {
+  function newAgentAuthorization(documentType='authorization') {
+    if(typeof documentType!=='string')documentType=currentAgentAuthorization?.documentType||'authorization';
     if(workspaceReady)persistWork();
     const date = today(), party = invitationPartyInfo();
     currentAgentAuthorization = {
       id: "", companySnapshot:structuredClone(companyProfileData(settings)), documentType:"authorization", isTemplate:false, authorizationNumber: AgencyDocuments.number('authorization',date,agentAuthorizations),
       tableHeaderColor: preferredDocumentColor('authorization'),
-      date, validUntil: "", language: "bilingual", company: [party.nameEn || settings.companyNameEn, party.nameZh || settings.companyNameZh].filter(Boolean).join(" / "),
+      date, validUntil: "", language: documentDefaults('authorization').language, documentTypography:documentDefaults('authorization').documentTypography, company: [party.nameEn || settings.companyNameEn, party.nameZh || settings.companyNameZh].filter(Boolean).join(" / "),
       authorizer: settings.agencyAuthorizer || party.signerName || settings.contactPerson || "", authorizerTitle: settings.agencyAuthorizerTitle || party.signerTitle || "",
       signatureDataUrl: settings.agencySignatureDataUrl || "", signatureRotation: settings.agencySignatureRotation || 0,
       country: "", agentName: "", idNumber: "", phone: "", email: "", address:"", officeAddress:"",
@@ -4703,6 +4725,7 @@
       paymentMethods: agencyDefaultCopy("bilingual").payment, settlementDays: agencyDefaultCopy("bilingual").settlement,
       commissionTerms: defaultAgencyTerms("bilingual"), extraTerms: agencyDefaultCopy("bilingual").extra
     };
+    if(documentType==='statement')Object.assign(currentAgentAuthorization,{...documentDefaults('statement'),documentType,tableHeaderColor:preferredDocumentColor(documentType),authorizationNumber:AgencyDocuments.number(documentType,date,agentAuthorizations),settlementSchema:2,selectedProducts:[],paymentChannel:'bank',commissionBasis:'rate',orderRate:'',fixedCommission:'',documentNotes:'',allowManualCompletion:true});
     bindAgentAuthorizationForm();
     renderAgentAuthorizationPreview();
   }
@@ -4736,8 +4759,10 @@
     updateAgencyDocumentControls();
     if ($("agency-show-commission")) $("agency-show-commission").checked = a.showCommission !== false;
     renderAgencyProductOptions();
-    applyStandaloneDocumentForm('agency',standaloneFieldMappings.agency,a,$('agency-number').closest('.form-grid'));
-    arrangeStandaloneEditor('agency',standaloneFieldMappings.agency);
+    const configType=AgencyDocuments.type(a)==='statement'?'statement':'agency';
+    const mapping=configType==='statement'?{...standaloneFieldMappings.agency,...Object.fromEntries(Object.entries(agencyDocumentFields).map(([id,key])=>[key,id]))}:standaloneFieldMappings.agency;
+    applyStandaloneDocumentForm(configType,mapping,a,$('agency-number').closest('.form-grid'));
+    arrangeStandaloneEditor('agency',mapping);
     updateAgencyDocumentControls();
     if(activeViewName==='agency')updateDocumentSwitchState();
   }
@@ -4785,8 +4810,15 @@
     document.querySelector('.agency-scope-panel').hidden=commercial;
     document.querySelectorAll('.agency-order-field').forEach(el=>el.hidden=kind!=='statement');
     const statement=kind==='statement';
-    $('agency-basic-title').textContent=statement?'甲方与乙方佣金结算人':'授权及协议基本信息';
-    for(const [id,title] of Object.entries({'agency-company':statement?'甲方公司抬头':'授权方公司','agency-authorizer':statement?'甲方负责人':'授权方签署人','agency-country':statement?'乙方国家':'授权国家/地区','agency-agent-name':statement?'乙方姓名或全名':'联系人姓名'}))$(id).closest('label').querySelector('span').textContent=title;
+    let contractLink=$('commission-contract-link');if(!contractLink){contractLink=document.createElement('label');contractLink.id='commission-contract-link';contractLink.innerHTML='<span>关联已保存销售合同（也可在下方手填）</span><select><option value="">不关联／手动填写</option></select><small role="status"></small>';$('agency-sales-contract-number').closest('label').before(contractLink);
+      const select=contractLink.querySelector('select');select.onfocus=async()=>{try{const result=await api('/api/quotations'),records=result.quotations.filter(q=>q.settingsSnapshot?._quoteMeta?.documentType==='contract'&&!['Draft','draft','草稿','Void','void','作废','Deleted','deleted'].includes(q.status)&&!q.deleted_at);select.innerHTML='<option value="">不关联／手动填写</option>'+records.map(q=>`<option value="${escapeHtml(q.id)}">${escapeHtml(q.quote_number||q.quotation_number||q.id)}</option>`).join('');select.value=currentAgentAuthorization?.salesContractId||'';contractLink.querySelector('small').textContent=records.length?'仅读取合同，不修改原合同。':'暂无可关联销售合同，可手动填写。';}catch(error){contractLink.querySelector('small').textContent='读取失败：'+error.message;}};
+      select.onchange=async()=>{const id=select.value;if(!id){delete currentAgentAuthorization.salesContractId;return;}try{const source=serverQuotationToLocal(await api('/api/quotations/'+encodeURIComponent(id)));if((currentAgentAuthorization.salesContractNumber||currentAgentAuthorization.contractAmount)&&!confirm('用此合同的编号、金额与币种填入当前结算单？佣金比例和固定金额保持原值，原合同不受影响。')){select.value=currentAgentAuthorization.salesContractId||'';return;}Object.assign(currentAgentAuthorization,{salesContractId:id,salesContractNumber:source.quoteNumber,contractAmount:quoteTotal(source),currency:source.currency});bindAgentAuthorizationForm();renderAgentAuthorizationPreview();persistWork(true);}catch(error){contractLink.querySelector('small').textContent='关联失败：'+error.message;}};
+    }contractLink.hidden=!statement;
+    $('agency-commercial-panel').querySelector('h3').textContent=statement?'合同与佣金结算':'协议与逐单结算';
+    $('agency-commercial-panel').querySelector('.hint').textContent=statement?'收到客户全部合同款后开始结算，按对应订单约定的比例或固定金额执行。请核对关联合同、币种和收款资料，不重复计佣。':'按对应协议约定填写，不改变已保存协议。';
+    $('agency-basic-title').textContent=statement?'佣金结算单 · 出具公司与收款人':'授权及协议基本信息';
+    for(const [id,title] of Object.entries({'agency-company':statement?'出具公司':'授权方公司','agency-authorizer':statement?'公司签署人':'授权方签署人','agency-country':'授权国家/地区','agency-agent-name':statement?'佣金收款人姓名':'联系人姓名'}))$(id).closest('label').querySelector('span').textContent=title;
+    $('agency-country').closest('label').hidden=statement;
     for(const id of ['agency-related-authorization','agency-office-address','agency-valid-until'])$(id).closest('label').hidden=statement;
     document.querySelector('input[value="非独家授权 / Non-exclusive"]').closest('label').hidden=statement;
     $('agency-related-agreement').closest('label').hidden=true;
@@ -4826,6 +4858,7 @@
       a.authorizationNumber=AgencyDocuments.number(kind,a.date,agentAuthorizations);
       a.documentNotes='';
       if(kind==='statement'){
+        a.settlementSchema=2;
         a.company=[settings.companyNameEn,settings.companyNameZh].filter(Boolean).join(' / ');
         a.authorizer=settings.agencyAuthorizer||settings.contactPerson||'';a.authorizerTitle=settings.agencyAuthorizerTitle||'';
         a.signatureDataUrl=settings.agencySignatureDataUrl||'';a.signatureRotation=settings.agencySignatureRotation||0;
@@ -4881,7 +4914,7 @@
       $('agency-preview').dataset.language=currentAgentAuthorization.language||'bilingual';
       $('agency-preview').innerHTML=AgencyDocuments.render({...currentAgentAuthorization,date:DocumentWorkflow.dateText(currentAgentAuthorization.date,currentAgentAuthorization.language),validUntil:DocumentWorkflow.dateText(currentAgentAuthorization.validUntil,currentAgentAuthorization.language)},settings);
       const sheet=$('agency-preview').querySelector('.agency-sheet')||$('agency-preview').firstElementChild;
-      if(sheet)sheet.insertAdjacentHTML('beforeend',standaloneCustomPreview('agency',currentAgentAuthorization));
+      if(sheet&&currentAgentAuthorization.settlementSchema!==2)sheet.insertAdjacentHTML('beforeend',standaloneCustomPreview('agency',currentAgentAuthorization));
       return;
     }
     const a = currentAgentAuthorization, stamp = a.companySnapshot?.stampDataUrl || settings.stampDataUrl || "", showCommission=a.showCommission !== false;
@@ -4937,7 +4970,7 @@
     captureSigning(currentAgentAuthorization,currentAgentAuthorization.documentType);
     currentAgentAuthorization.recordClass="history";
     if(!currentAgentAuthorization.companySnapshot)currentAgentAuthorization.companySnapshot=structuredClone(companyProfileData(settings));
-    currentAgentAuthorization.documentConfigSnapshot ||= structuredClone(settings.documentConfigs?.agency||{});
+    currentAgentAuthorization.documentConfigSnapshot ||= structuredClone(settings.documentConfigs?.[AgencyDocuments.type(currentAgentAuthorization)==='statement'?'statement':'agency']||{});
     const data = await api("/api/agent-authorizations", { method:"POST", body:JSON.stringify(currentAgentAuthorization) });
     await completeWork(currentWorkKey("agency"));
     currentAgentAuthorization.id = data.id;
@@ -5034,19 +5067,20 @@
     if(!root||!grid)return;
     grid.classList.add('standalone-editor-grid');
     grid.querySelectorAll('.standalone-group-heading').forEach(node=>node.remove());
+    const configType=type==='agency'&&AgencyDocuments.type(currentAgentAuthorization)==='statement'?'statement':type;
     const sections=type==='invitation'
       ? [['邀请方与单据信息',['date','embassy','style','inviter','signerTitle']],['来访人信息',['visitorName','visitorCompany','country','gender','birthDate','passportNo']],['行程与费用',['arrivalDate','departureDate','visitPlace','visaType','relationship','expenseSource','reason','notes']]]
-      : [['授权方与文件信息',['authorizationNumber','date','validUntil','company','authorizer','authorizerTitle']],['代理人信息',['country','agentName','idNumber','phone','email','address','officeAddress']]];
+      : configType==='statement'?[['出具公司与单据信息',['authorizationNumber','date','company','authorizer','authorizerTitle']],['佣金收款人',['agentName','idNumber','phone','email','address']]]:[['授权方与文件信息',['authorizationNumber','date','validUntil','company','authorizer','authorizerTitle']],['代理人信息',['country','agentName','idNumber','phone','email','address','officeAddress']]];
     const used=new Set();
     sections.forEach(([title,keys],index)=>{
       const heading=document.createElement('h4');heading.className='standalone-group-heading';heading.textContent=`0${index+1}  ${title}`;grid.append(heading);
-      const configured=standaloneDocumentFields(type);
+      const configured=standaloneDocumentFields(configType);
       const ordered=keys.map(key=>({key,field:configured.find(field=>field.fieldKey===key)}));
       ordered.sort((a,b)=>Number(a.field?.sortOrder??999)-Number(b.field?.sortOrder??999));
       ordered.forEach(({key})=>{const label=$(mapping[key])?.closest('label');if(label&&label.parentElement===grid){used.add(label);grid.append(label);}});
       const block=index===0?'basic':index===1?'customer':'terms';
       const blocks=type==='invitation'&&index===2?['items','terms']:[block];
-      const customKeys=new Set(blocks.flatMap(key=>settings.documentConfigs?.[type]?.blocks?.[key]||[]).map(field=>fieldKeyOf(field)));
+      const customKeys=new Set(blocks.flatMap(key=>settings.documentConfigs?.[configType]?.blocks?.[key]||[]).map(field=>fieldKeyOf(field)));
       grid.querySelectorAll('[data-standalone-custom]').forEach(label=>{if(customKeys.has(label.dataset.standaloneCustom)){used.add(label);grid.append(label);}});
     });
     // Keep existing business controls not represented by the new field schema.
@@ -5081,8 +5115,11 @@
     } else if(input.type==='checkbox') input.checked=value===true||value==='true';
     else input.value=value??'';
     input.setAttribute('aria-label',field.zh||field.en||field.fieldKey);
+    ConfiguredFields.enhance(input,field);
     return input;
   }
+
+  function enhanceConfiguredMarkup(host,fields,attribute){fields.filter(f=>['richtext','image'].includes(f.fieldType||f.type)).forEach(field=>{host.querySelectorAll('['+attribute+'="'+CSS.escape(field.fieldKey||field.key)+'"]').forEach(input=>{ConfiguredFields.enhance(input,{...field,fieldType:field.fieldType||field.type});input.after(input._choiceList);});});}
 
   function configuredValueText(field,value,mode=displayMode()) {
     if((field.fieldType==='date'||['quoteDate','validUntil'].includes(field.fieldKey))&&DocumentWorkflow.parseDate(value))return DocumentWorkflow.dateText(value,mode);
@@ -5098,10 +5135,12 @@
     return value??'';
   }
 
+  function configuredValueHtml(field,value,mode=displayMode()){return ConfiguredFields.html(field,configuredValueText(field,value,mode));}
+
   function applyStandaloneDocumentForm(type, mapping, record, grid) {
     if(!grid||!settings.documentConfigs?.[type]?.blocks)return;
     grid.querySelectorAll('[data-standalone-custom]').forEach(label=>label.remove());
-    Object.values(mapping).forEach(id=>{const label=$(id)?.closest('label');if(label)label.hidden=true;});
+    Object.entries(mapping).forEach(([key,id])=>{const label=$(id)?.closest('label');if(label)label.hidden=key!=='language';});
     standaloneDocumentFields(type).forEach(field=>{
       const id=mapping[field.fieldKey];
       if(id&&$(id)){
@@ -5128,7 +5167,7 @@
 
   function standaloneCustomPreview(type,record){
     const rows=standaloneDocumentFields(type).filter(field=>!({invitation:['date','embassy','language','style','visitorName','visitorCompany','country','gender','passportNo','birthDate','arrivalDate','departureDate','visitPlace','visaType','reason','relationship','expenseSource','notes','inviter','signerTitle'],agency:['authorizationNumber','date','validUntil','language','company','authorizer','authorizerTitle','agentName','idNumber','phone','email','address','country','selectedProducts','authorizationType','extraTerms']}[type]||[]).includes(field.fieldKey)).map(field=>{
-      const value=record?.customFields?.[field.fieldKey],mode=record.language||'bilingual';return value!==''&&value!=null?`<p><b>${escapeHtml(labelText(field.en,field.zh,mode))}:</b> ${escapeHtml(configuredValueText(field,value,mode))}</p>`:'';
+      const value=record?.customFields?.[field.fieldKey],mode=record.language||'bilingual';return value!==''&&value!=null?`<div class="configured-output-field"><b>${escapeHtml(labelText(field.en,field.zh,mode))}:</b> ${configuredValueHtml(field,value,mode)}</div>`:'';
     }).filter(Boolean);
     return rows.length?`<section class="preview-panel standalone-custom-fields"><h3>${escapeHtml(labelText('Additional Information','补充信息',record.language||'bilingual'))}</h3>${rows.join('')}</section>`:'';
   }
@@ -5170,7 +5209,7 @@
     if($('apply-pi-payment-shipping'))$('apply-pi-payment-shipping').hidden=currentQuote.documentType!=='invoice';
     const values = currentQuote.terms || {};
     const fields = configuredBlockFields("terms", tpl.termFields || defaultTermFields)
-      .filter((field) => field.fieldType !== "calculated" && field.fieldType !== "image");
+      .filter((field) => field.fieldType !== "calculated");
     // Older packing configurations did not expose the shared Incoterm control.
     if(currentQuote.documentType==='packing' && !fields.some(f=>['shipping','tradeTerm'].includes(f.fieldKey)))
       fields.unshift({fieldKey:'shipping',en:'Trade Term',zh:'贸易方式',fieldType:'combobox'});
@@ -5180,6 +5219,8 @@
         ${renderTermInput(field, values[field.fieldKey] || "")}
       </label>
     `).join("") || `<p class="empty wide">当前报价类型没有需要填写的条款字段。</p>`;
+    enhanceConfiguredMarkup($("quote-terms"),fields,'data-termfield');
+    window.BusinessSettings?.refreshDescription();
   }
 
   function collectQuoteFromForm() {
@@ -5290,7 +5331,7 @@
   }
 
   function conditionDisplayText(value) {
-    const condition=String(value||"used").trim();
+    const condition=String(value||"").trim();
     const labels={used:labelText("Used","二手"),"new-unused":labelText("Brand New & Unused","全新未使用"),"new-machine":labelText("New Machinery","全新机械"),"new-truck":labelText("New Truck","全新卡车")};
     return labels[condition] || condition;
   }
@@ -5303,7 +5344,7 @@
   function lineDescription(item) {
     const values = item.values || {};
     if((item.kind||'product')!=='product')return values.description||values.itemType||'';
-    const condition = values.condition || "used";
+    const condition = values.condition || "";
     const prefix = conditionDisplayText(condition);
     const details = condition === "new-truck"
       ? [values.productionDate ? `Production: ${values.productionDate}` : "", values.engine ? `Engine: ${values.engine}` : ""].filter(Boolean).join(" | ")
@@ -5355,7 +5396,7 @@
       return `<select data-qfield="route" aria-label="运输方式"><option value="">请选择运输方式</option>${modes.map(v=>`<option value="${escapeHtml(v)}" ${v===selected?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select>`;
     }
     if (column.key === 'itemType') return renderItemTypeInput(column,item);
-    if (column.key === "condition") return isEquipment?`<input data-qfield="condition" class="quote-condition-select" list="quote-condition-options" value="${escapeHtml(values.condition||"used")}" placeholder="选择或直接输入设备状态">`:`<span class="not-applicable">—</span>`;
+    if (column.key === "condition") return isEquipment?`<input data-qfield="condition" class="quote-condition-select" list="quote-condition-options" value="${escapeHtml(values.condition||"")}" placeholder="选择或直接输入设备状态">`:`<span class="not-applicable">—</span>`;
     if (column.key === "description") return `<div class="description-editor"><textarea data-qfield="description"${required} placeholder="填写品牌、型号和产品描述">${escapeHtml(lineDescription(item))}</textarea><div class="new-detail-fields" ${isNewCondition(values.condition)?"":"hidden"}><input data-qfield="productionDate" type="text" value="${escapeHtml(values.productionDate||"")}" placeholder="生产年份/日期（可选）"><input data-qfield="engine" type="text" value="${escapeHtml(values.engine||"")}" placeholder="发动机（新卡车填写）" ${values.condition==="new-truck"?"":"hidden"}></div></div>`;
     if (column.key === "billingUnit") return `<select data-qfield="billingUnit">${catalogOptions('billingUnits',values.billingUnit||'台')}</select>`;
     if (column.key === "hsCode") return isEquipment?`<div class="hs-code-input"><input data-qfield="hsCode" list="hs-code-options" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" value="${escapeHtml(values.hsCode || suggestedHsCode(values.productType,values.description,values.brand,values.model))}" placeholder="8位 HS CODE"><button class="add-hs-code-btn no-print" type="button">＋ 新建编码</button><small>请输入8位编码，申报前请由目的国清关代理确认</small></div>`:`<span class="not-applicable">—</span>`;
@@ -5470,6 +5511,7 @@
         </table>
       </div>
     `;
+    enhanceConfiguredMarkup($("quote-items"),columns,'data-qfield');
   }
 
   function updateQuoteLineAmounts() {
@@ -5495,10 +5537,26 @@
     return `<input data-qfield="${key}" type="text" value="${val}" />`;
   }
 
+  const productPickerStates=new Map();
+  const productPickerKey=()=>String(currentQuote.id)+'|'+String(currentQuote.documentType||'quotation');
   function openProductPicker() {
+    const state=productPickerStates.get(productPickerKey())||{search:'',category:'',brand:'',hierarchy:[]};
+    $('product-picker-search').value=state.search;
+    if(!$('product-picker-category')){const row=document.createElement('div');row.className='form-grid';row.innerHTML='<label>分类<select id="product-picker-category"></select></label><label>品牌<select id="product-picker-brand"></select></label>';$('product-picker-search').after(row);for(const id of ['product-picker-category','product-picker-brand'])$(id).onchange=()=>renderProductPicker();}
+    const options=(values,selected)=>'<option value="">全部</option>'+[...new Set(values.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true})).map(value=>'<option value="'+escapeHtml(value)+'" '+(value===selected?'selected':'')+'>'+escapeHtml(value)+'</option>').join('');
+    $('product-picker-category').innerHTML=options(products.map(p=>p.category),state.category);
+    $('product-picker-brand').innerHTML=options(products.map(p=>p.brand||p.values?.brand),state.brand);
+
     renderProductPicker();
     $("product-picker-modal").hidden = false;
     $("product-picker-search").focus();
+  }
+
+  function renderPickerHierarchy(ids=[]){
+    const config=window.ProductHierarchyWorkspace?.config();if(!config)return;
+    let host=$('product-picker-hierarchy');if(!host){host=document.createElement('div');host.id='product-picker-hierarchy';host.className='form-grid';$('product-picker-search').after(host);}
+    host.innerHTML=config.levelNames.map((name,i)=>'<label>'+escapeHtml(name)+'<select data-picker-hierarchy="'+i+'"><option value="">全部</option>'+(!i||ids[i-1]?ProductHierarchy.children(config,i?ids[i-1]:'').filter(n=>ProductHierarchy.enabled(config,n.id)).map(n=>'<option value="'+escapeHtml(n.id)+'" '+(ids[i]===n.id?'selected':'')+'>'+escapeHtml(n.label)+'</option>').join(''):'')+'</select></label>').join('');
+    host.onchange=e=>{const next=[...host.querySelectorAll('[data-picker-hierarchy]')].map(n=>n.value).slice(0,Number(e.target.dataset.pickerHierarchy)+1);renderPickerHierarchy(next);renderProductPicker();};
   }
 
   function closeProductPicker() {
@@ -5507,7 +5565,10 @@
 
   function renderProductPicker() {
     const keyword = normalize($("product-picker-search")?.value || "");
-    const list = products.filter((product) => !keyword || normalize(`${product.category}${product.brand}${product.model}${product.remark}`).includes(keyword));
+    const category=$('product-picker-category')?.value||'',brand=$('product-picker-brand')?.value||'';
+    const hierarchy=[...document.querySelectorAll('[data-picker-hierarchy]')].map(n=>n.value);productPickerStates.set(productPickerKey(),{search:$('product-picker-search').value,category,brand,hierarchy});
+    const searchable=product=>[...Object.entries(product).filter(([key,value])=>!/(image|photo|snapshot)/i.test(key)&&['string','number'].includes(typeof value)).map(([,value])=>value),...Object.entries(product.values||{}).filter(([key])=>!/(image|photo)/i.test(key)).map(([,value])=>value)].join(' ');
+    const list=products.filter(product=>(!hierarchy.some(Boolean)||hierarchy.every((id,i)=>!id||ProductHierarchy.resolve(ProductHierarchyWorkspace.config(),product)[i]===id))&&(!category||product.category===category)&&(!brand||(product.brand||product.values?.brand)===brand)&&(!keyword||normalize(searchable(product)).includes(keyword))).sort((a,b)=>String(a.model||a.values?.model||productDisplayName(a)).localeCompare(String(b.model||b.values?.model||productDisplayName(b)),'zh-CN',{numeric:true,sensitivity:'base'}));
     $("product-picker-list").innerHTML = list.map((product) => `
       <article class="product-pick-card" data-product-id="${escapeHtml(product.id)}">
         ${product.imageDataUrl ? `<img src="${product.imageDataUrl}" alt="">` : `<div class="thumb-empty">No Image</div>`}
@@ -5821,7 +5882,7 @@
     if(column.key==='hsCode' && (item.kind||'product')!=='product')return '—';
     if (column.key === "itemType") return quoteItemTypeText(item);
     if (column.key === "tradeTerm") return Object.prototype.hasOwnProperty.call(values, "tradeTerm") ? values.tradeTerm : (currentQuote?.terms?.shipping || "EXW");
-    if (column.key === "condition") return (item.kind||"product")==="product" ? conditionDisplayText(values.condition || "used") : "—";
+    if (column.key === "condition") return (item.kind||"product")==="product" ? conditionDisplayText(values.condition || "") : "—";
     if (column.key === "type") return values.productType || itemKindLabel(item.kind || "product");
     if (column.key === "description") return previewDescription(item);
     if (column.key === "qty") return values.qty || "1";
@@ -5869,9 +5930,9 @@
         if (column.key === "image") return `<td class="preview-col-image preview-product-image" data-label="${escapeHtml(label)}">${(item.kind||'product')==='product'&&(item.imageDataUrl||item.additionalImages?.[0])?`<img src="${escapeHtml(item.imageDataUrl||item.additionalImages[0])}" alt="${escapeHtml(labelText('Image','图片'))}">`:'—'}</td>`;
         const value = quotePreviewCell(item, column);
         const printMeta = column.key === "description" && !['commercial','packing'].includes(currentQuote.documentType)
-          ? `<span class="print-product-meta">${escapeHtml(quoteLineColumns().filter(c=>!['image','description','hsCode','qty','billingUnit','unitPrice','amount','currency','remark','itemType'].includes(c.key)).map(c=>{const value=quotePreviewCell(item,c);return value&&value!=='—'?labelText(c.labelEn||c.key,c.labelZh||c.key)+': '+value:'';}).filter(Boolean).join(' · '))}</span>`
+          ? `<span class="print-product-meta">${escapeHtml(quoteLineColumns().filter(c=>!['image','richtext'].includes(c.type)&&!['image','description','hsCode','qty','billingUnit','unitPrice','amount','currency','remark','itemType'].includes(c.key)).map(c=>{const value=quotePreviewCell(item,c);return value&&value!=='—'?labelText(c.labelEn||c.key,c.labelZh||c.key)+': '+value:'';}).filter(Boolean).join(' · '))}</span>`
           : "";
-        return `<td class="preview-col-${escapeHtml(column.key)}${printCore.has(column.key)?"":" preview-col-extra"}" data-label="${escapeHtml(label)}"><span class="preview-cell-value">${escapeHtml(value)}</span>${printMeta}</td>`;
+        return `<td class="preview-col-${escapeHtml(column.key)}${printCore.has(column.key)?"":" preview-col-extra"}" data-label="${escapeHtml(label)}"><div class="preview-cell-value">${ConfiguredFields.html({fieldType:column.type},value)}</div>${printMeta}</td>`;
       }).join("")}</tr>`;
     }).join("");
   }
@@ -5921,7 +5982,7 @@
 
   function customerPreviewFields(buyer = {}) {
     normalizeCustomerQuoteFields();
-    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<p class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <bdi>${escapeHtml(configuredValueText(field,buyer[field.fieldKey]))}</bdi></p>`).join("");
+    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<div class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <bdi>${configuredValueHtml(field,buyer[field.fieldKey])}</bdi></div>`).join("");
   }
 
   function applyCustomerQuoteFieldLabels() {
@@ -6032,7 +6093,7 @@
     const values={quoteNumber:currentQuote.quoteNumber,quoteDate:currentQuote.quoteDate,validUntil:currentQuote.validUntil,...(currentQuote.basicFields||{})};
     configuredBlockFields("basic",[]).filter(field=>field.fieldKey!=='pdfLanguage').forEach(field=>{
       const value=values[field.fieldKey];
-      if(value!==''&&value!=null)rows.push(`<p>${escapeHtml(labelText(field.en,field.zh))}：${escapeHtml(configuredValueText(field,value))}</p>`);
+      if(value!==''&&value!=null)rows.push(`<div class="configured-output-field">${escapeHtml(labelText(field.en,field.zh))}：${configuredValueHtml(field,value)}</div>`);
     });
     return rows.length ? `<div class="preview-meta">${rows.join("")}</div>` : "";
   }
@@ -6131,9 +6192,9 @@
         ${renderQuoteMetaPreview()}
       </section>
       <section class="preview-panel"><h3>${quoteSectionTitle("customer")}</h3><div class="preview-fields">${customerPreviewFields(currentQuote.buyer)}</div></section>
-      <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">报价未完整：存在待询价项目，可保存草稿，但不能生成正式单据。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${escapeHtml(dualMoneyText(total(), currentQuote.currency))}</div>` : ""}</section>
+      <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">部分项目尚未填写价格，导出前请核对。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${escapeHtml(dualMoneyText(total(), currentQuote.currency))}</div>` : ""}</section>
       ${showProductPhotos && currentQuote.photoAppendix ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product").flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || i.values.model || '')}</div></article>`)).join("")}</div></section>` : ""}
-      ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${quoteSectionTitle("terms")}</h3>${visibleTermFields.map((field) => `<p>${field.fieldKey==='notes'&&String(currentQuote.terms.notes||'').includes(DocumentPresentation.paymentShipping.en)?'':labelText(field.en, field.zh)+'：'}${escapeHtml(displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
+      ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${quoteSectionTitle("terms")}</h3>${visibleTermFields.map((field) => `<p>${field.fieldKey==='notes'&&String(currentQuote.terms.notes||'').includes(DocumentPresentation.paymentShipping.en)?'':labelText(field.en, field.zh)+'：'}${ConfiguredFields.html(field,displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
       ${['contract','invoice'].includes(currentQuote.documentType)?renderSalesContractSignatures():''}
     `;
@@ -6155,14 +6216,7 @@
     const productType=DocumentPresentation.typography(currentQuote.documentTypography).product;
     if($('document-product-style'))$('document-product-style').value=productType.fontWeight>=700?(productType.color==='#000000'?'bold-black':'bold'):'regular';
     if($('document-product-color'))$('document-product-color').value=productType.color;
-    preview.dataset.pageOrientation=design.orientation||'portrait';
-    preview.classList.toggle('document-landscape',design.orientation==='landscape');
-    if(design.backgroundDataUrl){
-      const opacity=Math.max(0,Math.min(1,Number(design.backgroundOpacity??.12))),overlay=Math.max(0,Math.min(1,Number(design.overlay??.82)));
-      preview.style.backgroundImage=`linear-gradient(rgba(255,255,255,${overlay}),rgba(255,255,255,${overlay})),url("${String(design.backgroundDataUrl).replaceAll('"','%22')}")`;
-      preview.style.backgroundSize=design.backgroundMode==='stretch'?'100% 100%':design.backgroundMode||'cover';
-      preview.style.backgroundRepeat='repeat-y';preview.style.backgroundPosition='top center';preview.style.setProperty('--document-background-opacity',String(opacity));
-    }else{preview.style.backgroundImage='';preview.style.backgroundSize='';preview.style.backgroundRepeat='';preview.style.backgroundPosition='';}
+    DocumentPresentation.background(preview,design);
   }
 
   function activeFreightTarget() {
@@ -6274,7 +6328,7 @@
     const consignee=['commercial','packing'].includes(type)&&d.consignee?`<p class="preserve-lines">${e(d.consignee)}</p>`:buyer;
     const parties=`<div class="document-parties">${block(l(type==='packing'?'Shipper':'Seller',type==='packing'?'发货人':'卖方'),seller)}${block(partyHeading,consignee)}</div>${type==='commercial'&&d.consignee?block(l('Buyer','买方'),buyer):''}`;
     const shipment=block(l('Shipment details','货运资料'),`<div class="document-shipment-grid">${detail('Invoice reference','关联发票编号',d.invoiceReference)}${detail('Shipment date','出货日期',d.shipmentDate)}${detail('Origin Port','起运港',displayTermValue({fieldKey:'originPort'}))}${detail('Destination Port','目的港',displayTermValue({fieldKey:'port'}))}${detail('Trade Term','贸易条件',currentQuote.terms.shipping)}${detail('Named place','指定地点',d.namedPlace)}${detail('Transport mode','运输方式',d.transportMode)}${detail('Vessel / voyage','船名／航次',d.vessel)}${detail('B/L / AWB No.','提运单号',d.billNumber)}${detail('Container / seal No.','箱号／封号',d.containerNumber)}</div>`,'document-shipment');
-    const termBlock=(fields,title,cls='')=>block(title,fields.filter(f=>displayTermValue(f)).map(f=>detail(f.en,f.zh,displayTermValue(f))).join(''),cls);
+    const termBlock=(fields,title,cls='')=>block(title,fields.filter(f=>displayTermValue(f)).map(f=>'<div><b>'+l(f.en,f.zh)+'</b><div>'+ConfiguredFields.html(f,displayTermValue(f))+'</div></div>').join(''),cls);
     const visibleTerms=termFields.filter(f=>displayTermValue(f));
     const items=html('table')?host.querySelector('table').closest('.preview-panel').outerHTML:'';
     const letterhead=compactDocumentHeader();
@@ -6285,7 +6339,7 @@
       paymentTerms:termBlock(visibleTerms.filter(f=>f.fieldKey==='payment'),l('Payment instructions','付款安排'),'document-payment'),
       deliveryTerms:termBlock(visibleTerms.filter(f=>f.fieldKey!=='payment'),l('Delivery and conditions','交付与交易条件')),
       contractItems:block('1. '+l('Goods and contract value','货物与合同金额'),items,'contract-goods'),
-      contractClauses:visibleTerms.map((f,i)=>block(`${i+2}. ${l(f.en,f.zh)}`,`<p class="preserve-lines">${e(displayTermValue(f))}</p>`,'contract-clause')).join(''),
+      contractClauses:visibleTerms.map((f,i)=>block(`${i+2}. ${l(f.en,f.zh)}`,`<p class="preserve-lines">${ConfiguredFields.html(f,displayTermValue(f))}</p>`,'contract-clause')).join(''),
       packingTotals:'',shippingNotes:d.notes?block(l('Shipment remarks','出货备注'),`<p class="preserve-lines">${e(d.notes)}</p>`):''};
     host.classList.add('trade-layout','trade-layout-'+type);host.dataset.layout=type;
     host.innerHTML=TradeDocumentLayouts.render(type,parts);
@@ -6723,6 +6777,7 @@
     $("product-search").addEventListener("input", renderProducts);
     $('library-template-filter')?.addEventListener('change',renderProducts);
     $('library-delete-selected')?.addEventListener('click',deleteSelectedLibraryProducts);
+    const deleteAll=document.createElement('button');deleteAll.id='library-delete-all';deleteAll.type='button';deleteAll.textContent='全部删除';deleteAll.onclick=deleteAllFilteredLibraryProducts;$('library-delete-selected').after(deleteAll);
     const editSelected=document.createElement('button');editSelected.id='library-edit-selected';editSelected.type='button';editSelected.textContent='编辑选中';editSelected.disabled=true;$('library-new-product').after(editSelected);
     editSelected.addEventListener('click',()=>{const ids=[...document.querySelectorAll('[data-library-select]:checked')];if(ids.length===1)editProduct(ids[0].dataset.librarySelect);else toast('请只选择一个产品进行编辑。');});
     $('product-list')?.addEventListener('change',event=>{if(event.target.id==='library-select-all')document.querySelectorAll('[data-library-select]').forEach(input=>input.checked=event.target.checked);updateLibrarySelection();});
@@ -7192,7 +7247,7 @@
     $('document-top-tools')?.querySelectorAll('details[open]').forEach(popup=>popup.open=false);
   }
   function initDocumentNavigation() {
-    const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',statement:'佣金结算单',procurement:'委托采购',invitation:'商务邀请函'};
+    const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',statement:'佣金结算单',invitation:'商务邀请函'};
     const drafts=new Map();let sharedBuyer={};
     function capture(){
       if(activeViewName==='quote'){collectQuoteFromForm();sharedBuyer={...currentQuote.buyer};drafts.set(currentQuote.documentType,structuredClone(currentQuote));}
@@ -7207,12 +7262,12 @@
       }
       if(type==='authorization'||type==='procurement'||type==='statement'){
         if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization();Object.assign(currentAgentAuthorization,{documentType:type,tableHeaderColor:preferredDocumentColor(type),authorizationNumber:AgencyDocuments.number(type,today(),agentAuthorizations),agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
+        if(type==='statement'&&!drafts.has(type))Object.assign(currentAgentAuthorization,{...documentDefaults(type),settlementSchema:2,paymentChannel:'bank',commissionBasis:'rate',orderRate:'',fixedCommission:'',documentNotes:'',allowManualCompletion:true});
         bindAgentAuthorizationForm();switchView('agency');updateDocumentSwitchState();return;
       }
       if(drafts.has(type))currentQuote=structuredClone(drafts.get(type));else{
         const source=drafts.get('quotation');newQuote(false,type);currentQuote.documentType=type;currentQuote.buyer={...currentQuote.buyer,...sharedBuyer};
         if(source){currentQuote.items=structuredClone(source.items).map(item=>({...item,id:uid('item')}));currentQuote.terms=structuredClone(source.terms);currentQuote.relatedOrderId=source.id;currentQuote.relatedOrderNumber=source.quoteNumber;}
-        if(type==='invoice'&&(!currentQuote.terms.notes||currentQuote.terms.notes.startsWith("Freight and/or inland trucking charges")))currentQuote.terms.notes=DocumentPresentation.terms('bilingual');
       }
       bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();
     }
@@ -7240,9 +7295,9 @@
   }
 
   const renderInvitationBase=renderInvitationPreview;
-  renderInvitationPreview=function(){const previous=settings;try{if(currentInvitation?.companySnapshot)settings={...settings,...currentInvitation.companySnapshot};if(pdfSnapshotMode&&currentInvitation?.documentConfigSnapshot)settings={...settings,documentConfigs:{...settings.documentConfigs,invitation:currentInvitation.documentConfigSnapshot}};renderInvitationBase();}finally{settings=previous;}if(currentInvitation){DocumentPresentation.apply($('invitation-preview'),currentInvitation);if($('invitation-color'))$('invitation-color').value=currentInvitation.tableHeaderColor||'#285fc1';}};
+  renderInvitationPreview=function(){const previous=settings;try{if(currentInvitation?.companySnapshot)settings={...settings,...currentInvitation.companySnapshot};if(pdfSnapshotMode&&currentInvitation?.documentConfigSnapshot)settings={...settings,documentConfigs:{...settings.documentConfigs,invitation:currentInvitation.documentConfigSnapshot}};renderInvitationBase();}finally{settings=previous;}if(currentInvitation){DocumentPresentation.apply($('invitation-preview'),currentInvitation,currentInvitation.documentConfigSnapshot?.design||settings.documentConfigs?.invitation?.design||{});if($('invitation-color'))$('invitation-color').value=currentInvitation.tableHeaderColor||'#285fc1';}};
   const renderAgencyPresentationBase=renderAgentAuthorizationPreview;
-  renderAgentAuthorizationPreview=function(){const previous=settings;try{if(currentAgentAuthorization?.companySnapshot)settings={...settings,...currentAgentAuthorization.companySnapshot};if(pdfSnapshotMode&&currentAgentAuthorization?.documentConfigSnapshot)settings={...settings,documentConfigs:{...settings.documentConfigs,agency:currentAgentAuthorization.documentConfigSnapshot}};renderAgencyPresentationBase();}finally{settings=previous;}if(currentAgentAuthorization){DocumentPresentation.apply($('agency-preview'),currentAgentAuthorization);if($('agency-color'))$('agency-color').value=currentAgentAuthorization.tableHeaderColor||'#285fc1';}};
+  renderAgentAuthorizationPreview=function(){const previous=settings;try{if(currentAgentAuthorization?.companySnapshot)settings={...settings,...currentAgentAuthorization.companySnapshot};if(pdfSnapshotMode&&currentAgentAuthorization?.documentConfigSnapshot)settings={...settings,documentConfigs:{...settings.documentConfigs,agency:currentAgentAuthorization.documentConfigSnapshot}};renderAgencyPresentationBase();}finally{settings=previous;}if(currentAgentAuthorization){DocumentPresentation.apply($('agency-preview'),currentAgentAuthorization,currentAgentAuthorization.documentConfigSnapshot?.design||settings.documentConfigs?.[currentAgentAuthorization.documentType==='statement'?'statement':'agency']?.design||{});if($('agency-color'))$('agency-color').value=currentAgentAuthorization.tableHeaderColor||'#285fc1';}};
   function bindStandalonePresentation(){
     $('invitation-color')?.addEventListener('input',event=>{currentInvitation.tableHeaderColor=event.target.value;rememberDocumentColor('invitation',event.target.value);renderInvitationPreview();});
     $('agency-color')?.addEventListener('input',event=>{currentAgentAuthorization.tableHeaderColor=event.target.value;rememberDocumentColor(currentAgentAuthorization.documentType||'authorization',event.target.value);renderAgentAuthorizationPreview();});
@@ -7254,7 +7309,8 @@
   let workRestoring=false, productWorkId='', workCaptureError=null, workQueue=Promise.resolve(), pdfSnapshotMode=false, pdfBatchToken=null;
   const workRecords={}, pendingWork=new Map(), dirtyWork=new Set(), recoveredKeys=new Map();
   const readWork=()=>workRecords;
-  function currentWorkKey(kind=activeViewName){
+  function activeWorkKind(){return $('product-editor-modal')?.open?'products':activeViewName;}
+  function currentWorkKey(kind=activeWorkKind()){
     let id=kind==='quote'?currentQuote?.id:kind==='products'?(editingProductId||(productWorkId||=uid('product-work'))):kind==='invitation'?currentInvitation?.id:currentAgentAuthorization?.id;
     if(kind==='agency'&&!id&&currentAgentAuthorization)id=currentAgentAuthorization.id=uid('agency-work');
     return recoveredKeys.get(kind+':'+id)||kind+':'+id;
@@ -7273,9 +7329,9 @@
     return workQueue;
   }
   function persistWork(markDirty=false){
-    if(!workspaceReady||workRestoring||!['quote','products','invitation','agency'].includes(activeViewName))return;
+    if(!workspaceReady||workRestoring||!['quote','products','invitation','agency'].includes(activeWorkKind()))return;
     try{
-      const kind=activeViewName,key=currentWorkKey(kind);if(markDirty)dirtyWork.add(key);if(!dirtyWork.has(key))return;
+      const kind=activeWorkKind(),key=currentWorkKey(kind);if(markDirty)dirtyWork.add(key);if(!dirtyWork.has(key))return;
       let data;
       if(kind==='quote'){collectQuoteFromForm();data=structuredClone(currentQuote);data.companySnapshot||=structuredClone(companyProfileData(settings));}
       else if(kind==='products'){data={product:collectProductForm(),editingId:editingProductId};data.product.id=editingProductId||productWorkId;}
@@ -7292,7 +7348,7 @@
   async function completeWork(key=currentWorkKey()){
     dirtyWork.delete(key);
     if(workRecords[key])await queueWork({...workRecords[key],completedAt:new Date().toISOString()});
-    const source=activeViewName==='products'?productDraftSource:workflowDocument()?.sourceDraftKey;if(source&&workRecords[source])await queueWork({...workRecords[source],completedAt:new Date().toISOString()});
+    const source=activeWorkKind()==='products'?productDraftSource:workflowDocument()?.sourceDraftKey;if(source&&workRecords[source])await queueWork({...workRecords[source],completedAt:new Date().toISOString()});
   }
   async function installWorkRecovery(){
     const saved=await api('/api/work-drafts');for(const row of saved.drafts||[])if(!pendingWork.has(row.key))workRecords[row.key]=row;
@@ -7302,7 +7358,7 @@
     try{const legacy=await draftStorage('get');if(legacy){const data=legacy.quote||legacy;const key='quote:'+data.id;if(data.id&&!workRecords[key])await queueWork({key,kind:'quote',data,user:currentUser?.id,savedAt:legacy.savedAt||new Date().toISOString(),label:data.quoteNumber||'旧版草稿'});}}catch(error){toast('旧版恢复记录读取失败：'+error.message);}
     if(!pendingWork.size)localStorage.setItem('fta-recovery-migrated-v3','1');
     }
-    for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency'))persistWork(true);});
+    for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency,#product-editor-modal'))persistWork(true);});
     document.addEventListener('click',()=>persistWork(),true);
     window.hasUnsavedWork=()=>hasCurrentChanges()||Boolean(workCaptureError);
     window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
@@ -7315,7 +7371,9 @@
     const rows=Object.values(readWork()).filter(r=>!r.completedAt).sort((a,b)=>b.savedAt.localeCompare(a.savedAt));if(!rows.length)return toast('暂无未完成工作');
     document.getElementById('work-recovery-modal')?.remove();const modal=document.createElement('div');modal.id='work-recovery-modal';modal.className='modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-label','恢复未完成工作');
     const names={quote:'单证',products:'产品编辑',invitation:'邀请函',agency:'代理文件'};
-    modal.innerHTML='<div class="modal-card"><h3>草稿箱与异常恢复</h3><p>稍后处理会保留全部草稿。恢复为独立副本，保存前请核对客户和公司。</p>'+rows.map((r,i)=>'<article><p>'+escapeHtml((r.category==='draft'?'已保存草稿':'异常恢复缓存')+' · '+(names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+(r.data.buyer?.company||r.data.agentName||'')+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
+    modal.innerHTML='<div class="modal-card"><h3>草稿箱与异常恢复</h3><p>稍后处理会保留全部草稿。恢复为独立副本，保存前请核对客户和公司。</p>'+rows.map((r,i)=>'<article><p>'+escapeHtml((r.category==='draft'?'已保存草稿':'异常恢复缓存')+' · '+(names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+([r.data.buyer?.company||r.data.visitorCompany||r.data.agentName||r.data.visitorName,r.data.buyer?.country||r.data.country,(r.data.items||[]).slice(0,3).map(item=>item.values?.description||item.values?.model||'').filter(Boolean).join('、'),r.data.product?.values?.name||r.data.product?.model].filter(Boolean).join(' · '))+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
+    const recoveryTabs=document.createElement('nav');recoveryTabs.className='document-block-tabs';recoveryTabs.innerHTML='<button type="button" data-work-filter="all" aria-pressed="true">全部未完成</button><button type="button" data-work-filter="draft">草稿箱（'+rows.filter(r=>r.category==='draft').length+'）</button><button type="button" data-work-filter="recovery">异常恢复（'+rows.filter(r=>r.category!=='draft').length+'）</button>';modal.querySelector('h3').after(recoveryTabs);
+    recoveryTabs.onclick=e=>{const button=e.target.closest('[data-work-filter]');if(!button)return;const filter=button.dataset.workFilter;recoveryTabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));modal.querySelectorAll('article').forEach((article,i)=>article.hidden=filter!=='all'&&(rows[i].category==='draft'?'draft':'recovery')!==filter);};
     modal.onclick=async e=>{try{
       if(e.target.matches('[data-close]'))return modal.remove();
       if(e.target.dataset.discard!=null){const row=rows[e.target.dataset.discard];if(!confirm('确认放弃此草稿？其他草稿和业务记录保持不变。'))return;
@@ -7406,12 +7464,18 @@
   }
   function workflowDocument(kind=activeViewName){return kind==='quote'?currentQuote:kind==='invitation'?currentInvitation:kind==='agency'?currentAgentAuthorization:null;}
   function renderSigningControls(){
+    window.TranslationWorkspace?.sync();
     for(const kind of ['quote','invitation','agency']){
       const doc=workflowDocument(kind);if(!doc)continue;
-      let host=$('signing-controls-'+kind);if(!host){host=document.createElement('section');host.id='signing-controls-'+kind;host.className='document-signing-controls no-print';host.innerHTML=`<label>电子签名<select data-signature-choice><option value="zh">中文签名</option><option value="en">英文签名</option><option value="none">不显示签名</option></select></label><label><input type="checkbox" data-signature-visible>显示签名</label><label><input type="checkbox" data-seal-visible>显示公章</label><small>签名选择与输出语言独立；保存后固定素材版本。</small>`;const editor=document.querySelector('#view-'+kind+' .quote-editor');editor?.prepend(host);
-        host.onchange=event=>{const d=workflowDocument(kind);if(!d)return;const select=host.querySelector('[data-signature-choice]'),visible=host.querySelector('[data-signature-visible]');if(select.value==='none')visible.checked=false;else if(event.target===select&&(d.signatureChoice==='none'||d.signingSnapshot?.choice==='none'))visible.checked=true;d.signatureChoice=host.querySelector('[data-signature-choice]').value;d.signingOptions={signature:host.querySelector('[data-signature-visible]').checked,seal:host.querySelector('[data-seal-visible]').checked};delete d.signingSnapshot;const source=signingSourceForSelection(d);d.signingSnapshot=DocumentWorkflow.signing(d,source,kind);(kind==='quote'?renderPreview:kind==='invitation'?renderInvitationPreview:renderAgentAuthorizationPreview)();persistWork(true);};
+      let host=$('signing-controls-'+kind);if(!host){host=document.createElement('section');host.id='signing-controls-'+kind;host.className='document-signing-controls no-print';host.innerHTML=`<label>签名版本<select data-signature-choice></select></label><label><input type="checkbox" data-signature-visible>显示签名</label><label><input type="checkbox" data-seal-visible>显示公章</label><small>签名选择与输出语言独立；保存后固定素材版本。</small>`;const editor=document.querySelector('#view-'+kind+' .quote-editor');editor?.prepend(host);
+        host.onchange=event=>{const d=workflowDocument(kind);if(!d)return;if(event.target.matches('[data-receiving-visible]')){d.showBankInfo=event.target.checked;renderAgentAuthorizationPreview();persistWork(true);return;}const select=host.querySelector('[data-signature-choice]'),visible=host.querySelector('[data-signature-visible]');if(kind==='quote'){d.outputOptions||={};d.outputOptions[d.documentType]||={};d.outputOptions[d.documentType].signature=visible.checked||host.querySelector('[data-seal-visible]').checked;if($('document-show-signature'))$('document-show-signature').checked=d.outputOptions[d.documentType].signature;}d.signatureChoice=host.querySelector('[data-signature-choice]').value;d.signingOptions={signature:host.querySelector('[data-signature-visible]').checked,seal:host.querySelector('[data-seal-visible]').checked};delete d.signingSnapshot;const source=signingSourceForSelection(d);d.signingSnapshot=DocumentWorkflow.signing(d,source,kind);(kind==='quote'?renderPreview:kind==='invitation'?renderInvitationPreview:renderAgentAuthorizationPreview)();persistWork(true);};
       }
-      host.querySelector('[data-signature-choice]').value=doc.signingSnapshot?.choice||doc.signatureChoice||(kind==='invitation'?'zh':'en');host.querySelector('[data-signature-visible]').checked=host.querySelector('[data-signature-choice]').value!=='none'&&(doc.signingOptions?.signature??doc.signingSnapshot?.showSignature??true);host.querySelector('[data-signature-visible]').disabled=host.querySelector('[data-signature-choice]').value==='none';host.querySelector('[data-seal-visible]').checked=doc.signingOptions?.seal??doc.signingSnapshot?.showSeal??true;
+      if(kind==='agency'){let bank=host.querySelector('[data-receiving-visible]');if(!bank){const label=document.createElement('label');label.innerHTML='<input type="checkbox" data-receiving-visible>显示收款信息';host.querySelector('small').before(label);bank=label.querySelector('input');}bank.closest('label').hidden=doc.documentType!=='statement';bank.checked=doc.showBankInfo!==false;}
+      const choice=doc.signingSnapshot?.choice||doc.signatureChoice||(kind==='invitation'?'zh':'en'),select=host.querySelector('[data-signature-choice]');
+      const versions=[...new Set(['zh','en',...Object.keys(settings.companySignatures||{}),...(choice!=='none'?[choice]:[])])].filter(v=>v!=='none');select.innerHTML=versions.map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(({zh:'中文签名',en:'英文签名'})[v]||v+'签名')+'</option>').join('');select.value=choice==='none'?(kind==='invitation'?'zh':'en'):choice;
+      host.querySelector('[data-signature-visible]').checked=choice!=='none'&&(doc.signingOptions?.signature??doc.signingSnapshot?.showSignature??doc.outputOptions?.[doc.documentType]?.signature??true);host.querySelector('[data-signature-visible]').disabled=false;host.querySelector('[data-seal-visible]').checked=doc.signingOptions?.seal??doc.signingSnapshot?.showSeal??true;
+      const signed=DocumentWorkflow.signing(doc,doc.companySnapshot||settings,kind);host.querySelector('small').textContent=signed.showSignature&&!signed.signature?'所选签名素材缺失，请到公司设置上传或关闭显示签名。':'签名与语言独立；保存历史时保留本单证素材版本。';
+      if(kind==='quote'&&$('document-show-signature'))$('document-show-signature').closest('label').hidden=true;
     }
   }
   let signatureEditLanguage='en';
@@ -7485,9 +7549,9 @@
     else if(kind==='invitation')await saveInvitation();else await saveAgentAuthorization();
     markWorkBaseline(kind);return true;
   }
-  async function previewCurrentOutput(){
+  async function previewCurrentOutput(kind=currentOutputKind()){
     if($('document-output-preview'))return;
-    const kind=currentOutputKind();renderOutputKind(kind);const d=workflowDocument(kind);
+    renderOutputKind(kind);const d=workflowDocument(kind);
     const invalid=[...document.querySelectorAll('#view-'+kind+' [data-date-input]')].find(input=>input.value&&!DocumentWorkflow.parseDate(input.value));
     if(invalid)return toast('日期无效，请输入真实的 YYYY-MM-DD 日期：'+invalid.value);
     if(kind==='invitation'){const errors=DocumentWorkflow.validateInvitation(d);if(errors.length)return toast(errors.join('；'));}
@@ -7496,6 +7560,7 @@
     const modal=document.createElement('div');modal.id='document-output-preview';modal.className='modal document-output-preview no-print';modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');
     modal.innerHTML='<div class="modal-card"><h3>当前单证 · 最终页面预览</h3><div class="preview-tools"><button data-prev>上一页</button><label>页码<input data-page-number type="number" min="1" value="1"></label><button data-next>下一页</button><span data-page-count></span><label>缩放<select data-zoom><option value="0.55">55%</option><option value="0.75" selected>75%</option><option value="1">100%</option><option value="1.25">125%</option></select></label><label>打印机<select data-printer><option value="">系统默认／打印对话框选择</option></select></label><label>打印页码<input data-print-pages placeholder="全部，或1-3,5"></label></div><div class="preview-pages"><p>正在按最终 PDF 规则分页…</p></div><p data-output-status role="status"></p><div class="actions"><button data-export-preview disabled>导出当前PDF</button><button data-print-preview disabled>打印当前单证</button><button data-batch-preview>批量导出历史单证</button><button data-return-preview>返回修改</button></div></div>';document.body.append(modal);
     let preview,working=false,historySaved=false;
+    const completedActions=document.createElement('div');completedActions.className='actions';completedActions.hidden=true;completedActions.innerHTML='<button type="button" data-continue-edit>继续编辑</button><button type="button" data-continue-new>继续新建</button>';modal.querySelector('.modal-card').append(completedActions);
     const status=text=>modal.querySelector('[data-output-status]').textContent=text;
     try{
       await prepareSigningImages();preview=await window.quotationDesktop.createDocumentPreview({html:outputMarkup(kind),fileName:outputFileName(kind)});
@@ -7507,13 +7572,15 @@
       const go=page=>{const n=Math.max(1,Math.min(preview.pages.length,Number(page)||1));modal.querySelector('[data-page-number]').value=n;modal.querySelector(`[data-preview-page="${n}"]`).scrollIntoView({block:'start'});};
       modal.onchange=event=>{if(event.target.matches('[data-zoom]'))pages.querySelectorAll('img').forEach((img,i)=>img.style.width=preview.pages[i].width*Number(event.target.value)+'px');if(event.target.matches('[data-page-number]'))go(event.target.value);};
       modal.onclick=async event=>{const b=event.target.closest('button');if(!b||working)return;
+        if(b.hasAttribute('data-continue-edit')||b.hasAttribute('data-continue-new')){await window.quotationDesktop.closeDocumentPreview(preview.token);modal.remove();if(b.hasAttribute('data-continue-new')){if(kind==='quote')newQuote(false,d.documentType);else if(kind==='invitation')newInvitation();else newAgentAuthorization(d.documentType);markWorkBaseline(kind);}return;}
         if(b.hasAttribute('data-prev'))return go(Number(modal.querySelector('[data-page-number]').value)-1);if(b.hasAttribute('data-next'))return go(Number(modal.querySelector('[data-page-number]').value)+1);
         if(b.hasAttribute('data-return-preview')||b.hasAttribute('data-batch-preview')){await window.quotationDesktop.closeDocumentPreview(preview.token);modal.remove();if(b.hasAttribute('data-batch-preview'))await choosePdfExports();return;}
         if(!b.matches('[data-export-preview],[data-print-preview]'))return;working=true;modal.querySelectorAll('button').forEach(button=>button.disabled=true);
         try{
           const result=b.hasAttribute('data-export-preview')?await window.quotationDesktop.exportDocumentPreview(preview.token):await window.quotationDesktop.printDocumentPreview(preview.token,{deviceName:modal.querySelector('[data-printer]').value,pages:modal.querySelector('[data-print-pages]').value});
           if(['exported','submitted'].includes(result?.status)){
-            if(!historySaved){try{await saveOutputHistory(kind);historySaved=true;}catch(error){status('输出已完成，但历史保存失败；请点击“保存到历史”重试：'+error.message);return;}}
+            if(!historySaved){try{await saveOutputHistory(kind);historySaved=true;}catch(error){status('输出已完成，但历史保存失败；请再次点击导出或打印重试，当前内容保留：'+error.message);return;}}
+            completedActions.hidden=false;
             status(result.status==='exported'?'PDF已导出，当前单证已保存到历史：'+result.filePath:'系统已确认提交打印任务，当前单证已保存到历史；未验证实际出纸。');
           }else status('已取消，没有新增历史记录。');
         }catch(error){status('操作失败，当前编辑内容保留，未因失败新增历史：'+error.message);}finally{working=false;modal.querySelectorAll('button').forEach(button=>button.disabled=false);}
@@ -7524,9 +7591,8 @@
     for(const id of ['export-pdf-btn','export-invitation-pdf-btn','agency-public-pdf-btn','agency-private-pdf-btn','agency-export-document']){
       const old=$(id);if(!old)continue;const button=old.cloneNode(true);old.replaceWith(button);button.onclick=()=>{if(id==='agency-public-pdf-btn'||id==='agency-private-pdf-btn'){const input=$('agency-show-commission');input.checked=id==='agency-private-pdf-btn';input.dispatchEvent(new Event('change',{bubbles:true}));}previewCurrentOutput().catch(error=>toast(error.message));};
     }
-    for(const kind of ['quote','invitation','agency']){
-      const host=document.querySelector('#view-'+kind+' .page-head .actions');if(host&&!$('print-current-'+kind)){const button=document.createElement('button');button.id='print-current-'+kind;button.textContent='预览／打印';button.onclick=()=>previewCurrentOutput().catch(error=>toast(error.message));host.prepend(button);}
-    }
+    for(const id of ['save-quote-btn','save-invitation-btn','agency-save-btn','agency-public-pdf-btn','agency-private-pdf-btn'])if($(id))$(id).hidden=true;
+    if($('agency-export-document'))$('agency-export-document').textContent='导出 PDF';
     const stylesheet=document.querySelector('link[href*="document-workflow.css"]');if(stylesheet)document.body.append(stylesheet);
   }
 
@@ -7559,14 +7625,14 @@
 
   const workBaselines=new Map(),workPreviousRows=new Map();let leaveReplaying=false,leavePending=false,productDraftSource='';
   function workFingerprint(data){return JSON.stringify(data,(key,value)=>['createdAt','updatedAt','savedAt','completedAt','revision','companySnapshot','documentConfigSnapshot'].includes(key)?undefined:value);}
-  function currentWorkData(kind=activeViewName){if(kind==='quote'){collectQuoteFromForm();return structuredClone(currentQuote);}if(kind==='invitation'){collectInvitationFromForm();return structuredClone(currentInvitation);}if(kind==='agency'){collectAgentAuthorizationForm();return structuredClone(currentAgentAuthorization);}return {product:{...collectProductForm(),id:editingProductId||productWorkId},editingId:editingProductId};}
-  function markWorkBaseline(kind=activeViewName,fromModel=false){if(!['quote','invitation','agency','products'].includes(kind))return;const key=currentWorkKey(kind),data=fromModel&&kind!=='products'?structuredClone(workflowDocument(kind)):currentWorkData(kind);workBaselines.set(key,{kind,data,fingerprint:workFingerprint(data)});workPreviousRows.set(key,workRecords[key]?structuredClone(workRecords[key]):null);dirtyWork.delete(key);}
-  function hasCurrentChanges(){const kind=activeViewName;if(!['quote','invitation','agency','products'].includes(kind))return false;const key=currentWorkKey(kind),baseline=workBaselines.get(key);if(!dirtyWork.has(key)||!baseline)return false;return workFingerprint(currentWorkData(kind))!==baseline.fingerprint;}
+  function currentWorkData(kind=activeWorkKind()){if(kind==='quote'){collectQuoteFromForm();return structuredClone(currentQuote);}if(kind==='invitation'){collectInvitationFromForm();return structuredClone(currentInvitation);}if(kind==='agency'){collectAgentAuthorizationForm();return structuredClone(currentAgentAuthorization);}return {product:{...collectProductForm(),id:editingProductId||productWorkId},editingId:editingProductId};}
+  function markWorkBaseline(kind=activeWorkKind(),fromModel=false){if(!['quote','invitation','agency','products'].includes(kind))return;const key=currentWorkKey(kind),data=fromModel&&kind!=='products'?structuredClone(workflowDocument(kind)):currentWorkData(kind);workBaselines.set(key,{kind,data,fingerprint:workFingerprint(data)});workPreviousRows.set(key,workRecords[key]?structuredClone(workRecords[key]):null);dirtyWork.delete(key);}
+  function hasCurrentChanges(){const kind=activeWorkKind();if(!['quote','invitation','agency','products'].includes(kind))return false;const key=currentWorkKey(kind),baseline=workBaselines.get(key);if(!dirtyWork.has(key)||!baseline)return false;return workFingerprint(currentWorkData(kind))!==baseline.fingerprint;}
   function meaningfulWork(kind,data){
     const baseline=workBaselines.get(currentWorkKey(kind))?.data;const changed=fields=>baseline&&fields.some(key=>JSON.stringify(data[key])!==JSON.stringify(baseline[key]));
     if(kind==='quote'&&changed(['quoteDate','validUntil','terms','basicFields']))return true;
     if(kind==='invitation'&&changed(['date','arrivalDate','departureDate','validFrom','validUntil']))return true;
-    if(kind==='agency'&&changed(['date','validUntil','extraTerms','customFields']))return true;
+    if(kind==='agency'&&changed(['date','validUntil','extraTerms','customFields','salesContractNumber','contractAmount','orderRate','fixedCommission','bankAccount','walletAddress']))return true;
     if(kind==='quote')return Boolean(Object.values(data.buyer||{}).some(v=>typeof v==='string'?v.trim():v&&Object.values(v).some(Boolean))||(data.items||[]).some(item=>['description','brand','model','productId','remark','unitPrice','params','hsCode','serialNo'].some(k=>String(item.values?.[k]??'').trim()))||data.shipmentDetails?.consignee||data.shipmentDetails?.notes);
     if(kind==='invitation')return Boolean(data.visitorName||data.passportNo||data.visitorCompany||data.notes||data.visitPlaces?.length||(data.people||[]).some(p=>p.visitorName||p.passportNo||p.country||p.birthDate));
     if(kind==='agency')return Boolean(data.agentName||data.idNumber||data.country||data.phone||data.email||data.purchaseMachine||data.recipientCompany||data.documentNotes);
@@ -7574,12 +7640,12 @@
   }
   async function saveCurrentDraft(){
     persistWork(true);await workQueue;const key=currentWorkKey(),row=workRecords[key];if(!row||row.completedAt)return;
-    const source=activeViewName==='products'?productDraftSource:workflowDocument()?.sourceDraftKey,draftKey=source||'draft:'+key;
+    const source=activeWorkKind()==='products'?productDraftSource:workflowDocument()?.sourceDraftKey,draftKey=source||'draft:'+key;
     await queueWork({...row,key:draftKey,category:'draft',completedAt:null});
     await queueWork({...row,completedAt:new Date().toISOString()});markWorkBaseline();
   }
   async function discardCurrentChanges(){
-    const kind=activeViewName,key=currentWorkKey(kind),baseline=workBaselines.get(key),prior=workPreviousRows.get(key);await workQueue.catch(()=>{});pendingWork.delete(key);dirtyWork.delete(key);
+    const kind=activeWorkKind(),key=currentWorkKey(kind),baseline=workBaselines.get(key),prior=workPreviousRows.get(key);await workQueue.catch(()=>{});pendingWork.delete(key);dirtyWork.delete(key);
     if(prior){await queueWork(prior);}else{await api('/api/work-drafts/'+encodeURIComponent(key),{method:'DELETE'});delete workRecords[key];}
     workRestoring=true;try{if(baseline){if(kind==='quote'){currentQuote=structuredClone(baseline.data);bindQuoteToForm();renderQuoteItems();renderPreview();}if(kind==='invitation'){currentInvitation=structuredClone(baseline.data);bindInvitationToForm();renderInvitationPreview();}if(kind==='agency'){currentAgentAuthorization=structuredClone(baseline.data);bindAgentAuthorizationForm();renderAgentAuthorizationPreview();}if(kind==='products'){const originalId=editingProductId,temporary={...structuredClone(baseline.data.product),id:uid('restore-product')};products.push(temporary);editProduct(temporary.id);products=products.filter(p=>p!==temporary);editingProductId=baseline.data.editingId||'';syncProductEditorPresentation();}}}finally{workRestoring=false;}
   }
@@ -7609,7 +7675,7 @@
       if(target.dataset.view===activeViewName||target.dataset.viewTarget===activeViewName)return;
       if(!hasCurrentChanges())return;event.preventDefault();event.stopImmediatePropagation();askLeaveWork().then(ok=>{if(ok){leaveReplaying=true;try{target.click();}finally{leaveReplaying=false;}}});
     },true);
-    const draftButton=document.createElement('button');draftButton.type='button';draftButton.textContent='草稿箱／异常恢复';draftButton.id='document-draft-box';draftButton.onclick=()=>showWorkRecovery();document.querySelector('.desktop-rail')?.append(draftButton);
+    const draftButton=document.createElement('button');draftButton.type='button';draftButton.textContent='草稿箱／异常恢复';draftButton.id='document-draft-box';draftButton.onclick=()=>showWorkRecovery();document.querySelector('#view-history .page-head')?.append(draftButton);
     for(const id of ['save-quote-btn','save-invitation-btn','agency-save-btn']){const b=$(id);if(b)b.textContent='保存到历史';}
   }
 
@@ -7643,7 +7709,14 @@
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote, printStandardHistory, exportProductCatalogPdf, renderVehiclePreview, printVehicleQuote, getActiveFreightTarget:activeFreightTarget, applyFreightResult };
   window.quoteSettingsContext={
     get settings(){return settings;},
-    save:async(next)=>{const candidate={...settings,...next};const result=await api('/api/settings',{method:'PUT',body:JSON.stringify(candidate)});settings=result.settings||candidate;save(keys.settings,settings);renderAllSelectors();renderSettings();window.OptionManager?.mount();renderProducts();if(currentQuote){renderQuoteItems();renderQuoteTerms();}renderPreview();},
+    get products(){return products;},
+    collectProduct:collectProductForm,
+    documentType:kind=>kind==='invitation'?'invitation':kind==='agency'?(currentAgentAuthorization?.documentType||'authorization'):(currentQuote?.documentType||'quotation'),
+    openSettings:openSettingsSection,
+    outputHtml:kind=>{renderOutputKind(kind);return outputMarkup(kind);},
+    previewDocument:async type=>{const kind=type==='invitation'?'invitation':['agency','statement'].includes(type)?'agency':'quote',doc=workflowDocument(kind),actual=kind==='agency'?(type==='agency'?'authorization':type):type;if(!doc||((doc.documentType||'quotation')!==actual&&kind!=='invitation'))return toast('请先在制作界面打开对应的单证，再查看它的实际 PDF。');return previewCurrentOutput(kind);},
+    editProduct,renderProducts,newProduct:()=>{clearProductForm();openProductEditorModal();},
+    save:async(next)=>{const candidate={...settings,...next};const result=await api('/api/settings',{method:'PUT',body:JSON.stringify(candidate)});settings=result.settings||candidate;save(keys.settings,settings);renderAllSelectors();renderSettings();window.OptionManager?.mount();window.BusinessSettings?.mount();renderProducts();if(currentQuote){renderQuoteItems();renderQuoteTerms();}renderPreview();},
     toast,renderPreview,refreshOptions:()=>{renderAllSelectors();if(currentQuote){renderQuoteTerms();renderQuoteItems();}renderPreview();}
   };
   ["crm-module-btn", "crm-entry-btn"].forEach((id) => {
@@ -7662,6 +7735,7 @@
   window.freightContext = { get settings(){return settings;}, get ports(){return ports;}, get rates(){return freightRates;}, get routes(){return countryRoutes;}, get products(){return products;}, get quotes(){return quotes;}, api, isAdmin, toast, portRegion, portOptionLabel, setPortInputValue, openSettingsSection, loadServerData, renderPreview, collectQuoteFromForm,
     async saveConfig(config) { if(!isAdmin()) throw new Error("需要管理员权限"); const next={...settings,freightWorkspace:config}; await api("/api/settings",{method:"PUT",body:JSON.stringify(next)}); settings.freightWorkspace=config; save(keys.settings,settings); }
   };
+  window.ProductHierarchyWorkspace?.init(window.quoteSettingsContext);
   init();
 })();
 

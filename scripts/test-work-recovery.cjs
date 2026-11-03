@@ -3,7 +3,7 @@ const folder=process.env.QUOTE_DATA_DIR,phase=process.env.FTA_RECOVERY_PHASE;if(
 app.setPath('userData',path.join(folder,'profile'));app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port,win=new BrowserWindow({show:false,width:1500,height:1100}),run=s=>win.webContents.executeJavaScript(s);
- const wait=async s=>{for(let i=0;i<400;i++){if(await run(s))return;await new Promise(r=>setTimeout(r,30));}throw Error('Timeout '+s);};
+ const wait=async s=>{for(let i=0;i<400;i++){if(await run(s))return;await new Promise(r=>setTimeout(r,30));}throw Error('Timeout '+s+' '+JSON.stringify(await run(`({toast:document.querySelector('#toast')?.textContent,model:document.querySelector('[data-product-field=model]')?.value,recovery:document.querySelector('#work-recovery-modal')?.textContent,leave:!!document.querySelector('#leave-work-modal')})`)));};
  const request=async(url,options)=>{const r=await fetch(base+url,{...options,headers:{'Content-Type':'application/json'}}),j=await r.json();assert(r.ok,j.message);return j;};
  const rows=async()=> (await request('/api/work-drafts')).drafts.filter(r=>!r.completedAt);
  const input=async(selector,value)=>run(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()`);

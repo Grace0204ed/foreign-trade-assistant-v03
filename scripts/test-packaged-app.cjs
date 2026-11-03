@@ -16,6 +16,7 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/å
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>{const u=route.request().url();if(/^https?:/.test(u)&&!/^http:\/\/127\.0\.0\.1:/.test(u)){external.push(u);return route.abort();}return route.continue();});
   await page.waitForSelector('#view-home',{state:'attached',timeout:60000});await page.reload();await page.waitForSelector('#view-home',{state:'attached',timeout:60000});await page.waitForTimeout(1500);if(errors.length)throw Error(errors.join('\n'));console.log('PAGE',page.url(),(await page.title()));await page.waitForFunction(()=>document.querySelector('#pdf-language option[value="fr"]'));
+  await page.keyboard.press('Control+F5');await page.waitForLoadState('domcontentloaded');await page.waitForFunction(()=>document.querySelectorAll('#overview-metrics article').length===4);if(errors.length)throw Error(errors.join('\n'));console.log('PASS packaged Ctrl+F5 reload');
   assert.equal(await page.locator('#overview-metrics article').count(),4);
   const info=await page.evaluate(()=>window.quotationDesktop.getAppVersion());assert.equal(info.version,require('../package.json').version);assert.equal(info.packaged,true);
   assert.equal(await page.locator('[data-view-target="freight"],#quote-business-vehicle').count(),0);
@@ -24,8 +25,7 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/å
   assert.equal(await page.locator('#latest-quote-prices-btn,#quote-route-btn,#document-type').count(),0);
   await page.click('.desktop-rail [data-view="create"]');await page.click('[data-create-document="quotation"]');
   await page.fill('#buyer-company','OFFLINE PACKAGE TEST');await page.locator('[data-qfield="description"]').first().fill('Test machine');await page.locator('[data-qfield="unitPrice"]').first().fill('100');
-  await page.click('#save-quote-btn');await page.waitForTimeout(500);
-  const data=await page.evaluate(async()=>await(await fetch('/api/quotations')).json());assert.ok(data.quotations.some(x=>JSON.stringify(x).includes('OFFLINE PACKAGE TEST')));
+  const data=await page.evaluate(async()=>await(await fetch('/api/quotations')).json());assert.equal(data.quotations.length,0,'unfinished editor is not formal history');
   await page.evaluate(()=>document.fonts.ready);assert.equal(await page.evaluate(async()=>(await document.fonts.load('14px TradeOffline')).length),1,'offline font loaded');
   await page.locator('#quote-preview').screenshot({path:path.join(dir,'quotation.png')});
   await page.evaluate(()=>document.body.classList.add('printing-standard'));
@@ -38,7 +38,7 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/å
   assert(await page.locator('.preview-pages img').first().evaluate(img=>img.naturalWidth>500),'packaged runtime renders actual PDF pages');
   await page.click('[data-export-preview]');await page.waitForFunction(()=>document.querySelector('[data-output-status]').textContent.includes('PDFå·²å¯¼å‡º'));
   assert(fs.statSync(path.join(dir,'preview-export.pdf')).size>10000);
-  assert.equal((await page.evaluate(async()=>await(await fetch('/api/quotations')).json())).quotations.length,data.quotations.length,'export saved record without duplicates');
+  const savedHistory=await page.evaluate(async()=>await(await fetch('/api/quotations')).json());assert.equal(savedHistory.quotations.length,1,'successful export saves one history record');assert(savedHistory.quotations.some(x=>JSON.stringify(x).includes('OFFLINE PACKAGE TEST')));
   await page.click('[data-return-preview]');console.log('PASS packaged PDF preview image renderer and exact-memory PDF export without external Node');
   // Confirm/cancel the native close prompt without human input.
   await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:2});});

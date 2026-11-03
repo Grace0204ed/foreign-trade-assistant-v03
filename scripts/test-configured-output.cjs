@@ -1,0 +1,56 @@
+const {app,BrowserWindow}=require('electron');
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const out=fs.mkdtempSync(path.join(os.tmpdir(),'fta-configured-output-'));process.env.QUOTE_DATA_DIR=path.join(out,'data');app.setPath('userData',path.join(out,'profile'));app.on('window-all-closed',()=>{});
+app.whenReady().then(async()=>{
+ const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port,win=new BrowserWindow({show:false,width:1440,height:1100,webPreferences:{offscreen:true,backgroundThrottling:false}}),run=s=>win.webContents.executeJavaScript(s);
+ const wait=async s=>{for(let i=0;i<240;i++){if(await run(s))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout '+s);};let pdfwin;
+ try{
+  await win.loadURL(base);await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');
+  await run(`for(const t of ['quotation','invitation','statement']){quoteSettingsContext.openSettings(t+'-config');}window.confirm=()=>true;window.qaImage=(()=>{const c=document.createElement('canvas');c.width=80;c.height=40;const x=c.getContext('2d');x.fillStyle='#b9312f';x.fillRect(0,0,80,40);return c.toDataURL();})();`);
+  await run(`(async()=>{const s=structuredClone(quoteSettingsContext.settings),fields=[{id:'qa-rich',fieldKey:'qa_rich',zh:'附加说明',en:'Additional detail',fieldType:'richtext',active:true,visible:true,sortOrder:900},{id:'qa-image',fieldKey:'qa_image',zh:'现场图片',en:'Site image',fieldType:'image',active:true,visible:true,sortOrder:910}];for(const c of [...Object.values(s.documentConfigs),...Object.values(s.quoteTemplateConfigs||{})])c.blocks.basic.push(...structuredClone(fields));s.templates[0].fields.push(...structuredClone(fields));s.documentPreferences={defaults:{language:'zh',typography:{body:{fontSize:14,color:'#183f59',fontWeight:400,lineHeight:1.8}}},overrides:{}};await quoteSettingsContext.save(s);})()`);
+  // Exercise the production rich editor and file reader rather than writing output HTML directly.
+  for(const [type,kind,attribute] of [['quotation','quote','data-basic-custom'],['invitation','invitation','data-standalone-field'],['statement','agency','data-standalone-field']]){
+   await run(`document.querySelector('[data-create-document=${type}]').click()`);
+   const root='#view-'+kind;
+   await run(`(()=>{const input=document.querySelector('${root} [${attribute}="qa_rich"]'),panel=input._choiceList,editor=panel.querySelector('[contenteditable]');editor.textContent='RICH-${type} 中文 / Français';editor.dispatchEvent(new Event('input',{bubbles:true}));editor.focus();const selection=getSelection(),range=document.createRange();range.selectNodeContents(editor);selection.removeAllRanges();selection.addRange(range);panel.querySelector('button').click();const target=document.querySelector('${root} [${attribute}="qa_image"]'),file=target._choiceList.querySelector('[type=file]'),bytes=Uint8Array.from(atob(qaImage.split(',')[1]),c=>c.charCodeAt(0)),dt=new DataTransfer();dt.items.add(new File([bytes],'site.png',{type:'image/png'}));file.files=dt.files;file.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+   await wait(`document.querySelector('${root} [${attribute}="qa_image"]').value.startsWith('data:image/png')`);
+   const html=await run(`quoteSettingsContext.outputHtml('${kind}')`);fs.writeFileSync(path.join(out,type+'.html'),html);assert(html.includes('RICH-'+type));assert(html.includes('configured-image-output'));assert(html.includes('font-weight:700!important'),'formatting retained '+type);
+   assert(await run(`[...document.querySelectorAll('#${kind}-preview .configured-rich-output b,#${kind}-preview .configured-rich-output strong')].some(p=>Number(getComputedStyle(p).fontWeight)>=700)`),type+' visual bold');
+   if(type==='statement'){
+    await run(`const b=document.querySelector('#signing-controls-agency [data-receiving-visible]');b.checked=false;b.dispatchEvent(new Event('change',{bubbles:true}));`);
+    assert(!(await run(`quoteSettingsContext.outputHtml('agency')`)).includes('Bank payment instructions'));
+    assert(!(await run(`[...document.querySelectorAll('#agency-preview h2')].map(n=>n.textContent).join(' ')`)).includes('收款资料'),'receiving block actually hidden');
+   }
+   const save=kind==='quote'?'save-quote-btn':kind==='invitation'?'save-invitation-btn':'agency-save-btn';await run(`document.getElementById('${save}').click()`);
+   await wait(`fetch('${kind==='quote'?'/api/quotations':kind==='invitation'?'/api/system/browser-state':'/api/agent-authorizations'}').then(r=>r.json()).then(d=>JSON.stringify(d).includes('RICH-${type}'))`);
+   pdfwin=new BrowserWindow({show:false,webPreferences:{offscreen:true}});await pdfwin.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html));await pdfwin.webContents.executeJavaScript('document.fonts.ready.then(()=>true)');const pdf=await pdfwin.webContents.printToPDF({printBackground:true,preferCSSPageSize:true});fs.writeFileSync(path.join(out,type+'.pdf'),pdf);const parser=new(require('pdf-parse').PDFParse)({data:pdf});try{assert((await parser.getText()).text.includes('RICH-'+type));const shots=await parser.getScreenshot({desiredWidth:1100,imageBuffer:true,imageDataUrl:false});fs.writeFileSync(path.join(out,type+'.png'),shots.pages[0].data);}finally{await parser.destroy();}pdfwin.destroy();pdfwin=null;
+  }
+  assert(await run(`!ConfiguredFields.html({fieldType:'richtext'},'<img src=x onerror=alert(1)><b onclick=alert(1)>safe</b>').includes('<img') && !ConfiguredFields.html({fieldType:'richtext'},'<b onclick=alert(1)>safe</b>').includes('onclick=')`),'output strips active content and attributes');
+  // Live background uses the same configuration and renderer as final output.
+  await run(`document.querySelector('[data-create-document=quotation]').click();document.querySelector('[data-view=settings]').click();quoteSettingsContext.openSettings('quotation-config');document.querySelector('#settings-quotation-config-host [data-block=layout]').click()`);
+  await wait(`!!document.querySelector('.document-layout-live-frame')?.contentDocument?.querySelector('#quote-preview')`);
+  await run(`(()=>{const host=document.querySelector('#settings-quotation-config-host'),f=host.querySelector('[data-design-background]'),dt=new DataTransfer();dt.items.add(new File([Uint8Array.from(atob(qaImage.split(',')[1]),c=>c.charCodeAt(0))],'bg.png',{type:'image/png'}));f.files=dt.files;f.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await wait(`!!document.querySelector('#settings-quotation-config-host .document-design-background-preview')`);
+  await wait(`!!document.querySelector('.document-layout-live-frame')?.contentDocument?.querySelector('#quote-preview')`);
+  await run(`(()=>{for(const [key,value] of Object.entries({backgroundScale:'120',backgroundX:'25',backgroundY:'35',backgroundOpacity:'0.3',overlay:'0.5'})){const input=document.querySelector('#settings-quotation-config-host [data-design="'+key+'"]');input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+  assert.equal(await run(`document.querySelector('.document-layout-live-frame').contentDocument.querySelector('#quote-preview').style.backgroundPosition`),'25% 35%');
+  await run(`document.querySelector('#settings-quotation-config-host [data-document-save]').click()`);await wait(`fetch('/api/settings').then(r=>r.json()).then(d=>Object.values(d.settings.quoteTemplateConfigs||{}).some(c=>c.design?.backgroundScale===120))`);
+  await win.reload();await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');await run(`document.querySelector('[data-create-document=quotation]').click()`);
+  assert(await run(`(()=>{quoteSettingsContext.outputHtml('quote');const p=document.querySelector('#quote-preview');return p.style.backgroundSize.startsWith('120%')&&p.style.backgroundPosition==='25% 35%'&&p.style.backgroundImage.includes('data:image/png');})()`),'saved background reaches real output after restart');
+  await run(`document.querySelector('[data-create-document=contract]').click();document.querySelector('#quote-number').value='QA-LINK-CONTRACT';for(const [key,value] of Object.entries({description:'QA contract equipment',qty:'2',unitPrice:'60000'})){document.querySelector('[data-qfield='+key+']').value=value;}document.querySelector('#save-quote-btn').click()`);
+  await wait(`fetch('/api/quotations').then(r=>r.json()).then(d=>d.quotations.some(q=>q.quote_number==='QA-LINK-CONTRACT'))`);
+  const source=(await(await fetch(base+'/api/quotations')).json()).quotations.find(q=>q.quote_number==='QA-LINK-CONTRACT');assert(source);
+  const sourceBefore=await(await fetch(base+'/api/quotations/'+source.id)).text();
+  await run(`document.querySelector('[data-create-document=statement]').click();document.querySelector('#commission-contract-link select').onfocus()`);
+  await wait(`!!document.querySelector('#commission-contract-link select option[value="${source.id}"]')`);
+  await run(`(()=>{const el=document.querySelector('#commission-contract-link select');el.value='${source.id}';return el.onchange();})()`);
+  assert.equal(await run(`document.querySelector('#agency-sales-contract-number').value`),'QA-LINK-CONTRACT');assert.equal(Number(await run(`document.querySelector('#agency-contract-amount').value`)),120000);
+  await run(`document.querySelector('#agency-order-rate').value='2.5';document.querySelector('#agency-order-rate').dispatchEvent(new Event('input',{bubbles:true}));`);assert.equal(await run(`document.querySelector('#agency-payable').value`),'USD 3000.00');
+  assert.equal(await(await fetch(base+'/api/quotations/'+source.id)).text(),sourceBefore,'contract association never modifies original');
+  await run(`window.decideCloseWork('discard')`);await run(`document.querySelector('[data-view=products]').click();quoteSettingsContext.newProduct();document.querySelector('[data-product-field=model]').value='QA-RICH-PRODUCT';const field=document.querySelector('[data-product-field=qa_rich]');field._choiceList.querySelector('[contenteditable]').innerHTML='<b>RICH-PRODUCT</b>';field._choiceList.querySelector('[contenteditable]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#save-product-btn').click()`);
+  await wait(`!document.querySelector('#product-editor-modal').open`);const product=(await(await fetch(base+'/api/products')).json()).products.find(p=>p.model==='QA-RICH-PRODUCT');assert(product);
+  await run(`quoteApp.editProduct('${product.id}')`);assert(await run(`document.querySelector('[data-product-field=qa_rich]').value.includes('<b>RICH-PRODUCT</b>')`));
+  await run(`document.querySelector('#product-editor-preview').click()`);await wait(`document.querySelector('.workflow-catalog iframe')?.contentDocument?.querySelector('b')?.textContent==='RICH-PRODUCT'`);
+  console.log('PASS configured image upload, rich formatting, safe output, persistent document fields, body typography, commission bank toggle, live background/save/reload/final rendering. '+out);win.destroy();server.close();app.exit(0);
+ }catch(error){console.error(error);console.error('Evidence: '+out);pdfwin?.destroy();win.destroy();server.close();app.exit(1);}
+});

@@ -25,7 +25,7 @@ app.whenReady().then(async()=>{const server=await require('../server').startServ
   assert.equal((await run(`JSON.parse(localStorage.getItem('quote_assistant_v01_invitations'))[0]`)).signingSnapshot.signature,before);
   const results=[];
   for(const type of ['invitation','quotation','invoice','contract','commercial','packing','authorization','statement','procurement']){
-    await run(`document.querySelector('[data-create-document=${type}]').click()`);await new Promise(r=>setTimeout(r,50));
+    if(type==='procurement')await require('./open-legacy-procurement-fixture.cjs')(win,base);else await run(`document.querySelector('[data-create-document=${type}]').click()`);await new Promise(r=>setTimeout(r,50));
     const kind=type==='invitation'?'invitation':['authorization','statement','procurement'].includes(type)?'agency':'quote';
     await run(`(()=>{const host=document.querySelector('#signing-controls-${kind}');const c=host.querySelector('[data-signature-choice]');c.value='en';host.querySelector('[data-signature-visible]').checked=true;host.querySelector('[data-seal-visible]').checked=true;c.dispatchEvent(new Event('change',{bubbles:true}));${kind==='quote'?"const input=document.querySelector('#document-show-signature');input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}));":''}})()`);
     assert.equal(await run(`document.querySelectorAll('#${kind==='quote'?'quote':kind}-preview .signing-composite').length`),1,type+' one shared signing composite');

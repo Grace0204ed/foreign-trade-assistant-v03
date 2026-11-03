@@ -78,9 +78,9 @@ app.whenReady().then(async()=>{
     await run(`document.querySelector('[data-settings-section=${type}-config]').click()`);
     assert(await run(`!!document.querySelector('#settings-${type}-config-host .refined-workspace')`),type+' uses approved settings layout');
   }
-  await run("document.querySelector('[data-settings-section=invoice-config]').click();document.querySelector('#settings-invoice-config-host [data-block=basic]').click();[...document.querySelectorAll('#settings-invoice-config-host .refined-name')].find(b=>b.textContent.includes('PDF')).click();document.querySelector('#settings-invoice-config-host [data-refined-options]').click()");
-  assert.equal(await run("document.querySelectorAll('.refined-options [data-option-index]').length"),require('../assets/document-locales.js').options().length,'all built-in PDF languages and retained bilingual modes are visible in settings');
-  await run("document.querySelector('.refined-options [data-save]').click();document.querySelector('#settings-invoice-config-host [data-document-save]').click()");
+  await run("document.querySelector('[data-settings-section=translation]').click()");
+  assert.equal(await run("document.querySelectorAll('[data-language-toggle]').length"),10,'all ten maintained built-in languages are managed in top settings');
+  assert.equal(await run("document.querySelectorAll('#settings-invoice-config-host [data-refined-id=pdfLanguage]').length"),0,'duplicate per-document PDF language field removed');
   console.log('PASS customer fields/reorder/settings reload/edit/history preservation/followup/independent UI and refined document settings persistence. Evidence: '+process.env.QUOTE_DATA_DIR);
  }finally{win.destroy();await new Promise(r=>server.close(r));app.quit();}
 }).catch(e=>{console.error(e);app.exit(1)});

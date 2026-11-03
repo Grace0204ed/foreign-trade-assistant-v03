@@ -1,0 +1,48 @@
+const {app,BrowserWindow}=require('electron'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const model=require('../assets/product-hierarchy');
+process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-product-hierarchy-'));app.setPath('userData',path.join(process.env.QUOTE_DATA_DIR,'profile'));app.on('window-all-closed',()=>{});
+app.whenReady().then(async()=>{
+ const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;
+ const win=new BrowserWindow({show:false,width:1440,height:1050,webPreferences:{backgroundThrottling:false,offscreen:true}}),errors=[];
+ win.webContents.on('console-message',(_e,level,message)=>{if(level===3)errors.push(message);});
+ const run=s=>win.webContents.executeJavaScript(s),wait=async s=>{for(let i=0;i<160;i++){if(await run(s))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout '+s);};
+ const request=async(url,method='GET',body,expected=200)=>{const r=await fetch(base+url,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json();assert.equal(r.status,expected,JSON.stringify(data));return data;};
+ const openSettings=async()=>{await run("document.querySelector('[data-view=settings]').click();document.querySelector('[data-settings-section=product-config]').click()");await wait("!!document.querySelector('[data-hierarchy-name]')");};
+ const select=async id=>run(`document.querySelector('[data-hierarchy-select='+CSS.escape(${JSON.stringify(id)})+']').click()`);
+ const save=async()=>{await run("document.querySelector('[data-hierarchy-save]').click()");await wait("document.querySelector('[data-hierarchy-status]').textContent===''");};
+ const dragAndVerify=async()=>{const before=await run("[...document.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow)"),p=await run("[...document.querySelectorAll('[data-hierarchy-handle]')].slice(0,2).map(n=>{const r=n.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})");assert.equal(p.length,2);win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...p[0]});for(let i=1;i<=20;i++){win.webContents.sendInputEvent({type:'mouseMove',x:p[0].x,y:Math.round(p[0].y+(p[1].y+18-p[0].y)*i/20),modifiers:['leftButtonDown']});await new Promise(r=>setTimeout(r,12));}assert.notDeepEqual(await run("[...document.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow)"),before,'native pointer displaces rows before release');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:p[0].x,y:p[1].y+18});await save();};
+ try{
+  for(const p of [{category:'挖掘机',brand:'CAT',model:'320'},{category:'衬衫',brand:'FASHION',model:'20'}])await request('/api/products','POST',p);
+  const initial=(await request('/api/products')).products,config=model.seed(initial),mechanical=config.nodes.find(n=>n.label==='机械设备'),excavator=config.nodes.find(n=>n.label==='挖掘机'&&n.parentId===mechanical.id);
+  const settings=(await request('/api/settings')).settings;await request('/api/settings','PUT',{...settings,productHierarchy:config});
+  await win.loadURL(base);await wait("document.querySelectorAll('#overview-metrics article').length===4");await openSettings();await dragAndVerify();await select(mechanical.id);await run("document.querySelector('[data-hierarchy-next]').click()");
+  const before=await run("[...document.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow)");
+  const positions=await run("[...document.querySelectorAll('[data-hierarchy-handle]')].slice(0,3).map(n=>{const r=n.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})");
+  await run("window.pointerEvidence=[];for(const type of ['pointerdown','pointermove','pointerup','pointercancel','mousedown','mousemove'])document.addEventListener(type,e=>pointerEvidence.push([type,e.target.tagName,e.buttons,e.button,e.isTrusted]),true)");
+  await new Promise(r=>setTimeout(r,350));console.log('Pointer positions',positions,await run('document.elementFromPoint('+positions[0].x+','+positions[0].y+')?.outerHTML'));
+  win.webContents.sendInputEvent({type:'mouseMove',...positions[0]});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...positions[0]});
+  for(let i=1;i<=20;i++){win.webContents.sendInputEvent({type:'mouseMove',modifiers:['leftButtonDown'],x:positions[0].x,y:Math.round(positions[0].y+(positions[2].y-positions[0].y+18)*i/20),movementX:0,movementY:5});await new Promise(r=>setTimeout(r,12));}
+  console.log('Sorting state',await run("({sorting:document.querySelector('.sorting')?.outerHTML,events:pointerEvidence})"));
+  const during=await run("[...document.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow)");assert.notDeepEqual(during,before,'real pointer movement must displace rows before release');
+  fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'drag-during.png'),(await win.webContents.capturePage()).toPNG());
+  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:positions[0].x,y:positions[2].y+18});await save();
+  const persisted=(await request('/api/settings')).settings.productHierarchy;assert.deepEqual(model.children(persisted,mechanical.id,true).map(n=>n.id),during);assert(persisted.nodes.filter(n=>during.includes(n.id)).every(n=>n.parentId===mechanical.id));
+  await win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");await openSettings();await select(mechanical.id);await run("document.querySelector('[data-hierarchy-next]').click()");assert.deepEqual(await run("[...document.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow)"),during);
+  await select(excavator.id);await run("document.querySelector('[data-hierarchy-next]').click();document.querySelector('[data-hierarchy-add]').click();document.querySelector('[data-hierarchy-name]').value='QA品牌';document.querySelector('[data-hierarchy-name]').dispatchEvent(new Event('input',{bubbles:true}))");await save();
+  await dragAndVerify();
+  await run("document.querySelector('[data-hierarchy-product]').click()");assert(await run("document.querySelector('#product-editor-modal').open"));
+  const selected=await run("[...document.querySelectorAll('[data-product-hierarchy]')].map(n=>n.selectedOptions[0]?.textContent)");assert.deepEqual(selected,['机械设备','挖掘机','QA品牌']);
+  await run("document.querySelector('[data-product-field=model]').value='QA-20';document.querySelector('[data-product-field=model]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#save-product-btn').click()");await wait("!document.querySelector('#product-editor-modal').open");
+  const records=(await request('/api/products')).products,created=records.find(p=>p.model==='QA-20');assert(created);assert.equal(created.brand,'QA品牌');assert.equal(created.category,'挖掘机');assert.equal(created.values._classification.labels[0],'机械设备');assert.equal(await run("document.querySelector('#view-settings').hidden"),false,'context stays in settings');
+  const c=(await request('/api/settings')).settings,brandId=created.values._classification.brandId;
+  const invalid=structuredClone(c);invalid.productHierarchy.nodes.find(n=>n.id===brandId).deletedAt=new Date().toISOString();await request('/api/settings','PUT',invalid,400);
+  const disabled=structuredClone(c);disabled.productHierarchy.nodes.find(n=>n.id===brandId).active=false;await request('/api/settings','PUT',disabled);assert((await request('/api/products')).products.some(p=>p.id===created.id));
+  await win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");
+  await run(`quoteApp.editProduct(${JSON.stringify(created.id)})`);assert.equal(await run("document.querySelector('[data-product-hierarchy=\"2\"]').value"),brandId);await run("document.querySelector('[data-product-field=model]').value='QA-20-edited';document.querySelector('#save-product-btn').click()");await wait("!document.querySelector('#product-editor-modal').open");
+  assert((await request('/api/products')).products.some(p=>p.id===created.id&&p.model==='QA-20-edited'));
+  // Classification label changes retain legacy records via stable ID bindings.
+  const renamed=(await request('/api/settings')).settings;renamed.productHierarchy.nodes.find(n=>n.id===mechanical.id).label='设备类型';await request('/api/settings','PUT',renamed);
+  assert.equal(model.resolve(renamed.productHierarchy,initial.find(p=>p.brand==='CAT'))[0],mechanical.id);
+  assert.deepEqual(errors,[]);console.log('PASS hierarchy: real mouse hold/move/live displacement/release/save/reopen, parent integrity, contextual new product, persistence, inactive edit compatibility, server deletion guard, stable legacy binding. Evidence '+process.env.QUOTE_DATA_DIR);
+ }finally{win.destroy();server.close();app.quit();}
+}).catch(e=>{console.error(e);app.exit(1)});

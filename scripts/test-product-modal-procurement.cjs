@@ -49,15 +49,16 @@ app.whenReady().then(async()=>{
   await run(`window.quoteApp.editProduct('${record.id}');window.confirm=()=>true;document.querySelector('#product-editor-delete').click()`);
   await wait("!document.querySelector('#product-editor-modal').open");
   assert(!(await products()).some(p=>p.id===record.id),'confirmed modal deletion persisted');
-  await run("document.querySelector('[data-create-document=procurement]').click()");
+  assert.equal(await run("document.querySelectorAll('[data-create-document=procurement]').length"),0,'retired procurement has no creation entry');
+  const response=await fetch(base+'/api/agent-authorizations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'legacy-procurement-qa',documentType:'procurement',recordClass:'history',authorizationNumber:'QA-LEGACY-PROC',date:'2026-11-03',language:'zh',purchaseMachine:'MODAL-PROCUREMENT',purchaseAmount:64000,purchaseFee:3500})});
+  assert(response.ok,'legacy fixture remains accepted');
+  await run("document.querySelector('[data-view=history]').click();document.querySelector('#history-document-type').value='procurement';document.querySelector('#history-document-type').dispatchEvent(new Event('change',{bubbles:true}))");
+  await wait("!!document.querySelector('#unified-history-list .history-actions button')");
+  await run("document.querySelector('#unified-history-list .history-actions button').click()");
+  await wait("document.querySelector('#view-agency.active #procurement-machine')?.value==='MODAL-PROCUREMENT'");
   assert.equal(await run("document.querySelector('#agency-document-type').value"),'procurement');
-  assert(await run("document.querySelector('#view-agency.active [data-switch-document=procurement]').classList.contains('is-current-document')"),'correct active document');
   assert(await run("!document.querySelector('#agency-procurement-panel').hidden"),'procurement form visible');
   assert(await run("document.querySelector('#agency-company').closest('label').hidden"),'personal procurement hides company selector');
-  await run("document.querySelector('#procurement-machine').value='MODAL-PROCUREMENT';document.querySelector('#procurement-amount').value='64000';document.querySelector('#procurement-fee').value='3500';document.querySelector('.view.active [data-switch-document=authorization]').click()");
-  assert.equal(await run("document.querySelector('#agency-document-type').value"),'authorization');
-  await run("document.querySelector('.view.active [data-switch-document=procurement]').click()");
-  assert.equal(await run("document.querySelector('#procurement-machine').value"),'MODAL-PROCUREMENT','separate procurement draft restored');
   await run("document.querySelector('#agency-save-btn').click()");
   let saved;
   for(let i=0;i<100;i++){saved=(await get('/api/agent-authorizations')).authorizations.find(p=>p.purchaseMachine==='MODAL-PROCUREMENT');if(saved)break;await new Promise(r=>setTimeout(r,50));}
@@ -72,8 +73,8 @@ app.whenReady().then(async()=>{
   await wait("!!document.querySelector('#unified-history-list .history-actions button')");
   await run("document.querySelector('#unified-history-list .history-actions button').click()");
   await wait("document.querySelector('#view-agency.active #procurement-machine')?.value==='MODAL-PROCUREMENT'");
-  assert(await run("document.querySelector('#view-agency.active [data-switch-document=procurement]').classList.contains('is-current-document')"),'history correct highlight');
+  assert.equal(await run("document.querySelectorAll('[data-switch-document=procurement]').length"),0,'legacy history does not restore retired creation entry');
   assert.deepEqual(errors,[],'no browser errors');
-  console.log('PASS product modal: create, edit selected, cancel, save/reload, range price, upload/remove image, safe deletion, 1440/1024 layout; procurement: entry, active state, draft isolation, save/history reopen, real PDF totals');
+  console.log('PASS product modal: create, edit selected, cancel, save/reload, range price, upload/remove image, safe deletion, 1440/1024 layout; retired procurement: historical fixture save/reopen, real PDF totals, no new creation entry');
  }finally{win.destroy();server.close();app.quit();}
 }).catch(e=>{console.error(e);app.exit(1);});

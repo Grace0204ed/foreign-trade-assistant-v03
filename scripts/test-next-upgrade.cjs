@@ -57,7 +57,7 @@ app.whenReady().then(async()=>{
   await run("localStorage.setItem('fta-app-lock-retries-v1',JSON.stringify({failures:0,stage:1,until:0}));document.querySelector('#application-lock-screen input').value='123456';document.querySelector('#application-lock-screen input').disabled=false;document.querySelector('[data-unlock]').disabled=false;document.querySelector('[data-unlock]').click()");
   await wait("!document.querySelector('#application-lock-screen')");assert.equal(await run("localStorage.getItem('fta-app-lock-locked-v1')"),null);
   await run("document.querySelector('[data-view=settings]').click();document.querySelector('[data-settings-section=translation]').click()");
-  assert.equal(await run("document.querySelectorAll('.language-template-cards [data-locale]').length"),9);
+  assert.equal(await run("document.querySelectorAll('[data-language-toggle]').length"),10);
   assert.deepEqual(errors,[]);
   console.log('PASS seven header tools, single currency, unified history entry, embedded CRM, PIN hint/retry/unlock. Evidence: '+process.env.QUOTE_DATA_DIR);
  }finally{win.destroy();server.close();app.quit();}

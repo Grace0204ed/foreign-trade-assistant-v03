@@ -16,8 +16,8 @@ app.whenReady().then(async()=>{
    if(process.env.LANGUAGE_QA_TYPES&&!process.env.LANGUAGE_QA_TYPES.split(',').includes(type))continue;
    const standalone=['invitation','authorization','statement','procurement'].includes(type),kind=['authorization','statement','procurement'].includes(type)?'agency':type==='invitation'?'invitation':'quote';
    const select=kind==='quote'?'pdf-language':kind+'-language',host=kind+'-preview';
-   await run(`window.decideCloseWork?.('discard')`);await run(`document.querySelector('[data-create-document=${type}]').click()`);
-   for(const lang of Object.keys(locales.languages).filter(l=>!process.env.LANGUAGE_QA_LANGS||process.env.LANGUAGE_QA_LANGS.split(',').includes(l))){
+   await run(`window.decideCloseWork?.('discard')`);if(type!=='procurement')await run(`document.querySelector('[data-create-document=${type}]').click()`);
+   for(const lang of ['zh',...Object.keys(locales.languages)].filter(l=>!process.env.LANGUAGE_QA_LANGS||process.env.LANGUAGE_QA_LANGS.split(',').includes(l))){
     if(!standalone){
      const doc={id:`locale-${type}-${lang}`,quoteNumber:`QA-${type}-${lang}`,documentType:type,pdfLanguage:lang,settingsSnapshot:{companyNameEn:'QA International Trading Company',companyAddressEn:'Hefei, China'},buyer:{company:'QA Buyer 123',contact:'QA Contact',country:'Kenya',phone:'+254721747572',email:'qa@example.com',address:'QA Street 88'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Mombasa',payment:'30/70'},documentExtras:{packing:{machine:{packages:'1',netWeight:'1200',grossWeight:'1300',cbm:'12',marks:'QA-123'}}},items:[{id:'machine',productSnapshot:{productName:'Dynapac CA402'},priceSnapshot:{quantity:1,unitPrice:23000,currency:'USD',values:{description:'Dynapac CA402 14-ton road roller',qty:'1',unitPrice:'23000',billingUnit:'Unit',hsCode:'84294000'}}}]};
      doc.items[0].id='machine-'+type+'-'+lang;doc.documentExtras.packing[doc.items[0].id]=doc.documentExtras.packing.machine;delete doc.documentExtras.packing.machine;
@@ -26,10 +26,13 @@ app.whenReady().then(async()=>{
      assert.equal(await run(`document.getElementById('${select}').value`),lang,'persist/reopen language '+type);
     }else if(kind==='agency'){
      const record={id:`locale-${type}-${lang}`,documentType:type,authorizationNumber:`QA-${type}-${lang}`,language:lang,date:'2026-11-01',validUntil:'2027-11-01',agentName:'QA Recipient 456',country:'Kenya',idNumber:'QA-ID-456',phone:'+254721747572',email:'qa@example.com',address:'QA Street 88',company:'QA International Trading Company',authorizer:'QA Signer',selectedProducts:['挖掘机','装载机'],commissionMin:5,commissionMax:10,showCommission:true,markupAllowed:true,paymentChannel:'bank',commissionBasis:'fixed',fixedCommission:2000,contractAmount:30000,currency:'USD',salesContractNumber:'SC-QA-456',isTemplate:true,personalLegalName:'QA Signer',personalAlias:'QA Signer',purchaseMachine:'Dynapac CA402',purchaseAmount:23000,purchaseFee:3500,purchaseCancellation:'QA cancellation agreement'};
+     if(type==='statement')record.settlementSchema=2;
+     if(type==='procurement'){await require('./open-legacy-procurement-fixture.cjs')(win,base,record);}else{
      const response=await fetch(base+'/api/agent-authorizations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(record)});assert(response.ok,await response.text());
      await run(`window.decideCloseWork?.('discard')`);await run(`document.querySelector('[data-create-document=${type}]').click()`);
      for(let i=0;i<100&&!await run(`!!document.querySelector('[data-agency-action="open"][data-id="${record.id}"]')`);i++)await new Promise(r=>setTimeout(r,40));
      await run(`window.decideCloseWork('discard')`);await run(`document.querySelector('[data-agency-action="open"][data-id="${record.id}"]').click()`);
+     }
      for(let i=0;i<200&&await run(`document.getElementById('${select}').value`)!==lang;i++)await new Promise(r=>setTimeout(r,25));
      assert.equal(await run(`document.getElementById('${select}').value`),lang,`persist/reopen ${type}; `+await run(`document.querySelector('#toast').textContent+' / LEAVE '+!!document.querySelector('#leave-work-modal')`));
     }else{
@@ -37,13 +40,13 @@ app.whenReady().then(async()=>{
     }
     await run('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
     const state=await run(`(()=>{const h=document.getElementById('${host}');return {lang:h.lang,dir:h.dir,text:h.textContent,columns:[...h.querySelectorAll('tbody tr')].map(r=>r.children.length),headers:h.querySelectorAll('thead th').length}})()`);
-    assert.equal(state.lang,lang,type);assert.equal(state.dir,lang==='ar'?'rtl':'ltr');
-    const expectedTitle=locales.label(title,lang)||require('../assets/document-fixed-locales.js').lookup(title,lang)||title;
+    assert.equal(state.lang,lang==='zh'?'zh-CN':lang,type);assert.equal(state.dir,lang==='ar'?'rtl':'ltr');
+    const expectedTitle=type==='statement'?require('../assets/commission-statement.js').phrase('title',lang):lang==='zh'?({quotation:'报价单',invoice:'形式发票',contract:'销售合同',commercial:'商业发票',packing:'装箱单',invitation:'商务邀请函',authorization:'代理授权书',procurement:'个人委托采购'})[type]:locales.label(title,lang)||require('../assets/document-fixed-locales.js').lookup(title,lang)||title;
     const normalizeTitle=s=>s.toLocaleLowerCase().replace(/[\s’'’.-]/g,'');
     assert(normalizeTitle(state.text).includes(normalizeTitle(expectedTitle)),`${type}/${lang} title missing: ${expectedTitle}; ${state.text.slice(0,350)}`);
     assert(!/\[(?:fr|es|ja|ru|ar|it|de|ko):/.test(state.text),`${type}/${lang} unresolved translation: ${state.text.match(/\[(?:fr|es|ja|ru|ar|it|de|ko):[^\]]*\]/g)}`);
     if(kind==='agency'){assert(state.text.includes('QA Recipient 456'));if(type==='statement')assert(state.text.includes('SC-QA-456'));}
-    if(type==='invitation'){assert(state.text.includes('QA-PASS-789'));assert(!state.text.includes('Male / 男'),`${lang} gender must follow output language`);if(lang!=='en')assert(state.text.includes(require('../assets/document-fixed-locales.js').lookup('Male',lang)),`${lang} localized gender`);}
+    if(type==='invitation'){assert(state.text.includes('QA-PASS-789'));assert(!state.text.includes('Male / 男'),`${lang} gender must follow output language`);if(!['en','zh'].includes(lang))assert(state.text.includes(require('../assets/document-fixed-locales.js').lookup('Male',lang)),`${lang} localized gender`);}
     if(!standalone&&lang!=='en')assert(!state.text.includes('Port of Discharge'),`${type}/${lang} untranslated destination port label`);
     if(!standalone){assert(state.text.includes('QA Buyer 123'));if(await run(`!!document.querySelector('#${host} .preview-col-hsCode')`))assert(state.text.includes('84294000'));assert(state.text.includes('Dynapac CA402'));assert(state.columns.every(n=>n===state.headers),`${type}/${lang} columns mismatch`);}
     assert.deepEqual(await run(`(${auditLayout.toString()})('${host}')`),[],`${type}/${lang} screen layout`);
@@ -56,6 +59,6 @@ app.whenReady().then(async()=>{
     await run(`document.body.classList.remove('${cls}')`);results.push({type,lang,file});
    }
   }
-  assert.equal(results.length,(process.env.LANGUAGE_QA_TYPES?process.env.LANGUAGE_QA_TYPES.split(',').length:9)*(process.env.LANGUAGE_QA_LANGS?process.env.LANGUAGE_QA_LANGS.split(',').length:9));assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,process.env.LANGUAGE_QA_TYPES?'manifest-subset.json':'manifest.json'),JSON.stringify(results,null,2));console.log('PASS '+results.length+' actual PDFs: stored language, titles, Arabic direction, buyer/product/HS values, table column alignment. '+output);
+  assert.equal(results.length,(process.env.LANGUAGE_QA_TYPES?process.env.LANGUAGE_QA_TYPES.split(',').length:9)*(process.env.LANGUAGE_QA_LANGS?process.env.LANGUAGE_QA_LANGS.split(',').length:10));assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,process.env.LANGUAGE_QA_TYPES?'manifest-subset.json':'manifest.json'),JSON.stringify(results,null,2));console.log('PASS '+results.length+' actual PDFs: stored language, titles, Arabic direction, buyer/product/HS values, table column alignment. '+output);
  }finally{win.destroy();server.close();app.quit();}
 }).catch(e=>{console.error(e);app.exit(1)});

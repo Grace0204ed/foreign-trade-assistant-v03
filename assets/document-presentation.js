@@ -55,7 +55,15 @@
       host.style.zoom=host.classList.contains('document-wide')?String(Math.min(1,(viewport.clientWidth-48)/host.offsetWidth)):'1';
     }
   }
-  function apply(host,doc){if(!host)return;const color=/^#[0-9a-f]{6}$/i.test(doc.tableHeaderColor||'')?doc.tableHeaderColor:'';host.classList.toggle('custom-table-header',!!color);host.style.setProperty('--document-table-color',color||'inherit');host.style.setProperty('--document-header-text',color?contrast(color):'#ffffff');host.style.setProperty('--document-heading-color',color&&contrast(color)==='#ffffff'?color:'#172033');host.style.setProperty('--trade-ink',color?(contrast(color)==='#ffffff'?color:'#172033'):'var(--doc-accent,var(--primary))');
+  function background(host,design={}){
+    if(!host)return;host.dataset.pageOrientation=design.orientation||'portrait';host.classList.toggle('document-landscape',design.orientation==='landscape');
+    if(!design.backgroundDataUrl){host.style.backgroundImage='';host.style.backgroundSize='';host.style.backgroundPosition='';host.style.backgroundRepeat='';return;}
+    const bounded=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Number(v))):fallback;
+    const opacity=bounded(design.backgroundOpacity,0,1,.12),mask=bounded(design.overlay,0,1,.82),scale=bounded(design.backgroundScale,10,300,100),x=bounded(design.backgroundX,0,100,50),y=bounded(design.backgroundY,0,100,0);
+    host.style.backgroundImage=`linear-gradient(rgba(255,255,255,${1-opacity*(1-mask)}),rgba(255,255,255,${1-opacity*(1-mask)})),url("${String(design.backgroundDataUrl).replaceAll('"','%22')}")`;
+    host.style.backgroundSize=scale!==100?`${scale}% auto`:design.backgroundMode==='stretch'?'100% 100%':design.backgroundMode||'cover';host.style.backgroundPosition=`${x}% ${y}%`;host.style.backgroundRepeat='repeat-y';
+  }
+  function apply(host,doc,design){if(!host)return;if(design)background(host,design);const color=/^#[0-9a-f]{6}$/i.test(doc.tableHeaderColor||'')?doc.tableHeaderColor:'';host.classList.toggle('custom-table-header',!!color);host.style.setProperty('--document-table-color',color||'inherit');host.style.setProperty('--document-header-text',color?contrast(color):'#ffffff');host.style.setProperty('--document-heading-color',color&&contrast(color)==='#ffffff'?color:'#172033');host.style.setProperty('--trade-ink',color?(contrast(color)==='#ffffff'?color:'#172033'):'var(--doc-accent,var(--primary))');
     // A designer's white module background must not hide white header text.
     host.querySelectorAll('.compact-letterhead').forEach(header=>{
       const accent=color||getComputedStyle(host).getPropertyValue('--doc-accent').trim()||'#285fc1';
@@ -64,7 +72,7 @@
     });
     globalThis.DocumentLocales?.apply(host,doc.pdfLanguage||doc.language||'bilingual');
     const selectors={title:'.document-heading h1,.preview-title h2,.invitation-title,.agency-sheet h1',tableHeader:'thead th',product:'tbody .preview-col-description,tbody .preview-col-productType,tbody .preview-col-brand,tbody .preview-col-model',body:'.preview-fields,.document-parties,.document-shipment',notes:'.terms-content,.shipping-notes,.contract-clause',footer:'.document-footer'};
-    selectors.body+=',.invitation-content,.invitation-body,.agency-sheet p,.agency-sheet td';
+    selectors.body+=',.invitation-content,.invitation-body,.agency-sheet p,.agency-sheet td,.commission-field';
     const config=typography(doc.documentTypography);for(const [region,selector] of Object.entries(selectors))host.querySelectorAll(selector).forEach(node=>{for(const key of ['fontFamily','fontSize','fontWeight','color','lineHeight','letterSpacing']){const v=config[region][key];if(v!=null)node.style.setProperty(key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),typeof v==='number'&&['fontSize','letterSpacing'].includes(key)?v+'px':String(v),'important');}});
     readableTables(host);
   }
@@ -76,5 +84,5 @@
     for(const text of known)if(source.includes(text)){source=source.replace(text,replaced?'':marker);replaced=true;}
     return source.replace(marker,terms(language)).trim();
   }
-  return {paymentShipping,typography,contrast,contrastRatio,columnWidths,apply,terms,localizeTerms};
+  return {paymentShipping,typography,contrast,contrastRatio,columnWidths,background,apply,terms,localizeTerms};
 });

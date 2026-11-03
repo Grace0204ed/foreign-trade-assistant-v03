@@ -29,7 +29,21 @@
     overlay.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const nodes=[...overlay.querySelectorAll('input,button')].filter(n=>!n.disabled);if(e.shiftKey&&document.activeElement===nodes[0]){e.preventDefault();nodes.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===nodes.at(-1)){e.preventDefault();nodes[0].focus();}});
     ticker=setInterval(update,1000);update();setTimeout(()=>input.disabled?overlay.querySelector('[data-hint]').focus():input.focus());
   }
-  function configure(next={}){config={...config,...next};reset();if(config.enabled&&(retry().until>Date.now()||localStorage.getItem(LOCKED_KEY)==='true')&&!locked)lock();}
+  function configure(next={}){config={...config,...next};if(!config.enabled)localStorage.removeItem(LOCKED_KEY);reset();if(config.enabled&&(retry().until>Date.now()||localStorage.getItem(LOCKED_KEY)==='true')&&!locked)lock();}
   ['pointerdown','keydown','wheel','touchstart'].forEach(name=>document.addEventListener(name,reset,{passive:true}));
-  window.AppLock={hash,lock,configure,activity:reset,isLocked:()=>locked};
+  async function prepareSettings(previous, input){
+    const next={...previous,...input};
+    const changingPin=Boolean(input.enabled&&(input.pin||input.confirmPin));
+    const sensitiveChange=changingPin||Boolean(previous.enabled)!==Boolean(input.enabled);
+    if(previous.pinHash&&sensitiveChange&&await hash(input.current||'')!==previous.pinHash)throw Error('当前PIN不正确。');
+    if(input.enabled&&!previous.pinHash&&!changingPin)throw Error('首次启用请设置4-12位数字PIN。');
+    if(changingPin){
+      if(!/^\d{4,12}$/.test(input.pin||''))throw Error('新PIN必须是4-12位数字。');
+      if(input.pin!==input.confirmPin)throw Error('两次输入的新PIN不一致。');
+      next.pinHash=await hash(input.pin);
+    }
+    delete next.pin;delete next.confirmPin;delete next.current;
+    return next;
+  }
+  window.AppLock={hash,lock,configure,prepareSettings,activity:reset,isLocked:()=>locked};
 })();

@@ -6,6 +6,7 @@
     let panel=document.getElementById('option-catalog-manager');if(!panel){panel=document.createElement('section');panel.id='option-catalog-manager';panel.className='panel';host.append(panel);}
     panel.innerHTML='<h3>全系统业务选项</h3><p>统一管理币种、贸易、付款、运输及单位。保存后同步业务界面；已有代码保持不变，删除已保存项会归档停用以保护历史单证。商品分类支持三级父子关系，港口复用现有数据管理。</p><div class="actions">'+Object.entries(OptionCatalog.definitions).map(([key,[name]])=>`<button type="button" data-catalog="${key}">${name}</button>`).join('')+'</div>';
     panel.insertAdjacentHTML('beforeend','<button type="button" data-manage-ports>港口管理</button>');
+    panel.querySelector('[data-catalog="tradeTerms"]')?.remove();
     panel.onclick=e=>{const key=e.target.dataset.catalog;if(key)edit(key,context);if(e.target.matches('[data-manage-ports]'))editPorts(context).catch(error=>context.toast(error.message));};
     // Superseded editors could bypass the stable-code and archival rules.
     ['currency-list','trade-term-list'].forEach(id=>{const old=document.getElementById(id)?.closest('.currency-manager');if(old)old.hidden=true;});
@@ -36,6 +37,6 @@
     modal.oninput=e=>{const tr=e.target.closest('[data-row]'),key=e.target.dataset.key;if(tr&&key)rows[tr.dataset.row][key]=e.target.type==='checkbox'?e.target.checked:e.target.type==='number'?Number(e.target.value):e.target.value;};
     modal.onclick=async e=>{try{if(e.target.matches('[data-close]'))return modal.remove();if(e.target.matches('[data-add]')){rows.unshift({countryName:'',portName:'',isOriginPort:false,isDestinationPort:true,status:'Active',sortOrder:0});return draw();}const index=e.target.dataset.savePort??e.target.dataset.deletePort;if(index==null)return;const row=rows[index];if(e.target.dataset.deletePort!=null){if(!confirm('停用此港口并保留历史引用？'))return;row.status='Inactive';}if(!row.countryName.trim()||!row.portName.trim())throw Error('请填写国家和港口英文名称');const result=await api('/api/ports'+(row.id?'/'+encodeURIComponent(row.id):''),{method:row.id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(row)});Object.assign(row,result.port);await window.freightContext.loadServerData();context.refreshOptions();draw();context.toast('港口已保存并同步');}catch(error){modal.querySelector('[data-error]').textContent=error.message;}};draw();
   }
-  window.OptionManager={mount};
+  window.OptionManager={mount,edit};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(mount));else setTimeout(mount);
 })();

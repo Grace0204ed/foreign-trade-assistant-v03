@@ -46,8 +46,7 @@ app.whenReady().then(async()=>{
    await run("document.body.classList.remove('printing-standard')");
   }
   for(const [type,view,cls] of [['invitation','invitation','printing-invitation'],['authorization','agency','printing-agency'],['agreement','agency','printing-agency'],['statement','agency','printing-agency'],['procurement','agency','printing-agency']]){
-   await run(`document.querySelector('[data-create-document=${view==='agency'?'authorization':'invitation'}]').click()`);
-   if(view==='agency')await run(`document.querySelector('#agency-document-type').value='${type}';document.querySelector('#agency-document-type').dispatchEvent(new Event('change',{bubbles:true}))`);
+   if(['agreement','procurement'].includes(type))await require('./open-legacy-procurement-fixture.cjs')(win,base,{id:'release-legacy-'+type,authorizationNumber:'RELEASE-LEGACY-'+type,documentType:type,agentName:'QA Recipient',country:'Kenya'});else await run(`document.querySelector('[data-create-document=${type}]').click()`);
    await run('document.fonts.ready');
    fs.writeFileSync(path.join(output,type+'-preview.png'),(await win.webContents.capturePage()).toPNG());
    await run(`document.body.classList.add('${cls}')`);
