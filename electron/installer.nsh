@@ -1,5 +1,14 @@
 ; Inspect live processes at this installation path, not stale tasklist entries.
 ; Never skip running applications or ignore file replacement errors.
+; Older clients still pass /S. An application update must remain visible even
+; when launched by those clients; ordinary deployment switches are unaffected.
+!macro customInit
+  ${If} ${isUpdated}
+    SetSilent normal
+    BringToFront
+  ${EndIf}
+!macroend
+
 !macro customCheckAppRunning
   System::Call 'kernel32::SetEnvironmentVariable(t "FTA_INSTALL_EXE", t "$INSTDIR\${APP_EXECUTABLE_FILENAME}")'
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "try { $$running=@(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$_.ThreadCount -gt 0 -and $$_.ExecutablePath -eq $$env:FTA_INSTALL_EXE }); if($$running.Count -gt 0){exit 10}; exit 0 } catch {exit 11}"'

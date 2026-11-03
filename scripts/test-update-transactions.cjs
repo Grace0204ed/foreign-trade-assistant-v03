@@ -19,7 +19,17 @@ const {prepareInstall,readInstallResult}=require('../electron/update-install.cjs
   await assert.rejects(retry);assert.equal(await retry(),true);
   const command=prepareInstall({dataDirectory:folder,installer:results[0],version:'0.11.26',installDirectory:folder,pid:123,sourceVersion:'0.11.24'});
   assert(command.includes('-Wait -PassThru'));assert(command.includes('$setup.ExitCode'));assert(command.includes('release-version.json'));
+  assert(!command.includes("@('/S'"),'Updates must show the installer, never run silently');
+  assert(command.includes('-WindowStyle Normal'),'Installer must be visible');
+  const nsis=fs.readFileSync(path.join(__dirname,'../electron/installer.nsh'),'utf8');
+  assert.match(nsis,/!macro customInit[\s\S]*\$\{isUpdated\}[\s\S]*SetSilent normal/,'Installer must also override silent mode from legacy updaters');
+  assert(command.includes("Record 'cancelled'"),'Cancellation must be recorded');
   assert.equal(readInstallResult(folder,'0.11.24').status,'error');
+  assert.equal(readInstallResult(folder,'0.11.26').status,'error','Pending receipt is not installation success');
+  const receipt=path.join(folder,'update-install-result.json');
+  fs.writeFileSync(receipt,JSON.stringify({status:'cancelled',version:'0.11.26'}));
+  assert.match(readInstallResult(folder,'0.11.24').message,/已取消/);
+  fs.writeFileSync(receipt,JSON.stringify({status:'installed',version:'0.11.26'}));
   assert.equal(readInstallResult(folder,'0.11.26').status,'current');
   console.log('PASS: 25 concurrent downloads, cache reuse/corruption, interrupted cleanup, retry, install exit/version verification and restart receipt');
  }finally{fs.rmSync(folder,{recursive:true,force:true});}

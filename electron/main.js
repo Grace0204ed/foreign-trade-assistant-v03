@@ -174,7 +174,7 @@ async function installDownloadedUpdate() {
   // Finish pending recovery writes before an installer can terminate the app.
   for(const win of BrowserWindow.getAllWindows())if(!win.isDestroyed())await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
   if (downloadedUpdateFile && fs.existsSync(downloadedUpdateFile)) {
-    publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});
+    publishUpdateState({status:"installing",message:"自检通过，正在关闭软件并打开安装窗口；请在安装窗口中查看进度并完成安装。"});
     // Start setup only after this process releases its executable and SQLite files.
     const {prepareInstall}=require('./update-install.cjs');
     const command=prepareInstall({dataDirectory:dataDir(),installer:downloadedUpdateFile,version:latestUpdateState.version,
