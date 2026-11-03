@@ -311,6 +311,8 @@ app.get("/api/products", requireLogin, (req, res) => {
 
 app.post("/api/products", requireLogin, (req, res) => {
   const p = req.body || {};
+  const hierarchy=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json).productHierarchy;
+  if(p.id&&hierarchy?.deletedProductIds?.includes(p.id))return fail(res,409,'Product was deleted.','该产品已随分类删除，请勿重新提交旧记录。');
   const transportCbm = p.transportCbm || calculateCbm(p.transportLength, p.transportWidth, p.transportHeight, p.dimensionUnit);
   const productId = p.id || id("product");
   const payload = {
@@ -355,6 +357,8 @@ app.post("/api/products/bulk-upsert", requireLogin, (req, res) => {
   const rows = Array.isArray(req.body?.products) ? req.body.products : [];
   if (!rows.length) return fail(res, 400, "No products to import.", "没有可导入的产品。");
   if (rows.length > 5000) return fail(res, 400, "Too many products in one import.", "单次导入产品数量过多。");
+  const deletedIds = new Set(JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json).productHierarchy?.deletedProductIds || []);
+  if (rows.some(p => deletedIds.has(p.id))) return fail(res,409,'Product was deleted.','导入包含已随分类删除的旧记录，请移除后重试。');
 
   const existingRows = db.prepare("SELECT * FROM products").all();
   const existingByKey = new Map(existingRows.map((row) => [normalize(`${row.category}|${row.brand}|${row.model}`), row]));
@@ -762,6 +766,16 @@ app.get("/api/settings", requireLogin, (req, res) => {
   ok(res, { settings: JSON.parse(row.data_json) });
 });
 
+const classificationDeletion = require('./classification-delete').createClassificationDeletion({db,backupDir});
+app.post('/api/products/classification-delete-preview',requireLogin,requireAdmin,(req,res)=>{
+  try{ok(res,{plan:classificationDeletion.inspect(req.body.nodeId)});}
+  catch(error){fail(res,400,'Cannot preview classification deletion.',error.message);}
+});
+app.post('/api/products/classification-delete',requireLogin,requireAdmin,async(req,res)=>{
+  try{ok(res,await classificationDeletion.execute(req.body.nodeId,req.body.token));}
+  catch(error){fail(res,error.status||500,'Classification deletion failed.',error.message);}
+});
+
 // Versioned, repeatable classification migration. Preserve original field values
 // and history; only the hierarchy and its stable product bindings are changed.
 app.post('/api/products/reconcile-hierarchy',requireLogin,requireAdmin,(req,res)=>{
@@ -797,6 +811,15 @@ app.put("/api/settings", requireLogin, requireAdmin, (req, res) => {
   try {
     const previous=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json);
     const settings=OptionCatalog.reconcile(req.body||{},previous);
+    if(previous.productHierarchy?.nodes?.some(n=>n.deletedAt)){
+      settings.productHierarchy ||= structuredClone(previous.productHierarchy);
+      for(const old of previous.productHierarchy.nodes.filter(n=>n.deletedAt)){
+        const index=settings.productHierarchy.nodes.findIndex(n=>n.id===old.id);
+        if(index<0)settings.productHierarchy.nodes.push(structuredClone(old));
+        else settings.productHierarchy.nodes[index]=structuredClone(old);
+      }
+    }
+    if(previous.productHierarchy?.deletedProductIds?.length&&settings.productHierarchy)settings.productHierarchy.deletedProductIds=[...new Set([...(settings.productHierarchy.deletedProductIds||[]),...previous.productHierarchy.deletedProductIds])];
     if(settings.productHierarchy)ProductHierarchy.validate(settings.productHierarchy,previous.productHierarchy,db.prepare('SELECT id,category,brand,values_json FROM products').all().map(p=>({...p,values:JSON.parse(p.values_json||'{}')})));
     if(Array.isArray(settings.categories))OptionCatalog.validate(settings.categories.map(c=>({...c,value:c.id,sortOrder:c.sortOrder||0})));
     // Field option IDs and values remain stable in all document/product templates.

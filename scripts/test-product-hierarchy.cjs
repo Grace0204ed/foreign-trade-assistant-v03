@@ -9,7 +9,7 @@ app.whenReady().then(async()=>{
  const request=async(url,method='GET',body,expected=200)=>{const r=await fetch(base+url,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json();assert.equal(r.status,expected,JSON.stringify(data));return data;};
  const openSettings=async()=>{await run("document.querySelector('[data-view=settings]').click();document.querySelector('[data-settings-section=product-config]').click()");await wait("!!document.querySelector('[data-hierarchy-name]')");};
  const select=async id=>run(`document.querySelector('[data-hierarchy-select='+CSS.escape(${JSON.stringify(id)})+']').click()`);
- const save=async()=>{await run("document.querySelector('[data-hierarchy-save]').click()");await wait("document.querySelector('[data-hierarchy-status]').textContent===''");};
+ const save=async()=>{await wait("!document.querySelector('.hierarchy-row.sorting')");await run("document.querySelector('[data-hierarchy-save]').click()");await wait("document.querySelector('[data-hierarchy-status]').textContent===''");};
  const dragAndVerify=async()=>{const before=await run("[...document.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow)"),p=await run("[...document.querySelectorAll('[data-hierarchy-handle]')].slice(0,2).map(n=>{const r=n.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})");assert.equal(p.length,2);win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...p[0]});for(let i=1;i<=20;i++){win.webContents.sendInputEvent({type:'mouseMove',x:p[0].x,y:Math.round(p[0].y+(p[1].y+18-p[0].y)*i/20),modifiers:['leftButtonDown']});await new Promise(r=>setTimeout(r,12));}assert.notDeepEqual(await run("[...document.querySelectorAll('[data-hierarchy-row]')].map(n=>n.dataset.hierarchyRow)"),before,'native pointer displaces rows before release');win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:p[0].x,y:p[1].y+18});await save();};
  try{
   for(const p of [{category:'挖掘机',brand:'CAT',model:'320'},{category:'衬衫',brand:'FASHION',model:'20'}])await request('/api/products','POST',p);
@@ -43,6 +43,28 @@ app.whenReady().then(async()=>{
   // Classification label changes retain legacy records via stable ID bindings.
   const renamed=(await request('/api/settings')).settings;renamed.productHierarchy.nodes.find(n=>n.id===mechanical.id).label='设备类型';await request('/api/settings','PUT',renamed);
   assert.equal(model.resolve(renamed.productHierarchy,initial.find(p=>p.brand==='CAT'))[0],mechanical.id);
+  // Cascade deletion is explicit, cancellable and cannot be undone by stale settings/cache.
+  await win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");await openSettings();
+  const pending=(await request('/api/settings')).settings.productHierarchy.nodes.find(n=>n.label==='待核对类型'&&!n.deletedAt);
+  await select(pending.id);await run("document.querySelector('[data-hierarchy-delete]').click()");
+  await wait("!!document.querySelector('[data-confirm-classification-delete]')");
+  await run("document.querySelector('[data-confirm-classification-delete]').closest('dialog').close('cancel')");
+  await wait("!document.querySelector('[data-confirm-classification-delete]') && !document.querySelector('[data-hierarchy-delete]').disabled");
+  assert((await request('/api/products')).products.some(p=>p.brand==='FASHION'),'cancel retains bound product');
+  const beforeDelete=(await request('/api/settings')).settings;
+  await run("document.querySelector('[data-hierarchy-delete]').click()");await wait("!!document.querySelector('[data-confirm-classification-delete]')");
+  await run("document.querySelector('[data-confirm-classification-delete]').click()");
+  await wait("!document.querySelector('[data-hierarchy-select='+CSS.escape("+JSON.stringify(pending.id)+")+']')");
+  assert(!(await request('/api/products')).products.some(p=>p.brand==='FASHION'));
+  await request('/api/settings','PUT',beforeDelete);
+  await request('/api/products/reconcile-hierarchy','POST');
+  const afterDelete=(await request('/api/settings')).settings.productHierarchy;
+  assert(!model.children(afterDelete).some(n=>n.label==='待核对类型'),'stale settings must not restore deleted branch');
+  const removed=initial.find(p=>p.brand==='FASHION');
+  await request('/api/products','POST',removed,409);
+  await request('/api/products/bulk-upsert','POST',{products:[removed]},409);
+  await win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");await openSettings();
+  assert(!(await run("[...document.querySelectorAll('[data-hierarchy-select]')].map(n=>n.textContent)")).some(n=>n.includes('待核对类型')));
   assert.deepEqual(errors,[]);console.log('PASS hierarchy: real mouse hold/move/live displacement/release/save/reopen, parent integrity, contextual new product, persistence, inactive edit compatibility, server deletion guard, stable legacy binding. Evidence '+process.env.QUOTE_DATA_DIR);
  }finally{win.destroy();server.close();app.quit();}
 }).catch(e=>{console.error(e);app.exit(1)});

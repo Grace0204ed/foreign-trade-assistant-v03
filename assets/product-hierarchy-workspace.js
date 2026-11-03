@@ -27,7 +27,19 @@
     if(button.dataset.hierarchyToggle){const n=draft.nodes.find(n=>n.id===button.dataset.hierarchyToggle);n.active=n.active===false;dirty=true;return draw();}
     if(button.hasAttribute('data-hierarchy-next')){parent=selected;selected='';return draw();}
     if(button.hasAttribute('data-hierarchy-add')){const depth=parent?model.path(draft,parent).length:0;let label='新增'+draft.levelNames[depth],i=2;while(draft.nodes.some(n=>!n.deletedAt&&n.parentId===parent&&n.label===label))label='新增'+draft.levelNames[depth]+i++;selected='ph:'+crypto.randomUUID();draft.nodes.push({id:selected,parentId:parent,label,active:true,sortOrder:model.children(draft,parent,true).length*10+10});dirty=true;draw();host.querySelector('[data-hierarchy-name]').select();return;}
-    if(button.hasAttribute('data-hierarchy-delete')){if(draft.nodes.some(n=>n.parentId===selected&&!n.deletedAt)||(context.products||[]).some(p=>model.resolve(draft,p).includes(selected)))throw Error('此分类含有下级或产品，请先处理归属，或使用“关闭”保留数据。');if(!confirm('删除此空分类？历史单证和产品资料不会删除。'))return;draft.nodes.find(n=>n.id===selected).deletedAt=new Date().toISOString();dirty=true;selected='';return draw();}
+    if(button.hasAttribute('data-hierarchy-delete')){
+     if(dirty)throw Error('请先保存分类修改，再确认删除范围。');
+     button.disabled=true;
+     const plan=await context.previewClassificationDelete(selected);
+     const dialog=document.createElement('dialog');dialog.className='hierarchy-label-dialog';
+     dialog.innerHTML=`<form method="dialog"><header><h3>删除${esc(plan.label)}</h3><button type="submit" value="cancel" aria-label="关闭">×</button></header><p>将删除此分类及 ${plan.categoryCount-1} 个下级分类、${plan.productCount} 个绑定产品。</p><p>删除前自动备份。已出具的历史单证快照不变，其他分类和产品不受影响。</p><footer class="actions"><button type="submit" value="cancel">取消</button><button type="submit" value="delete" class="hierarchy-danger" data-confirm-classification-delete>确认删除</button></footer></form>`;
+     document.body.append(dialog);dialog.showModal();
+     const confirmed=await new Promise(resolve=>dialog.addEventListener('close',()=>{resolve(dialog.returnValue==='delete');dialog.remove();},{once:true}));
+     button.disabled=false;if(!confirmed)return;
+     button.disabled=true;const result=await context.deleteClassification(plan);
+     draft=structuredClone(context.settings.productHierarchy);dirty=false;selected='';draw();
+     context.toast(`已删除 ${result.categoryCount} 个分类、${result.productCount} 个产品；删除前备份已保存。`);return;
+    }
     if(button.hasAttribute('data-hierarchy-save')){model.validate(draft,context.settings.productHierarchy,context.products);button.disabled=true;await context.save({productHierarchy:draft});draft=structuredClone(context.settings.productHierarchy);dirty=false;draw();context.toast('分类及顺序已保存。');return;}
     if(button.hasAttribute('data-hierarchy-product')||button.dataset.hierarchyEditProduct){if(dirty)throw Error('请先保存分类设置，再录入或编辑产品。');if(button.dataset.hierarchyEditProduct)context.editProduct(button.dataset.hierarchyEditProduct);else{context.newProduct();setEditorSelection(model.path(draft,selected).map(n=>n.id));}return;}
    }catch(error){host.querySelector('[data-hierarchy-status]').textContent=error.message;context.toast(error.message);button.disabled=false;}

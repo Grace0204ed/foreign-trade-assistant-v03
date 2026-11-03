@@ -3211,6 +3211,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       serverProducts = productData.products || [];
       const mergedProducts = new Map(serverProducts.map((product) => [product.id, toLegacyProduct(product)]));
       products.forEach((product) => {
+        if(settings.productHierarchy?.deletedProductIds?.includes(product.id))return;
         const serverProduct = mergedProducts.get(product.id);
         mergedProducts.set(product.id, serverProduct ? { ...product, ...serverProduct, templateName:serverProduct.templateName||product.templateName||'', values:{...(product.values||{}),...(serverProduct.values||{})}, imageDataUrl: serverProduct.imageDataUrl || product.imageDataUrl || "" } : product);
       });
@@ -7727,6 +7728,13 @@ $('product-list').innerHTML='<div class="library-table-scroll"><table class="lib
     outputHtml:kind=>{renderOutputKind(kind);return outputMarkup(kind);},
     previewDocument:async type=>{const kind=type==='invitation'?'invitation':['agency','statement'].includes(type)?'agency':'quote',doc=workflowDocument(kind),actual=kind==='agency'?(type==='agency'?'authorization':type):type;if(!doc||((doc.documentType||'quotation')!==actual&&kind!=='invitation'))return toast('请先在制作界面打开对应的单证，再查看它的实际 PDF。');return previewCurrentOutput(kind);},
     editProduct,renderProducts,newProduct:()=>{clearProductForm();openProductEditorModal();},
+    previewClassificationDelete:async nodeId=>(await api('/api/products/classification-delete-preview',{method:'POST',body:JSON.stringify({nodeId})})).plan,
+    deleteClassification:async plan=>{
+      const result=await api('/api/products/classification-delete',{method:'POST',body:JSON.stringify({nodeId:plan.nodeId,token:plan.token})});
+      settings=result.settings;products=products.filter(p=>!result.deletedProductIds.includes(p.id));serverProducts=serverProducts.filter(p=>!result.deletedProductIds.includes(p.id));
+      save(keys.settings,settings);save(keys.products,products);await window.BusinessDataStore.flush();renderAllSelectors();renderProducts();
+      return result;
+    },
     save:async(next)=>{const candidate={...settings,...next};const result=await api('/api/settings',{method:'PUT',body:JSON.stringify(candidate)});settings=result.settings||candidate;save(keys.settings,settings);await window.BusinessDataStore.flush();renderAllSelectors();renderSettings();window.OptionManager?.mount();window.BusinessSettings?.mount();renderProducts();if(currentQuote){renderQuoteItems();renderQuoteTerms();}renderPreview();},
     toast,renderPreview,refreshOptions:()=>{renderAllSelectors();if(currentQuote){renderQuoteTerms();renderQuoteItems();}renderPreview();}
   };

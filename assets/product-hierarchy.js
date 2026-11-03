@@ -23,16 +23,19 @@
   const config=previous?JSON.parse(JSON.stringify(previous)):seed([]);
   config.legacyBindings||={};config.nodes||=[];
   for(const product of products){
+   if(config.deletedProductIds?.includes(product.id))continue;
    const explicit=product.values?._classification;
    if(explicit?.brandId&&resolve(config,{...product,id:'',values:{_classification:explicit}}).length===3)continue;
    if(config.catalogMigrationVersion>=2&&resolve(config,product).length===3)continue;
    let parent='',ids=[];
    for(const label of legacyLabels(product)){
+    // An explicit deletion must not be undone by the legacy reconciliation pass.
+    if(config.nodes.some(n=>n.deletedAt&&n.parentId===parent&&n.label===label)){ids=[];break;}
     let node=config.nodes.find(n=>!n.deletedAt&&n.parentId===parent&&n.label===label);
     if(!node){node={id:code(parent,label),parentId:parent,label,active:true,sortOrder:children(config,parent,true).length*10+10};config.nodes.push(node);}
     ids.push(node.id);parent=node.id;
    }
-   if(product.id)config.legacyBindings[product.id]=ids;
+   if(product.id&&ids.length===3)config.legacyBindings[product.id]=ids;
   }
   config.catalogMigrationVersion=2;return config;
  }
@@ -45,11 +48,26 @@
  }
  function resolve(config,product){
   const saved=product.values?._classification,binding=config.legacyBindings?.[product.id];
-  if(saved?.brandId){const nodes=path(config,saved.brandId);if(nodes.length===3&&nodes[0].id===saved.typeId&&nodes[1].id===saved.subtypeId)return nodes.map(n=>n.id);}
-  if(Array.isArray(binding)&&binding.length===3&&path(config,binding[2]).length===3&&path(config,binding[2]).every((n,i)=>n.id===binding[i]))return binding;
+  if(saved?.brandId){const nodes=path(config,saved.brandId);if(nodes.length===3&&nodes.every(n=>!n.deletedAt)&&nodes[0].id===saved.typeId&&nodes[1].id===saved.subtypeId)return nodes.map(n=>n.id);}
+  if(Array.isArray(binding)&&binding.length===3&&path(config,binding[2]).length===3&&path(config,binding[2]).every((n,i)=>!n.deletedAt&&n.id===binding[i]))return binding;
   let parent='',ids=[];for(const label of legacyLabels(product)){const n=config.nodes.find(n=>!n.deletedAt&&n.parentId===parent&&n.label===label);if(!n)return [];ids.push(n.id);parent=n.id;}return ids;
  }
  function enabled(config,id){return path(config,id).every(n=>n.active!==false&&!n.deletedAt);}
+ function deletionPlan(config,products,nodeId){
+  const node=config?.nodes?.find(n=>n.id===nodeId&&!n.deletedAt);
+  if(!node)throw Error('分类不存在或已删除，请刷新后重试');
+  const nodeIds=new Set([nodeId]);let changed=true;
+  while(changed){changed=false;for(const n of config.nodes)if(!n.deletedAt&&nodeIds.has(n.parentId)&&!nodeIds.has(n.id)){nodeIds.add(n.id);changed=true;}}
+  const productIds=products.filter(p=>resolve(config,p).some(id=>nodeIds.has(id))).map(p=>p.id);
+  return {nodeId,label:node.label,nodeIds:[...nodeIds],productIds};
+ }
+ function applyDeletion(config,plan,timestamp=new Date().toISOString()){
+  const next=JSON.parse(JSON.stringify(config)),ids=new Set(plan.nodeIds);
+  for(const n of next.nodes)if(ids.has(n.id)){n.deletedAt=timestamp;n.active=false;}
+  for(const id of plan.productIds)delete next.legacyBindings?.[id];
+  next.deletedProductIds=[...new Set([...(next.deletedProductIds||[]),...plan.productIds])];
+  return next;
+ }
  function validate(config,previous,products=[]){
   if(!config||!Array.isArray(config.nodes)||config.levelNames?.length!==3||config.levelNames.some(n=>!key(n)))throw Error('请填写三个分类层级名称');
   const ids=new Set();for(const n of config.nodes){if(!key(n.id)||ids.has(n.id))throw Error('分类标识重复');ids.add(n.id);if(!key(n.label))throw Error('请填写分类名称');if(!Number.isFinite(n.sortOrder))throw Error('分类排序无效');}
@@ -57,6 +75,6 @@
   for(const old of previous?.nodes||[]){const next=config.nodes.find(n=>n.id===old.id);if(next&&next.parentId!==old.parentId)throw Error('已有分类不能改变归属，请新增分类后逐项核对产品');if(!next||(!old.deletedAt&&next.deletedAt)){if((previous.nodes||[]).some(n=>n.parentId===old.id&&!n.deletedAt)||products.some(p=>resolve(previous,p).includes(old.id)))throw Error('分类含有下级或产品，请先处理归属，或关闭分类');if(!next)throw Error('请保留已删除分类的稳定标识');}}
   return config;
  }
- function selection(config,ids){if(ids.length!==3||ids.some(id=>!id))return null;const nodes=path(config,ids[2]);if(nodes.length!==3||nodes.some((n,i)=>n.id!==ids[i]))throw Error('类型、小类与品牌的归属不一致');return {typeId:ids[0],subtypeId:ids[1],brandId:ids[2],labels:nodes.map(n=>n.label)};}
- return {seed,reconcile,resolve,children,path,enabled,validate,selection,machinery,legacyLabels};
+ function selection(config,ids){if(ids.length!==3||ids.some(id=>!id))return null;const nodes=path(config,ids[2]);if(nodes.length!==3||nodes.some((n,i)=>n.deletedAt||n.id!==ids[i]))throw Error('类型、小类与品牌的归属不一致');return {typeId:ids[0],subtypeId:ids[1],brandId:ids[2],labels:nodes.map(n=>n.label)};}
+ return {seed,reconcile,resolve,children,path,enabled,validate,selection,machinery,legacyLabels,deletionPlan,applyDeletion};
 });
