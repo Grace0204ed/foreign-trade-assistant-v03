@@ -1,6 +1,6 @@
 const fs=require('node:fs'),path=require('node:path');
 const quote=value=>"'"+String(value).replace(/'/g,"''")+"'";
-function prepareInstall({dataDirectory,installer,version,installDirectory,pid,sourceVersion}){
+function prepareInstall({dataDirectory,installer,version,installDirectory,pid,sourceVersion,metadata}){
   if(!/^\d+\.\d+\.\d+$/.test(version||''))throw Error('安装目标版本无效，请重新检查更新');
   const receipt=path.join(dataDirectory,'update-install-result.json');
   fs.writeFileSync(receipt,JSON.stringify({status:'pending',version,sourceVersion,installer,installDirectory,startedAt:new Date().toISOString()}));
@@ -18,6 +18,9 @@ try {
   $deadline=(Get-Date).AddSeconds(60)
   while ((Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
   if(Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue){throw 'Application did not exit within 60 seconds; no installation performed'}
+  ${metadata?`$hash=Get-FileHash -LiteralPath ${quote(installer)} -Algorithm ${metadata.digest?.startsWith('sha256:')?'SHA256':'SHA512'}
+  $expected=${quote(metadata.digest?.startsWith('sha256:')?metadata.digest.slice(7):Buffer.from(metadata.sha512,'base64').toString('hex'))}
+  if($hash.Hash -ne $expected){throw 'Installer changed after preflight; installation blocked'}`:''}
   Record 'installing' 'Starting verified installer'
   $setup=Start-Process -FilePath ${quote(installer)} -ArgumentList @('/S','--updated',${quote('/D='+installDirectory)}) -Wait -PassThru
   if($setup.ExitCode -ne 0){throw ('Installer exit code '+$setup.ExitCode)}

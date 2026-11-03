@@ -11,6 +11,7 @@ app.commandLine.appendSwitch("disable-http2");
 let localServer;
 let desktopPort = 18765;
 let downloadedUpdateFile = "";
+let downloadedUpdateMetadata = null;
 let fallbackRelease = null;
 const {singleFlight,createDownloader}=require('./update-download.cjs');
 let fallbackDownloader;
@@ -32,6 +33,7 @@ async function githubUpdateFallback(download=false) {
     progress:percent=>publishUpdateState({status:'downloading',percent,message:`正在下载 ${percent}%`})});
   publishUpdateState({status:'downloading',version,percent:0,message:'正在校验缓存或下载安装包…'});
   downloadedUpdateFile=await fallbackDownloader(asset);
+  downloadedUpdateMetadata=asset;
   publishUpdateState({status:'downloaded',version,percent:100,message:'更新已下载并通过校验，可以重启安装'});return true;
 }
 let latestUpdateState = { status: "idle", message: "尚未检查更新" };
@@ -157,12 +159,18 @@ function configureUpdater() {
   autoUpdater.on("download-progress",progress=>publishUpdateState({status:"downloading",percent:Math.round(progress.percent||0),transferred:progress.transferred,total:progress.total,message:`正在下载 ${Math.round(progress.percent||0)}%`}));
   autoUpdater.on("update-downloaded",info=>{
     downloadedUpdateFile=String(info?.downloadedFile||"");
+    downloadedUpdateMetadata=info.files?.find(file=>String(file.url).endsWith('.exe'))||info.files?.[0]||info;
     publishUpdateState({status:"downloaded",version:info.version,downloadedFile:downloadedUpdateFile,message:"更新已下载，可以重启安装"});
   });
   autoUpdater.on("error",error=>publishUpdateState({status:"error",message:`更新失败：${error.message}`}));
 }
 
 async function installDownloadedUpdate() {
+  publishUpdateState({status:'downloaded',message:'正在进行安装前自检，请稍候…'});
+  try{
+    await require('./update-preflight.cjs').runPreflight({installer:downloadedUpdateFile,metadata:downloadedUpdateMetadata,
+      installDirectory:path.dirname(process.execPath),dataDirectory:dataDir(),currentVersion:app.getVersion(),pid:process.pid});
+  }catch(error){publishUpdateState({status:'error',message:error.message});throw error;}
   // Finish pending recovery writes before an installer can terminate the app.
   for(const win of BrowserWindow.getAllWindows())if(!win.isDestroyed())await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
   if (downloadedUpdateFile && fs.existsSync(downloadedUpdateFile)) {
@@ -170,7 +178,7 @@ async function installDownloadedUpdate() {
     // Start setup only after this process releases its executable and SQLite files.
     const {prepareInstall}=require('./update-install.cjs');
     const command=prepareInstall({dataDirectory:dataDir(),installer:downloadedUpdateFile,version:latestUpdateState.version,
-      installDirectory:path.dirname(process.execPath),pid:process.pid,sourceVersion:app.getVersion()});
+      installDirectory:path.dirname(process.execPath),pid:process.pid,sourceVersion:app.getVersion(),metadata:downloadedUpdateMetadata});
     const child=process.platform==='win32'
       ?spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{detached:true,stdio:'ignore',windowsHide:true})
       :spawn(downloadedUpdateFile,[],{detached:true,stdio:'ignore'});
@@ -180,9 +188,7 @@ async function installDownloadedUpdate() {
     setTimeout(()=>{for(const win of BrowserWindow.getAllWindows())win.destroy();app.quit();},500);
     return { method:"verified-installer" };
   }
-  publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});
-  setImmediate(()=>autoUpdater.quitAndInstall(false,true));
-  return { method:"electron-updater" };
+  throw Error('安装包已不存在，请重新下载更新；软件未关闭');
 }
 function startupError(error){
   fs.mkdirSync(dataDir(),{recursive:true});
