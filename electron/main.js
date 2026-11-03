@@ -168,9 +168,16 @@ async function installDownloadedUpdate() {
   for(const win of BrowserWindow.getAllWindows())if(!win.isDestroyed())await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
   if (downloadedUpdateFile && fs.existsSync(downloadedUpdateFile)) {
     publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});
-    const child=spawn(downloadedUpdateFile,["/S"],{detached:true,stdio:"ignore",windowsHide:true});
+    // Start setup only after this process releases its executable and SQLite files.
+    const quote=value=>"'"+String(value).replace(/'/g,"''")+"'";
+    const command=`$targetPid=${process.pid}; $deadline=(Get-Date).AddSeconds(45); while ((Get-Process -Id $targetPid -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }; if (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) { exit 1 }; Start-Process -FilePath ${quote(downloadedUpdateFile)} -ArgumentList '/S','--updated' -Wait`;
+    const child=process.platform==='win32'
+      ?spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{detached:true,stdio:'ignore',windowsHide:true})
+      :spawn(downloadedUpdateFile,[],{detached:true,stdio:'ignore'});
+    await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
     child.unref();
-    setTimeout(()=>app.quit(),500);
+    // Already flushed above. Avoid running the ordinary unsaved-work close dialog again.
+    setTimeout(()=>{for(const win of BrowserWindow.getAllWindows())win.destroy();app.quit();},500);
     return { method:"verified-installer" };
   }
   publishUpdateState({status:"installing",message:"正在关闭软件并安装更新…"});

@@ -277,13 +277,12 @@
           <div class="panel" id="product-library-list-panel">
             <div class="search-row">
               <input id="product-search" placeholder="搜索名称、品牌、型号或规格参数" />
-              <select id="library-template-filter" aria-label="全部分类"><option value="">全部分类</option></select>
             </div>
             <div id="product-filter-summary" class="product-filter-summary"></div>
             <div id="product-list" class="list"></div>
           </div>
           <dialog id="product-import-modal" class="workflow-dialog" aria-labelledby="product-import-heading"><header><h3 id="product-import-heading">导入产品资料</h3><button type="button" data-import-dismiss aria-label="关闭导入">✕</button></header><div class="workflow-body">
-            <div class="workflow-import-head"><label>产品模板<select id="product-import-template"></select></label><button type="button" id="product-import-header">下载表头模板</button></div>
+            <div class="workflow-import-head"><label hidden>内部字段结构<select id="product-import-template"></select></label><button type="button" id="product-import-header">下载表头模板</button></div>
             <nav class="workflow-tabs"><button type="button" data-import-tab="text" aria-pressed="true">粘贴文本</button><button type="button" data-import-tab="file" aria-pressed="false">上传文件</button></nav>
             <label id="product-import-file-zone" class="workflow-upload" hidden>选择 CSV 或 Excel 表格<input type="file" id="product-import-file" accept=".csv,.xlsx,.xls"><span id="product-import-file-status" role="status"></span></label>
             <div id="product-import-text-zone">
@@ -639,7 +638,8 @@
     <script src="./assets/product-hierarchy-workspace.js"></script>
     <link rel="stylesheet" href="./assets/product-hierarchy.css">
     <script src="./assets/product-workflow.js"></script>
-    <script src="./app.js?v=20261101-refinement"></script>
+    <script src="./assets/local-data-store.js"></script>
+    <script src="./app.js?v=20261103-settings"></script>
     <link rel="stylesheet" href="./assets/next-upgrade.css">
     <script src="./assets/top-settings.js"></script>
     <script src="./assets/publisher-workspace.js"></script>

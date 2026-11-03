@@ -26,7 +26,13 @@ app.use((req,res,next)=>{
   if(origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin))return res.status(403).json({ok:false,message:'Local origin required'});
   ensureAutomaticOwner(req);next();
 });
+// Full local backups include inline product photos and document snapshots.
+app.use('/api/system/browser-state', express.json({ limit: '256mb' }));
 app.use(express.json({ limit: "50mb" }));
+app.use((error,req,res,next)=>{
+  if(error?.type==='entity.too.large')return res.status(413).json({ok:false,message:'本地保存数据超过容量限制，请备份资料并联系支持；当前窗口已保留。'});
+  next(error);
+});
 // Local preview only. Importing is a separate, explicit confirmation step.
 app.post('/api/products/parse-file', requireLogin, (req,res)=>{
   try{
@@ -756,6 +762,26 @@ app.get("/api/settings", requireLogin, (req, res) => {
   ok(res, { settings: JSON.parse(row.data_json) });
 });
 
+// Versioned, repeatable classification migration. Preserve original field values
+// and history; only the hierarchy and its stable product bindings are changed.
+app.post('/api/products/reconcile-hierarchy',requireLogin,requireAdmin,(req,res)=>{
+  try{
+    const settings=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json);
+    const products=db.prepare('SELECT id,category,brand,model,values_json FROM products').all().map(p=>({...p,values:JSON.parse(p.values_json||'{}')}));
+    const next=ProductHierarchy.reconcile(settings.productHierarchy,products);
+    const changed=JSON.stringify(next)!==JSON.stringify(settings.productHierarchy);
+    let backupPath='';
+    if(changed){
+      ensureDir(backupDir);backupPath=path.join(backupDir,'classification-before-'+Date.now()+'.json');
+      fs.writeFileSync(backupPath,JSON.stringify({createdAt:now(),productHierarchy:settings.productHierarchy||null,products}),{flag:'wx'});
+      settings.productHierarchy=next;
+      db.prepare('UPDATE company_settings SET data_json=?,updated_at=? WHERE id=1').run(JSON.stringify(settings),now());
+    }
+    const unresolved=products.filter(p=>ProductHierarchy.resolve(next,p).length!==3).map(p=>p.id);
+    ok(res,{settings,changed,backupPath,count:products.length,unresolved});
+  }catch(error){fail(res,500,'Classification migration failed.',error.message);}
+});
+
 // Persist one document colour without replacing unrelated company settings.
 app.put("/api/settings/document-color", requireLogin, requireAdmin, (req, res) => {
   const {documentType,color}=req.body||{};
@@ -927,7 +953,9 @@ app.put("/api/system/browser-state", requireLogin, (req, res) => {
     quotes: Array.isArray(req.body?.quotes) ? req.body.quotes : [],
     invitations: Array.isArray(req.body?.invitations) ? req.body.invitations : (previousState.invitations || [])
   };
-  fs.writeFileSync(browserStatePath, JSON.stringify(state, null, 2), "utf8");
+  const pendingPath=browserStatePath+'.pending';
+  fs.writeFileSync(pendingPath, JSON.stringify(state), "utf8");
+  fs.renameSync(pendingPath,browserStatePath);
   ok(res, { updatedAt: state.updatedAt, path: browserStatePath, message: "Local data backup saved.", zh: "本地数据备份已保存。" });
 });
 

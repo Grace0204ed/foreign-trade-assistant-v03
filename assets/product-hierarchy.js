@@ -7,7 +7,35 @@
  const sorted=rows=>rows.slice().sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0)||a.label.localeCompare(b.label,'zh-CN',{numeric:true}));
  const children=(config,parentId='',includeInactive=false)=>sorted((config.nodes||[]).filter(n=>n.parentId===parentId&&!n.deletedAt&&(includeInactive||n.active!==false)));
  function path(config,id){const out=[],seen=new Set();while(id){if(seen.has(id))throw Error('分类存在循环归属');seen.add(id);const n=config.nodes.find(n=>n.id===id);if(!n)break;out.unshift(n);id=n.parentId;}return out;}
- function legacyLabels(product){const v=product.values||{},raw=key(v.productType||product.category)||'待核对小类',minor=aliases[raw]||raw;return [key(v.productFamily||v.productMajor)||(machinery.includes(minor)?'机械设备':'待核对类型'),minor,key(v.brand||product.brand)||'未填写品牌'];}
+ const categoryAliases={Excavator:'挖掘机','Motor Grader':'平地机','Wheel Loader':'装载机','起重机':'汽车吊','水罐车':'运水车','矿山自卸卡车':'非公路自卸车','伸缩臂叉装车':'伸缩臂叉车','滑移装载机':'滑移装载机','旋挖钻机':'旋挖钻机','破碎机':'破碎机','沥青搅拌站':'沥青搅拌站','水泥混凝土搅拌站':'混凝土搅拌站','推土机':'推土机'};
+ function legacyLabels(product){
+  const v=product.values||{},raw=key(v.productType||product.category)||'待核对小类',plain=raw.split(/\s*\/\s*/)[0];
+  let minor=aliases[plain]||categoryAliases[plain]||plain;
+  // Special-purpose vehicles were one legacy bucket. Their explicit model names
+  // identify the subtype; no tonnage or model-number guessing is involved.
+  if(plain==='特种车辆')minor=key(v.model||product.model).split(/\s*\/\s*/)[0]||'其他特种车辆';
+  minor=aliases[minor]||categoryAliases[minor]||minor;
+  if(['勾臂式垃圾车','吊臂式垃圾车','餐厨垃圾车'].includes(minor))minor='垃圾车';
+  const mechanical=machinery.includes(minor)||Object.values(categoryAliases).includes(minor)||plain==='特种车辆';
+  return [key(v.productFamily||v.productMajor)||(mechanical?'机械设备':'待核对类型'),minor,key(v.brand||product.brand)||'未填写品牌'];
+ }
+ function reconcile(previous,products=[]){
+  const config=previous?JSON.parse(JSON.stringify(previous)):seed([]);
+  config.legacyBindings||={};config.nodes||=[];
+  for(const product of products){
+   const explicit=product.values?._classification;
+   if(explicit?.brandId&&resolve(config,{...product,id:'',values:{_classification:explicit}}).length===3)continue;
+   if(config.catalogMigrationVersion>=2&&resolve(config,product).length===3)continue;
+   let parent='',ids=[];
+   for(const label of legacyLabels(product)){
+    let node=config.nodes.find(n=>!n.deletedAt&&n.parentId===parent&&n.label===label);
+    if(!node){node={id:code(parent,label),parentId:parent,label,active:true,sortOrder:children(config,parent,true).length*10+10};config.nodes.push(node);}
+    ids.push(node.id);parent=node.id;
+   }
+   if(product.id)config.legacyBindings[product.id]=ids;
+  }
+  config.catalogMigrationVersion=2;return config;
+ }
  function seed(products=[]){
   const config={version:1,levelNames:['类型','小类','品牌'],nodes:[],legacyBindings:{}};
   const add=(label,parentId='')=>{const id=code(parentId,label);if(!config.nodes.some(n=>n.id===id))config.nodes.push({id,parentId,label,active:true,sortOrder:children(config,parentId,true).length*10+10});return id;};
@@ -18,7 +46,7 @@
  function resolve(config,product){
   const saved=product.values?._classification,binding=config.legacyBindings?.[product.id];
   if(saved?.brandId){const nodes=path(config,saved.brandId);if(nodes.length===3&&nodes[0].id===saved.typeId&&nodes[1].id===saved.subtypeId)return nodes.map(n=>n.id);}
-  if(Array.isArray(binding)&&binding.length===3&&path(config,binding[2]).every((n,i)=>n.id===binding[i]))return binding;
+  if(Array.isArray(binding)&&binding.length===3&&path(config,binding[2]).length===3&&path(config,binding[2]).every((n,i)=>n.id===binding[i]))return binding;
   let parent='',ids=[];for(const label of legacyLabels(product)){const n=config.nodes.find(n=>!n.deletedAt&&n.parentId===parent&&n.label===label);if(!n)return [];ids.push(n.id);parent=n.id;}return ids;
  }
  function enabled(config,id){return path(config,id).every(n=>n.active!==false&&!n.deletedAt);}
@@ -30,5 +58,5 @@
   return config;
  }
  function selection(config,ids){if(ids.length!==3||ids.some(id=>!id))return null;const nodes=path(config,ids[2]);if(nodes.length!==3||nodes.some((n,i)=>n.id!==ids[i]))throw Error('类型、小类与品牌的归属不一致');return {typeId:ids[0],subtypeId:ids[1],brandId:ids[2],labels:nodes.map(n=>n.label)};}
- return {seed,resolve,children,path,enabled,validate,selection,machinery,legacyLabels};
+ return {seed,reconcile,resolve,children,path,enabled,validate,selection,machinery,legacyLabels};
 });

@@ -36,6 +36,8 @@ jobs:
         run: npm run test:iteration
       - name: Verify approved demo alignment and real pointer sorting
         run: npm run test:demo-alignment
+      - name: Verify large settings storage, product classification and backup
+        run: npm run test:settings-classification
       - name: Verify configured customer workflow in Electron
         run: npm run test:customers
       - name: Verify approved layout and history pagination in Electron

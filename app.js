@@ -1,4 +1,8 @@
-(function () {
+(async function () {
+  try { await window.BusinessDataStore.ready; } catch(error) {
+    document.body.textContent='本地资料存储无法打开，请勿清空数据。请重启软件或联系支持：'+error.message;
+    return;
+  }
   const keys = {
     settings: "quote_assistant_v01_settings",
     products: "quote_assistant_v01_products",
@@ -447,7 +451,7 @@
 
   function load(key, fallback) {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = window.BusinessDataStore.has(key) ? window.BusinessDataStore.get(key) : localStorage.getItem(key);
       if (!raw) return structuredClone(fallback);
       const parsed = JSON.parse(raw);
       if (Array.isArray(fallback)) return Array.isArray(parsed) ? parsed : structuredClone(fallback);
@@ -458,7 +462,9 @@
   }
 
   function save(key, data) {
-    localStorage.setItem(key, JSON.stringify(data));
+    const raw=JSON.stringify(data);
+    if(window.BusinessDataStore.has(key))window.BusinessDataStore.set(key,raw);
+    else localStorage.setItem(key,raw);
     if ([keys.settings, keys.products, keys.quotes, keys.invitations].includes(key)) {
       localStorage.setItem(keys.stateUpdatedAt, new Date().toISOString());
       schedulePersistentStateBackup();
@@ -476,7 +482,7 @@
   }
 
   function hasLocalUserData() {
-    return !!localStorage.getItem(keys.settings)
+    return !!window.BusinessDataStore.get(keys.settings)
       || (Array.isArray(products) && products.length > 0)
       || (Array.isArray(quotes) && quotes.length > 0)
       || (Array.isArray(invitations) && invitations.length > 0);
@@ -487,19 +493,19 @@
     restoringPersistentState = true;
     if (state.settings) {
       settings = { ...structuredClone(defaultSettings), ...state.settings };
-      localStorage.setItem(keys.settings, JSON.stringify(settings));
+      save(keys.settings,settings);
     }
     if (Array.isArray(state.products)) {
       products = state.products;
-      localStorage.setItem(keys.products, JSON.stringify(products));
+      save(keys.products,products);
     }
     if (Array.isArray(state.quotes)) {
       quotes = state.quotes;
-      localStorage.setItem(keys.quotes, JSON.stringify(quotes));
+      save(keys.quotes,quotes);
     }
     if (Array.isArray(state.invitations)) {
       invitations = state.invitations;
-      localStorage.setItem(keys.invitations, JSON.stringify(invitations));
+      save(keys.invitations,invitations);
     }
     if (state.updatedAt) localStorage.setItem(keys.stateUpdatedAt, state.updatedAt);
     restoringPersistentState = false;
@@ -687,6 +693,7 @@
     el.classList.add("show");
     setTimeout(() => el.classList.remove("show"), 2200);
   }
+  window.addEventListener('fta-storage-error',event=>toast('本地资料保存失败，请勿关闭软件：'+event.detail));
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -695,7 +702,7 @@
       ...options
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.message || data.zh || "API request failed");
+    if (!response.ok || data.ok === false) throw new Error(data.zh || data.message || `本地请求失败（HTTP ${response.status}，${path}）`);
     return data;
   }
 
@@ -1605,7 +1612,7 @@
     const records=BusinessOverview.latest(quotes),monthly=BusinessOverview.month(records);
     const monthlyQuotes=monthly.filter(q=>(q.documentType||'quotation')==='quotation');
     const moneySummary=rows=>Object.entries(BusinessOverview.amounts(rows,quoteTotal)).map(([currency,value])=>escapeHtml(currency)+' '+value.toLocaleString(undefined,{maximumFractionDigits:2})).join('<br>')||'暂无金额';
-    const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQuotes)],['本月 PI／合同',monthly.filter(q=>['invoice','contract'].includes(q.documentType)).length+' 份','分别统计，不推算成交率'],['本月商业发票',monthly.filter(q=>q.documentType==='commercial').length+' 份',moneySummary(monthly.filter(q=>q.documentType==='commercial'))],['产品资料',products.length+' 条',new Set(products.map(p=>p.templateName||'未分类')).size+' 种产品模板']];
+const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQuotes)],['本月 PI／合同',monthly.filter(q=>['invoice','contract'].includes(q.documentType)).length+' 份','分别统计，不推算成交率'],['本月商业发票',monthly.filter(q=>q.documentType==='commercial').length+' 份',moneySummary(monthly.filter(q=>q.documentType==='commercial'))],['产品资料',products.length+' 条',new Set(products.map(p=>ProductHierarchy.resolve(window.ProductHierarchyWorkspace?.config()||ProductHierarchy.seed(products),p)[0]).filter(Boolean)).size+' 种产品类型']];
     $('overview-metrics').innerHTML=metrics.map(([label,value,note])=>`<article class="overview-metric"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`).join('');
     $('overview-progress-counts').innerHTML=Object.entries(BusinessOverview.labels).map(([type,label])=>`<button type="button" data-overview-type="${type}"><span>${label}</span><b>${records.filter(q=>(q.documentType||'quotation')===type).length}</b></button>`).join('');
   }
@@ -3193,6 +3200,8 @@
   async function loadServerData() {
     if (!currentUser) return;
     try {
+      const classification=await api('/api/products/reconcile-hierarchy',{method:'POST',body:'{}'});
+      if(classification.settings){settings={...settings,...classification.settings};save(keys.settings,settings);await window.BusinessDataStore.flush();}
       const [productData, portData, freightData, routeData] = await Promise.all([
         api("/api/products"),
         api("/api/ports"),
@@ -3954,6 +3963,8 @@
   function renderProductDynamicFields(product = {}) {
     const host = $("product-dynamic-fields");
     if (!host) return;
+    // Keep legacy field schemas for compatibility, not as a second taxonomy.
+    $("product-template")?.closest('label')?.setAttribute('hidden','');
     const tpl = productTemplateByName($("product-template")?.value || product.templateName);
     const values = productValues(product);
     const fields = (tpl?.fields || [])
@@ -4061,7 +4072,7 @@
     try{analysis=ProductTextImport.inspect($('price-import-text').value,templateFields);}catch(error){return toast(error.message);}
     $('product-import-modal')?.close();
     let modal=$('product-import-review');if(!modal){modal=document.createElement('div');modal.id='product-import-review';modal.className='modal no-print';document.body.append(modal);}
-    modal.innerHTML=`<div class="modal-card import-review-card" role="dialog" aria-modal="true" aria-labelledby="product-import-title"><header><div><h3 id="product-import-title">核对产品资料</h3><p>${analysis.hasHeader?'已识别表头，请核对每列。':'未识别表头，请先为各列选择字段。'} 确认前不会写入产品库。</p></div><button data-import-close type="button">关闭</button></header><div class="import-mapping">${analysis.headings.map((heading,i)=>`<label><span>${escapeHtml(heading)}</span><select data-import-column="${i}"><option value="">忽略此列</option>${Object.entries(ProductTextImport.fields).map(([key,label])=>`<option value="${key}" ${analysis.mapping[i]===key?'selected':''}>${label}</option>`).join('')}</select></label>`).join('')}</div><div class="library-table-scroll"><table class="library-table"><thead><tr>${analysis.headings.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${analysis.rows.slice(0,8).map(row=>`<tr>${row.map(cell=>`<td>${escapeHtml(cell)||'—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div><footer><label>资料模板<select id="import-product-template">${settings.templates.map(t=>`<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('')}</select></label><label>同品牌／型号或同名产品<select id="import-duplicate-mode"><option value="skip">跳过已有产品</option><option value="update">仅更新非空字段</option><option value="new">作为新产品新增</option></select></label><p id="import-review-status" role="status">共 ${analysis.rows.length} 条，将保存至本机数据库。</p><button type="button" class="primary" id="import-review-save">确认入库</button></footer></div>`;
+    modal.innerHTML=`<div class="modal-card import-review-card" role="dialog" aria-modal="true" aria-labelledby="product-import-title"><header><div><h3 id="product-import-title">核对产品资料</h3><p>${analysis.hasHeader?'已识别表头，请核对每列。':'未识别表头，请先为各列选择字段。'} 确认前不会写入产品库。</p></div><button data-import-close type="button">关闭</button></header><div class="import-mapping">${analysis.headings.map((heading,i)=>`<label><span>${escapeHtml(heading)}</span><select data-import-column="${i}"><option value="">忽略此列</option>${Object.entries(ProductTextImport.fields).map(([key,label])=>`<option value="${key}" ${analysis.mapping[i]===key?'selected':''}>${label}</option>`).join('')}</select></label>`).join('')}</div><div class="library-table-scroll"><table class="library-table"><thead><tr>${analysis.headings.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${analysis.rows.slice(0,8).map(row=>`<tr>${row.map(cell=>`<td>${escapeHtml(cell)||'—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div><footer><label hidden>内部字段结构<select id="import-product-template">${settings.templates.map(t=>`<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('')}</select></label><label>同品牌／型号或同名产品<select id="import-duplicate-mode"><option value="skip">跳过已有产品</option><option value="update">仅更新非空字段</option><option value="new">作为新产品新增</option></select></label><p id="import-review-status" role="status">共 ${analysis.rows.length} 条，将保存至本机数据库。</p><button type="button" class="primary" id="import-review-save">确认入库</button></footer></div>`;
     modal.hidden=false;let saving=false,queue=null,success=0,skipped=0;
     $('import-product-template').value=importTemplate;
     modal.querySelectorAll('[data-import-column]').forEach((select,i)=>{select.innerHTML='<option value="">忽略此列</option>'+Object.entries(importFields).map(([key,label])=>`<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');select.value=analysis.mapping[i]||'';});
@@ -4213,7 +4224,9 @@
       return (!category || productCategoryGroup(p)===category) && conditionMatches && (!kw || normalize(`${p.category}${p.brand}${p.model}${p.aliases||""}${p.params||""}${Object.values(p.values || {}).join(" ")}`).includes(kw));
     });
     if ($("product-filter-summary")) $("product-filter-summary").textContent = `当前显示 ${list.length} 条，共 ${products.length} 条产品；价格可在列表中直接填写并保存。`;
-    const selectedTemplate=$('library-template-filter')?.value||'';
+    const selectedTemplate='';
+    const hierarchy=window.ProductHierarchyWorkspace?.config();
+    const classification=p=>hierarchy?ProductHierarchy.resolve(hierarchy,p).map(id=>hierarchy.nodes.find(n=>n.id===id)?.label||''):[];
     window.ProductHierarchyWorkspace?.mountFilters();
     const matched=list.filter(p=>(!selectedTemplate||p.templateName===selectedTemplate)&&(!window.ProductHierarchyWorkspace||window.ProductHierarchyWorkspace.matches(p))).sort((a,b)=>String(a.model||a.values?.model||productDisplayName(a)).localeCompare(String(b.model||b.values?.model||productDisplayName(b)),'zh-CN',{numeric:true,sensitivity:'base'}));
     const filterKey=JSON.stringify([kw,category,condition,selectedTemplate,window.ProductHierarchyWorkspace?.getFilter()]);
@@ -4223,15 +4236,14 @@
     libraryPage=Math.max(1,Math.min(libraryPage,pageCount));
     const shown=matched.slice((libraryPage-1)*libraryPageSize,libraryPage*libraryPageSize);
     const templates=settings.templates||[];
-    const filter=$('library-template-filter');if(filter){filter.innerHTML='<option value="">全部分类</option>'+templates.map(t=>`<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('');filter.value=selectedTemplate;}
     const columns=new Map();
     const excluded=new Set(['productImage','image','totalAmount','amount','qty','itemType','condition']);
     for(const tpl of templates.filter(t=>!selectedTemplate||t.name===selectedTemplate))for(const field of [...(tpl.fields||[])].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0)))if(field.visible!==false&&field.active!==false&&!excluded.has(field.fieldKey)&&!columns.has(field.fieldKey))columns.set(field.fieldKey,field);
     if(!columns.size)for(const [fieldKey,zh] of [['brand','品牌'],['model','型号'],['params','规格参数'],['unitPrice','价格']])columns.set(fieldKey,{fieldKey,zh});
     const fields=[...columns.values()];
-    $('product-library-summary').innerHTML=[['产品总数',products.length+' 条'],['产品类型',new Set(products.map(p=>p.templateName||'未分类')).size+' 种'],['已有图片',products.filter(p=>p.imageDataUrl).length+' 条']].map(([label,value])=>`<article class="overview-metric"><span>${label}</span><strong>${value}</strong></article>`).join('');
-    if($('product-filter-summary'))$('product-filter-summary').textContent=`当前显示 ${shown.length} 条，共 ${products.length} 条产品。点击名称查看详情；字段按所选模板展示。`;
-    $('product-list').innerHTML='<div class="library-table-scroll"><table class="library-table"><thead><tr><th><input type="checkbox" id="library-select-all" aria-label="全选当前列表"></th><th>图片</th><th>商品名称／型号</th>'+fields.map(f=>`<th>${escapeHtml(f.zh||f.en||f.fieldKey)}</th>`).join('')+'<th>分类</th><th>操作</th></tr></thead><tbody>'+shown.map(p=>`<tr data-library-row="${escapeHtml(p.id)}"><td><input type="checkbox" data-library-select="${escapeHtml(p.id)}" aria-label="选择 ${escapeHtml(productDisplayName(p))}"></td><td>${p.imageDataUrl?`<img class="library-thumb" src="${escapeHtml(p.imageDataUrl)}" alt="${escapeHtml(productDisplayName(p))}" loading="lazy">`:'<div class="library-thumb library-no-image">暂无图片</div>'}</td><td><button type="button" class="library-product-name" data-library-detail="${escapeHtml(p.id)}">${escapeHtml(productDisplayName(p))}</button><small>${escapeHtml(p.inventoryCode||'')}</small></td>${fields.map(f=>`<td><div class="library-cell-value">${ConfiguredFields.html(f,productLibraryValue(p,f))}</div></td>`).join('')}<td><span class="library-type-badge">${escapeHtml(p.templateName||p.category||'未分类')}</span></td><td><div class="library-row-actions"><button type="button" data-library-detail="${escapeHtml(p.id)}">详情</button><button type="button" data-library-use="${escapeHtml(p.id)}">引用</button><button type="button" data-library-edit="${escapeHtml(p.id)}">编辑</button></div></td></tr>`).join('')+`</tbody></table>${shown.length?'':'<p class="empty">暂无匹配产品，可新增产品或调整筛选条件。</p>'}</div>`;
+    $('product-library-summary').innerHTML=[['产品总数',products.length+' 条'],['产品类型',new Set(products.map(p=>classification(p)[0]||'未分类')).size+' 种'],['已有图片',products.filter(p=>p.imageDataUrl).length+' 条']].map(([label,value])=>`<article class="overview-metric"><span>${label}</span><strong>${value}</strong></article>`).join('');
+    if($('product-filter-summary'))$('product-filter-summary').textContent=`当前显示 ${shown.length} 条，共 ${products.length} 条产品。`;
+$('product-list').innerHTML='<div class="library-table-scroll"><table class="library-table"><thead><tr><th><input type="checkbox" id="library-select-all" aria-label="全选当前列表"></th><th>图片</th><th>商品名称／型号</th>'+fields.map(f=>`<th>${escapeHtml(f.zh||f.en||f.fieldKey)}</th>`).join('')+'<th>分类</th><th>操作</th></tr></thead><tbody>'+shown.map(p=>`<tr data-library-row="${escapeHtml(p.id)}"><td><input type="checkbox" data-library-select="${escapeHtml(p.id)}" aria-label="选择 ${escapeHtml(productDisplayName(p))}"></td><td>${p.imageDataUrl?`<img class="library-thumb" src="${escapeHtml(p.imageDataUrl)}" alt="${escapeHtml(productDisplayName(p))}" loading="lazy">`:'<div class="library-thumb library-no-image">暂无图片</div>'}</td><td><button type="button" class="library-product-name" data-library-detail="${escapeHtml(p.id)}">${escapeHtml(productDisplayName(p))}</button><small>${escapeHtml(p.inventoryCode||'')}</small></td>${fields.map(f=>`<td><div class="library-cell-value">${ConfiguredFields.html(f,productLibraryValue(p,f))}</div></td>`).join('')}<td><span class="library-type-badge">${escapeHtml(classification(p).join(' › ')||'未分类')}</span></td><td><div class="library-row-actions"><button type="button" data-library-detail="${escapeHtml(p.id)}">详情</button><button type="button" data-library-use="${escapeHtml(p.id)}">引用</button><button type="button" data-library-edit="${escapeHtml(p.id)}">编辑</button></div></td></tr>`).join('')+`</tbody></table>${shown.length?'':'<p class="empty">暂无匹配产品，可新增产品或调整筛选条件。</p>'}</div>`;
     const pagination=document.createElement('div');pagination.className='actions library-pagination';
     pagination.innerHTML=`<button type="button" data-library-page="${libraryPage-1}" ${libraryPage===1?'disabled':''}>上一页</button><span>第 ${libraryPage} / ${pageCount} 页 · 匹配 ${matched.length} 条 · 每页 ${libraryPageSize} 条</span><button type="button" data-library-page="${libraryPage+1}" ${libraryPage===pageCount?'disabled':''}>下一页</button><small>全选和批量删除仅作用于当前页；翻页或筛选后清除选择。</small>`;
     $('product-list').append(pagination);
@@ -4275,7 +4287,7 @@
     let modal=$('library-detail-modal');
     if(!modal){modal=document.createElement('div');modal.id='library-detail-modal';modal.className='modal no-print';modal.innerHTML='<div class="modal-card library-detail-card" role="dialog" aria-modal="true" aria-labelledby="library-detail-title"></div>';document.body.append(modal);modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('[data-library-close]')){modal.hidden=true;document.querySelector('[data-library-detail="'+CSS.escape(id)+'"]')?.focus();}});modal.addEventListener('keydown',e=>{if(e.key==='Escape')modal.hidden=true;});}
     const fields=(productTemplateByName(p.templateName)?.fields||[]).filter(f=>f.visible!==false&&f.active!==false&&!['image','productImage'].includes(f.fieldKey)).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
-    modal.firstElementChild.innerHTML=`<header><div><small>${escapeHtml(p.templateName||'产品详情')}</small><h3 id="library-detail-title">${escapeHtml(productDisplayName(p))}</h3></div><button type="button" data-library-close>关闭</button></header><div class="library-detail-content">${p.imageDataUrl?`<img src="${escapeHtml(p.imageDataUrl)}" alt="商品图片">`:'<div class="library-detail-no-image">暂无产品图片</div>'}<dl>${fields.map(f=>`<div><dt>${escapeHtml(f.zh||f.en||f.fieldKey)}</dt><dd>${ConfiguredFields.html(f,productLibraryValue(p,f))}</dd></div>`).join('')}</dl></div><footer><button type="button" id="library-detail-edit">编辑资料</button><button type="button" class="primary" id="library-detail-use">引用到单证</button></footer>`;
+    modal.firstElementChild.innerHTML=`<header><div><small>${escapeHtml(ProductHierarchy.resolve(window.ProductHierarchyWorkspace?.config()||ProductHierarchy.seed(products),p).map(id=>(window.ProductHierarchyWorkspace?.config()?.nodes||[]).find(n=>n.id===id)?.label).filter(Boolean).join(' › ')||'产品详情')}</small><h3 id="library-detail-title">${escapeHtml(productDisplayName(p))}</h3></div><button type="button" data-library-close>关闭</button></header><div class="library-detail-content">${p.imageDataUrl?`<img src="${escapeHtml(p.imageDataUrl)}" alt="商品图片">`:'<div class="library-detail-no-image">暂无产品图片</div>'}<dl>${fields.map(f=>`<div><dt>${escapeHtml(f.zh||f.en||f.fieldKey)}</dt><dd>${ConfiguredFields.html(f,productLibraryValue(p,f))}</dd></div>`).join('')}</dl></div><footer><button type="button" id="library-detail-edit">编辑资料</button><button type="button" class="primary" id="library-detail-use">引用到单证</button></footer>`;
     $('library-detail-edit').onclick=()=>{modal.hidden=true;editProduct(id);};$('library-detail-use').onclick=()=>{if(useLibraryProduct(id))modal.hidden=true;};
     modal.hidden=false;modal.querySelector('[data-library-close]').focus();
   }
@@ -6775,7 +6787,6 @@
     $("import-price-btn").addEventListener("click", reviewProductTextImport);
     $("clear-import-text-btn").addEventListener("click", () => { $("price-import-text").value = ""; $("price-import-result").textContent = ""; });
     $("product-search").addEventListener("input", renderProducts);
-    $('library-template-filter')?.addEventListener('change',renderProducts);
     $('library-delete-selected')?.addEventListener('click',deleteSelectedLibraryProducts);
     const deleteAll=document.createElement('button');deleteAll.id='library-delete-all';deleteAll.type='button';deleteAll.textContent='全部删除';deleteAll.onclick=deleteAllFilteredLibraryProducts;$('library-delete-selected').after(deleteAll);
     const editSelected=document.createElement('button');editSelected.id='library-edit-selected';editSelected.type='button';editSelected.textContent='编辑选中';editSelected.disabled=true;$('library-new-product').after(editSelected);
@@ -7361,7 +7372,7 @@
     for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency,#product-editor-modal'))persistWork(true);});
     document.addEventListener('click',()=>persistWork(),true);
     window.hasUnsavedWork=()=>hasCurrentChanges()||Boolean(workCaptureError);
-    window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
+    window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;await window.BusinessDataStore.flush();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
     window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
     // Prompt once per renderer session; later access remains available in the draft box.
@@ -7716,7 +7727,7 @@
     outputHtml:kind=>{renderOutputKind(kind);return outputMarkup(kind);},
     previewDocument:async type=>{const kind=type==='invitation'?'invitation':['agency','statement'].includes(type)?'agency':'quote',doc=workflowDocument(kind),actual=kind==='agency'?(type==='agency'?'authorization':type):type;if(!doc||((doc.documentType||'quotation')!==actual&&kind!=='invitation'))return toast('请先在制作界面打开对应的单证，再查看它的实际 PDF。');return previewCurrentOutput(kind);},
     editProduct,renderProducts,newProduct:()=>{clearProductForm();openProductEditorModal();},
-    save:async(next)=>{const candidate={...settings,...next};const result=await api('/api/settings',{method:'PUT',body:JSON.stringify(candidate)});settings=result.settings||candidate;save(keys.settings,settings);renderAllSelectors();renderSettings();window.OptionManager?.mount();window.BusinessSettings?.mount();renderProducts();if(currentQuote){renderQuoteItems();renderQuoteTerms();}renderPreview();},
+    save:async(next)=>{const candidate={...settings,...next};const result=await api('/api/settings',{method:'PUT',body:JSON.stringify(candidate)});settings=result.settings||candidate;save(keys.settings,settings);await window.BusinessDataStore.flush();renderAllSelectors();renderSettings();window.OptionManager?.mount();window.BusinessSettings?.mount();renderProducts();if(currentQuote){renderQuoteItems();renderQuoteTerms();}renderPreview();},
     toast,renderPreview,refreshOptions:()=>{renderAllSelectors();if(currentQuote){renderQuoteTerms();renderQuoteItems();}renderPreview();}
   };
   ["crm-module-btn", "crm-entry-btn"].forEach((id) => {
