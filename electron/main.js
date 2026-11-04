@@ -174,16 +174,13 @@ async function installDownloadedUpdate() {
   // Finish pending recovery writes before an installer can terminate the app.
   for(const win of BrowserWindow.getAllWindows())if(!win.isDestroyed())await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
   if (downloadedUpdateFile && fs.existsSync(downloadedUpdateFile)) {
-    publishUpdateState({status:"installing",message:"自检通过，正在关闭软件并打开安装窗口；请在安装窗口中查看进度并完成安装。"});
     // Start setup only after this process releases its executable and SQLite files.
-    const {prepareInstall}=require('./update-install.cjs');
-    const command=prepareInstall({dataDirectory:dataDir(),installer:downloadedUpdateFile,version:latestUpdateState.version,
-      installDirectory:path.dirname(process.execPath),pid:process.pid,sourceVersion:app.getVersion(),metadata:downloadedUpdateMetadata});
-    const child=process.platform==='win32'
-      ?spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{detached:true,stdio:'ignore',windowsHide:true})
-      :spawn(downloadedUpdateFile,[],{detached:true,stdio:'ignore'});
-    await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
-    child.unref();
+    const {launchInstall}=require('./update-install.cjs');
+    try{
+      await launchInstall({dataDirectory:dataDir(),installer:downloadedUpdateFile,version:latestUpdateState.version,
+        installDirectory:path.dirname(process.execPath),pid:process.pid,sourceVersion:app.getVersion(),metadata:downloadedUpdateMetadata});
+    }catch(error){publishUpdateState({status:'error',message:error.message});throw error;}
+    publishUpdateState({status:"installing",message:"安装辅助程序已就绪，正在关闭软件；随后会打开安装向导，请查看进度并完成安装。"});
     // Already flushed above. Avoid running the ordinary unsaved-work close dialog again.
     setTimeout(()=>{for(const win of BrowserWindow.getAllWindows())win.destroy();app.quit();},500);
     return { method:"verified-installer" };
