@@ -3,13 +3,33 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function mount(){
     const context=window.quoteSettingsContext,host=document.getElementById('settings-data-host');if(!context||!host)return;
-    let panel=document.getElementById('option-catalog-manager');if(!panel){panel=document.createElement('section');panel.id='option-catalog-manager';panel.className='panel';host.append(panel);}
-    panel.innerHTML='<h3>全系统业务选项</h3><p>统一管理币种、贸易、付款、运输及单位。保存后同步业务界面；已有代码保持不变，删除已保存项会归档停用以保护历史单证。商品分类支持三级父子关系，港口复用现有数据管理。</p><div class="actions">'+Object.entries(OptionCatalog.definitions).map(([key,[name]])=>`<button type="button" data-catalog="${key}">${name}</button>`).join('')+'</div>';
-    panel.insertAdjacentHTML('beforeend','<button type="button" data-manage-ports>港口管理</button>');
-    panel.querySelector('[data-catalog="tradeTerms"]')?.remove();
-    panel.onclick=e=>{const key=e.target.dataset.catalog;if(key)edit(key,context);if(e.target.matches('[data-manage-ports]'))editPorts(context).catch(error=>context.toast(error.message));};
+    // Option records remain shared and stable; maintenance belongs to the consuming setting.
+    document.getElementById('option-catalog-manager')?.remove();
     // Superseded editors could bypass the stable-code and archival rules.
     ['currency-list','trade-term-list'].forEach(id=>{const old=document.getElementById(id)?.closest('.currency-manager');if(old)old.hidden=true;});
+  }
+  function mountSection(host,type,block){
+    host.querySelector('[data-scoped-options]')?.remove();
+    const sales=['quotation','invoice','contract','commercial'],keys=[];
+    if(sales.includes(type)){
+      if(block==='basic')keys.push('currencies');
+      if(block==='items')keys.push('currencies','billingUnits','freightFeeNames');
+      if(block==='terms')keys.push('tradeTerms','payment','paymentConditions','shippingMethods','containerTypes');
+    }
+    if(type==='packing'){
+      if(block==='items')keys.push('billingUnits','dimensionUnits');
+      if(block==='terms')keys.push('tradeTerms','shippingMethods','containerTypes');
+    }
+    if(type==='statement'){
+      if(block==='items')keys.push('currencies');
+      if(block==='terms')keys.push('cryptoNetworks');
+    }
+    const ports=block==='terms'&&[...sales,'packing'].includes(type);
+    if(!keys.length&&!ports)return;
+    const panel=document.createElement('section');panel.dataset.scopedOptions=type;panel.className='scoped-option-settings';
+    panel.innerHTML='<h4>本板块选项设置</h4><div class="actions">'+keys.map(key=>`<button type="button" data-scoped-catalog="${key}">${esc(OptionCatalog.definitions[key][0])}</button>`).join('')+(ports?'<button type="button" data-scoped-ports>港口管理</button>':'')+'</div>';
+    panel.addEventListener('click',e=>{const button=e.target.closest('button');if(!button)return;e.stopPropagation();const context=window.quoteSettingsContext;if(button.dataset.scopedCatalog)edit(button.dataset.scopedCatalog,context);if(button.hasAttribute('data-scoped-ports'))editPorts(context).catch(error=>context.toast(error.message));});
+    host.querySelector('[data-document-fields]')?.before(panel);
   }
   function edit(key,context){
     const original=OptionCatalog.ensure(context.settings)[key],persisted=new Set(original.map(r=>r.id));
@@ -37,6 +57,6 @@
     modal.oninput=e=>{const tr=e.target.closest('[data-row]'),key=e.target.dataset.key;if(tr&&key)rows[tr.dataset.row][key]=e.target.type==='checkbox'?e.target.checked:e.target.type==='number'?Number(e.target.value):e.target.value;};
     modal.onclick=async e=>{try{if(e.target.matches('[data-close]'))return modal.remove();if(e.target.matches('[data-add]')){rows.unshift({countryName:'',portName:'',isOriginPort:false,isDestinationPort:true,status:'Active',sortOrder:0});return draw();}const index=e.target.dataset.savePort??e.target.dataset.deletePort;if(index==null)return;const row=rows[index];if(e.target.dataset.deletePort!=null){if(!confirm('停用此港口并保留历史引用？'))return;row.status='Inactive';}if(!row.countryName.trim()||!row.portName.trim())throw Error('请填写国家和港口英文名称');const result=await api('/api/ports'+(row.id?'/'+encodeURIComponent(row.id):''),{method:row.id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(row)});Object.assign(row,result.port);await window.freightContext.loadServerData();context.refreshOptions();draw();context.toast('港口已保存并同步');}catch(error){modal.querySelector('[data-error]').textContent=error.message;}};draw();
   }
-  window.OptionManager={mount,edit};
+  window.OptionManager={mount,mountSection,edit};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(mount));else setTimeout(mount);
 })();

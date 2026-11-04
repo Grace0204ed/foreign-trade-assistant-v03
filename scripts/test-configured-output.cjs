@@ -3,11 +3,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
 const out=fs.mkdtempSync(path.join(os.tmpdir(),'fta-configured-output-'));process.env.QUOTE_DATA_DIR=path.join(out,'data');app.setPath('userData',path.join(out,'profile'));app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port,win=new BrowserWindow({show:false,width:1440,height:1100,webPreferences:{offscreen:true,backgroundThrottling:false}}),run=s=>win.webContents.executeJavaScript(s);
+ win.webContents.on('console-message',event=>{if(event.level==='error')console.error(event.message);});
  const wait=async s=>{for(let i=0;i<240;i++){if(await run(s))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout '+s);};let pdfwin;
  try{
   await win.loadURL(base);await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');
   await run(`for(const t of ['quotation','invitation','statement']){quoteSettingsContext.openSettings(t+'-config');}window.confirm=()=>true;window.qaImage=(()=>{const c=document.createElement('canvas');c.width=80;c.height=40;const x=c.getContext('2d');x.fillStyle='#b9312f';x.fillRect(0,0,80,40);return c.toDataURL();})();`);
   await run(`(async()=>{const s=structuredClone(quoteSettingsContext.settings),fields=[{id:'qa-rich',fieldKey:'qa_rich',zh:'附加说明',en:'Additional detail',fieldType:'richtext',active:true,visible:true,sortOrder:900},{id:'qa-image',fieldKey:'qa_image',zh:'现场图片',en:'Site image',fieldType:'image',active:true,visible:true,sortOrder:910}];for(const c of [...Object.values(s.documentConfigs),...Object.values(s.quoteTemplateConfigs||{})])c.blocks.basic.push(...structuredClone(fields));s.templates[0].fields.push(...structuredClone(fields));s.documentPreferences={defaults:{language:'zh',typography:{body:{fontSize:14,color:'#183f59',fontWeight:400,lineHeight:1.8}}},overrides:{}};await quoteSettingsContext.save(s);})()`);
+  await run(`(async()=>{const s=structuredClone(quoteSettingsContext.settings);ProductSchema.ensure(s).fields.push(...structuredClone(s.templates[0].fields.filter(f=>f.fieldKey==='qa_rich'||f.fieldKey==='qa_image')));await quoteSettingsContext.save(s);})()`);
   // Exercise the production rich editor and file reader rather than writing output HTML directly.
   for(const [type,kind,attribute] of [['quotation','quote','data-basic-custom'],['invitation','invitation','data-standalone-field'],['statement','agency','data-standalone-field']]){
    await run(`document.querySelector('[data-create-document=${type}]').click()`);
