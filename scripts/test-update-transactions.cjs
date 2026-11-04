@@ -24,6 +24,23 @@ const {prepareInstall,readInstallResult}=require('../electron/update-install.cjs
   const nsis=fs.readFileSync(path.join(__dirname,'../electron/installer.nsh'),'utf8');
   assert.match(nsis,/!macro customInit[\s\S]*\$\{isUpdated\}[\s\S]*SetSilent normal/,'Installer must also override silent mode from legacy updaters');
   assert(command.includes("Record 'cancelled'"),'Cancellation must be recorded');
+  if(process.platform==='win32'){
+    const {spawnSync}=require('node:child_process');
+    const powershell=path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
+    for(const algorithm of ['sha256','sha512']){
+      const digest=crypto.createHash(algorithm).update(data).digest(algorithm==='sha256'?'hex':'base64');
+      for(const corrupted of [false,true]){
+        const metadata=algorithm==='sha256'?{digest:'sha256:'+(corrupted?'0'.repeat(64):digest)}:{sha512:corrupted?Buffer.alloc(64).toString('base64'):digest};
+        const real=prepareInstall({dataDirectory:folder,installer:results[0],version:'0.11.33',installDirectory:folder,pid:2147483647,sourceVersion:'0.11.32',metadata});
+        assert(!real.includes('Get-FileHash'),'Hash verification must not depend on optional PowerShell cmdlets');
+        const script="$PSModuleAutoLoadingPreference='None'\nfunction Get-FileHash { throw 'cmdlet unavailable' }\n"+real.slice(0,real.indexOf("  Record 'installing'"))+"  Write-Output 'verified'\n} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }";
+        const run=spawnSync(powershell,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,timeout:15000});
+        assert.equal(run.status,corrupted?1:0,run.stderr);
+        if(!corrupted)assert.match(run.stdout,/verified/);
+        else assert.match(run.stderr,/Installer changed after preflight/);
+      }
+    }
+  }
   assert.equal(readInstallResult(folder,'0.11.24').status,'error');
   assert.equal(readInstallResult(folder,'0.11.26').status,'error','Pending receipt is not installation success');
   const receipt=path.join(folder,'update-install-result.json');

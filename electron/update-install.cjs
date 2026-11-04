@@ -1,10 +1,13 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{spawn}=require('node:child_process');
 const quote=value=>"'"+String(value).replace(/'/g,"''")+"'";
+// Use Windows' own modules rather than inherited PSModulePath/autoload settings.
+const systemModules="Import-Module ([IO.Path]::Combine($PSHOME,'Modules\\Microsoft.PowerShell.Utility\\Microsoft.PowerShell.Utility.psd1')) -ErrorAction Stop; Import-Module ([IO.Path]::Combine($PSHOME,'Modules\\Microsoft.PowerShell.Management\\Microsoft.PowerShell.Management.psd1')) -ErrorAction Stop";
 function prepareInstall({dataDirectory,installer,version,installDirectory,pid,sourceVersion,metadata,attemptId=''}){
   if(!/^\d+\.\d+\.\d+$/.test(version||''))throw Error('安装目标版本无效，请重新检查更新');
   const receipt=path.join(dataDirectory,'update-install-result.json');
   fs.writeFileSync(receipt,JSON.stringify({status:'pending',version,sourceVersion,installer,installDirectory,startedAt:new Date().toISOString()}));
   return `$ErrorActionPreference='Stop'
+${systemModules}
 $receipt=${quote(receipt)}
 $ProgressPreference='SilentlyContinue'
 $log=${quote(path.join(dataDirectory,'update-install.log'))}
@@ -20,9 +23,17 @@ try {
   function AppRunning { @(Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue | Where-Object { $_.Threads.Count -gt 0 }).Count -gt 0 }
   while ((AppRunning) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
   if(AppRunning){throw 'Application did not exit within 60 seconds; no installation performed'}
-  ${metadata?`$hash=Get-FileHash -LiteralPath ${quote(installer)} -Algorithm ${metadata.digest?.startsWith('sha256:')?'SHA256':'SHA512'}
+  ${metadata?`$algorithm=[System.Security.Cryptography.HashAlgorithm]::Create('${metadata.digest?.startsWith('sha256:')?'SHA256':'SHA512'}')
+  $stream=$null
+  try {
+    $stream=[System.IO.File]::OpenRead(${quote(installer)})
+    $hash=[System.BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','')
+  } finally {
+    if($null -ne $stream){$stream.Dispose()}
+    if($null -ne $algorithm){$algorithm.Dispose()}
+  }
   $expected=${quote(metadata.digest?.startsWith('sha256:')?metadata.digest.slice(7):Buffer.from(metadata.sha512,'base64').toString('hex'))}
-  if($hash.Hash -ne $expected){throw 'Installer changed after preflight; installation blocked'}`:''}
+  if($hash -ne $expected){throw 'Installer changed after preflight; installation blocked'}`:''}
   Record 'installing' '正在启动可见安装向导，请在安装窗口中完成安装'
   $setup=Start-Process -FilePath ${quote(installer)} -ArgumentList @('--updated',${quote('/D='+installDirectory)}) -WindowStyle Normal -Wait -PassThru
   if($setup.ExitCode -eq 1 -or $setup.ExitCode -eq 1602){
@@ -56,7 +67,7 @@ async function launchInstall(options,{timeoutMs=15000,spawnProcess=spawn}={}){
   const command=prepareInstall({...options,attemptId});
   const powershell=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
   const encoded=Buffer.from(command,'utf16le').toString('base64');
-  const bootstrap=`$ErrorActionPreference='Stop'; Start-Process -FilePath ${quote(powershell)} -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand',${quote(encoded)}) -WindowStyle Hidden -ErrorAction Stop | Out-Null`;
+  const bootstrap=`$ErrorActionPreference='Stop'; ${systemModules}; Start-Process -FilePath ${quote(powershell)} -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand',${quote(encoded)}) -WindowStyle Hidden -ErrorAction Stop | Out-Null`;
   const log=path.join(options.dataDirectory,'update-helper.log');
   const fd=fs.openSync(log,'a');
   let child;
