@@ -1,32 +1,65 @@
 'use strict';
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,getBatchDirectory}){
- const previews=new Map();
- const get=(event,token)=>{const p=previews.get(token);if(!p||p.owner!==event.sender.id)throw Error('预览已失效，请重新预览');return p;};
- const remove=token=>{const p=previews.get(token);if(p&&!p.win.isDestroyed())p.win.destroy();previews.delete(token);};
+ const previews=new Map(),owners=new Map(),temporaryDirectories=new Set();
+ const expired=()=>Error('预览已失效，请重新预览');
+ const clearDirectory=directory=>{try{fs.rmSync(directory,{recursive:true,force:true,maxRetries:3,retryDelay:20});temporaryDirectories.delete(directory);}catch(_){/* Retry a locked temporary file when the application exits. */}};
+ const dispose=p=>{
+  if(!p||p.closed)return;p.closed=true;previews.delete(p.token);
+  const owner=owners.get(p.owner);owner?.records.delete(p);
+  if(owner&&!owner.records.size){owner.sender.removeListener('destroyed',owner.close);owner.sender.removeListener('render-process-gone',owner.close);owners.delete(p.owner);}
+  try{if(!p.win.isDestroyed())p.win.destroy();}finally{clearDirectory(p.directory);}
+ };
+ const ownerFor=sender=>{
+  let owner=owners.get(sender.id);if(owner)return owner;
+  owner={sender,records:new Set(),close:()=>{for(const p of [...owner.records])dispose(p);}};
+  owners.set(sender.id,owner);sender.once('destroyed',owner.close);sender.once('render-process-gone',owner.close);return owner;
+ };
+ const active=p=>{if(p.closed||p.win.isDestroyed())throw expired();};
+ const get=(event,token)=>{const p=previews.get(token);if(!p||p.owner!==event.sender.id)throw expired();active(p);return p;};
+ app.on('before-quit',()=>{for(const owner of [...owners.values()])owner.close();for(const directory of [...temporaryDirectories])clearDirectory(directory);});
  ipcMain.handle('document-preview-create',async(event,payload)=>{
   if(typeof payload?.html!=='string'||Buffer.byteLength(payload.html)>40*1024*1024)throw Error('预览内容过大或无效');
-  const parent=BrowserWindow.fromWebContents(event.sender),origin=new URL(event.sender.getURL()).origin;
+  const parent=BrowserWindow.fromWebContents(event.sender);let origin;
+  try{origin=new URL(event.sender.getURL()).origin;}catch(_){throw Error('请从本机单证页面打开预览');}
   if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(origin))throw Error('请从本机单证页面打开预览');
-  if(!payload.batch)for(const [token,p]of previews)if(p.owner===event.sender.id)remove(token);
-  const win=new BrowserWindow({show:false,parent,webPreferences:{sandbox:true,nodeIntegration:false,contextIsolation:true,backgroundThrottling:false}});
-  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  if(event.sender.isDestroyed())throw expired();
+  // Replacing an ordinary preview must not invalidate an open multi-document session.
+  if(!payload.batch)for(const p of [...(owners.get(event.sender.id)?.records||[])])if(!p.batch)dispose(p);
   const policy=`default-src 'none'; style-src 'unsafe-inline' ${origin}; img-src data: ${origin}; font-src data: ${origin}; base-uri ${origin}; form-action 'none'`;
-  const html='<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+policy+'">'+payload.html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'');
+  const head='<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+policy+'"><base href="'+origin+'/">';
+  let html=payload.html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'').replace(/<base\b[^>]*>/gi,'');
+  if(/<head\b[^>]*>/i.test(html))html=html.replace(/<head\b[^>]*>/i,tag=>tag+head);
+  else if(/<html\b[^>]*>/i.test(html))html=html.replace(/<html\b[^>]*>/i,tag=>tag+'<head>'+head+'</head>');
+  else html='<!doctype html><html><head>'+head+'</head><body>'+html+'</body></html>';
+  let p;
   try{
-   await win.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html));
+   // Chromium limits data: navigation URLs. A private file preserves large edited
+   // documents without URL encoding or exposing their HTML through a local route.
+   const directory=fs.mkdtempSync(path.join(app.getPath('temp'),'fta-document-preview-'));temporaryDirectories.add(directory);
+   const filePath=path.join(directory,'preview.html');
+   try{fs.writeFileSync(filePath,html,{encoding:'utf8',flag:'wx',mode:0o600});}catch(error){clearDirectory(directory);throw error;}
+   let win;
+   try{win=new BrowserWindow({show:false,parent,webPreferences:{sandbox:true,nodeIntegration:false,contextIsolation:true,backgroundThrottling:false}});}catch(error){clearDirectory(directory);throw error;}
+   const rawName=path.basename(String(payload.fileName||'document.pdf')),name=/\.pdf$/i.test(rawName)?rawName:rawName+'.pdf';
+   p={token:crypto.randomUUID(),owner:event.sender.id,win,directory,filePath,batch:!!payload.batch,name,closed:false};
+   ownerFor(event.sender).records.add(p);win.once('closed',()=>dispose(p));
+   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+   win.webContents.on('will-navigate',event=>event.preventDefault());
+   await win.loadFile(filePath);active(p);
    // CSP blocks document scripts; this trusted main-process call only waits for
    // fonts and local/data images to finish loading.
-   await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));})()`);
-   const pdf=await win.webContents.printToPDF({printBackground:true,pageSize:'A4',preferCSSPageSize:true});
+   await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));})()`);active(p);
+   const pdf=await win.webContents.printToPDF({printBackground:true,pageSize:'A4',preferCSSPageSize:true});active(p);
    const {PDFParse}=require('pdf-parse'),parser=new PDFParse({data:pdf});
    let pages;
    try{const result=await parser.getScreenshot({desiredWidth:1050,imageBuffer:false,imageDataUrl:true});pages=result.pages.map(p=>({number:p.pageNumber,width:p.width,height:p.height,image:p.dataUrl}));}finally{await parser.destroy();}
+   active(p);
    if(!pages.length||pages.length>200)throw Error('页数无效或超过200页，请分批预览');
-   const token=crypto.randomUUID();previews.set(token,{owner:event.sender.id,win,pdf,pages,name:path.basename(payload.fileName||'document.pdf')});
-   event.sender.once('destroyed',()=>remove(token));
-   return {token,pages,printers:await event.sender.getPrintersAsync()};
-  }catch(error){win.destroy();throw error;}
+   const printers=await event.sender.getPrintersAsync();active(p);
+   Object.assign(p,{pdf,pages});previews.set(p.token,p);
+   return {token:p.token,pages,printers};
+  }catch(error){dispose(p);throw error;}
  });
  ipcMain.handle('document-preview-export',async(event,token,batchToken)=>{
   const p=get(event,token);
@@ -36,10 +69,11 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
  });
  ipcMain.handle('document-preview-print',async(event,token,options={})=>{
   const p=get(event,token);const ranges=[];
-  if(String(options.pages||'').trim())for(const part of options.pages.split(',')){const match=part.trim().match(/^(\d+)(?:-(\d+))?$/);if(!match)throw Error('页码格式应为 1-3,5');const from=Number(match[1]),to=Number(match[2]||from);if(from<1||to<from||to>p.pages.length)throw Error('打印页码超出预览范围');ranges.push({from:from-1,to:to-1});}
+  const pageText=String(options.pages??'').trim();
+  if(pageText)for(const part of pageText.split(',')){const match=part.trim().match(/^(\d+)(?:-(\d+))?$/);if(!match)throw Error('页码格式应为 1-3,5');const from=Number(match[1]),to=Number(match[2]||from);if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||from<1||to<from||to>p.pages.length)throw Error('打印页码超出预览范围');ranges.push({from:from-1,to:to-1});}
   const printers=await p.win.webContents.getPrintersAsync();if(options.deviceName&&!printers.some(item=>item.name===options.deviceName))throw Error('所选打印机不可用');
   return new Promise((resolve,reject)=>p.win.webContents.print({silent:false,printBackground:true,pageSize:'A4',margins:{marginType:'none'},deviceName:options.deviceName||'',landscape:p.pages[0].width>p.pages[0].height,...(ranges.length?{pageRanges:ranges}:{})},(success,reason)=>success?resolve({status:'submitted'}):/cancel/i.test(reason||'')?resolve({status:'cancelled'}):reject(Error(reason||'打印任务未提交'))));
  });
- ipcMain.handle('document-preview-close',(event,token)=>{get(event,token);remove(token);return true;});
+ ipcMain.handle('document-preview-close',(event,token)=>{dispose(get(event,token));return true;});
  return {previews};
 };

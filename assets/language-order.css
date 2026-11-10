@@ -1,0 +1,14 @@
+/* PDF language ordering: scoped to the existing top-settings editor. */
+#settings-translation-host .language-order-hint{font-size:12px;color:#71819a;margin:12px 0}
+#settings-translation-host .top-language-list .top-language-row{display:flex;align-items:center;gap:9px;cursor:grab;touch-action:none;user-select:none;min-width:0;position:relative}
+#settings-translation-host .top-language-row>span:not(.top-language-handle){flex:1;min-width:0}
+#settings-translation-host .top-language-list .top-language-handle{flex:0 0 15px;min-width:15px;width:15px;color:#94a3b8;font-size:18px;line-height:1}
+#settings-translation-host .top-language-row.is-language-dragging{opacity:.28;background:#edf3ff;border-style:dashed;cursor:grabbing}
+#settings-translation-host .top-language-row [data-language-toggle]{cursor:pointer;touch-action:auto;flex-shrink:0}
+#settings-translation-host .language-order-feedback{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#6d7e98;min-height:20px}
+#settings-translation-host .language-order-feedback button{font-size:12px;padding:3px 9px;min-height:26px}
+.language-order-ghost{position:fixed;z-index:10050;pointer-events:none;display:flex;align-items:center;gap:9px;padding:9px;border:1px solid #b9c9e5;border-radius:8px;background:#fff;color:#203654;box-shadow:0 10px 28px #19345b26;font:12px/1.5 "Microsoft YaHei","Segoe UI",sans-serif;opacity:.94;box-sizing:border-box}
+.language-order-ghost>.top-language-handle{color:#94a3b8;font-size:18px}
+.language-order-ghost>span:not(.top-language-handle){flex:1}
+.language-order-ghost [data-language-toggle]{pointer-events:none}
+body.language-order-dragging,body.language-order-dragging *{cursor:grabbing!important}
