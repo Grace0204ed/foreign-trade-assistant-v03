@@ -76,10 +76,9 @@ app.whenReady().then(async()=>{
   assert.equal(await run('document.getElementById("quote-template")'),null,'reopened saved document has no obsolete selector');
   const html=await run(`quoteSettingsContext.outputHtml('quote')`);fs.writeFileSync(path.join(output,'quotation.html'),html);
   assert(html.includes('SERIAL-SAVED'));assert(!html.includes('废弃模板字段'));
-  pdfwin=new BrowserWindow({show:false,webPreferences:{offscreen:true}});await pdfwin.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html));await pdfwin.webContents.executeJavaScript('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
-  const pdf=await pdfwin.webContents.printToPDF({printBackground:true,preferCSSPageSize:true});fs.writeFileSync(path.join(output,'quotation.pdf'),pdf);
-  const parser=new(require('pdf-parse').PDFParse)({data:pdf});try{assert((await parser.getText()).text.includes('SERIAL-SAVED'),'real PDF includes configured imported field');}finally{await parser.destroy();}
-  pdfwin.destroy();pdfwin=null;
+  const handlers=new Map(),service=require('../electron/document-output.cjs')({ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},BrowserWindow,app,dialog:require('electron').dialog});
+  const event={sender:win.webContents},preview=await handlers.get('document-preview-create')(event,{html,fileName:'quotation.pdf'}),pdf=service.previews.get(preview.token).pdf;fs.writeFileSync(path.join(output,'quotation.pdf'),pdf);
+  const parser=new(require('pdf-parse').PDFParse)({data:pdf});try{const text=(await parser.getText()).text;assert(text.replace(/\s/g,'').includes('SERIAL-SAVED'),'production PDF includes configured imported field: '+text.slice(0,300));}finally{await parser.destroy();await handlers.get('document-preview-close')(event,preview.token);}
   await run(`document.getElementById('quote-items').scrollIntoView();document.fonts.ready`);await new Promise(resolve=>setTimeout(resolve,120));fs.writeFileSync(path.join(output,'quotation-editor.png'),(await win.webContents.capturePage()).toPNG());
   // A formal legacy snapshot must keep its own fields and original database record.
   const currentSettings=(await request('/api/settings')).settings,legacyField={id:'legacy-tonnage',fieldKey:'legacy_tonnage',zh:'历史吨位',en:'Legacy tonnage',fieldType:'text',visible:true,active:true,sortOrder:10};

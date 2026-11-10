@@ -20,7 +20,7 @@ app.whenReady().then(async()=>{
    c.blocks.basic.push({id:'roundtrip-zero',fieldKey:'roundtrip_zero',zh:'零值',en:'Zero Value',fieldType:'number',visible:true,active:true,sortOrder:910,defaultValue:0});
    c.blocks.basic.push({id:'roundtrip-flag',fieldKey:'roundtrip_flag',zh:'确认开关',en:'Confirmation',fieldType:'checkbox',visible:true,active:true,sortOrder:920,defaultValue:false});
    c.blocks.customer.push({id:'roundtrip-choice',fieldKey:'roundtrip_choice',zh:'客户来源',en:'Customer Source',fieldType:'select',visible:true,active:true,sortOrder:900,defaultValue:'A',options:[{id:'A',value:'A',labelZh:'推荐',labelEn:'Referral',active:true},{id:'B',value:'B',labelZh:'展会',labelEn:'Exhibition',active:true}]});
-   c.blocks.customer[0].zh='已改名客户';c.blocks.customer[0].en='Renamed Customer';
+   const customerField=c.blocks.customer.find(f=>f.fieldKey==='visitorName')||c.blocks.customer[0];customerField.zh='已改名客户';customerField.en='Renamed Customer';
   }await window.quoteSettingsContext.save(s)})()`);
   await win.reload();await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');
   for(const type of ['quotation','invoice','contract','commercial','packing','invitation','agency']){

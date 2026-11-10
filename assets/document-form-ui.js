@@ -49,7 +49,7 @@
   previewAccess(type);
  }
  function invitation(record){const config=window.quoteSettingsContext?.settings.documentConfigs?.invitation;const mapping={date:'invitation-date',embassy:'invitation-embassy',visitorName:'invitation-name',visitorCompany:'invitation-company',country:'invitation-country',gender:'invitation-gender',birthDate:'invitation-birth-date',passportNo:'invitation-passport',arrivalDate:'invitation-arrival',departureDate:'invitation-departure',visitPlace:'invitation-visit-place',visaType:'invitation-visa-type',relationship:'invitation-relationship',expenseSource:'invitation-expense-source',reason:'invitation-reason',notes:'invitation-notes',recipientType:'invitation-recipient-type',validityMonths:'invitation-validity-months',validFrom:'invitation-valid-from',validUntil:'invitation-valid-until'};arrange('invitation',mapping,config,record);}
- function quote(type){const names=S().labels[type];if(!names)return;const detail=$('quote-standard-detail-panel')?.querySelector('h3'),terms=$('quote-standard-terms-panel')?.querySelector('h3');if(detail)detail.textContent=names.items;if(terms)terms.textContent=names.terms;
+ function quote(type){const country=$('buyer-country');if(country){country.setAttribute('list','document-country-options');country.placeholder='输入中文或英文搜索国家';}const names=S().labels[type];if(!names)return;const detail=$('quote-standard-detail-panel')?.querySelector('h3'),terms=$('quote-standard-terms-panel')?.querySelector('h3');if(detail)detail.textContent=names.items;if(terms)terms.textContent=names.terms;
   if(type==='packing'){if($('packing-editor'))$('packing-editor').hidden=true;if($('shipment-document-editor'))$('shipment-document-editor').hidden=true;}
   previewAccess(type);
  }
