@@ -18,6 +18,7 @@
   if(first){
    if(type==='quotation'&&Array.isArray(settings.optionCatalog?.paymentConditions)&&!settings.optionCatalog.paymentConditions.some(o=>String(o.value).toUpperCase()==='USDT'))settings.optionCatalog.paymentConditions.push({id:'paymentConditions:USDT',value:'USDT',labelZh:'USDT',labelEn:'USDT',active:true,sortOrder:90});
    for(const key of ['basic','customer','items','terms'])config.blocks[key]=config.blocks[key].filter(f=>!noField(f)&&!(key==='basic'&&['agency','statement'].includes(type)&&f.fieldKey==='company'));
+   if(type==='agency')config.blocks.customer=merge(config.blocks.customer,[field('officeAddress','门店或办公室地址','Office Address','text',{sortOrder:70})]);
    if(type==='invitation'){
     config.blocks.basic=merge(config.blocks.basic,[field('validityMonths','邀请函有效期','Validity Period','select',{options:[{value:'1',labelZh:'一个月',labelEn:'One month'},{value:'3',labelZh:'三个月',labelEn:'Three months'}]}),field('validFrom','有效期自','Valid From','date'),field('validUntil','有效期至','Valid Until','date')]);
     config.blocks.customer=merge(config.blocks.customer,[field('recipientType','受邀方类型','Recipient Type','select',{required:true,options:[{value:'individual',labelZh:'个人',labelEn:'Individual'},{value:'group',labelZh:'团体',labelEn:'Group'},{value:'company',labelZh:'公司',labelEn:'Company'}]})]);
@@ -34,7 +35,7 @@
    if(['quotation','invoice','contract'].includes(type))config.blocks.terms=merge(config.blocks.terms,[field('paymentCondition','付款方式','Payment Method','select'),field('shipping','贸易方式','Trade Term','select'),...freight.filter(f=>f.fieldKey!=='route')]);
    config.formSchemaVersion=1;
   }
-  const catalog={currency:'currencies',billingUnit:'billingUnits',dimensionUnit:'dimensionUnits',route:'shippingMethods',transportMethod:'shippingMethods',containerType:'containerTypes',shipping:'tradeTerms',payment:'payment',paymentCondition:'paymentConditions'};
+  const catalog={currency:'currencies',billingUnit:'billingUnits',dimensionUnit:'dimensionUnits',route:'shippingMethods',transportMethod:'shippingMethods',containerType:'containerTypes',shipping:'tradeTerms',payment:'payment',paymentCondition:'paymentConditions',cryptoNetwork:'cryptoNetworks'};
   function dictionaries(fields){for(const f of fields){const key=catalog[f.fieldKey];if(key){f.catalogKey=key;f.options=copy(settings.optionCatalog?.[key]||[]);if(!['textarea','calculated'].includes(f.fieldType))f.fieldType=f.fieldKey==='currency'?'currency':'select';}}}
   Object.values(config.blocks).filter(Array.isArray).forEach(dictionaries);
   if(['quotation','invoice','contract','commercial'].includes(type)){

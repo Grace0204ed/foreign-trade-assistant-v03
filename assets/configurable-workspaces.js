@@ -203,7 +203,7 @@
     if(hasSavedFields)c.schemaVersion=4;
     if(['quotation','invoice','contract','commercial','packing'].includes(type))DocumentItemTypes.migrate(c);
     c.schemaVersion=4;
-    DocumentFormSchema.ensure(c,s,type,DocumentItemTypes);
+    DocumentFormSchema.ensure(c,s,type,DocumentItemTypes);ctx().hydrateDocumentChoices?.(c);
     return c;
   }
   function documentPanel(type,hostId,label){

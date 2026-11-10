@@ -5,9 +5,9 @@
   let button=view.querySelector('[data-form-preview]');if(!button){button=document.createElement('button');button.type='button';button.dataset.formPreview='';button.textContent='单独预览';view.querySelector(':scope>.page-head .actions')?.prepend(button);}button.onclick=()=>preview(type);
  }
  function bridge(input,field,value){
-  if(!input||['language','pdfLanguage','style','recipientType','validityMonths','validFrom','validUntil'].includes(field.fieldKey))return;
+  if(!input||['language','pdfLanguage','style','validFrom','validUntil'].includes(field.fieldKey))return;
   const label=input.closest('label');if(!label)return;
-  label.querySelectorAll('[data-form-bridge]').forEach(n=>n.remove());
+  label.querySelectorAll('[data-form-bridge]').forEach(n=>n.remove());input.hidden=false;
   if(['country','nationality'].includes(field.fieldKey)){input.setAttribute('list','document-country-options');input.placeholder='输入中文或英文搜索国家';return;}
   const wanted=field.fieldType||'text';
   if(['date','text','textarea','number','money','calculated','image','richtext'].includes(wanted))return;
@@ -61,7 +61,7 @@
   for(const id of ['agency-bank-name','agency-bank-account','agency-bank-swift','agency-bank-routing','agency-bank-iban','agency-bank-country','agency-bank-address','agency-beneficiary-name','agency-beneficiary-address'])toggle(id,!statement||channel!=='bank');
   for(const id of ['agency-crypto-network','agency-wallet-address'])toggle(id,!statement||channel!=='crypto');
   toggle('agency-order-rate',!statement||basis==='fixed');toggle('agency-fixed-commission',!statement||basis!=='fixed');toggle('agency-markup-amount',!statement||basis!=='markup');
-  const config=window.quoteSettingsContext?.settings.documentConfigs?.[statement?'statement':'agency'];if(config){const keys=new Set(Object.values(config.blocks).filter(Array.isArray).flatMap(S().ordered).map(f=>f.fieldKey));for(const label of $('view-agency').querySelectorAll('[data-form-field]'))if(!keys.has(label.dataset.formField))label.hidden=true;const scope=$('agency-product-options')?.closest('.agency-scope-panel');if(scope)scope.hidden=statement||!keys.has('selectedProducts');}
+  const config=window.quoteSettingsContext?.settings.documentConfigs?.[statement?'statement':'agency'];if(config){const keys=new Set(Object.values(config.blocks).filter(Array.isArray).flatMap(S().ordered).map(f=>f.fieldKey));for(const label of $('view-agency').querySelectorAll('[data-form-field]')){if(!keys.has(label.dataset.formField))label.hidden=true;else if(['authorization','agency','statement'].includes(record.documentType)){const field=Object.values(config.blocks).filter(Array.isArray).flat().find(f=>f.fieldKey===label.dataset.formField),caption=label.querySelector(':scope>span:not(.date-input-control)');if(field&&caption)caption.textContent=field.zh+(field.required?' *':'');}}const scope=$('agency-product-options')?.closest('.agency-scope-panel');if(scope)scope.hidden=statement||!keys.has('selectedProducts');}
  }
  function countryList(){
   if(!window.DocumentWorkflow)return;const countries=DocumentWorkflow.searchCountries('');
