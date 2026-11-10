@@ -5,14 +5,15 @@ fs.mkdirSync(path.join(process.env.QUOTE_DATA_DIR,'electron-profile'),{recursive
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;
- const win=new BrowserWindow({show:false,webPreferences:{contextIsolation:true}});
+ const win=new BrowserWindow({show:false,webPreferences:{contextIsolation:true,backgroundThrottling:false}});
  win.webContents.on('console-message',e=>{if(e.level==='error')console.error(e.message)});
  const run=async s=>{try{return await win.webContents.executeJavaScript(s);}catch(e){throw Error(s+'\n'+e.message);}};
- const wait=async s=>{for(let i=0;i<100;i++){if(await run(s))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout: '+s);};
+ const wait=async s=>{const deadline=Date.now()+20000;while(Date.now()<deadline){if(await run(s))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout: '+s);};
+ const ready="!!window.quoteApp && !!window.DocumentDraftWorkspace && document.querySelectorAll('#overview-metrics article').length===4 && !!document.querySelector('#pdf-language option[value=fr]')";
  const request=async(p,body)=>{const r=await fetch(base+p,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});assert(r.ok);return r.json();};
  const rows=async()=> (await request('/api/quotations')).quotations;
  try{
-  await win.loadURL(base);await run("window.addEventListener('error',e=>console.error(e.error?.stack||e.message))");await wait("!!document.querySelector('#pdf-language option[value=fr]')");
+  await win.loadURL(base);await run("window.addEventListener('error',e=>console.error(e.error?.stack||e.message))");await wait(ready);
   await run("window.confirm=()=>true;document.querySelector('[data-create-document=packing]').click()");
   await wait("document.querySelector('#packing-source-select').textContent.includes('暂无')");
   for(const [id,type] of [['qa-pi','invoice'],['qa-ci','commercial']])await request('/api/quotations',{id,quoteNumber:id,buyer:{company:id},terms:type==='invoice'?{shipping:'FOB',originPort:'Shanghai',port:'Durban'}:{tradeTerm:'CIF',originPort:'Ningbo',destinationPort:'Mombasa'},documentType:type,items:[{id:id+'-item',productSnapshot:{productName:'QA machine'},priceSnapshot:{quantity:2,unitPrice:10,values:{description:id+' machine',qty:'2',unitPrice:'10',cbm:'12'}}}]});
@@ -26,7 +27,7 @@ app.whenReady().then(async()=>{
   await wait("document.querySelector('#toast')?.textContent.includes('保存') || true");
   let saved;for(let i=0;i<60;i++){saved=(await rows()).find(q=>q.id!=='qa-pi'&&q.id!=='qa-ci');if(saved)break;await new Promise(r=>setTimeout(r,50));}assert(saved);
   let detail=await request('/api/quotations/'+saved.id);assert.equal(detail.quotation.settingsSnapshot._quoteMeta.documentExtras.packingSource.id,'qa-pi');assert.equal(detail.items.length,1);assert.notEqual(detail.items[0].id,'qa-pi-item');assert.equal(detail.items[0].priceSnapshot.values.cbm,'99','packing editor changes survive collection and save');
-  await win.reload();await wait("!!document.querySelector('#pdf-language option[value=fr]')");
+  await win.loadURL(base);await wait(ready);
   await run(`window.confirm=()=>true;window.quoteApp.editQuote(${JSON.stringify(saved.id)})`);
   await wait("document.querySelector('#packing-source-select').value==='qa-pi'");
   assert.equal(await run("document.querySelector('[data-termfield=shipping]').value"),'FOB');
