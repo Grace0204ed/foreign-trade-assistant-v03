@@ -5,7 +5,7 @@
     currencies:['币种',['USD','EUR','GBP','CNY','RUB','AED','SAR','JPY','AUD','CAD']],
     tradeTerms:['贸易方式',['EXW','FOB','CFR','CIF','DAP','DDP']],
     payment:['付款比例',['30/70','40/60','50/50','100%']],
-    paymentConditions:['付款条件',['T/T','L/C','Cash']],
+    paymentConditions:['付款条件',['T/T','L/C','USDT','Cash']],
     billingUnits:['计量／计费单位',['台','m³','吨','柜','项','Unit','Set','Piece','Package']],
     shippingMethods:['运输方式',['Bulk Cargo','RORO','Container','Flat Rack','Other','散杂船 / Breakbulk','滚装船 / Ro-Ro','集装箱运输 / Container']],
     containerTypes:['柜型',['20GP','40GP','40HQ','20FR','40FR']],
@@ -56,6 +56,6 @@
     }
     return sync(next);
   }
-  function fieldOptions(field,selected){const all=(field.options||[]).map((o,i)=>({...o,id:o.id||'field:'+i})),rows=active({optionCatalog:{fields:all}},'fields');const selectedValues=Array.isArray(selected)?selected:String(selected??'').split(',').filter(Boolean);for(const value of selectedValues)if(!rows.some(o=>String(o.value)===String(value))){const old=all.find(o=>String(o.value)===String(value));rows.push({...old,id:old?.id||'legacy:'+value,value,labelZh:(old?.labelZh||value)+'（历史值）',labelEn:old?.labelEn||value,historical:true});}return rows;}
+  function fieldOptions(field,selected){const all=(field.options||[]).map((o,i)=>({...o,id:o.id||'field:'+i})),rows=active({optionCatalog:{fields:all}},'fields');const selectedValues=Array.isArray(selected)?selected:String(selected??'').split(',').filter(Boolean);for(const value of selectedValues)if(!rows.some(o=>String(o.value)===String(value))){const old=all.find(o=>String(o.value)===String(value));rows.push({...old,id:old?.id||'legacy:'+value,value,labelZh:old?.labelZh||value,labelEn:old?.labelEn||value,historical:true});}return rows;}
   return {definitions,ensure,validate,active,values,sync,reconcile,fieldOptions};
 });

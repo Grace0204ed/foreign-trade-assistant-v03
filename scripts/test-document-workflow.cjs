@@ -23,9 +23,9 @@ app.whenReady().then(async()=>{
   const notes='用户手写备注 中文 / English\nBonjour — información — العربية';await set('invitation-notes',notes);
   assert.equal(await run(`document.querySelectorAll('.invitation-people-table tbody tr').length`),5);
   await run(`document.querySelector('#save-invitation-btn').click()`);await wait(`document.querySelector('#toast').textContent.includes('已保存')`);
-  const saved=await run(`JSON.parse(localStorage.getItem('quote_assistant_v01_invitations'))[0]`);assert.equal(saved.people.length,5);assert.equal(saved.notes,notes);assert.equal(saved.recordClass,'history');
+  const saved=await run(`JSON.parse(BusinessDataStore.get('quote_assistant_v01_invitations')||'[]')[0]`);assert.equal(saved.people.length,5);assert.equal(saved.notes,notes);assert.equal(saved.recordClass,'history');
   await new Promise(resolve=>{win.webContents.once('did-finish-load',resolve);win.reload();});await wait('!!window.quoteSettingsContext && !!document.querySelector("#signing-controls-invitation")');
-  assert.equal((await run(`JSON.parse(localStorage.getItem('quote_assistant_v01_invitations'))[0]`)).people[4].passportNo,'QA-PASS-5');
+  assert.equal((await run(`JSON.parse(BusinessDataStore.get('quote_assistant_v01_invitations')||'[]')[0]`)).people[4].passportNo,'QA-PASS-5');
 
   await wait('!!window.flushPendingWork');await run(`document.querySelector('#work-recovery-modal [data-close]')?.click();document.querySelector('[data-view=history]').click();const t=document.querySelector('#history-document-type');t.value='invitation';t.dispatchEvent(new Event('change',{bubbles:true}))`);await wait(`!!document.querySelector('#unified-history-list .history-actions button')`);await run(`document.querySelector('#unified-history-list .history-actions button').click()`);
   assert.equal(await run(`document.querySelectorAll('[data-person]').length`),4,'five visitors reopened in editor');

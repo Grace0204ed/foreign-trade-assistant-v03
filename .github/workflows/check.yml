@@ -16,3 +16,5 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run test:approved
+      - run: npm run test:document-forms
+      - run: npm run test:output-regression

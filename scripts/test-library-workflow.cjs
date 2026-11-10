@@ -12,7 +12,7 @@ app.whenReady().then(async()=>{
  const reload=async()=>{win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");await run("window.confirm=()=>true;document.querySelector('[data-view=products]').click()");};
  try{
   await win.loadURL(base);await wait("!!document.querySelector('#pdf-language option[value=en]')");
-  await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click();document.querySelector('[data-product-field=brand]').value='QA';document.querySelector('[data-product-field=model]').value='CREATED';document.querySelector('#save-product-btn').click()");
+  await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click();document.querySelector('[data-product-field=name]').value='QA Machine';document.querySelector('[data-product-field=model]').value='CREATED';document.querySelector('#save-product-btn').click()");
   await wait("!!document.querySelector('[data-library-row]')");
   let all=await records(),created=all.find(p=>p.model==='CREATED');assert(created,'UI create persisted');
   await reload();await run(`window.quoteApp.editProduct('${created.id}');document.querySelector('[data-product-field=model]').value='EDITED';document.querySelector('#save-product-btn').click()`);
@@ -29,10 +29,10 @@ app.whenReady().then(async()=>{
   for(let i=0;i<100&&(await records()).length!==20;i++)await new Promise(r=>setTimeout(r,50));
   all=await records();assert.equal(all.length,20);assert(!all.some(p=>selected.includes(p.id)),'only selected removed');
   await reload();assert.equal(await run("document.querySelectorAll('[data-library-row]').length"),20);
-  await run("document.querySelector('#library-template-filter').selectedIndex=1;document.querySelector('#library-template-filter').dispatchEvent(new Event('change',{bubbles:true}))");
+  await run("document.querySelector('#product-search').value='PAGE-1';document.querySelector('#product-search').dispatchEvent(new Event('input',{bubbles:true}))");
   assert.equal(await run("document.querySelectorAll('[data-library-select]:checked').length"),0);
-  assert(await run("[...document.querySelectorAll('.library-type-badge')].every(x=>x.textContent===document.querySelector('#library-template-filter').value)"),'category filter scope');
-  await run("document.querySelector('#library-template-filter').value='';document.querySelector('#library-template-filter').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-create-document=quotation]').click();document.querySelector('[data-view=products]').click();document.querySelector('[data-library-use]').click();document.querySelector('#save-quote-btn').click()");
+  assert(await run("[...document.querySelectorAll('[data-library-row]')].every(x=>x.textContent.includes('PAGE-1'))"),'category filter scope');
+  await run("document.querySelector('#product-search').value='';document.querySelector('#product-search').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-create-document=quotation]').click();document.querySelector('[data-view=products]').click();document.querySelector('[data-library-detail]').click();document.querySelector('#library-detail-use').click();document.querySelector('#save-quote-btn').click()");
   await new Promise(r=>setTimeout(r,300));const q=(await(await fetch(base+'/api/quotations')).json()).quotations;assert(q.some(x=>x.items.some(i=>i.productId)),'reference persisted');
   await reload();assert.equal((await records()).length,20);
   const quoted=q.find(x=>x.items.some(i=>i.productId)),usedId=quoted.items.find(i=>i.productId).productId;

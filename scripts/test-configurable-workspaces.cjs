@@ -13,12 +13,13 @@ const workspaceText=require('fs').readFileSync(require('path').join(__dirname,'.
 const serverText=require('fs').readFileSync(require('path').join(__dirname,'../server/index.js'),'utf8');
 const crmText=require('fs').readFileSync(require('path').join(__dirname,'../crm/crm.js'),'utf8');
 const electronMainText=require('fs').readFileSync(require('path').join(__dirname,'../electron/main.js'),'utf8');
-assert.ok(appText.includes('quoteTemplateConfigs'),'per-quotation-template settings are missing');
+assert.ok(appText.includes('settings.documentConfigs?.[type]'),'document settings must own the current quotation fields');
 assert.ok(appText.includes('dualMoneyText'),'dual currency renderer is missing');
 assert.ok(appText.includes('currencyDisplay: currentQuote.currencyDisplay')&&appText.includes('secondaryCurrency: currentQuote.secondaryCurrency')&&appText.includes('exchangeRate: currentQuote.exchangeRate'),'dual currency values are not sent to persistence');
 assert.ok(appText.includes('currencyDisplay:meta.currencyDisplay')&&appText.includes('secondaryCurrency:meta.secondaryCurrency')&&appText.includes('exchangeRate:meta.exchangeRate'),'saved dual currency values are not restored');
 assert.ok(appText.includes("data-basic-custom"),'custom basic fields are not wired to the document');
-assert.ok(workspaceText.includes('data-quote-template-config'),'quote settings cannot switch business templates');
+assert.ok(!workspaceText.includes('data-quote-template-config')&&!workspaceText.includes('data-product-template-link'),'retired quote-template settings must not return');
+assert.ok(!indexText.includes('id="quote-template"'),'retired quote-template editor selector must not return');
 assert.ok(workspaceText.includes('多级选项')&&workspaceText.includes('parentId'),'hierarchical option configuration is missing');
 assert.ok(workspaceText.includes('ProductSchema.ensure')&&workspaceText.includes('data-product-settings-tab="fields"'),'shared product schema settings are missing');
 assert.ok(!workspaceText.includes('历史产品模板'),'retired fixed product-template UI must not return');

@@ -14,7 +14,8 @@ const locales=require('../assets/document-locales');
    // Compare the rendered header with its own first-page PDF representation:
    // Arabic extraction uses shaped glyphs and visual order rather than Unicode
    // source order. Language correctness is checked separately before export.
-   const headerLine=lang==='ar'?text.pages[0].text.split('\n').find(line=>line.split('\t').length>=8&&!/QA-MACHINE|84294000/.test(line)):(locales.label('Net Weight (kg)',lang)||'Net Weight (kg)');
+   const continuation=text.pages.slice(1).find(page=>page.text.includes('QA-MACHINE-'));
+   const headerLine=lang==='ar'?continuation?.text.match(/^[\s\S]*?(?=^\d+\s)/m)?.[0]:(locales.label('Net Weight (kg)',lang)||'Net Weight (kg)');
    assert(headerLine,lang+' first-page dense table header');
    const header=headerLine.normalize('NFKC').replace(/\s/g,'');
    for(const page of text.pages)if(page.text.replace(/\s/g,'').includes('QA-MACHINE-'))assert(page.text.normalize('NFKC').replace(/\s/g,'').includes(header),lang+' missing continuation table header');

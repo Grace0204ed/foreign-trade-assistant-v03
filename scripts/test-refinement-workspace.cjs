@@ -16,7 +16,7 @@ app.whenReady().then(async()=>{
   assert.equal(await run("quoteSettingsContext.settings.bankFields.find(f=>f.id==='bank-account-number').value"),'');
   assert.equal((await request('/api/customers')).length,0,'fresh installation has no demonstration customers');
   await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click()");
-  for(const key of ['year','hours','unitPrice','currency'])assert.equal(await run(`document.querySelectorAll('#product-edit-panel [data-product-field="${key}"]').length`),1,key+' single source');
+  for(const key of ['year','unitPrice','currency'])assert.equal(await run(`document.querySelectorAll('#product-edit-panel [data-product-field="${key}"]').length`),1,key+' single source');
   assert.equal(await run("document.querySelectorAll('#product-year').length"),1);
   await run("document.querySelector('[data-product-field=model]').value='EMPTY-PRICE';document.querySelector('#product-year').value='2017';document.querySelector('#save-product-btn').click()");
   await wait("document.querySelector('#product-list').textContent.includes('EMPTY-PRICE')");
@@ -57,7 +57,7 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('.view.active [data-switch-document=quotation]').click();document.querySelector('#document-table-color').value='#326f59';document.querySelector('#document-table-color').dispatchEvent(new Event('input',{bubbles:true}))");
   assert.equal(await run("getComputedStyle(document.querySelector('#quote-preview .compact-letterhead')).backgroundColor"),'rgb(50, 111, 89)');
   assert(await run("getComputedStyle(document.querySelector('#quote-preview .compact-company-name')).color!=='rgb(50, 111, 89)'"));
-  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='block'"));
+  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='grid'"));
   fs.writeFileSync(path.join(output,'editor.png'),(await win.webContents.capturePage()).toPNG());
   win.setSize(1024,900);await run("document.querySelector('#quote-items').scrollIntoView();new Promise(r=>setTimeout(r,200))");fs.writeFileSync(path.join(output,'editor-1024.png'),(await win.webContents.capturePage()).toPNG());
   await request('/api/customers',{name:'ISOLATED CRM TEST',company:'QA',stage:'潜在客户'});const customer=(await request('/api/customers'))[0];

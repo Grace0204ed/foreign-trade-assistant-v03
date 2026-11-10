@@ -6,6 +6,9 @@
  const imageSource=value=>/^(data:image\/(?:png|jpe?g|webp|gif|avif);base64,[a-z0-9+/=\s]+|\/?uploads\/[a-z0-9_./%-]+)$/i.test(String(value||''))?String(value):'';
  function html(field,value){if(field?.fieldType==='richtext')return '<div class="configured-rich-output">'+rich(value).replace(/<(b|strong)>/g,'<$1 style="font-weight:700!important">').replace(/<(i|em)>/g,'<$1 style="font-style:italic!important">').replace(/<u>/g,'<u style="text-decoration:underline!important">')+'</div>';if(field?.fieldType==='image'){const src=imageSource(value);return src?'<img class="configured-image-output" src="'+escape(src)+'" alt="'+escape(field.zh||field.en||'图片')+'" style="max-width:100%;max-height:180px;object-fit:contain">':'';}return escape(value).replace(/\n/g,'<br>');}
  function enhance(input,field){
+  if(field.placeholder)input.placeholder=field.placeholder;
+  if(['number','money'].includes(field.fieldType||field.type)){for(const [key,attr]of [['minValue','min'],['maxValue','max']])if(field[key]!==''&&field[key]!=null){input.setAttribute(attr,field[key]);input.dataset.configValidation='true';}}
+  const label=input.closest('label');if(label&&field.formWidth)label.dataset.fieldWidth=field.formWidth;
   if(!['richtext','image'].includes(field.fieldType))return;
   input.hidden=true;const panel=document.createElement('div');panel.className='configured-field-editor';input._choiceList=panel;
   const emit=()=>input.dispatchEvent(new Event('input',{bubbles:true}));

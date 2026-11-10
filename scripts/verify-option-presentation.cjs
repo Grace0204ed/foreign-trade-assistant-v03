@@ -10,19 +10,19 @@ app.whenReady().then(async()=>{
  const wait=async expression=>{for(let i=0;i<100;i++){if(await run(expression))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout: '+expression)};
  try{
  await win.loadURL(base);await wait("!!document.querySelector('#overview-metrics article')");await new Promise(r=>setTimeout(r,300));
- await run("OptionManager.mount();document.querySelector('[data-catalog=billingUnits]').click();document.querySelector('.dictionary-modal [data-add]').click()");
+ await run("OptionManager.mount();OptionManager.edit('billingUnits',quoteSettingsContext);document.querySelector('.dictionary-modal [data-add]').click()");
  await run(`(()=>{const row=document.querySelector('.dictionary-modal tbody tr:last-child');for(const [key,value] of Object.entries({value:'QA-UNIT',labelZh:'测试单位',labelEn:'QA Unit'})){const i=row.querySelector('[data-key='+key+']');i.value=value;i.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelector('.dictionary-modal [data-save]').click()})()`);
  await wait("!document.querySelector('.dictionary-modal')");
  const saved=await(await fetch(base+'/api/settings')).json();assert(saved.settings.optionCatalog.billingUnits.some(r=>r.value==='QA-UNIT'));
  const invalid=structuredClone(saved.settings);invalid.optionCatalog.billingUnits[0].value='RENAMED';
  assert.equal((await fetch(base+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(invalid)})).status,400);
  // Edit and reorder a saved label, then deactivate and archive it without changing history.
- await run("document.querySelector('[data-catalog=billingUnits]').click()");
+ await run("OptionManager.edit('billingUnits',quoteSettingsContext)");
  await run(`(()=>{const rows=[...document.querySelectorAll('.dictionary-modal tbody tr')],row=rows.find(r=>r.querySelector('[data-key=value]').value==='QA-UNIT');const name=row.querySelector('[data-key=labelZh]');name.value='测试单位已编辑';name.dispatchEvent(new Event('input',{bubbles:true}));row.querySelector('[data-up]').click();document.querySelector('.dictionary-modal [data-save]').click()})()`);
  await wait("!document.querySelector('.dictionary-modal')");
  assert((await(await fetch(base+'/api/settings')).json()).settings.optionCatalog.billingUnits.some(r=>r.value==='QA-UNIT'&&r.labelZh==='测试单位已编辑'));
  // Reuse the real port manager and persistence API; test port does not touch seeded ports.
- await run("document.querySelector('[data-manage-ports]').click()");await wait("!!document.querySelector('.dictionary-modal [data-add]')");
+ await run("OptionManager.editField({fieldKey:'originPort'},quoteSettingsContext)");await wait("!!document.querySelector('.dictionary-modal [data-add]')");
  await run(`(()=>{document.querySelector('.dictionary-modal [data-add]').click();const row=document.querySelector('.dictionary-modal tbody tr');for(const [key,value] of Object.entries({countryName:'China',countryChineseName:'中国',portName:'QA Test Port',portChineseName:'测试港',sortOrder:'-10'})){const i=row.querySelector('[data-key='+key+']');i.value=value;i.dispatchEvent(new Event('input',{bubbles:true}));}row.querySelector('[data-key=isOriginPort]').checked=true;row.querySelector('[data-key=isOriginPort]').dispatchEvent(new Event('input',{bubbles:true}));row.querySelector('[data-save-port]').click()})()`);
  let port;for(let i=0;i<60;i++){port=(await(await fetch(base+'/api/ports')).json()).ports.find(p=>p.portName==='QA Test Port');if(port)break;await new Promise(r=>setTimeout(r,50));}assert(port&&port.sortOrder===-10&&port.isOriginPort);
  await wait("window.freightContext.ports.some(p=>p.portName==='QA Test Port')");

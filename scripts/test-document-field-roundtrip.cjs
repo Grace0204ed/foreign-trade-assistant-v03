@@ -13,7 +13,7 @@ app.whenReady().then(async()=>{
  const wait=async predicate=>{for(let i=0;i<200;i++){if(await run(predicate))return;await new Promise(resolve=>setTimeout(resolve,50));}throw Error('Timeout '+predicate);};
  const get=async url=>(await fetch(base+url)).json();
  try{
-  await win.loadURL(base);await wait('!!window.quoteSettingsContext');
+  await win.loadURL(base);await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');
   for(const type of ['quotation','invoice','contract','commercial','packing','invitation','agency'])await run(`document.querySelector('[data-view=settings]').click();document.querySelector('[data-settings-section=${type}-config]').click()`);
   await run(`(async()=>{const s=structuredClone(window.quoteSettingsContext.settings);for(const c of [...Object.values(s.documentConfigs),...Object.values(s.quoteTemplateConfigs||{})]){
    c.blocks.basic.push({id:'roundtrip-ref',fieldKey:'roundtrip_ref',zh:'测试邀请负责人',en:'Roundtrip Reference',fieldType:'text',visible:true,active:true,sortOrder:900,defaultValue:'DEFAULT-REF'});
@@ -22,7 +22,7 @@ app.whenReady().then(async()=>{
    c.blocks.customer.push({id:'roundtrip-choice',fieldKey:'roundtrip_choice',zh:'客户来源',en:'Customer Source',fieldType:'select',visible:true,active:true,sortOrder:900,defaultValue:'A',options:[{id:'A',value:'A',labelZh:'推荐',labelEn:'Referral',active:true},{id:'B',value:'B',labelZh:'展会',labelEn:'Exhibition',active:true}]});
    c.blocks.customer[0].zh='已改名客户';c.blocks.customer[0].en='Renamed Customer';
   }await window.quoteSettingsContext.save(s)})()`);
-  await win.reload();await wait('!!window.quoteSettingsContext');
+  await win.reload();await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');
   for(const type of ['quotation','invoice','contract','commercial','packing','invitation','agency']){
    await run(`document.querySelector('[data-create-document=${type==='agency'?'authorization':type}]').click()`);
    const standalone=['invitation','agency'].includes(type),area=standalone?'view-'+type:'view-quote',preview=standalone?type+'-preview':'quote-preview';

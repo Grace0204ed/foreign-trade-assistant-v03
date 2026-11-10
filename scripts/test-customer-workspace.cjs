@@ -63,7 +63,7 @@ app.whenReady().then(async()=>{
   for(let i=0;i<100;i++){if((await request('/api/settings')).settings.documentConfigs?.invoice?.blocks.basic[0].zh==='测试发票编号')break;await new Promise(r=>setTimeout(r,50));}
   assert.equal((await request('/api/settings')).settings.documentConfigs.invoice.blocks.basic[0].zh,'测试发票编号');
   await run("document.querySelector('#settings-invoice-config-host [data-block=terms]').click()");
-  assert.equal(await run("document.querySelector('#settings-invoice-config-host [data-refined-prop=fieldType]').selectedOptions[0].textContent"),'多行文字');
+  assert.equal(await run("document.querySelector('#settings-invoice-config-host [data-refined-prop=fieldType]').selectedOptions[0].textContent"),'下拉选择');
   await paint();fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'document-settings.png'),await win.webContents.capturePage().then(i=>i.toPNG()));
   const termsBefore=await run("document.querySelectorAll('#settings-invoice-config-host [data-refined-id]').length");
   await run("document.querySelector('#settings-invoice-config-host [data-refined-child]').click()");

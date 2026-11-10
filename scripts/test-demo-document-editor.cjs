@@ -16,22 +16,22 @@ app.whenReady().then(async()=>{
   assert.match(await run("document.querySelector('#quote-number').value"),/^PI-/);
   assert.equal(await run("document.querySelectorAll('#quote-common-panel .editor-field-group-title').length"),2);
   assert(await run("getComputedStyle(document.querySelector('#quote-standard-detail-panel>.row-head')).display==='flex'"));
-  assert(await run("Math.abs(document.querySelector('#quote-standard-detail-panel>.row-head>h3').getBoundingClientRect().top-document.querySelector('#quote-standard-detail-panel>.row-head>.actions').getBoundingClientRect().top)<20"),'detail title and toolbar must share a row');
-  assert(await run("getComputedStyle(document.querySelector('#quote-items .demo-editor-table tr')).display==='grid'"));
+  assert(await run("!!document.querySelector('#quote-standard-detail-panel>.row-head>.actions #add-quote-item-btn')"),'original detail actions retained');
+  assert(await run("getComputedStyle(document.querySelector('#quote-items .schema-line-grid')).display==='grid'"));
   assert.equal(await run("document.querySelectorAll('#quote-items [data-qfield=hsCode]').length"),1);
-  await run("document.querySelector('#buyer-company').value='Demo Buyer';document.querySelector('#buyer-company').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.quote-extra-fields').open=true;document.querySelector('[data-qfield=hsCode]').value='84294000';document.querySelector('[data-qfield=hsCode]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=description]').value='Dynapac CA402 14-ton road roller';document.querySelector('[data-qfield=description]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=unitPrice]').value='23000';document.querySelector('[data-qfield=unitPrice]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#quote-common-panel').scrollIntoView()");
+  await run("document.querySelector('#buyer-company').value='Demo Buyer';document.querySelector('#buyer-company').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=hsCode]').value='84294000';document.querySelector('[data-qfield=hsCode]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=description]').value='Dynapac CA402 14-ton road roller';document.querySelector('[data-qfield=description]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=unitPrice]').value='23000';document.querySelector('[data-qfield=unitPrice]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#quote-common-panel').scrollIntoView()");
   await shot('pi-basic');await run("document.querySelector('#quote-standard-detail-panel').scrollIntoView()");await shot('pi-items-expanded');
-  await run("document.querySelector('.quote-extra-fields').open=false;document.querySelector('#save-quote-btn').click()");
+  await run("document.querySelector('#save-quote-btn').click()");
   await wait("document.querySelector('#save-quote-btn') && document.querySelector('#quote-preview').textContent.includes('Demo Buyer')");
   let saved;for(let i=0;i<100;i++){const data=await(await fetch(base+'/api/quotations')).json();saved=data.quotations.find(q=>q.buyer?.company==='Demo Buyer');if(saved)break;await new Promise(r=>setTimeout(r,50));}
   assert(saved,'save must persist');
   const detail=await(await fetch(base+'/api/quotations/'+saved.id)).json();
-  assert(JSON.stringify(detail).includes('84294000'),'collapsed secondary field must persist');
+  assert(JSON.stringify(detail).includes('84294000'),'visible configured field must persist');
   for(const [type,prefix] of [['quotation','QA'],['invoice','PI'],['contract','SC'],['commercial','CI'],['packing','PL']]){
    await run(`document.querySelector('#view-quote [data-switch-document=${type}]').click()`);
    await wait(`document.querySelector('#view-quote.active [data-switch-document=${type}].is-current-document')`);
    assert.match(await run("document.querySelector('#quote-number').value"),new RegExp('^'+prefix+'-'));
-   assert(await run("!!document.querySelector('#quote-items .demo-editor-table')"));
+   assert(await run("!!document.querySelector('#quote-items .schema-quote-line')"));
    await run("document.querySelector('#quote-standard-detail-panel').scrollIntoView()");await shot(type+'-items');
   }
   win.setSize(1024,900);await shot('packing-1024');

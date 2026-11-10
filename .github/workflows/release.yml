@@ -32,6 +32,8 @@ jobs:
       - run: npm run ensure:sqlite
       - run: npm run check
       - run: npm test
+      - name: Verify saved document form order and full output regressions
+        run: npm run test:document-forms && npm run test:output-regression
       - name: Verify formal lock, hierarchy, fields, top settings, calculator and commission
         run: npm run test:iteration
       - name: Verify approved demo alignment and real pointer sorting

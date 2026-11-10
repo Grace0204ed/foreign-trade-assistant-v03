@@ -6,7 +6,8 @@ process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-readable-')
 app.setPath('userData',path.join(process.env.QUOTE_DATA_DIR,'profile'));app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),base='http://127.0.0.1:'+server.address().port;
- const win=new BrowserWindow({show:false,width:1440,height:1100,webPreferences:{backgroundThrottling:false}}),run=s=>win.webContents.executeJavaScript(s);
+ const win=new BrowserWindow({show:false,width:1440,height:1100,webPreferences:{backgroundThrottling:false}}),run=async s=>{try{return await win.webContents.executeJavaScript(s);}catch(e){throw Error(e.message+'\n'+s)}};
+ win.webContents.on('console-message',e=>{if(e.level==='error')console.error(e.message)});
  const out=path.resolve('output/readability-qa');fs.mkdirSync(out,{recursive:true});const results=[];
  try{
   await win.loadURL(base);for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
@@ -22,7 +23,7 @@ app.whenReady().then(async()=>{
     for(const color of ['#2074b9','#fff2cc','#111111']){
      await run(`(()=>{const input=document.getElementById('document-table-color');input.value='${color}';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
      await run('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
-     const inspect=()=>run(`(()=>{const t=document.querySelector('#quote-preview table.document-data-table');return {width:t.clientWidth,scroll:t.scrollWidth,headers:[...t.querySelectorAll('thead th')].map(th=>({text:th.textContent,key:th.className,width:th.getBoundingClientRect().width,height:th.offsetHeight,font:parseFloat(getComputedStyle(th).fontSize),color:getComputedStyle(th).color,bg:getComputedStyle(th).backgroundColor,small:[...th.querySelectorAll('small')].map(s=>({color:getComputedStyle(s).color,font:parseFloat(getComputedStyle(s).fontSize)}))})),rows:[...t.querySelectorAll('tbody tr')].map(r=>r.children.length)}})()`);
+     const inspect=()=>run(`(()=>{const t=document.querySelector('#quote-preview table.document-data-table');return {width:t.clientWidth,scroll:t.scrollWidth,headers:[...t.querySelectorAll('thead th')].map(th=>({text:th.textContent,key:th.className,width:th.offsetWidth,height:th.offsetHeight,font:parseFloat(getComputedStyle(th).fontSize),color:getComputedStyle(th).color,bg:getComputedStyle(th).backgroundColor,small:[...th.querySelectorAll('small')].map(s=>({color:getComputedStyle(s).color,font:parseFloat(getComputedStyle(s).fontSize)}))})),rows:[...t.querySelectorAll('tbody tr')].map(r=>r.children.length)}})()`);
      for(const media of ['screen','print']){
       if(media==='print'){await run("document.body.classList.add('printing-standard')");await win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});}
       const state=await inspect();
@@ -43,7 +44,7 @@ app.whenReady().then(async()=>{
   }
   // Reproduce the dense packing-list header from the reported screenshot,
   // then check a genuinely multi-page list rather than a one-line fixture.
-  await run("document.querySelector('[data-view=settings]').click();document.querySelector('[data-settings-section=packing-config]').click()");
+  await run("window.decideCloseWork?.('discard');document.querySelector('[data-view=settings]').click();document.querySelector('[data-settings-section=packing-config]').click()");
   const keys=['itemType','description','packages','netWeight','grossWeight','hsCode','qty','cbm','billingUnit','marks','unitPrice','currency','amount'];
   await run(`(async()=>{const s=structuredClone(window.quoteSettingsContext.settings),c=s.documentConfigs.packing;const labels={itemType:['条目类型','Item Type'],description:['商品说明','Product Description'],packages:['件数','Packages'],netWeight:['净重（kg）','Net Weight (kg)'],grossWeight:['毛重（kg）','Gross Weight (kg)'],hsCode:['海关编码','HS CODE'],qty:['数量','Quantity'],cbm:['体积（m³）','Volume (m³)'],billingUnit:['计费单位','Billing Unit'],marks:['唛头','Shipping Marks'],unitPrice:['单价','Unit Price'],currency:['币种','Currency'],amount:['金额','Amount']};const existing=c.blocks.items;c.blocks.items=${JSON.stringify(keys)}.map((key,i)=>({...existing.find(f=>f.fieldKey===key),id:'dense-'+key,fieldKey:key,zh:labels[key][0],en:labels[key][1],visible:true,active:true,sortOrder:i*10}));await window.quoteSettingsContext.save(s)})()`);
   for(const lang of ['bilingual','en','fr','ja','es','ru','ar','it','de','ko']){

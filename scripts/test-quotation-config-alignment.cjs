@@ -1,0 +1,102 @@
+const {app,BrowserWindow}=require('electron');
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const output=fs.mkdtempSync(path.join(os.tmpdir(),'fta-quotation-config-'));
+process.env.QUOTE_DATA_DIR=path.join(output,'data');
+app.setPath('userData',path.join(output,'profile'));app.on('window-all-closed',()=>{});
+
+app.whenReady().then(async()=>{
+ let server,win,pdfwin;
+ const errors=[];
+ try{
+  server=await require('../server').startServer(0);const base='http://127.0.0.1:'+server.address().port;
+  const request=async(url,method='GET',body)=>{const response=await fetch(base+url,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json();assert(response.ok,JSON.stringify(data));return data;};
+  const product=(await request('/api/products','POST',{category:'机械设备',brand:'QA Brand',model:'QA-UNIFIED-01',specificPrice:34500,currency:'USD',templateName:'二手工程机械',values:{name:'Unified Equipment Name',custom_serial:'SERIAL-IMPORTED',custom_hidden:'HIDDEN-PRESERVED',year:'2019'}})).product;
+  win=new BrowserWindow({show:false,width:1440,height:1050,webPreferences:{offscreen:true,backgroundThrottling:false}});
+  const run=async source=>{try{return await win.webContents.executeJavaScript(source);}catch(error){throw Error(error.message+'\n'+source);}};
+  const wait=async(source,limit=240)=>{for(let i=0;i<limit;i++){if(await run(source))return;await new Promise(resolve=>setTimeout(resolve,50));}throw Error('Timeout '+source);};
+  const reload=async()=>{await win.reload();await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');};
+  win.webContents.on('console-message',(_event,level,message)=>{if(level===3)errors.push(message);});
+  win.webContents.on('render-process-gone',(_event,details)=>errors.push(details.reason));
+  await win.loadURL(base);await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');
+  await run(`document.querySelector('[data-view=settings]').click();quoteSettingsContext.openSettings('quotation-config');quoteSettingsContext.openSettings('invoice-config');`);
+  await run(`(async()=>{
+   const s=structuredClone(quoteSettingsContext.settings),c=s.documentConfigs.quotation;
+   const f=(fieldKey,zh,fieldType,sortOrder,extra={})=>({id:'align-'+fieldKey,fieldKey,zh,en:zh,fieldType,visible:true,active:true,sortOrder,...extra});
+   c.blocks.basic.push(f('config_marker','当前设置默认值','text',900,{en:'Current configuration marker',defaultValue:'CURRENT-DEFAULT'}));
+   c.blocks.items=[f('qty','当前数量','number',10),f('description','当前设备名称','textarea',20,{en:'Configured equipment name'}),f('unitPrice','当前单价','money',30),f('amount','当前金额','calculated',40),f('currency','币种','select',50),f('custom_serial','当前设备序号','text',60,{en:'Configured serial',defaultValue:'SERIAL-DEFAULT'}),f('custom_zero','默认零值','number',65,{defaultValue:0}),f('custom_flag','默认否','checkbox',66,{defaultValue:false}),f('custom_hidden','隐藏字段','text',70,{visible:false}),f('legacy_deleted','已删除字段','text',80,{deletedAt:'2026-11-01T00:00:00Z'}),f('itemType','条目类型','select',90,{options:DocumentItemTypes.defaults(),itemTypesVersion:1})];
+   c.productMode='linked';c.productTemplateId=s.templates[0].id||s.templates[0].name;
+   s.templates[0].fields.push(f('legacy_only','废弃模板字段','text',999));
+   s.quoteTemplateConfigs={[s.templates[0].id||s.templates[0].name]:{type:'quotation',schemaVersion:3,blocks:{...structuredClone(c.blocks),items:[f('legacy_only','废弃模板字段','text',10)]},design:{}}};
+   ProductSchema.ensure(s).fields.push(f('custom_serial','保留产品序号','text',800));
+   await quoteSettingsContext.save(s);
+  })()`);
+  await reload();
+  const productSchema=await run('JSON.stringify(quoteSettingsContext.settings.productSchema)');
+  const productHierarchy=await run('JSON.stringify(quoteSettingsContext.settings.productHierarchy)');
+  const legacyConfigs=await run('JSON.stringify(quoteSettingsContext.settings.quoteTemplateConfigs)');
+  const invoiceConfig=await run('JSON.stringify(quoteSettingsContext.settings.documentConfigs.invoice)');
+  await run(`document.querySelector('[data-view=settings]').click();quoteSettingsContext.openSettings('quotation-config');`);
+  assert.equal(await run(`document.querySelector('[data-quote-template-config],[data-product-mode],[data-product-template-link]')`),null,'settings have one document schema without legacy template/source switches');
+  assert(!await run(`document.querySelector('#settings-quotation-config-host').textContent.includes('当前报价模板')`));
+  // Edit and save using the actual current settings editor.
+  await run(`document.querySelector('#settings-quotation-config-host [data-block=items]').click();document.querySelector('[data-refined-pick=align-description]').click();(()=>{const input=document.querySelector('#settings-quotation-config-host [data-refined-prop=zh]');input.value='已保存设备名称';input.dispatchEvent(new Event('input',{bubbles:true}));})();document.querySelector('#settings-quotation-config-host [data-document-save]').click();`);
+  await wait(`fetch('/api/settings').then(r=>r.json()).then(d=>d.settings.documentConfigs.quotation.blocks.items.some(f=>f.zh==='已保存设备名称'))`);
+  await reload();
+  assert.equal(await run('JSON.stringify(quoteSettingsContext.settings.productSchema)'),productSchema,'quotation settings do not modify product schema');
+  assert.equal(await run('JSON.stringify(quoteSettingsContext.settings.productHierarchy)'),productHierarchy,'quotation settings do not modify product classification');
+  assert.equal(await run('JSON.stringify(quoteSettingsContext.settings.quoteTemplateConfigs)'),legacyConfigs,'legacy migration sources remain preserved');
+  assert.equal(await run('JSON.stringify(quoteSettingsContext.settings.documentConfigs.invoice)'),invoiceConfig,'other document settings are preserved');
+  await run(`document.querySelector('[data-create-document=quotation]').click()`);
+  assert.equal(await run('document.getElementById("quote-template")'),null,'new quotation has no old template selector');
+  assert.equal(await run(`document.querySelector('[data-basic-custom=config_marker]').value`),'CURRENT-DEFAULT','new document applies current basic default');
+  assert.equal(await run(`document.querySelector('#quote-items [data-qfield=custom_serial]').value`),'SERIAL-DEFAULT','new line applies current item default');
+  assert.equal(await run(`document.querySelector('#quote-items [data-qfield=custom_zero]').value`),'0','numeric zero default remains zero');
+  assert.equal(await run(`document.querySelector('#quote-items [data-qfield=custom_flag]').checked`),false,'false default remains false');
+  assert.equal(await run(`document.querySelector('#quote-items .quote-line-image-input')`),null,'disabled image field has no upload input');
+  assert.deepEqual(await run(`[...document.querySelectorAll('#quote-items .quote-line:first-child [data-form-field]')].map(n=>n.querySelector('span')?.textContent.split(' *')[0])`),['条目类型','当前数量','已保存设备名称','当前单价','当前金额','币种','当前设备序号','默认零值','默认否'],'visible fields use current names/order');
+  assert.equal(await run(`document.querySelector('#quote-items [data-qfield=legacy_only],#quote-items [data-qfield=custom_hidden],#quote-items [data-qfield=legacy_deleted],#quote-items [data-qfield=year],#quote-items [data-qfield=hours]')`),null,'hidden/deleted/legacy product fields stay absent');
+  await run(`document.getElementById('quote-number').value='QA-CONFIG-ALIGNMENT';document.getElementById('open-product-picker-btn').click();document.querySelector('[data-pick-product="${product.id}"]').click()`);
+  const imported=`[...document.querySelectorAll('#quote-items .quote-line')].at(-1)`;
+  assert.equal(await run(`${imported}.querySelector('[data-qfield=description]').value`),'Unified Equipment Name','unified product name imports as document description');
+  assert.equal(await run(`${imported}.querySelector('[data-qfield=custom_serial]').value`),'SERIAL-IMPORTED','same-key configured product values import');
+  assert.equal(await run(`${imported}.querySelector('[data-qfield=unitPrice]').value`),'34500');
+  assert.equal(await run(`document.querySelector('#quote-items [data-qfield=legacy_only]')`),null,'library import never switches document schema to old template');
+  await run(`(()=>{const row=${imported};for(const [key,value] of Object.entries({custom_serial:'SERIAL-SAVED',qty:'2'})){const input=row.querySelector('[data-qfield='+key+']');input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));}document.getElementById('save-quote-btn').click();})()`);
+  await wait(`fetch('/api/quotations').then(r=>r.json()).then(d=>d.quotations.some(q=>q.quote_number==='QA-CONFIG-ALIGNMENT'))`);
+  const row=(await request('/api/quotations')).quotations.find(q=>q.quote_number==='QA-CONFIG-ALIGNMENT');
+  const saved=await request('/api/quotations/'+row.id),snapshot=saved.quotation.settingsSnapshot._quoteMeta.documentExtras.templateSnapshot;
+  assert.equal(snapshot.schemaVersion,4);assert.equal(snapshot.productTemplate,undefined,'new snapshot does not capture a legacy product template');
+  assert(snapshot.documentConfig.blocks.items.some(f=>f.zh==='已保存设备名称'));
+  assert(!snapshot.itemFields.some(f=>f.fieldKey==='legacy_only'||f.fieldKey==='custom_hidden'));
+  const savedItem=saved.items.find(item=>item.priceSnapshot.values.productId===product.id);
+  assert(savedItem,'imported product saved');assert.equal(savedItem.priceSnapshot.values.custom_serial,'SERIAL-SAVED');assert.equal(savedItem.priceSnapshot.values.custom_hidden,'HIDDEN-PRESERVED','hidden stored values survive collection');
+  await reload();await run(`quoteApp.editQuote('${row.id}')`);
+  await wait(`!!document.querySelector('#quote-items [data-qfield=custom_serial]')`);
+  assert.equal(await run(`${imported}.querySelector('[data-qfield=custom_serial]').value`),'SERIAL-SAVED','persisted row reopens');
+  assert.equal(await run('document.getElementById("quote-template")'),null,'reopened saved document has no obsolete selector');
+  const html=await run(`quoteSettingsContext.outputHtml('quote')`);fs.writeFileSync(path.join(output,'quotation.html'),html);
+  assert(html.includes('SERIAL-SAVED'));assert(!html.includes('废弃模板字段'));
+  pdfwin=new BrowserWindow({show:false,webPreferences:{offscreen:true}});await pdfwin.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html));await pdfwin.webContents.executeJavaScript('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
+  const pdf=await pdfwin.webContents.printToPDF({printBackground:true,preferCSSPageSize:true});fs.writeFileSync(path.join(output,'quotation.pdf'),pdf);
+  const parser=new(require('pdf-parse').PDFParse)({data:pdf});try{assert((await parser.getText()).text.includes('SERIAL-SAVED'),'real PDF includes configured imported field');}finally{await parser.destroy();}
+  pdfwin.destroy();pdfwin=null;
+  await run(`document.getElementById('quote-items').scrollIntoView();document.fonts.ready`);await new Promise(resolve=>setTimeout(resolve,120));fs.writeFileSync(path.join(output,'quotation-editor.png'),(await win.webContents.capturePage()).toPNG());
+  // A formal legacy snapshot must keep its own fields and original database record.
+  const currentSettings=(await request('/api/settings')).settings,legacyField={id:'legacy-tonnage',fieldKey:'legacy_tonnage',zh:'历史吨位',en:'Legacy tonnage',fieldType:'text',visible:true,active:true,sortOrder:10};
+  const legacyDoc=structuredClone(snapshot.documentConfig);legacyDoc.blocks.items=[legacyField,...legacyDoc.blocks.items.filter(f=>['description','qty','unitPrice','amount','currency','itemType'].includes(f.fieldKey))];
+  const legacySnapshot={schemaVersion:3,documentConfig:legacyDoc,productTemplate:{id:'historical-template',name:'二手工程机械',fields:[...legacyDoc.blocks.items,{fieldKey:'totalAmount',fieldType:'calculated',visible:false},{fieldKey:'historical_charge',fieldType:'money',visible:true}]},itemFields:legacyDoc.blocks.items,customerFields:[],termFields:[]};
+  const legacy=await request('/api/quotations','POST',{formal:true,quoteNumber:'QA-LEGACY-SNAPSHOT',documentType:'quotation',quoteDate:'2026-10-01',currency:'USD',settingsSnapshot:currentSettings,documentExtras:{templateName:'二手工程机械',templateSnapshot:legacySnapshot},items:[{productSnapshot:{productName:'Historic machine'},priceSnapshot:{quantity:1,unitPrice:100,currency:'USD',values:{description:'Historic machine',legacy_tonnage:'LEGACY-30-TON',historical_charge:40,qty:1,unitPrice:100,currency:'USD'}}}]});
+  const before=JSON.stringify(await request('/api/quotations/'+legacy.id));await run(`quoteApp.editQuote('${legacy.id}')`);
+  await wait(`!!document.querySelector('#quote-items [data-qfield=legacy_tonnage]')`);
+  assert.equal(await run(`document.querySelector('#quote-items [data-qfield=legacy_tonnage]').value`),'LEGACY-30-TON','formal legacy fields survive current schema');
+  assert(await run(`document.querySelector('#quote-items .line-amount').textContent.includes('140.00')`),'legacy saved extra charges retain their original calculation');
+  assert.equal(await run(`document.querySelector('#quote-preview .preview-total')`),null,'legacy hidden total is not revived by current amount visibility');
+  assert.equal(JSON.stringify(await request('/api/quotations/'+legacy.id)),before,'opening historical snapshot never rewrites it');
+  await run(`document.getElementById('new-quote-btn').click()`);
+  await wait(`!document.querySelector('#quote-items [data-qfield=legacy_tonnage]')`);
+  assert.equal(await run(`document.querySelector('#quote-items [data-qfield=legacy_tonnage],#quote-items [data-qfield=legacy_only]')`),null,'creating after historical open returns to current schema');
+  assert.deepEqual(errors,[],'renderer errors');
+  console.log('PASS current settings precedence, no legacy selectors, names/order/visibility/default, unified product import, durable values/snapshot/reopen, real PDF, historical isolation. Evidence: '+output);
+ }catch(error){console.error(error);console.error('Evidence: '+output);process.exitCode=1;}
+ finally{pdfwin?.destroy();win?.destroy();server?.close();app.exit(process.exitCode||0);}
+});
