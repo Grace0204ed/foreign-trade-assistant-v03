@@ -12,5 +12,5 @@ const wait=async s=>{for(let i=0;i<240;i++){if(await run(s))return;await new Pro
   await win.loadURL(base.replace('127.0.0.1','localhost'));await wait('!!window.flushPendingWork');
   assert.equal(await run(`Object.keys(quoteSettingsContext.settings.documentColorPreferences).length`),8);console.log('PASS independent document colors survive fresh origin');
 
- }finally{win.destroy();await new Promise(r=>server.close(r));app.quit();}
+ }finally{win.destroy();server.closeAllConnections?.();await new Promise(r=>server.close(r));app.quit();}
 }).catch(error=>{console.error(error);app.exit(1);});
