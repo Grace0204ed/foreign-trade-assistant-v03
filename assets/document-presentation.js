@@ -56,11 +56,11 @@
   }
   function background(host,design={}){
     if(!host)return;host.dataset.pageOrientation=design.orientation||'portrait';host.classList.toggle('document-landscape',design.orientation==='landscape');
-    if(!design.backgroundDataUrl){host.style.backgroundImage='';host.style.backgroundSize='';host.style.backgroundPosition='';host.style.backgroundRepeat='';return;}
+    const source=window.DocumentBackgrounds?.source(design)||design.backgroundDataUrl;if(!source){host.style.backgroundImage='';host.style.backgroundSize='';host.style.backgroundPosition='';host.style.backgroundRepeat='';return;}
     const bounded=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Number(v))):fallback;
     const opacity=bounded(design.backgroundOpacity,0,1,.12),mask=bounded(design.overlay,0,1,.82),scale=bounded(design.backgroundScale,10,300,100),x=bounded(design.backgroundX,0,100,50),y=bounded(design.backgroundY,0,100,0);
-    host.style.backgroundImage=`linear-gradient(rgba(255,255,255,${1-opacity*(1-mask)}),rgba(255,255,255,${1-opacity*(1-mask)})),url("${String(design.backgroundDataUrl).replaceAll('"','%22')}")`;
-    host.style.backgroundSize=scale!==100?`${scale}% auto`:design.backgroundMode==='stretch'?'100% 100%':design.backgroundMode||'cover';host.style.backgroundPosition=`${x}% ${y}%`;host.style.backgroundRepeat='repeat-y';
+    host.style.backgroundColor='#ffffff';const image=`url("${String(source).replaceAll('"','%22')}")`,alpha=1-opacity*(1-mask);host.style.backgroundImage=alpha<=0?image:`linear-gradient(rgba(255,255,255,${alpha}),rgba(255,255,255,${alpha})),${image}`;
+    host.style.backgroundSize=design.backgroundPreset&&!design.backgroundDataUrl?'auto':scale!==100?`${scale}% auto`:design.backgroundMode==='stretch'?'100% 100%':design.backgroundMode||'cover';host.style.backgroundPosition=`${x}% ${y}%`;host.style.backgroundRepeat=design.backgroundPreset&&!design.backgroundDataUrl?'repeat':'repeat-y';
   }
   function apply(host,doc,design){if(!host)return;if(design)background(host,design);const color=/^#[0-9a-f]{6}$/i.test(doc.tableHeaderColor||'')?doc.tableHeaderColor:'';host.classList.toggle('custom-table-header',!!color);host.style.setProperty('--document-table-color',color||'inherit');host.style.setProperty('--document-header-text',color?contrast(color):'#ffffff');host.style.setProperty('--document-heading-color',color&&contrast(color)==='#ffffff'?color:'#172033');host.style.setProperty('--trade-ink',color?(contrast(color)==='#ffffff'?color:'#172033'):'var(--doc-accent,var(--primary))');
     // A designer's white module background must not hide white header text.

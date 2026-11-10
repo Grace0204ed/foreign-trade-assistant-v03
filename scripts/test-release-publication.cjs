@@ -15,14 +15,14 @@ function probe(initial){
     throw Error('Unexpected command '+args.join(' '));
   };
   const mocks={'node:fs':{statSync:p=>({size:files[path.basename(p)].length}),readFileSync:(p,enc)=>enc?files[path.basename(p)].toString():files[path.basename(p)]},'node:path':path,'node:crypto':crypto,'node:child_process':{execFileSync},'node:assert/strict':assert,'../package.json':{version}};
-  vm.runInNewContext(source,{require:n=>mocks[n],__dirname,process:{env:{GH_REPO:'test/repo'}},console:{log(){}}});
+  vm.runInNewContext(source,{require:n=>mocks[n],__dirname,process:{env:{GH_REPO:'test/repo',GITHUB_SHA:'actual-tested-commit'}},console:{log(){}}});
   assert(calls.some(a=>a.includes('PATCH')&&a.includes('draft=false')),'Must publish after verifying assets');
   assert(!calls.some(a=>a[1]?.includes('/tags/')),'Draft must be read by ID, not public tag endpoint');
   const notes=calls.find(a=>a.includes('PATCH')).find(a=>a.startsWith('body='));
   assert(notes.includes('测试发布说明')&&!notes.includes('旧内容'),'Release notes must contain only this version changes');
   return calls;
 }
-probe([]);probe([{id:77,tag_name:'v'+version,draft:true}]);
+assert(probe([]).some(a=>a.includes('target_commitish=actual-tested-commit')),'Release tag points at actual tested commit');probe([{id:77,tag_name:'v'+version,draft:true}]);
 assert.throws(()=>probe([{id:77,tag_name:'v'+version,draft:false}]),/already public/);
 assert.throws(()=>probe([{id:77,tag_name:'v'+version,draft:true},{id:78,tag_name:'v'+version,draft:true}]),/Duplicate releases/);
 console.log('Release publication tests passed: draft ID, complete assets, duplicate rejection and immutable public releases.');

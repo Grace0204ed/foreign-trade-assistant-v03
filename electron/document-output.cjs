@@ -50,17 +50,18 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
    // CSP blocks document scripts; this trusted main-process call only waits for
    // fonts and local/data images to finish loading.
    await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));})()`);active(p);
-   const pdf=await win.webContents.printToPDF({printBackground:true,pageSize:'A4',preferCSSPageSize:true});active(p);
-   const {PDFParse}=require('pdf-parse'),parser=new PDFParse({data:pdf});
-   let pages;
-   try{const result=await parser.getScreenshot({desiredWidth:1050,imageBuffer:false,imageDataUrl:true});pages=result.pages.map(p=>({number:p.pageNumber,width:p.width,height:p.height,image:p.dataUrl}));}finally{await parser.destroy();}
-   active(p);
-   if(!pages.length||pages.length>200)throw Error('页数无效或超过200页，请分批预览');
-   const printers=await event.sender.getPrintersAsync();active(p);
-   Object.assign(p,{pdf,pages});previews.set(p.token,p);
-   return {token:p.token,pages,printers};
+   const electronic=await require('./electronic-pdf.cjs').renderElectronic(win);active(p);
+   Object.assign(p,{pdf:electronic.pdf,electronicPreviewPdf:electronic.previewPdf,views:{}});previews.set(p.token,p);
+   return await view(p,'electronic',event.sender);
   }catch(error){dispose(p);throw error;}
  });
+ async function view(p,mode,sender){
+  active(p);if(!['electronic','print'].includes(mode))throw Error('预览模式无效');
+  if(!p.views[mode]){if(mode==='print'&&!p.printPdf)p.printPdf=await p.win.webContents.printToPDF({printBackground:true,pageSize:'A4',preferCSSPageSize:true});
+   const {PDFParse}=require('pdf-parse'),parser=new PDFParse({data:mode==='print'?p.printPdf:p.electronicPreviewPdf});try{const result=await parser.getScreenshot({desiredWidth:1050,imageBuffer:false,imageDataUrl:true});const pages=result.pages.map(page=>({number:page.pageNumber,width:page.width,height:page.height,image:page.dataUrl}));if(!pages.length||pages.length>200)throw Error('预览内容过大，请分批处理');p.views[mode]=pages;}finally{await parser.destroy();}}
+  active(p);p.pages=p.views[mode];return {token:p.token,mode,pages:p.pages,printers:await sender.getPrintersAsync()};
+ }
+ ipcMain.handle('document-preview-mode',async(event,token,mode)=>view(get(event,token),mode,event.sender));
  ipcMain.handle('document-preview-export',async(event,token,batchToken)=>{
   const p=get(event,token);
   if(batchToken){const folder=getBatchDirectory(event,batchToken);for(let i=0;i<10000;i++){const name=i?p.name.replace(/\.pdf$/i,` (${i}).pdf`):p.name,target=path.join(folder,name);try{fs.writeFileSync(target,p.pdf,{flag:'wx'});return {status:'exported',filePath:target};}catch(error){if(error.code!=='EEXIST')throw error;}}throw Error('同名文件过多');}
@@ -68,7 +69,7 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
   if(result.canceled||!result.filePath)return {status:'cancelled'};fs.writeFileSync(result.filePath,p.pdf);return {status:'exported',filePath:result.filePath};
  });
  ipcMain.handle('document-preview-print',async(event,token,options={})=>{
-  const p=get(event,token);const ranges=[];
+  const p=get(event,token);await view(p,'print',event.sender);const ranges=[];
   const pageText=String(options.pages??'').trim();
   if(pageText)for(const part of pageText.split(',')){const match=part.trim().match(/^(\d+)(?:-(\d+))?$/);if(!match)throw Error('页码格式应为 1-3,5');const from=Number(match[1]),to=Number(match[2]||from);if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||from<1||to<from||to>p.pages.length)throw Error('打印页码超出预览范围');ranges.push({from:from-1,to:to-1});}
   const printers=await p.win.webContents.getPrintersAsync();if(options.deviceName&&!printers.some(item=>item.name===options.deviceName))throw Error('所选打印机不可用');

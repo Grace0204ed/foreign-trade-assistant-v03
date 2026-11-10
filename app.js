@@ -7581,6 +7581,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
         return window.quotationDesktop.createDocumentPreview({html:outputMarkup(entry.kind),fileName:outputFileName(entry.kind),batch:true});
       }),
       close:token=>window.quotationDesktop.closeDocumentPreview(token),
+      mode:(token,mode)=>window.quotationDesktop.setDocumentPreviewMode(token,mode),
       export:(token,directory)=>window.quotationDesktop.exportDocumentPreview(token,directory),
       print:(token,options)=>window.quotationDesktop.printDocumentPreview(token,options),
       selectDirectory:()=>window.quotationDesktop.selectPdfDirectory(),

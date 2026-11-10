@@ -275,7 +275,7 @@ ipcMain.handle('export-catalog-pdf',async(event,html)=>{
   const result=await dialog.showSaveDialog(parent,{title:'导出产品目录 PDF',defaultPath:path.join(app.getPath('desktop'),'产品目录.pdf'),filters:[{name:'PDF',extensions:['pdf']}]});
   if(result.canceled||!result.filePath)return null;
   const preview=await require('./catalog-output.cjs')(BrowserWindow,html,parent);
-  try{const pdf=await preview.webContents.printToPDF({pageSize:'A4',printBackground:true,preferCSSPageSize:true});fs.writeFileSync(result.filePath,pdf);return result.filePath;}finally{preview.destroy();}
+  try{const {pdf}=await require('./electronic-pdf.cjs').renderElectronic(preview);fs.writeFileSync(result.filePath,pdf);return result.filePath;}finally{preview.destroy();}
 });
 ipcMain.handle('print-catalog',async(event,html)=>{
   const preview=await require('./catalog-output.cjs')(BrowserWindow,html,BrowserWindow.fromWebContents(event.sender));
@@ -301,12 +301,7 @@ async function writeWindowPdf(win,filePath,exclusive) {
       Promise.race([img.decode?.()||new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject}),new Promise(resolve=>setTimeout(resolve,5000))]).catch(()=>{})));
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   })()`);
-  const pdf = await win.webContents.printToPDF({
-    printBackground: true,
-    marginsType: 0,
-    pageSize: "A4",
-    preferCSSPageSize: true
-  });
+  const {pdf} = await require('./electronic-pdf.cjs').renderElectronic(win);
   fs.writeFileSync(filePath, pdf, exclusive?{flag:'wx'}:undefined);
   return filePath;
 }
