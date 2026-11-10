@@ -10,7 +10,12 @@ app.whenReady().then(async()=>{
  win.webContents.on('console-message',e=>{if(e.level==='error')console.error(e.message)});
  const out=path.resolve('output/readability-qa');fs.mkdirSync(out,{recursive:true});const results=[];
  try{
+  // This suite audits the wide live preview. Windows runners can clamp the
+  // native window below its requested size; the separate responsive-output
+  // suite covers the intentionally hidden preview on small windows.
   await win.loadURL(base);for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
+  win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
+  assert(await run(`matchMedia('(min-width:1251px)').matches`),'wide preview audit requires a wide CSS viewport');
   assert.equal(await run("!!document.getElementById('document-color-reset')"),false);
   for(const type of (process.env.READABILITY_DENSE_ONLY?[]:['quotation','invoice','contract','commercial','packing'])){
    await run(`window.decideCloseWork?.('discard')`);await run(`document.querySelector('[data-create-document=${type}]').click()`);
@@ -25,12 +30,12 @@ app.whenReady().then(async()=>{
      await run('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
      const inspect=()=>run(`(()=>{const t=document.querySelector('#quote-preview table.document-data-table');return {width:t.clientWidth,scroll:t.scrollWidth,headers:[...t.querySelectorAll('thead th')].map(th=>({text:th.textContent,key:th.className,width:th.offsetWidth,height:th.offsetHeight,font:parseFloat(getComputedStyle(th).fontSize),color:getComputedStyle(th).color,bg:getComputedStyle(th).backgroundColor,small:[...th.querySelectorAll('small')].map(s=>({color:getComputedStyle(s).color,font:parseFloat(getComputedStyle(s).fontSize)}))})),rows:[...t.querySelectorAll('tbody tr')].map(r=>r.children.length)}})()`);
      for(const media of ['screen','print']){
-      if(media==='print'){await run("document.body.classList.add('printing-standard')");await win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});}
+      if(media==='print'){await run("document.body.classList.add('printing-standard')");await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});}
       const state=await inspect();
       for(const h of state.headers){assert(h.width>=18,`${type}/${lang}/${media} narrow ${h.text}: ${h.width}`);assert(h.height<=115,`${type}/${lang}/${media} tall header ${h.text}: ${h.height}`);assert(h.font>=10.5);assert(P.contrastRatio(h.color,h.bg)>=4.5,`low contrast ${h.text}`);for(const small of h.small){assert.equal(small.color,h.color);assert(small.font>=10);}}
       assert(state.rows.every(n=>n===state.headers.length));assert(state.scroll<=state.width+2,`${type}/${lang}/${media} table overflow ${state.scroll}/${state.width}`);
       results.push({type,lang,color,media,...state});
-      if(media==='print'){await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();await run("document.body.classList.remove('printing-standard')");}
+      if(media==='print'){await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});await run("document.body.classList.remove('printing-standard')");}
      }
      if(color==='#2074b9'){
       await run("document.querySelector('#quote-preview table.document-data-table').scrollIntoView({block:'center'})");
@@ -56,9 +61,9 @@ app.whenReady().then(async()=>{
    assert.equal(await run("document.querySelectorAll('#quote-preview thead th').length"),14,'dense packing columns');
    assert.deepEqual(await run(`(${auditLayout.toString()})('quote-preview')`),[],lang+' dense screen text bounds');
    await run("document.body.classList.add('printing-standard')");
-   await win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
+   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
    assert.deepEqual(await run(`(${auditLayout.toString()})('quote-preview')`),[],lang+' dense print text bounds');
-   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});win.webContents.debugger.detach();
+   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});
    fs.writeFileSync(path.join(out,id+'.pdf'),await win.webContents.printToPDF({printBackground:true,marginsType:0,pageSize:'A4',preferCSSPageSize:true}));await run("document.body.classList.remove('printing-standard')");
   }
   if(process.env.READABILITY_DENSE_ONLY){console.log('PASS dense packing layouts in ten languages. '+out);return;}
@@ -78,5 +83,5 @@ app.whenReady().then(async()=>{
   const colors=await run("JSON.parse(BusinessDataStore.get('quote_assistant_v01_settings')||'{}').documentColorPreferences");assert.equal(Object.keys(colors).length,8);assert(Object.values(colors).every(v=>v==='#1f7047'));
   await run("window.quoteApp.editQuote('read-packing-en')");assert.equal(await run("document.getElementById('document-table-color').value"),'#285fc1','stored old snapshot should not use last colour');
   fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(results,null,2));console.log('PASS '+results.length+' screen/print layouts: 5 documents, bilingual + all 9 languages, 3 colours; 50 PDFs plus 10 dense 14-column multi-page PDFs; 8 current document colour preferences survive fresh origin; history untouched. '+out);
- }finally{win.destroy();server.close();app.quit();}
+ }finally{if(win.webContents.debugger.isAttached())win.webContents.debugger.detach();win.destroy();server.close();app.quit();}
 }).catch(e=>{console.error(e);app.exit(1)});

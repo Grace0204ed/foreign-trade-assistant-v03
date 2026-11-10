@@ -1,7 +1,15 @@
-name: Check Windows signature workflow
+name: Check Windows document rendering
 
 on:
   workflow_dispatch:
+    inputs:
+      check:
+        description: Document workflow to verify
+        type: choice
+        default: signing
+        options:
+          - signing
+          - readability
 
 permissions:
   contents: read
@@ -18,4 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run rebuild:electron
       - name: Verify real handwriting, saved signatures and historical PDF snapshots
+        if: inputs.check != 'readability'
         run: npx electron scripts/test-signing-workflow.cjs
+      - name: Verify readable screen and print layouts and actual multi-page PDFs
+        if: inputs.check == 'readability'
+        run: npm run test:readability
