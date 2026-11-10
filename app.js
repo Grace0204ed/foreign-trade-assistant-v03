@@ -7573,7 +7573,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(!window.quotationDesktop?.createDocumentPreview)return toast('分页预览需要桌面版输出引擎；当前编辑内容已保留。');
     if(!window.DocumentOutputWorkspace)return toast('预览工作台未加载，请重新打开应用；编辑内容已保留。');
     const entries=workspace?workspace.entries():[{type,label:documentTypeOf(type).labelZh,kind,data:d}];
-    for(const entry of entries)entry.number=entry.data.quoteNumber||entry.data.authorizationNumber||entry.data.id||'';
+    for(const entry of entries)entry.number=entry.type==='invitation'?[entry.data.visitorName,entry.data.date].filter(Boolean).join(' · '):entry.data.quoteNumber||entry.data.authorizationNumber||'';
     await window.DocumentOutputWorkspace.open({
       entries,current:type,customer:d.buyer?.company||d.visitorCompany||d.visitorName||d.agentName||'',
       create:entry=>withOutputDocument(entry,async()=>{
