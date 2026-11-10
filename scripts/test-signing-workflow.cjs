@@ -39,8 +39,13 @@ app.whenReady().then(async()=>{const server=await require('../server').startServ
   }
 
   await run(`document.querySelector('[data-view=settings]').click();document.querySelector('[data-draw-signature=en]').click()`);const oldDrawVersion=(await settings()).companySignatures.en.version;
+  // Native input must target the newly painted modal, rather than the previous
+  // document's compositor hit-test data on slower/high-DPI Windows runners.
+  await run(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
   const rect=await run(`(()=>{const r=document.querySelector('#signature-pad-canvas').getBoundingClientRect();return {x:Math.round(r.x+r.width*.3),y:Math.round(r.y+r.height*.5)}})()`);
-  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...rect});for(let i=1;i<8;i++)win.webContents.sendInputEvent({type:'mouseMove',x:rect.x+i*12,y:rect.y+(i%2)*15});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:rect.x+84,y:rect.y+15});await new Promise(r=>setTimeout(r,100));await run(`document.querySelector('#signature-pad-save').click()`);for(let i=0;i<200&&(await settings()).companySignatures.en.version===oldDrawVersion;i++)await new Promise(r=>setTimeout(r,30));assert.notEqual((await settings()).companySignatures.en.version,oldDrawVersion,'actual pointer handwriting persists as a new version');
+  assert(await run(`document.elementFromPoint(${rect.x},${rect.y})?.id==='signature-pad-canvas'`),'handwriting starts on the visible canvas');
+  win.webContents.sendInputEvent({type:'mouseMove',...rect});
+  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...rect});for(let i=1;i<8;i++){win.webContents.sendInputEvent({type:'mouseMove',modifiers:['leftButtonDown'],x:rect.x+i*12,y:rect.y+(i%2)*15});await new Promise(r=>setTimeout(r,16));}win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:rect.x+84,y:rect.y+15});await new Promise(r=>setTimeout(r,100));await run(`document.querySelector('#signature-pad-save').click()`);for(let i=0;i<200&&(await settings()).companySignatures.en.version===oldDrawVersion;i++)await new Promise(r=>setTimeout(r,30));assert.notEqual((await settings()).companySignatures.en.version,oldDrawVersion,'actual pointer handwriting persists as a new version');
   fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify(results,null,2));console.log('PASS JPG/PNG original+transparent storage, names, fresh renderer persistence, independent signature/language, overlap/z-order, unchanged historic version, nine actual signing PDFs',JSON.stringify(results));
  }finally{win.destroy();await new Promise(r=>server.close(r));app.quit();}
 }).catch(error=>{console.error(error);app.exit(1);});
