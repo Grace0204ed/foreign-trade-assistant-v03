@@ -6195,12 +6195,11 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const tableColor=/^#[0-9a-f]{6}$/i.test(currentQuote.tableHeaderColor||'')?currentQuote.tableHeaderColor:'';
     preview.classList.toggle('custom-table-header',!!tableColor);preview.style.setProperty('--document-table-color',tableColor||'inherit');
     if($('document-table-color'))$('document-table-color').value=tableColor||'#285fc1';
-    DocumentPresentation.apply(preview,currentQuote);
+    DocumentPresentation.apply(preview,currentQuote,design);
     DocumentLocales.apply(preview,mode);
     const productType=DocumentPresentation.typography(currentQuote.documentTypography).product;
     if($('document-product-style'))$('document-product-style').value=productType.fontWeight>=700?(productType.color==='#000000'?'bold-black':'bold'):'regular';
     if($('document-product-color'))$('document-product-color').value=productType.color;
-    DocumentPresentation.background(preview,design);
   }
 
   function activeFreightTarget() {

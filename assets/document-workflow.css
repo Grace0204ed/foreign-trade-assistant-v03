@@ -68,6 +68,8 @@
 .invitation-validity-block{margin:10px 0;padding-top:6px;padding-bottom:6px}.invitation-footer{margin-top:14px}
 /* Keep the final business section with its signatures instead of creating a signature-only page. */
 @media print{#quote-preview>:has(+.document-signature-block),.agency-sheet>:has(+.agency-signature){break-inside:avoid!important;page-break-inside:avoid!important;break-after:avoid;page-break-after:avoid}.document-signature-block,.agency-signature{break-before:avoid;page-break-before:avoid}}
+/* Let A4 fill naturally; a long bank section must not move wholesale with the signature. */
+@media print{body.printing-standard #quote-preview{min-height:0!important}body.printing-standard #quote-preview>.bank-panel{break-inside:auto!important;page-break-inside:auto!important}body.printing-standard #quote-preview>.bank-panel p{break-inside:avoid;page-break-inside:avoid}body.printing-standard #quote-preview.trade-layout .terms-panel{display:block}}
 @media print{html:has(body.printing-invitation),body.printing-invitation,body.printing-invitation .app-shell,body.printing-invitation .main,body.printing-invitation #view-invitation,body.printing-invitation #invitation-preview{background:white!important}.invitation-people-table th,.invitation-people-table td{padding-top:4px;padding-bottom:4px}}
 /* Current interaction rules: one compact button-shaped control with an explicit state. */
 body .document-simple-options label:has(input:checked),body .document-batch-choices label:has(input:checked),body .document-signing-controls label:has(input:checked),body .pdf-selection-list label:has(input:checked){border-color:#168252!important;background:#edf8f2!important;color:#11623d!important}

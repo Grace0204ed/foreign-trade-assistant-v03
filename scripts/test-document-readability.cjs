@@ -10,9 +10,8 @@ app.whenReady().then(async()=>{
  win.webContents.on('console-message',e=>{if(e.level==='error')console.error(e.message)});
  const out=path.resolve('output/readability-qa');fs.mkdirSync(out,{recursive:true});const results=[];
  try{
-  // This suite audits the wide live preview. Windows runners can clamp the
-  // native window below its requested size; the separate responsive-output
-  // suite covers the intentionally hidden preview on small windows.
+  // Audit the output HTML used by the PDF renderer, not a persistent editor
+  // preview. The form suite verifies the editor remains full width and hidden.
   await win.loadURL(base);for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
   win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   assert(await run(`matchMedia('(min-width:1251px)').matches`),'wide preview audit requires a wide CSS viewport');
@@ -30,6 +29,7 @@ app.whenReady().then(async()=>{
      await run('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
      const inspect=()=>run(`(()=>{const t=document.querySelector('#quote-preview table.document-data-table');return {width:t.clientWidth,scroll:t.scrollWidth,headers:[...t.querySelectorAll('thead th')].map(th=>({text:th.textContent,key:th.className,width:th.offsetWidth,height:th.offsetHeight,font:parseFloat(getComputedStyle(th).fontSize),color:getComputedStyle(th).color,bg:getComputedStyle(th).backgroundColor,small:[...th.querySelectorAll('small')].map(s=>({color:getComputedStyle(s).color,font:parseFloat(getComputedStyle(s).fontSize)}))})),rows:[...t.querySelectorAll('tbody tr')].map(r=>r.children.length)}})()`);
      for(const media of ['screen','print']){
+      await run("document.body.classList.add('printing-standard')");
       if(media==='print'){await run("document.body.classList.add('printing-standard')");await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});}
       const state=await inspect();
       for(const h of state.headers){assert(h.width>=18,`${type}/${lang}/${media} narrow ${h.text}: ${h.width}`);assert(h.height<=115,`${type}/${lang}/${media} tall header ${h.text}: ${h.height}`);assert(h.font>=10.5);assert(P.contrastRatio(h.color,h.bg)>=4.5,`low contrast ${h.text}`);for(const small of h.small){assert.equal(small.color,h.color);assert(small.font>=10);}}
@@ -38,6 +38,7 @@ app.whenReady().then(async()=>{
       if(media==='print'){await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:''});await run("document.body.classList.remove('printing-standard')");}
      }
      if(color==='#2074b9'){
+      await run("document.body.classList.add('printing-standard')");
       await run("document.querySelector('#quote-preview table.document-data-table').scrollIntoView({block:'center'})");
       await run('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
       const rect=await run("(()=>{const r=document.querySelector('#quote-preview table.document-data-table').getBoundingClientRect();return {x:Math.floor(r.x),y:Math.floor(r.y),width:Math.ceil(r.width),height:Math.ceil(r.height)}})()");
@@ -51,6 +52,7 @@ app.whenReady().then(async()=>{
   // then check a genuinely multi-page list rather than a one-line fixture.
   await run("window.decideCloseWork?.('discard');document.querySelector('[data-view=settings]').click();document.querySelector('[data-settings-section=packing-config]').click()");
   const keys=['itemType','description','packages','netWeight','grossWeight','hsCode','qty','cbm','billingUnit','marks','unitPrice','currency','amount'];
+  await run(`(async()=>{const s=structuredClone(quoteSettingsContext.settings);s.documentConfigs.packing.design={...(s.documentConfigs.packing.design||{}),orientation:'landscape'};await quoteSettingsContext.save(s)})()`);
   await run(`(async()=>{const s=structuredClone(window.quoteSettingsContext.settings),c=s.documentConfigs.packing;const labels={itemType:['条目类型','Item Type'],description:['商品说明','Product Description'],packages:['件数','Packages'],netWeight:['净重（kg）','Net Weight (kg)'],grossWeight:['毛重（kg）','Gross Weight (kg)'],hsCode:['海关编码','HS CODE'],qty:['数量','Quantity'],cbm:['体积（m³）','Volume (m³)'],billingUnit:['计费单位','Billing Unit'],marks:['唛头','Shipping Marks'],unitPrice:['单价','Unit Price'],currency:['币种','Currency'],amount:['金额','Amount']};const existing=c.blocks.items;c.blocks.items=${JSON.stringify(keys)}.map((key,i)=>({...existing.find(f=>f.fieldKey===key),id:'dense-'+key,fieldKey:key,zh:labels[key][0],en:labels[key][1],visible:true,active:true,sortOrder:i*10}));await window.quoteSettingsContext.save(s)})()`);
   for(const lang of ['bilingual','en','fr','ja','es','ru','ar','it','de','ko']){
    const id='dense-packing-'+lang,items=Array.from({length:36},(_,i)=>({id:'dense-'+lang+'-'+i,productSnapshot:{productName:'QA-MACHINE-'+String(i+1).padStart(2,'0')},priceSnapshot:{quantity:1,unitPrice:23000,currency:'USD',values:{description:'QA-MACHINE-'+String(i+1).padStart(2,'0')+' / Dynapac CA402 road roller',qty:'1',unitPrice:'23000',currency:'USD',billingUnit:'Unit',hsCode:'84294000'}}}));
@@ -59,7 +61,8 @@ app.whenReady().then(async()=>{
    assert((await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)})).ok);
    await run(`window.decideCloseWork('discard')`);await run(`window.quoteApp.editQuote('${id}')`);await run('document.fonts.ready');
    assert.equal(await run("document.querySelectorAll('#quote-preview thead th').length"),14,'dense packing columns');
-   assert.deepEqual(await run(`(${auditLayout.toString()})('quote-preview')`),[],lang+' dense screen text bounds');
+   await run("document.body.classList.add('printing-standard')");
+   assert.deepEqual(await run(`(${auditLayout.toString()})('quote-preview')`),[],lang+' dense output text bounds');
    await run("document.body.classList.add('printing-standard')");
    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{media:'print'});
    assert.deepEqual(await run(`(${auditLayout.toString()})('quote-preview')`),[],lang+' dense print text bounds');

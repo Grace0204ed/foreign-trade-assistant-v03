@@ -20,7 +20,7 @@
     return result.map(v=>100*v/available);
   }
   function readableTables(host){
-    host.classList.remove('document-wide');
+    host.classList.toggle('document-wide',host.dataset.pageOrientation==='landscape');
     host.querySelectorAll('table').forEach(table=>{
       const headers=[...table.querySelectorAll('thead tr:first-child th')];
       if(!headers.length||!headers.every(h=>/preview-col-/.test(h.className)))return;
@@ -30,9 +30,8 @@
       // single letters just because its English column used a small weight.
       const context=document.createElement('canvas').getContext('2d');
       const minimums=headers.map(header=>{const style=getComputedStyle(header);context.font=`${style.fontWeight} ${Math.max(10.5,parseFloat(style.fontSize)||0)}px ${style.fontFamily}`;const words=header.textContent.split(/[\s/]+/).filter(Boolean);return Math.max(22,Math.min(160,Math.max(0,...words.map(word=>context.measureText(word).width))+8));});
-      // A genuinely wide packing/detail table needs a wide sheet, not tiny
-      // type or one-letter columns. Ordinary documents stay in portrait.
-      if(headers.length>=12)host.classList.add('document-wide');
+      // Paper orientation follows the saved document setting. Column count
+      // must not silently turn a portrait document into short landscape pages.
       if(host.classList.contains('document-wide'))minimums[keys.indexOf('description')]=Math.max(150,minimums[keys.indexOf('description')]||0);
       const widths=columnWidths(keys,minimums,table.clientWidth);
       table.querySelectorAll('tr').forEach(row=>[...row.children].forEach((cell,i)=>{

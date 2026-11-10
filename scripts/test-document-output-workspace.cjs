@@ -69,7 +69,9 @@ app.whenReady().then(async()=>{
   }
   await activate('invoice');assert.equal(await run(`document.querySelector('#quote-number').value`),'PI-WORKSPACE-QUOTE');assert.equal(await run(`document.querySelector('#quote-items [data-qfield="description"]').value`),'PI-ONLY-CONTENT');
   await activate('packing');assert.equal(await run(`document.querySelector('#quote-number').value`),'PL-WORKSPACE-QUOTE');pass('independent current drafts retain editor values before preview');
-  await click('#export-pdf-btn');await ready();
+  assert.equal(await run(`!!document.querySelector('#document-output-preview')`),false,'editing does not automatically open preview');
+  assert.equal(await run(`getComputedStyle(document.querySelector('.quote-output-pane')).display`),'none','no persistent right preview');
+  await click('#view-quote [data-form-preview]');await ready();
   for(const type of ['quotation','invoice','packing'])assert(await run(`!!document.querySelector('[data-output-document="${type}"]')`),'switch exists '+type);
   for(const selector of ['[data-output-select-all]','[data-output-print-all]','[data-output-export-all]','[data-output-print-selected]','[data-output-export-selected]'])assert(await run(`!!document.querySelector(${JSON.stringify(selector)})`),selector);
   await assertNoHistory();pass('unified preview exposes document selection and output actions without saving history');

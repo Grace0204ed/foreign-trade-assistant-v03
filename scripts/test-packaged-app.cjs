@@ -27,14 +27,15 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/�
   await page.fill('#buyer-company','OFFLINE PACKAGE TEST');await page.locator('[data-qfield="description"]').first().fill('Test machine');await page.locator('[data-qfield="unitPrice"]').first().fill('100');
   const data=await page.evaluate(async()=>await(await fetch('/api/quotations')).json());assert.equal(data.quotations.length,0,'unfinished editor is not formal history');
   await page.evaluate(()=>document.fonts.ready);assert.equal(await page.evaluate(async()=>(await document.fonts.load('14px TradeOffline')).length),1,'offline font loaded');
-  await page.locator('#quote-preview').screenshot({path:path.join(dir,'quotation.png')});
+  assert.equal(await page.locator('.quote-output-pane').isVisible(),false,'editor has no persistent preview');
+  await page.locator('.quote-input-pane').screenshot({path:path.join(dir,'quotation-editor.png')});
   await page.evaluate(()=>document.body.classList.add('printing-standard'));
   const pdf=await app.evaluate(async({BrowserWindow})=>Array.from(await BrowserWindow.getAllWindows()[0].webContents.printToPDF({printBackground:true,pageSize:'A4'})));
   fs.writeFileSync(path.join(dir,'quotation.pdf'),Buffer.from(pdf));assert.ok(pdf.length>10000);
   await page.evaluate(()=>document.body.classList.remove('printing-standard'));
 
   await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},path.join(dir,'preview-export.pdf'));
-  await page.click('#export-pdf-btn');await page.waitForSelector('[data-export-preview]:not(:disabled)',{timeout:60000});
+  await page.click('#view-quote [data-form-preview]');await page.waitForSelector('[data-export-preview]:not(:disabled)',{timeout:60000});
   assert(await page.locator('.preview-pages img').first().evaluate(img=>img.naturalWidth>500),'packaged runtime renders actual PDF pages');
   await page.click('[data-export-preview]');await page.waitForFunction(()=>document.querySelector('[data-output-status]').textContent.includes('PDF已导出'));
   assert(fs.statSync(path.join(dir,'preview-export.pdf')).size>10000);

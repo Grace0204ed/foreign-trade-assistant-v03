@@ -28,7 +28,7 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('#unified-history-list .history-actions > button').click()");
   await wait("document.querySelector('#view-quote').classList.contains('active')");
   assert(await run("document.querySelector('.desktop-topbar').contains(document.querySelector('#pdf-language'))"));
-  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display===(matchMedia('(max-width:1250px)').matches?'block':'grid')"),'wide right preview and narrow separate preview follow actual CSS viewport');
+  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='block'&&getComputedStyle(document.querySelector('.quote-output-pane')).display==='none'"),'full-width editor; preview opens only from the separate entry');
   for(const type of ['invitation','authorization']){
    await run(`document.querySelector('[data-create-document=${type}]').click()`);
    const id=type==='invitation'?'invitation-language':'agency-language';

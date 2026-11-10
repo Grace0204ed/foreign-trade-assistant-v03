@@ -20,7 +20,8 @@ app.whenReady().then(async()=>{
    const response=await fetch(base+'/api/quotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'pdf-'+type,quoteNumber:'QA-'+type,documentType:type,settingsSnapshot:company,buyer:{company:'QA Buyer',contact:'QA Contact',address:'QA Address'},terms:{shipping:'FOB',originPort:'Shanghai',port:'Durban',payment:'30/70'},pdfLanguage:'en',documentExtras:{tableHeaderColor:'#276749',packing,outputOptions:{[type]:{signature:true}}},items})});assert(response.ok);
    await run(`window.decideCloseWork('discard')`);await run(`window.quoteApp.editQuote('pdf-${type}')`);await run('document.fonts.ready');
    assert(await run("document.querySelector('.desktop-topbar').contains(document.querySelector('#pdf-language'))"),type+' top toolbar');
-   assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display===(matchMedia('(max-width:1250px)').matches?'block':'grid')"),type+' editor has a separate right preview');
+   assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='block'&&getComputedStyle(document.querySelector('.quote-output-pane')).display==='none'&&!!document.querySelector('#view-quote [data-form-preview]')"),type+' full-width editor with click-to-open preview');
+   await run("document.body.classList.add('printing-standard')");
    assert(await run("!!document.querySelector('#quote-preview .compact-letterhead h1')"),type+' compact colored letterhead');
    assert(await run("document.querySelector('#quote-preview .compact-company-name').scrollWidth<=document.querySelector('#quote-preview .compact-company-name').clientWidth+1"),type+' company name fits one line');
    const cells=await run("[...document.querySelectorAll('#quote-preview tbody tr')].every(r=>r.children.length===document.querySelectorAll('#quote-preview thead th').length)");assert(cells,type+' columns mismatch');
