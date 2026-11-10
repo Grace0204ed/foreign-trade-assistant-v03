@@ -8,7 +8,8 @@
  const noField=f=>['pdfLanguage','language','style','bank','bankAccountId','selectedBankAccount','signer','title','inviter','signerTitle','authorizer','authorizerTitle'].includes(f.fieldKey);
  const alive=f=>clean(f)&&f.visible!==false&&f.active!==false;
  function merge(existing,defaults){const fields=(existing||[]).filter(clean);for(const item of defaults)if(!fields.some(f=>f.fieldKey===item.fieldKey))fields.push(copy(item));return fields;}
- function ordered(fields){return fields.filter(alive).slice().sort((a,b)=>Number(a.sortOrder||0)-Number(b.sortOrder||0));}
+ const compare=(a,b)=>(['itemType','recipientType'].includes(a.fieldKey)?-1:0)-(['itemType','recipientType'].includes(b.fieldKey)?-1:0)||Number(a.sortOrder||0)-Number(b.sortOrder||0);
+ function ordered(fields){return fields.filter(alive).slice().sort(compare);}
  const freight=[field('route','运输方式','Transport Mode','select'),field('originPort','起运港','Port of Loading','combobox'),field('port','目的港','Port of Discharge','combobox'),field('containerType','柜型','Container Type','select')];
  const common=[field('description','费用名称／费用说明','Charge Description','textarea',{required:true}),field('qty','计费数量','Billing Quantity','number',{required:true,defaultValue:'1'}),field('billingUnit','计费单位','Billing Unit','select'),field('unitPrice','单价','Unit Price','money'),field('currency','币种','Currency','currency'),field('amount','金额','Amount','calculated'),field('remark','备注','Remark','textarea')];
  function ensure(config,settings,type,itemTypes){
@@ -49,6 +50,7 @@
     }
    }
   }
+  for(const fields of [...Object.values(config.blocks),...Object.values(config.itemSchemas||{})])if(Array.isArray(fields))fields.sort(compare);
   return config;
  }
  function fields(config,kind='product'){return ordered(config?.itemSchemas?.[kind]||config?.blocks?.items||[]);}

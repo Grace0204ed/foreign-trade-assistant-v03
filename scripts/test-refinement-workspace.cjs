@@ -57,7 +57,7 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('.view.active [data-switch-document=quotation]').click();document.querySelector('#document-table-color').value='#326f59';document.querySelector('#document-table-color').dispatchEvent(new Event('input',{bubbles:true}))");
   assert.equal(await run("getComputedStyle(document.querySelector('#quote-preview .compact-letterhead')).backgroundColor"),'rgb(50, 111, 89)');
   assert(await run("getComputedStyle(document.querySelector('#quote-preview .compact-company-name')).color!=='rgb(50, 111, 89)'"));
-  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='grid'"));
+  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display===(matchMedia('(max-width:1250px)').matches?'block':'grid')"));
   fs.writeFileSync(path.join(output,'editor.png'),(await win.webContents.capturePage()).toPNG());
   win.setSize(1024,900);await run("document.querySelector('#quote-items').scrollIntoView();new Promise(r=>setTimeout(r,200))");fs.writeFileSync(path.join(output,'editor-1024.png'),(await win.webContents.capturePage()).toPNG());
   await request('/api/customers',{name:'ISOLATED CRM TEST',company:'QA',stage:'潜在客户'});const customer=(await request('/api/customers'))[0];

@@ -3171,7 +3171,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function catalogOptions(key,selected,blank=false){
     const rows=OptionCatalog.active(settings,key),values=OptionCatalog.values(settings,key,selected);
-    return (blank?'<option value="">请选择</option>':'')+values.map(value=>{const row=rows.find(r=>r.value===value);return `<option value="${escapeHtml(value)}" ${value===selected?'selected':''}>${escapeHtml(row?labelText(row.labelEn,row.labelZh):value+'')}</option>`;}).join('');
+    return (blank?'<option value="">请选择</option>':'')+values.map(value=>{const row=rows.find(r=>r.value===value);return `<option value="${escapeHtml(value)}" ${value===selected?'selected':''}>${escapeHtml(row?labelText(row.labelEn,row.labelZh):value)}</option>`;}).join('');
   }
   function syncCatalogSelectors(){
     const map={currencies:['quote-currency','product-currency','agency-currency','calc-currency','logistics-currency','freight-currency'],shippingMethods:['product-transport-method','calc-method','freight-method'],containerTypes:['calc-container-type','freight-container-type'],dimensionUnits:['product-dimension-unit'],rateUnits:['freight-unit']};
@@ -5357,7 +5357,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(configuredType)source.unshift({...configuredType,key:'itemType'});
     return source
       .slice()
-      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+      .sort((a,b)=>(a.key==='itemType'?-1:0)-(b.key==='itemType'?-1:0)||Number(a.sortOrder||0)-Number(b.sortOrder||0))
       .filter((column) => column.visible !== false && column.active !== false)
       .map((column) => ({...column,key:column.key || column.fieldKey,labelZh:column.labelZh || column.zh,labelEn:column.labelEn || column.en,type:column.type || column.fieldType}));
   }

@@ -75,7 +75,7 @@ app.whenReady().then(async()=>{
   assert.equal(Object.keys(backed.state.settings.documentColorPreferences).length,8);
   // A fresh browser origin has no localStorage (as with a changed local port).
   await win.loadURL(base.replace('127.0.0.1','localhost'));for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
-  const colors=await run("JSON.parse(localStorage.getItem('quote_assistant_v01_settings')).documentColorPreferences");assert.equal(Object.keys(colors).length,8);assert(Object.values(colors).every(v=>v==='#1f7047'));
+  const colors=await run("JSON.parse(BusinessDataStore.get('quote_assistant_v01_settings')||'{}').documentColorPreferences");assert.equal(Object.keys(colors).length,8);assert(Object.values(colors).every(v=>v==='#1f7047'));
   await run("window.quoteApp.editQuote('read-packing-en')");assert.equal(await run("document.getElementById('document-table-color').value"),'#285fc1','stored old snapshot should not use last colour');
   fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(results,null,2));console.log('PASS '+results.length+' screen/print layouts: 5 documents, bilingual + all 9 languages, 3 colours; 50 PDFs plus 10 dense 14-column multi-page PDFs; 8 current document colour preferences survive fresh origin; history untouched. '+out);
  }finally{win.destroy();server.close();app.quit();}
