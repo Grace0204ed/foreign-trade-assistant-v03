@@ -7225,7 +7225,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       renderPreview();scheduleDraftRecovery();});
     $('restore-quote-draft').onclick=showWorkRecovery;
     workspaceReady=true;
-    installWorkRecovery().catch(error=>toast("草稿恢复服务不可用："+error.message));
+    installWorkRecovery().then(()=>{workRecoveryLoaded=true;resolveWorkRecoveryReady();},error=>{rejectWorkRecoveryReady(error);toast("草稿恢复服务不可用："+error.message);});
     renderPreview();
   }
 
@@ -7304,6 +7304,9 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   // Recovery records live in SQLite, separately from saved documents/products.
   const workStoreKey='fta-work-v2';
+  let workRecoveryLoaded=false,resolveWorkRecoveryReady,rejectWorkRecoveryReady;
+  const workRecoveryReady=new Promise((resolve,reject)=>{resolveWorkRecoveryReady=resolve;rejectWorkRecoveryReady=reject;});
+  workRecoveryReady.catch(()=>{});
   let workRestoring=false, productWorkId='', workCaptureError=null, workQueue=Promise.resolve(), pdfSnapshotMode=false, pdfBatchToken=null;
   const workRecords={}, pendingWork=new Map(), dirtyWork=new Set(), recoveredKeys=new Map();
   const readWork=()=>workRecords;
@@ -7362,14 +7365,14 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;await window.BusinessDataStore.flush();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
     window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
-    // Prompt once per renderer session; later access remains available in the draft box.
-    if(Object.values(workRecords).some(r=>!r.completedAt)&&!sessionStorage.getItem('fta-recovery-prompted')){sessionStorage.setItem('fta-recovery-prompted','1');showWorkRecovery();}
+    // Unfinished work is available on demand; startup never opens a recovery dialog.
   }
   function showWorkRecovery(){
+    if(!workRecoveryLoaded)return workRecoveryReady.then(()=>showWorkRecovery()).catch(error=>toast("草稿读取失败："+error.message));
     const rows=Object.values(readWork()).filter(r=>!r.completedAt).sort((a,b)=>b.savedAt.localeCompare(a.savedAt));if(!rows.length)return toast('暂无未完成工作');
     document.getElementById('work-recovery-modal')?.remove();const modal=document.createElement('div');modal.id='work-recovery-modal';modal.className='modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-label','恢复未完成工作');
     const names={quote:'单证',products:'产品编辑',invitation:'邀请函',agency:'代理文件'};
-    modal.innerHTML='<div class="modal-card"><h3>草稿箱与异常恢复</h3><p>稍后处理会保留全部草稿。恢复为独立副本，保存前请核对客户和公司。</p>'+rows.map((r,i)=>'<article><p>'+escapeHtml((r.category==='draft'?'已保存草稿':'异常恢复缓存')+' · '+(names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+([r.data.buyer?.company||r.data.visitorCompany||r.data.agentName||r.data.visitorName,r.data.buyer?.country||r.data.country,(r.data.items||[]).slice(0,3).map(item=>item.values?.description||item.values?.model||'').filter(Boolean).join('、'),r.data.product?.values?.name||r.data.product?.model].filter(Boolean).join(' · '))+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
+    modal.innerHTML='<div class="modal-card"><h3>草稿箱与异常恢复</h3>'+rows.map((r,i)=>'<article><p>'+escapeHtml((r.category==='draft'?'已保存草稿':'异常恢复缓存')+' · '+(names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+([r.data.buyer?.company||r.data.visitorCompany||r.data.agentName||r.data.visitorName,r.data.buyer?.country||r.data.country,(r.data.items||[]).slice(0,3).map(item=>item.values?.description||item.values?.model||'').filter(Boolean).join('、'),r.data.product?.values?.name||r.data.product?.model].filter(Boolean).join(' · '))+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
     const recoveryTabs=document.createElement('nav');recoveryTabs.className='document-block-tabs';recoveryTabs.innerHTML='<button type="button" data-work-filter="all" aria-pressed="true">全部未完成</button><button type="button" data-work-filter="draft">草稿箱（'+rows.filter(r=>r.category==='draft').length+'）</button><button type="button" data-work-filter="recovery">异常恢复（'+rows.filter(r=>r.category!=='draft').length+'）</button>';modal.querySelector('h3').after(recoveryTabs);
     recoveryTabs.onclick=e=>{const button=e.target.closest('[data-work-filter]');if(!button)return;const filter=button.dataset.workFilter;recoveryTabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));modal.querySelectorAll('article').forEach((article,i)=>article.hidden=filter!=='all'&&(rows[i].category==='draft'?'draft':'recovery')!==filter);};
     modal.onclick=async e=>{try{
