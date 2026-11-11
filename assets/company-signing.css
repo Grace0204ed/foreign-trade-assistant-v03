@@ -12,6 +12,7 @@
 .company-material-card .company-material-actions button{color:#6c7f99}
 #bilingual-signature-settings .signature-language-settings{border:0;border-radius:0;padding:0;margin:0;background:transparent}
 #bilingual-signature-settings [hidden]{display:none!important}
+#bilingual-signature-settings .company-material-preview img{max-width:92%;max-height:120px}
 .signature-version-control{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:11px;color:#7c8da4}
 .signature-version-control select{flex:1;min-width:0;min-height:29px;padding:4px 7px;font-size:12px;border:1px solid #dce5f2;border-radius:6px;background:#fff}
 #company-electronic-signature-card{position:relative}
