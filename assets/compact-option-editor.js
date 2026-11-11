@@ -1,6 +1,19 @@
 (function(root){
  'use strict';
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function edit({title='编辑选项',value,fields,onSave,returnFocus}){
+  const draft=structuredClone(value);for(const field of fields)if(field.type==='switch'&&draft[field.key]===undefined)draft[field.key]=field.defaultValue??(field.key==='active');const previous=document.activeElement,dialog=document.createElement('dialog');dialog.className='option-detail-dialog';dialog.setAttribute('aria-label',title);
+  const groups=[...new Set(fields.map(field=>field.group||'选项名称'))];
+  const control=field=>{const key=esc(field.key),v=draft[field.key]??'';if(field.type==='switch')return '<label class="option-detail-switch"><span>'+esc(field.label)+'</span><input type="checkbox" role="switch" data-detail-key="'+key+'" '+(v?'checked':'')+'><i aria-hidden="true"></i></label>';if(field.type==='select')return '<label class="option-detail-field"><span>'+esc(field.label)+'</span><select data-detail-key="'+key+'">'+field.options.map(option=>'<option value="'+esc(option.value)+'" '+(String(v)===String(option.value)?'selected':'')+'>'+esc(option.label)+'</option>').join('')+'</select></label>';return '<label class="option-detail-field '+(field.full?'is-full':'')+'"><span>'+esc(field.label)+(field.required?' <b>*</b>':'')+'</span><input data-detail-key="'+key+'" value="'+esc(v)+'" '+(field.readonly?'readonly':'')+' placeholder="'+esc(field.placeholder||'')+'"></label>';};
+  dialog.innerHTML='<form novalidate><header class="option-detail-heading"><span class="option-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m16 3 5 5-12 12-6 1 1-6L16 3Z"/><path d="m13 6 5 5M3 21l5-1"/></svg></span><div><h3>'+esc(title)+'</h3><span class="option-detail-current">'+esc(value.labelZh||value.portChineseName||value.labelEn||value.portName||'新选项')+'</span></div><button type="button" class="option-detail-close" data-detail-cancel aria-label="关闭编辑窗口">×</button></header><div class="option-detail-body">'+groups.map(group=>'<section><h4>'+esc(group)+'</h4><div class="option-detail-grid">'+fields.filter(field=>(field.group||'选项名称')===group).map(control).join('')+'</div></section>').join('')+'<div class="option-detail-preview"><span>显示效果</span><strong data-detail-preview></strong></div><p class="option-detail-error" role="alert" hidden></p></div><footer><button type="button" data-detail-cancel>取消</button><button type="submit" class="primary" data-detail-save>保存修改</button></footer></form>';
+  document.body.append(dialog);const form=dialog.querySelector('form'),error=dialog.querySelector('[role=alert]');let busy=false;
+  const preview=()=>{dialog.querySelector('[data-detail-preview]').textContent=[draft.labelZh??draft.portChineseName,draft.labelEn??draft.portName].filter(Boolean).join(' / ')||'—';};
+  dialog.oninput=event=>{const key=event.target.dataset.detailKey;if(!key)return;draft[key]=event.target.type==='checkbox'?event.target.checked:event.target.value;event.target.removeAttribute('aria-invalid');error.hidden=true;preview();};
+  dialog.onclick=event=>{if(event.target.closest('[data-detail-cancel]')&&!busy)dialog.close();};dialog.oncancel=event=>{if(busy)event.preventDefault();};
+  dialog.addEventListener('close',()=>{dialog.remove();const target=returnFocus?.()||previous;if(target?.isConnected)target.focus();},{once:true});
+  form.onsubmit=async event=>{event.preventDefault();if(busy)return;try{for(const field of fields)if(field.required&&!String(draft[field.key]??'').trim()){const input=dialog.querySelector('[data-detail-key="'+field.key+'"]');input?.setAttribute('aria-invalid','true');input?.focus();throw Error('请填写'+field.label);}busy=true;dialog.querySelectorAll('button,input,select').forEach(node=>node.disabled=true);await onSave(structuredClone(draft));dialog.close();}catch(problem){error.textContent=problem.message||String(problem);error.hidden=false;}finally{busy=false;dialog.querySelectorAll('button,input,select').forEach(node=>node.disabled=false);}};
+  preview();dialog.showModal();dialog.querySelector('[data-detail-key]')?.focus();return dialog;
+ }
  function open({title,options=[],save}){
   const original=structuredClone(options),rows=original.map((option,i)=>typeof option==='object'?{...option,id:option.id||'existing-'+i,value:String(option.value??option.zh??option.label??option.en??''),labelZh:option.labelZh||option.zh||option.label||String(option.value||''),labelEn:option.labelEn||option.en||'',saved:true}:{id:'existing-'+i,value:String(option),labelZh:String(option),labelEn:'',saved:true});
   const modal=document.createElement('div');modal.className='modal compact-field-options';modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');const previous=document.activeElement;
@@ -12,7 +25,7 @@
   modal.onclick=async event=>{const button=event.target.closest('button');if(!button)return;try{
    if(button.hasAttribute('data-close'))return close();
    if(button.hasAttribute('data-add')){rows.push({id:crypto.randomUUID(),labelZh:'新选项',labelEn:'',value:'',active:true});draw();list.lastElementChild?.querySelector('input').focus();list.lastElementChild?.scrollIntoView({block:'nearest'});return;}
-   if(button.dataset.edit!=null){const input=list.querySelector('[data-option-index="'+button.dataset.edit+'"] input');input?.focus();input?.select();return;}
+   if(button.dataset.edit!=null){const index=Number(button.dataset.edit);return edit({value:rows[index],fields:[{key:'labelZh',label:'中文名称'},{key:'labelEn',label:'英文名称'},{key:'active',label:'启用此选项',type:'switch',group:'选项状态'}],returnFocus:()=>list.querySelector('[data-option-index="'+index+'"] [data-edit]'),onSave:draft=>{if(!draft.labelZh.trim()&&!draft.labelEn.trim())throw Error('请填写选项名称');Object.assign(rows[index],draft);draw();}});}
    if(button.dataset.remove!=null){const index=Number(button.dataset.remove),row=rows[index];if(row.saved){row.active=false;row.deletedAt=new Date().toISOString();}else rows.splice(index,1);draw();return;}
    if(button.hasAttribute('data-save')){const active=rows.filter(row=>!row.deletedAt&&row.active!==false);if(active.some(row=>!row.labelZh.trim()&&!row.labelEn.trim()))throw Error('请填写选项名称');const values=new Set();for(const row of active){const value=row.saved?row.value:(row.labelZh||row.labelEn).trim();if(values.has(value))throw Error('选项名称不能重复');values.add(value);}
     const result=rows.map((row,i)=>{const {saved,...option}=row;option.value=saved?row.value:(row.labelZh||row.labelEn).trim();option.sortOrder=(i+1)*10;return option;});button.disabled=true;try{await save(result);close();}finally{if(button.isConnected)button.disabled=false;}
@@ -20,5 +33,5 @@
   }catch(error){modal.querySelector('[data-error]').textContent=error.message;}};
   modal.onkeydown=event=>{if(event.key==='Escape')close();};draw();modal.querySelector('[data-close]').focus();return modal;
  }
- root.CompactOptionEditor={open};
+ root.CompactOptionEditor={open,edit};
 })(window);

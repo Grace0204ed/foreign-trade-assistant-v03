@@ -36,3 +36,24 @@ body:has(>.modal>.dictionary-modal){overflow:hidden}
 .modal.show-advanced .dictionary-modal table :is(input:not([type=checkbox]),select){min-width:100px}
 .modal .dictionary-modal>details{flex:0 1 auto;min-height:0;overflow:auto}
 @media(max-width:600px){.modal .dictionary-modal{padding:12px;gap:8px;max-height:calc(100dvh - 24px)}.modal .dictionary-modal table td{padding:4px}.modal .dictionary-modal table tr>:last-child{width:90px}.modal .dictionary-modal>.refined-option-preview{gap:6px}}
+.option-detail-dialog{width:min(620px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);padding:0;border:1px solid #dce5f2;border-radius:16px;background:#fff;color:#213754;box-shadow:0 24px 80px #162d4c40;overflow:hidden;box-sizing:border-box}
+.option-detail-dialog::backdrop{background:#16263e70}
+.option-detail-dialog form{display:flex;flex-direction:column;margin:0;max-height:calc(100dvh - 34px)}
+.option-detail-heading{display:flex;align-items:center;gap:13px;padding:22px 24px;border-bottom:1px solid #edf1f7;flex:none}
+.option-detail-icon{display:grid;place-items:center;width:42px;height:42px;flex:none;border-radius:12px;background:#edf3ff;color:#285dcc}
+.option-detail-icon svg{width:23px;height:23px}
+.option-detail-heading>div{min-width:0;flex:1}.option-detail-heading h3{margin:0 0 4px;font-size:17px;font-weight:650;line-height:1.5}
+.option-detail-current{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#7b8aa0}
+.option-detail-dialog button.option-detail-close{width:32px;min-height:32px;padding:0;font-size:22px;line-height:30px;border:0;box-shadow:none;background:#f4f7fb;color:#70829a}
+.option-detail-body{min-height:0;overflow:auto;overscroll-behavior:contain;padding:22px 24px;scrollbar-width:thin}
+.option-detail-body section+section{margin-top:22px}.option-detail-body h4{font-size:12px;font-weight:650;color:#536985;margin:0 0 12px}
+.option-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.option-detail-field{display:flex;flex-direction:column;gap:7px;min-width:0;font-size:12px;color:#62758f}.option-detail-field.is-full{grid-column:1/-1}.option-detail-field b{color:#c54e60}
+.option-detail-field input,.option-detail-field select{box-sizing:border-box;width:100%;min-width:0;min-height:40px;padding:9px 11px;font:inherit;font-size:13px;color:#263c59;background:#fff;border:1px solid #dbe4f1;border-radius:8px;outline:none}
+.option-detail-field input:focus,.option-detail-field select:focus{border-color:#7c9fdf;box-shadow:0 0 0 3px #285dcc12}.option-detail-field input[readonly]{background:#f5f7fb;color:#7c8da5}.option-detail-field [aria-invalid=true]{border-color:#cc5363}
+.option-detail-switch{align-self:end;box-sizing:border-box;position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;padding:0 12px;border:1px solid #e3eaf4;border-radius:9px;background:#fafcff;font-size:12px;color:#536985}
+.option-detail-switch input{position:absolute;right:12px;opacity:0;width:34px;height:20px;margin:0;cursor:pointer}.option-detail-switch i{display:block;width:34px;height:20px;border-radius:20px;background:#b5c2d4;pointer-events:none;transition:background .15s}.option-detail-switch i:after{content:'';display:block;width:16px;height:16px;margin:2px;background:#fff;border-radius:50%;box-shadow:0 1px 3px #20334e26;transition:transform .15s}.option-detail-switch input:checked+i{background:#168653}.option-detail-switch input:checked+i:after{transform:translateX(14px)}.option-detail-switch input:focus-visible+i{outline:2px solid #285dcc;outline-offset:3px}
+.option-detail-preview{display:flex;gap:12px;align-items:center;margin-top:22px;padding:12px;border-radius:9px;background:#f3f7ff;font-size:12px}.option-detail-preview>span{color:#8292a9;flex:none}.option-detail-preview strong{color:#2c548e;font-weight:500;overflow-wrap:anywhere}
+.option-detail-dialog footer{display:flex;justify-content:flex-end;gap:9px;padding:16px 24px;background:#fafcff;border-top:1px solid #edf1f7;flex:none}.option-detail-dialog footer button{min-height:38px;padding:8px 18px;border-radius:8px;font-size:13px}
+.option-detail-error{margin:12px 0 0;padding:9px 11px;font-size:12px;color:#b43b50;background:#fff3f4;border-radius:7px}
+@media(max-width:520px){.option-detail-heading,.option-detail-body{padding:16px}.option-detail-grid{grid-template-columns:1fr}.option-detail-dialog footer{padding:12px 16px}.option-detail-preview{align-items:flex-start}}
