@@ -10,23 +10,28 @@ app.whenReady().then(async()=>{
  const wait=async expression=>{for(let i=0;i<100;i++){if(await run(expression))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timeout: '+expression)};
  try{
  await win.loadURL(base);await wait("!!document.querySelector('#overview-metrics article')");await new Promise(r=>setTimeout(r,300));
- await run("OptionManager.mount();OptionManager.edit('billingUnits',quoteSettingsContext);document.querySelector('.dictionary-modal [data-add]').click()");
- await run(`(()=>{const row=document.querySelector('.dictionary-modal tbody tr:last-child');for(const [key,value] of Object.entries({value:'QA-UNIT',labelZh:'测试单位',labelEn:'QA Unit'})){const i=row.querySelector('[data-key='+key+']');i.value=value;i.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelector('.dictionary-modal [data-save]').click()})()`);
+ await run("OptionManager.mount();OptionManager.edit('billingUnits',quoteSettingsContext);document.querySelector('.dictionary-modal [data-add]').click();document.querySelector('.dictionary-modal tbody tr:last-child [data-edit]').click()");
+ await run(`(()=>{for(const [key,value] of Object.entries({value:'QA-UNIT',labelZh:'测试单位',labelEn:'QA Unit'})){const i=document.querySelector('[data-detail-key='+key+']');i.value=value;i.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelector('[data-detail-save]').click()})()`);
+ await wait("!document.querySelector('.option-detail-dialog')");await run("document.querySelector('.dictionary-modal [data-save]').click()");
  await wait("!document.querySelector('.dictionary-modal')");
  const saved=await(await fetch(base+'/api/settings')).json();assert(saved.settings.optionCatalog.billingUnits.some(r=>r.value==='QA-UNIT'));
  const invalid=structuredClone(saved.settings);invalid.optionCatalog.billingUnits[0].value='RENAMED';
  assert.equal((await fetch(base+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(invalid)})).status,400);
  // Edit and reorder a saved label, then deactivate and archive it without changing history.
  await run("OptionManager.edit('billingUnits',quoteSettingsContext)");
- await run(`(()=>{const rows=[...document.querySelectorAll('.dictionary-modal tbody tr')],row=rows.find(r=>r.querySelector('[data-key=value]').value==='QA-UNIT');const name=row.querySelector('[data-key=labelZh]');name.value='测试单位已编辑';name.dispatchEvent(new Event('input',{bubbles:true}));row.querySelector('[data-up]').click();document.querySelector('.dictionary-modal [data-save]').click()})()`);
+ await run(`(()=>{const row=[...document.querySelectorAll('.dictionary-modal tbody tr')].find(r=>r.querySelector('[data-key=value]').value==='QA-UNIT');row.querySelector('[data-edit]').click();const input=document.querySelector('[data-detail-key=labelZh]');input.value='测试单位已编辑';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-detail-save]').click();})()`);await wait("!document.querySelector('.option-detail-dialog')");
+ await run(`(()=>{const rows=[...document.querySelectorAll('.dictionary-modal tbody tr')],index=rows.findIndex(r=>r.querySelector('[data-key=value]').value==='QA-UNIT'),data=new DataTransfer();window.qaUnitIndex=index-1;rows[index].dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:data}));rows[index-1].dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:data}));document.querySelector('.dictionary-modal [data-save]').click();})()`);
  await wait("!document.querySelector('.dictionary-modal')");
  assert((await(await fetch(base+'/api/settings')).json()).settings.optionCatalog.billingUnits.some(r=>r.value==='QA-UNIT'&&r.labelZh==='测试单位已编辑'));
+ assert(await run(`OptionCatalog.ensure(quoteSettingsContext.settings).billingUnits[qaUnitIndex].value==='QA-UNIT'`),'edited unit retains actual drag order');
  // Reuse the real port manager and persistence API; test port does not touch seeded ports.
  await run("OptionManager.editField({fieldKey:'originPort'},quoteSettingsContext)");await wait("!!document.querySelector('.dictionary-modal [data-add]')");
- await run(`(()=>{document.querySelector('.dictionary-modal [data-add]').click();const row=document.querySelector('.dictionary-modal tbody tr');for(const [key,value] of Object.entries({countryName:'China',countryChineseName:'中国',portName:'QA Test Port',portChineseName:'测试港',sortOrder:'-10'})){const i=row.querySelector('[data-key='+key+']');i.value=value;i.dispatchEvent(new Event('input',{bubbles:true}));}row.querySelector('[data-key=isOriginPort]').checked=true;row.querySelector('[data-key=isOriginPort]').dispatchEvent(new Event('input',{bubbles:true}));row.querySelector('[data-save-port]').click()})()`);
+ await run("document.querySelector('.dictionary-modal [data-add]').click();document.querySelector('.dictionary-modal tbody tr [data-edit-port]').click()");
+ await run(`(()=>{for(const [key,value] of Object.entries({countryName:'China',countryChineseName:'中国',portName:'QA Test Port',portChineseName:'测试港'})){const i=document.querySelector('[data-detail-key='+key+']');i.value=value;i.dispatchEvent(new Event('input',{bubbles:true}));}const origin=document.querySelector('[data-detail-key=isOriginPort]');origin.checked=true;origin.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-detail-save]').click()})()`);await wait("!document.querySelector('.option-detail-dialog')");
+ await run("document.querySelector('.port-options [data-option-advanced]').click();const input=document.querySelector('.port-options tbody tr [data-key=sortOrder]');input.value='-10';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-save-ports]').click()");
  let port;for(let i=0;i<60;i++){port=(await(await fetch(base+'/api/ports')).json()).ports.find(p=>p.portName==='QA Test Port');if(port)break;await new Promise(r=>setTimeout(r,50));}assert(port&&port.sortOrder===-10&&port.isOriginPort);
  await wait("window.freightContext.ports.some(p=>p.portName==='QA Test Port')");
- await run("document.querySelector('.dictionary-modal [data-close]').click()");
+ await wait("!document.querySelector('.dictionary-modal')");
  await run("document.querySelector('[data-create-document=invoice]').click()");
  assert(await run("!![...document.querySelectorAll('[data-qfield=billingUnit] option')].find(o=>o.value==='QA-UNIT')"));
  assert(await run("!![...document.querySelectorAll('#originPort-options option')].find(o=>o.value.includes('QA Test Port'))"));
