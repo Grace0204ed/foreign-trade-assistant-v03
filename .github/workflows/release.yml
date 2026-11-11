@@ -32,6 +32,8 @@ jobs:
       - run: npm run ensure:sqlite
       - run: npm run check
       - run: npm test
+      - name: Verify compact bilingual settings option editors
+        run: npm run test:compact-options
       - name: Verify saved document form order and full output regressions
         run: npm run test:document-forms && npm run test:output-regression
       - name: Verify formal lock, hierarchy, fields, top settings, calculator and commission

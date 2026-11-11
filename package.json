@@ -1,6 +1,6 @@
 {
   "name": "foreign-trade-assistant",
-  "version": "0.11.38",
+  "version": "0.11.39",
   "description": "外贸助手：客户跟进、产品、报价与外贸单证桌面系统",
   "main": "electron/main.js",
   "private": true,
@@ -41,7 +41,8 @@
     "test:demo-alignment": "electron scripts/test-demo-alignment.cjs",
     "test:settings-classification": "node --check assets/local-data-store.js && electron scripts/test-settings-classification.cjs && electron scripts/test-update-large-backup.cjs",
     "test:document-forms": "electron scripts/test-document-form-alignment.cjs && electron scripts/test-quotation-config-alignment.cjs",
-    "test:output-regression": "electron scripts/test-latest-ui.cjs && electron scripts/test-electronic-pdf.cjs && electron scripts/test-paper-backgrounds.cjs && electron scripts/test-document-output-large-html.cjs && electron scripts/test-document-output-workspace.cjs && electron scripts/test-output-controls-pi.cjs && electron scripts/test-language-order.cjs"
+    "test:output-regression": "electron scripts/test-latest-ui.cjs && electron scripts/test-electronic-pdf.cjs && electron scripts/test-paper-backgrounds.cjs && electron scripts/test-document-output-large-html.cjs && electron scripts/test-document-output-workspace.cjs && electron scripts/test-output-controls-pi.cjs && electron scripts/test-language-order.cjs",
+    "test:compact-options": "node --check assets/compact-option-editor.js && node --check assets/option-manager.js && node --check assets/customer-workspace.js && electron scripts/test-compact-option-editors.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

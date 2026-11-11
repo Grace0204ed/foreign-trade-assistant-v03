@@ -15,6 +15,7 @@ jobs:
       - run: npm run ensure:sqlite
       - run: npm run check
       - run: npm test
+      - run: npm run test:compact-options
       - run: npm run test:approved
       - run: npm run test:document-forms
       - run: npm run test:output-regression

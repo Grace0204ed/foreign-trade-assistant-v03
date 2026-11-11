@@ -1,0 +1,38 @@
+/* Compact Demo 1: bilingual rows, independent actions and an inner scroll area. */
+.modal:has(>.dictionary-modal){z-index:2200}
+body:has(>.modal>.dictionary-modal){overflow:hidden}
+.modal .dictionary-modal{display:flex;flex-direction:column;gap:12px;width:min(760px,94vw);max-width:94vw;max-height:calc(100dvh - 40px);min-height:0;padding:20px;overflow:hidden;box-sizing:border-box}
+.modal .dictionary-modal>header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex:none;margin:0}
+.modal .dictionary-modal>header h3{font-size:16px;line-height:1.5;margin:0}
+.modal .dictionary-modal>header .hint,.modal .dictionary-modal>p:not([data-error]){display:none}
+.modal .dictionary-modal>.history-table-wrap{flex:1 1 auto;min-height:80px;max-height:min(400px,50dvh);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border:1px solid #dce5f2;border-radius:8px;scrollbar-width:thin;scrollbar-color:#adbed7 #f5f7fb}
+.modal .dictionary-modal>.history-table-wrap::-webkit-scrollbar{width:8px;height:8px}
+.modal .dictionary-modal>.history-table-wrap::-webkit-scrollbar-thumb{background:#adbed7;border:2px solid #f5f7fb;border-radius:8px}
+.modal .dictionary-modal table{width:100%;table-layout:fixed;border-collapse:collapse;margin:0;overflow:visible}
+.modal .dictionary-modal table thead{position:sticky;top:0;z-index:3}
+.modal .dictionary-modal table th{position:sticky;top:0;z-index:1;background:#f1f5fb;color:#70829e;font-size:12px;font-weight:500;text-align:left;padding:8px 6px;border:0;line-height:18px}
+.modal .dictionary-modal table td{height:40px;padding:4px 6px;vertical-align:middle;border:0;border-bottom:1px solid #e5ebf4;box-sizing:border-box}
+.modal .dictionary-modal table :is(input:not([type=checkbox]),select){width:100%;min-width:0;min-height:30px;height:30px;padding:4px 7px;font-size:12px;line-height:20px;box-sizing:border-box;border:1px solid #dce5f2;border-radius:6px;box-shadow:none}
+.modal .dictionary-modal table tr>:first-child{width:28px;text-align:center}
+.modal .dictionary-modal table tr>:last-child{width:102px;white-space:nowrap}
+.modal .dictionary-modal table button{min-width:0;min-height:28px;padding:3px 7px;font-size:12px;line-height:20px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;box-shadow:none}
+.modal .dictionary-modal table tr>:last-child button+button{margin-left:4px}
+.modal .dictionary-modal :is(.drag-handle,.option-grip){display:inline-flex;align-items:center;justify-content:center;width:18px;height:28px;color:#95a5ba;cursor:grab;user-select:none}
+.modal .dictionary-modal tr.is-dragging{opacity:.45}
+.modal .dictionary-modal tr.is-drop-target td{box-shadow:inset 0 2px #2c62c6}
+.modal .dictionary-modal>.actions{display:flex;flex:none;flex-wrap:wrap;gap:8px;margin:0}
+.modal .dictionary-modal>.refined-option-preview{flex:none;display:flex;align-items:center;gap:12px;margin:0;padding:8px 10px;font-size:12px;background:#f5f8fc;border-radius:7px}
+.modal .dictionary-modal>.refined-option-preview select{min-width:0;flex:1;margin:0;padding:5px 8px;min-height:30px;font-size:12px}
+.modal .dictionary-modal>[data-error]:empty{display:none}
+.modal.refined-options:not(.show-advanced) table :is(th,td):last-child{width:102px}
+.modal.catalog-options:not(.show-advanced) table tr>:nth-child(2),.modal.catalog-options:not(.show-advanced) table tr>:nth-child(5),.modal.catalog-options:not(.show-advanced) [data-key=sortOrder],.modal.catalog-options:not(.show-advanced) [data-up],.modal.catalog-options:not(.show-advanced) [data-down],.modal.catalog-options:not(.show-advanced) [data-toggle]{display:none}
+.modal.catalog-options [data-up],.modal.catalog-options [data-down]{display:none}
+.modal.port-options:not(.show-advanced) table tr>:nth-child(n+4):not(:last-child){display:none}
+.modal.port-options table tr>:first-child{width:28px}
+.modal.port-options:not(.show-advanced) [data-key=sortOrder]{display:none}
+.modal.show-advanced .dictionary-modal{width:min(1100px,94vw)}
+.modal.show-advanced .dictionary-modal table{min-width:900px;table-layout:auto}
+.modal.show-advanced .dictionary-modal table tr>:first-child{min-width:70px}
+.modal.show-advanced .dictionary-modal table :is(input:not([type=checkbox]),select){min-width:100px}
+.modal .dictionary-modal>details{flex:0 1 auto;min-height:0;overflow:auto}
+@media(max-width:600px){.modal .dictionary-modal{padding:12px;gap:8px;max-height:calc(100dvh - 24px)}.modal .dictionary-modal table td{padding:4px}.modal .dictionary-modal table tr>:last-child{width:90px}.modal .dictionary-modal>.refined-option-preview{gap:6px}}
