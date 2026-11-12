@@ -57,6 +57,9 @@ function readInstallResult(directory,currentVersion){
   try{
     const result=JSON.parse(fs.readFileSync(path.join(directory,'update-install-result.json'),'utf8').replace(/^\uFEFF/,''));
     if(result.status==='installed'&&result.version===currentVersion)return {status:'current',version:currentVersion,percent:100,message:`已成功更新到 ${currentVersion}，安装与版本核对已完成`};
+    const parts=value=>/^\d+\.\d+\.\d+$/.test(value||'')?value.split('.').map(Number):null;
+    const current=parts(currentVersion),target=parts(result.version);
+    if(current&&target&&current.some((n,i)=>n>target[i]&&current.slice(0,i).every((v,j)=>v===target[j])))return {status:'current',version:currentVersion,percent:100,message:`当前版本 ${currentVersion}，较早版本的更新记录已由新版覆盖`};
     if(result.status==='cancelled')return {status:'error',percent:0,message:`已取消更新安装，当前版本 ${currentVersion}。可重新检查更新后安装。`};
     if(['pending','waiting','installing','installed','error'].includes(result.status))return {status:'error',percent:0,message:`上次更新未完成，当前仍是 ${currentVersion}。${result.message||'安装未结束'}；安装日志：${path.join(directory,'update-install.log')}`};
   }catch(error){if(error.code!=='ENOENT')return {status:'error',message:'无法读取上次安装结果：'+error.message};}

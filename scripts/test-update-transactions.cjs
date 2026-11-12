@@ -48,6 +48,12 @@ const {prepareInstall,readInstallResult}=require('../electron/update-install.cjs
   assert.match(readInstallResult(folder,'0.11.24').message,/已取消/);
   fs.writeFileSync(receipt,JSON.stringify({status:'installed',version:'0.11.26'}));
   assert.equal(readInstallResult(folder,'0.11.26').status,'current');
+  for(const status of ['pending','waiting','installing','installed','error','cancelled']){
+    fs.writeFileSync(receipt,JSON.stringify({status,version:'0.11.38',message:'old installation attempt'}));
+    assert.equal(readInstallResult(folder,'0.11.42').status,'current','A newer running version supersedes old '+status+' receipts after an overwrite install');
+    if(status!=='installed')assert.equal(readInstallResult(folder,'0.11.38').status,'error','Same-version failures must not be hidden');
+    assert.equal(readInstallResult(folder,'0.11.37').status,'error','An incomplete newer target must not be reported as current');
+  }
   console.log('PASS: 25 concurrent downloads, cache reuse/corruption, interrupted cleanup, retry, install exit/version verification and restart receipt');
  }finally{fs.rmSync(folder,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});
