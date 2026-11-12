@@ -31,6 +31,8 @@ jobs:
           if ("${{ github.ref_name }}" -ne $expected) { throw "Tag ${{ github.ref_name }} does not match package version $expected" }
       - run: npm run ensure:sqlite
       - run: npm run check
+      - name: Verify real Windows updater preflight and installation handoff
+        run: npm run test:update-safety
       - run: npm test
       - name: Verify compact bilingual settings option editors
         run: npm run test:compact-options
