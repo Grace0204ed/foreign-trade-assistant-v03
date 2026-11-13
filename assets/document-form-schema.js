@@ -35,7 +35,11 @@
    if(['quotation','invoice','contract'].includes(type))config.blocks.terms=merge(config.blocks.terms,[field('paymentCondition','付款方式','Payment Method','select'),field('shipping','贸易方式','Trade Term','select'),...freight.filter(f=>f.fieldKey!=='route')]);
    config.formSchemaVersion=1;
   }
-  const catalog={currency:'currencies',billingUnit:'billingUnits',dimensionUnit:'dimensionUnits',route:'shippingMethods',transportMethod:'shippingMethods',containerType:'containerTypes',shipping:'tradeTerms',payment:'payment',paymentCondition:'paymentConditions',cryptoNetwork:'cryptoNetworks'};
+  if(Number(config.formSchemaVersion||0)<2&&['quotation','invoice','contract','commercial','packing'].includes(type)){
+   const defaults=[['transportPickup','装车地点','Pickup Place'],['transportDeliveryPlace','工厂交货地点','Factory Delivery Place'],['transportCustomerPlace','最终交货地点','Final Delivery Place'],['transportAdvanceFee','代付运费','Transport Advance','money'],['transportAdvanceCurrency','代付运费币种','Advance Currency','currency'],['transportAdvanceNote','代付说明','Advance Notes','textarea']].map(([key,zh,en,t],i)=>field(key,zh,en,t||'text',{sortOrder:1000+i*10}));
+   if(!config.blocks.terms.some(f=>['route','transportMethod'].includes(f.fieldKey)))defaults.push(field('route','运输方式','Transport Mode','select',{sortOrder:1090}));defaults.push(field('containerType','柜型','Container Type','select',{sortOrder:1100}));config.blocks.terms=merge(config.blocks.terms,defaults);config.formSchemaVersion=2;
+  }
+  const catalog={currency:'currencies',billingUnit:'billingUnits',dimensionUnit:'dimensionUnits',route:'shippingMethods',transportMethod:'shippingMethods',containerType:'containerTypes',shipping:'tradeTerms',payment:'payment',paymentCondition:'paymentConditions',cryptoNetwork:'cryptoNetworks',transportAdvanceCurrency:'currencies'};
   function dictionaries(fields){for(const f of fields){const key=catalog[f.fieldKey];if(key){f.catalogKey=key;f.options=copy(settings.optionCatalog?.[key]||[]);if(!['textarea','calculated'].includes(f.fieldType))f.fieldType=f.fieldKey==='currency'?'currency':'select';}}}
   Object.values(config.blocks).filter(Array.isArray).forEach(dictionaries);
   if(['quotation','invoice','contract','commercial'].includes(type)){

@@ -1736,7 +1736,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   function companyProfileData(source) {
-    return structuredClone(Object.fromEntries(Object.entries(source).filter(([key]) => /^(companyName|companyAddress|companyPhone$|companyEmail$|contactPerson$|contactFields$|bankFields$|paymentQrFields$|logoDataUrl$|logoPath$|stampDataUrl$|stampPath$|stampTransparentDataUrl$|stampOriginalDataUrl$|companySignatures$|signerNameZh$|signerNameEn$|agencySignature|agencyAuthorizer|invitationCompany|invitationSigner|invitationSignature|businessLine)/.test(key))));
+    return structuredClone(Object.fromEntries(Object.entries(source).filter(([key]) => /^(companyName|companyAddress|companyPhone$|companyEmail$|contactPerson$|contactFields$|bankFields$|receivingAccounts$|paymentQrFields$|logoDataUrl$|logoPath$|stampDataUrl$|stampPath$|stampTransparentDataUrl$|stampOriginalDataUrl$|companySignatures$|signerNameZh$|signerNameEn$|agencySignature|agencyAuthorizer|invitationCompany|invitationSigner|invitationSignature|businessLine)/.test(key))));
   }
 
   function storeActiveCompany() {
@@ -4373,6 +4373,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const docType = documentTypeOf(documentType).key;
     currentQuote = {
       id: uid("quote"),
+      editingDetails:{version:1,parties:{seller:true,buyer:false}},
       status: "草稿",
       seriesId: "",
       version: 0,
@@ -5198,7 +5199,6 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function renderQuoteTerms() {
     const tpl = template();
-    if($('apply-pi-payment-shipping'))$('apply-pi-payment-shipping').hidden=currentQuote.documentType!=='invoice';
     const values = currentQuote.terms || {};
     const fields = configuredBlockFields("terms", tpl.termFields || defaultTermFields)
       .filter((field) => field.fieldType !== "calculated");
@@ -5210,6 +5210,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     `).join("") || `<p class="empty wide">当前报价类型没有需要填写的条款字段。</p>`;
     enhanceConfiguredMarkup($("quote-terms"),fields,'data-termfield');
     window.BusinessSettings?.refreshDescription();
+    window.DocumentEditing?.quote(currentQuote,settings);
   }
 
   function collectQuoteFromForm() {
@@ -5475,13 +5476,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function renderQuoteItems() {
     if(!currentQuote.items?.length)currentQuote.items=[blankQuoteLine()];
-    const pack=currentQuote.documentType==='packing';
-    $('quote-items').innerHTML='<div class="quote-line-table-wrap schema-line-list">'+currentQuote.items.map((item,index)=>{
-      item.values||={};if(pack)item.values={...(currentQuote.packing?.[item.id]||{}),...item.values};
-      const fields=quoteLineColumns(item),image=fields.some(f=>f.key==='image')&&(item.kind||'product')==='product';
-      fields.forEach(f=>{if(!Object.hasOwn(item.values,f.key)&&f.defaultValue!=null)item.values[f.key]=structuredClone(f.defaultValue);});
-      return `<div class="quote-line schema-quote-line" data-id="${escapeHtml(item.id)}" data-kind="${escapeHtml(item.kind||'product')}" data-image="${escapeHtml(item.imageDataUrl||'')}" data-freight-snapshot="${item.freightSnapshot?encodeURIComponent(JSON.stringify(item.freightSnapshot)):''}"><div class="schema-line-heading"><span>第 ${index+1} 项</span><button class="remove-quote-item" type="button">删除</button></div><div class="schema-line-grid">${fields.map(f=>f.key==='image'?(image?`<div class="quote-row-actions" data-form-field="image"><div class="quote-action-image-preview"${item.imageDataUrl?'':' hidden'}><img src="${escapeHtml(item.imageDataUrl||'')}" alt="产品图片"></div><label class="file-btn">上传图片<input class="quote-line-image-input" type="file" accept="image/*"></label><button class="clear-line-image" type="button"${item.imageDataUrl?'':' hidden'}>移除图片</button></div>`:''):`<label class="${f.key==='itemType'?'schema-item-type':f.key==='description'?'schema-description':''}" data-form-field="${escapeHtml(f.key)}"><span>${escapeHtml(f.labelZh)}${f.required?' *':''}</span>${renderQuoteLineInput(f,item)}</label>`).join('')}</div></div>`;
-    }).join('')+'</div>';
+    currentQuote.items.forEach(item=>{item.values||={};if(currentQuote.documentType==='packing')item.values={...(currentQuote.packing?.[item.id]||{}),...item.values};quoteLineColumns(item).forEach(f=>{if(!Object.hasOwn(item.values,f.key)&&f.defaultValue!=null)item.values[f.key]=structuredClone(f.defaultValue);});});
+    $('quote-items').innerHTML=DocumentEditing.lines(currentQuote,quoteLineColumns,(f,item)=>f.key==='image'?((item.kind||'product')==='product'?`<div class="quote-row-actions"><div class="quote-action-image-preview"${item.imageDataUrl?'':' hidden'}><img src="${escapeHtml(item.imageDataUrl||'')}" alt="产品图片"></div><label class="file-btn">上传图片<input class="quote-line-image-input" type="file" accept="image/*"></label><button class="clear-line-image" type="button"${item.imageDataUrl?'':' hidden'}>移除图片</button></div>`:''):renderQuoteLineInput(f,item));
     currentQuote.items.forEach(item=>{const row=$('quote-items').querySelector('[data-id="'+CSS.escape(item.id)+'"]');if(row)enhanceConfiguredMarkup(row,quoteLineColumns(item),'data-qfield');});
     window.DocumentFormUI?.quote(currentQuote.documentType);
   }
@@ -5921,6 +5917,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   function displayTermValue(field) {
+    if(currentQuote.editingDetails?.transportActivated&&['route','transportMethod'].includes(field.fieldKey)){const m=DocumentEditingModel.modes.find(m=>m[0]===currentQuote.terms[field.fieldKey]);if(m)return labelText(m[2],m[1]);}
+    if(field.fieldKey==='payment'&&currentQuote.editingDetails?.payment?.custom){const p=DocumentEditingModel.payment(currentQuote);return `${p.deposit}% (${p.depositWhen||''}) / ${p.balance}% (${p.balanceWhen||''})`;}
     const translation=documentTranslatedValue('term:'+field.fieldKey);
     if(translation) return translation;
     const value = currentQuote.terms[field.fieldKey] || "";
@@ -6060,8 +6058,9 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function renderBankPreview() {
     normalizeBankFields();
     normalizePaymentQrFields();
-    const fields = settings.bankFields.filter((field) => field.visible && field.value);
-    const qrFields = settings.paymentQrFields.filter((field) => field.visible && field.value);
+    const account=currentQuote?.receivingAccountSnapshot;
+    const fields = (account?.fields||settings.bankFields).filter((field) => field.visible && field.value);
+    const qrFields = currentQuote?.receivingAccountSnapshot?(currentQuote.receivingAccountSnapshot.qr?[{labelEn:"Payment QR",labelZh:"收款二维码",value:currentQuote.receivingAccountSnapshot.qr}]:[]):settings.paymentQrFields.filter((field) => field.visible && field.value);
     if (!fields.length && !qrFields.length) return "";
     return `<section class="preview-panel bank-panel">
       <h3>${quoteSectionTitle("bank")}</h3>
@@ -6151,7 +6150,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     collectQuoteFromForm();
     const tpl = template();
     const visibleFields = tpl.fields.slice().sort((a, b) => a.sortOrder - b.sortOrder).filter((field) => field.visible);
-    const visibleTermFields = configuredBlockFields('terms',tpl.termFields || defaultTermFields).filter(field=>String(displayTermValue(field)??'').trim());
+    const visibleTermFields = configuredBlockFields('terms',tpl.termFields || defaultTermFields).filter(field=>DocumentEditing.termVisible(currentQuote,field.fieldKey)&&String(displayTermValue(field)??'').trim());
     const showProductPhotos = $("quote-show-product-images")?.checked !== false;
     currentQuote.showProductPhotos = showProductPhotos;
     const imageStatus = $("quote-image-output-status");
@@ -6269,9 +6268,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function renderDocumentSignature(type) {
     const e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
     const signed=DocumentWorkflow.signing(currentQuote,currentQuote.companySnapshot||settings,type);
-    const seller=`<div class="document-seller-signature"><h3>${l('For and on behalf of the Seller','卖方公司授权签署')}</h3><p><b>${l('Company','公司全称')}:</b> ${e(localizedText(settings.companyNameEn,settings.companyNameZh))}</p><p><b>${l('Authorized Signatory','授权签字人')}:</b> ${e(signed.name)}</p><p><b>${l('Title','职务')}:</b> ${e(signed.title)}</p>${DocumentWorkflow.signingHTML(signed)}<p>${l('Date','日期')}: ${e(DocumentWorkflow.dateText(currentQuote.quoteDate,displayMode()))}</p></div>`;
-    const buyer=type==='contract'?`<div class="document-buyer-signature"><h3>${l('Buyer signature','买方签署')}</h3><p>${e(currentQuote.buyer.company||currentQuote.buyer.contact||'')}</p><p>${l('Authorized Signatory','授权签字人')}: ____________________</p><p>${l('Title','职务')}: ____________________</p><p>${l('Signature','签字')}: ____________________</p><p>${l('Date','日期')}: ____________________</p></div>`:'';
-    return `<section class="document-signature-block ${type==='contract'?'document-dual-signatures':''}">${seller}${buyer}</section>`;
+    const parties=DocumentEditingModel.parties(currentQuote,type);
+    const seller=parties.seller?`<div class="document-seller-signature"><h3>${l('For and on behalf of the Seller','卖方公司授权签署')}</h3><p><b>${l('Company','公司全称')}:</b> ${e(localizedText(settings.companyNameEn,settings.companyNameZh))}</p><p><b>${l('Authorized Signatory','授权签字人')}:</b> ${e(signed.name)}</p><p><b>${l('Title','职务')}:</b> ${e(signed.title)}</p>${DocumentWorkflow.signingHTML(signed)}<p>${l('Date','日期')}: ${e(DocumentWorkflow.dateText(currentQuote.quoteDate,displayMode()))}</p></div>`:'';
+    const buyer=parties.buyer?`<div class="document-buyer-signature"><h3>${l('Buyer signature','买方签署')}</h3><p>${e(currentQuote.buyer.company||currentQuote.buyer.contact||'')}</p><p>${l('Authorized Signatory','授权签字人')}: ____________________</p><p>${l('Title','职务')}: ____________________</p><p>${l('Signature','签字')}: ____________________</p><p>${l('Date','日期')}: ____________________</p></div>`:'';
+    return seller||buyer?`<section class="document-signature-block ${seller&&buyer?'document-dual-signatures':''}">${seller}${buyer}</section>`:'';
   }
   function compactDocumentHeader(){
     const e=escapeHtml,company=displayMode()==='zh'?settings.companyNameZh:settings.companyNameEn;
@@ -6295,7 +6295,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       // documents. Remove the legacy stamp-only placement to avoid duplicate
       // seals, then append the complete signature/seal block only when chosen.
       host.querySelectorAll('.stamp-box,.signature-section,.pi-company-signature,.sales-contract-signatures,.document-signature-block').forEach(node=>node.remove());
-      if(options.signature)host.insertAdjacentHTML('beforeend',renderDocumentSignature(type));
+      if(options.signature||currentQuote.editingDetails?.parties)host.insertAdjacentHTML('beforeend',renderDocumentSignature(type));
       return;
     }
     $('document-show-bank').disabled=false;
@@ -6311,15 +6311,15 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const consigneeText=currentQuote.buyer?.consignee||d.consignee;
     const consignee=['commercial','packing'].includes(type)&&consigneeText?`<p class="preserve-lines">${e(consigneeText)}</p>`:buyer;
     const parties=`<div class="document-parties">${block(l(type==='packing'?'Shipper':'Seller',type==='packing'?'发货人':'卖方'),seller)}${block(partyHeading,consignee)}</div>${type==='commercial'&&d.consignee?block(l('Buyer','买方'),buyer):''}`;
-    const shipmentFieldsConfigured=termFields.filter(f=>!['payment','paymentCondition','afterSales','warranty'].includes(f.fieldKey));
+    const shipmentFieldsConfigured=termFields.filter(f=>DocumentEditing.termVisible(currentQuote,f.fieldKey)&&!['payment','paymentCondition','afterSales','warranty'].includes(f.fieldKey));
     const shipment=block(l('Shipment details','运输信息'),'<div class="document-shipment-grid">'+shipmentFieldsConfigured.map(f=>detail(f.en,f.zh,displayTermValue(f))).join('')+'</div>','document-shipment');
     const termBlock=(fields,title,cls='')=>block(title,fields.filter(f=>displayTermValue(f)).map(f=>'<div><b>'+l(f.en,f.zh)+'</b><div>'+ConfiguredFields.html(f,displayTermValue(f))+'</div></div>').join(''),cls);
-    const visibleTerms=termFields.filter(f=>displayTermValue(f));
+    const visibleTerms=termFields.filter(f=>DocumentEditing.termVisible(currentQuote,f.fieldKey)&&displayTermValue(f));
     const items=html('table')?host.querySelector('table').closest('.preview-panel').outerHTML:'';
     const letterhead=compactDocumentHeader();
     const heading='';
     const parts={brandHeader:html('.preview-banner'),heading,letterhead,customer:html('.preview-panel'),parties,items,photos:html('.photo-grid')?host.querySelector('.photo-grid').closest('.preview-panel').outerHTML:'',
-      offerTerms:html('.terms-panel'),bank:options.bank?renderBankPreview():'',signature:options.signature?renderDocumentSignature(type):'',shipment,
+      offerTerms:html('.terms-panel'),bank:options.bank?renderBankPreview():'',signature:options.signature||currentQuote.editingDetails?.parties?renderDocumentSignature(type):'',shipment,
       proformaNotice:`<p class="proforma-notice">${l('Pro forma invoice — not a final commercial invoice.','形式发票——非最终商业发票。')}</p>`,
       paymentTerms:termBlock(visibleTerms.filter(f=>f.fieldKey==='payment'),l('Payment instructions','付款安排'),'document-payment'),
       deliveryTerms:termBlock(visibleTerms.filter(f=>f.fieldKey!=='payment'),l('Delivery and conditions','交付与交易条件')),
@@ -7004,7 +7004,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   // Document workspace: recovery snapshots never overwrite formal quotation history.
   let draftDatabase, workspaceReady = false;
-  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass'];
+  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass','editingDetails','receivingAccountSnapshot'];
   let packingSourceBusy = false;
   async function refreshPackingSources() {
     const select=$('packing-source-select');
@@ -7208,7 +7208,6 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     $('document-language-rows')?.addEventListener('input',event=>{const input=event.target;if(!input.dataset.documentText)return;currentQuote.translations||={};currentQuote.translations[input.dataset.documentLanguage]||={};currentQuote.translations[input.dataset.documentLanguage][input.dataset.documentText]=input.value;renderPreview();});
     $('quote-photo-appendix').addEventListener('change',()=>{currentQuote.photoAppendix=$('quote-photo-appendix').checked;renderPreview();});
     for(const name of ['input','change'])$('document-table-color')?.addEventListener(name,event=>{currentQuote.tableHeaderColor=event.target.value;rememberDocumentColor(currentQuote.documentType||'quotation',event.target.value);renderPreview();scheduleDraftRecovery();});
-    $('apply-pi-payment-shipping')?.addEventListener('click',()=>{if(currentQuote.documentType!=='invoice')return;collectQuoteFromForm();if(currentQuote.terms.notes&&!confirm('将当前PI备注替换为标准付款与运输条款（30%订金、报关文件、清洗/PDI、订舱与板车运港、装船前70%尾款及银行/SWIFT核对提醒）？此操作只替换备注，不修改付款比例字段、商品价格或历史原单。'))return;currentQuote.terms.notes=DocumentPresentation.terms('bilingual');renderQuoteTerms();renderPreview();scheduleDraftRecovery();});
     const setProductType=(patch)=>{currentQuote.documentTypography=DocumentPresentation.typography(currentQuote.documentTypography);Object.assign(currentQuote.documentTypography.product,patch);renderPreview();scheduleDraftRecovery();};
     $('document-product-style')?.addEventListener('change',event=>{const type=event.target.value;setProductType({fontWeight:type==='regular'?400:700,...(type==='bold-black'?{color:'#000000'}:{})});});
     $('document-product-color')?.addEventListener('input',event=>setProductType({color:event.target.value}));
@@ -7477,6 +7476,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       host.querySelector('[data-signature-visible]').checked=choice!=='none'&&(doc.signingOptions?.signature??doc.signingSnapshot?.showSignature??doc.outputOptions?.[doc.documentType]?.signature??true);host.querySelector('[data-signature-visible]').disabled=false;host.querySelector('[data-seal-visible]').checked=doc.signingOptions?.seal??doc.signingSnapshot?.showSeal??true;
       const signed=DocumentWorkflow.signing(doc,doc.companySnapshot||settings,kind);host.querySelector('small').textContent=signed.showSignature&&!signed.signature?'所选签名素材缺失，请到公司设置上传或关闭显示签名。':'签名与语言独立；保存历史时保留本单证素材版本。';
       if(kind==='quote'&&$('document-show-signature'))$('document-show-signature').closest('label').hidden=true;
+      if(kind==='quote'){window.DocumentEditing?.signing(doc,host);window.DocumentEditing?.quote(doc,settings);}
     }
   }
   let signatureEditLanguage='en',signatureSettingsVersion='en';
@@ -7677,7 +7677,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
   function installDraftWorkflow(){
     // Establish baselines when entering a document, and after explicit saves.
-    const switchBase=switchView;switchView=function(name,...args){const result=switchBase(name,...args);if(!workRestoring&&['quote','invitation','agency','products'].includes(activeViewName)&&!workBaselines.has(currentWorkKey()))markWorkBaseline(activeViewName,true);return result;};
+    const switchBase=switchView;switchView=function(name,...args){if(activeViewName!==name&&['quote','invitation','agency'].includes(activeViewName))window.DocumentDraftWorkspace?.entries();const result=switchBase(name,...args);if(!workRestoring&&['quote','invitation','agency','products'].includes(activeViewName)&&!workBaselines.has(currentWorkKey()))markWorkBaseline(activeViewName,true);return result;};
     for(const [get,set] of [[()=>newQuote,f=>newQuote=f],[()=>newInvitation,f=>newInvitation=f],[()=>newAgentAuthorization,f=>newAgentAuthorization=f]]){const base=get();set(function(...args){const result=base(...args);if(!workRestoring&&['quote','invitation','agency'].includes(activeViewName))markWorkBaseline();return result;});}
     for(const kind of ['quote','invitation','agency'])if(workflowDocument(kind))markWorkBaseline(kind);
     const saveBase=saveQuote;saveQuote=async function(...args){const result=await saveBase(...args);markWorkBaseline('quote');return result;};
@@ -7728,6 +7728,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote, printStandardHistory, exportProductCatalogPdf, renderVehiclePreview, printVehicleQuote, getActiveFreightTarget:activeFreightTarget, applyFreightResult };
   window.quoteSettingsContext={
+    editingCollectQuote:collectQuoteFromForm,
+    editingRefresh(){renderQuoteTerms();renderQuoteItems();renderPreview();},
+    get editingRecords(){return {quote:currentQuote,invitation:currentInvitation};},
+    editingChanged(kind){if(kind==='quote'){collectQuoteFromForm();renderPreview();scheduleDraftRecovery();}else{collectInvitationFromForm();renderInvitationPreview();persistWork(true);}},
     get settings(){return settings;},
     hydrateDocumentChoices,
     get defaultTermFields(){return structuredClone(defaultTermFields);},

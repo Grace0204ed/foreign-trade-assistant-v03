@@ -27,7 +27,7 @@ app.whenReady().then(async()=>{
   await run(`quoteSettingsContext.save({companySignatures:{zh:{name:'测试签署人',title:'负责人',transparent:${JSON.stringify(images.zh)},original:${JSON.stringify(images.zh)},version:'qa-zh'},en:{name:'QA English Signer',title:'Manager',transparent:${JSON.stringify(images.en)},original:${JSON.stringify(images.en)},version:'qa-en'}},stampTransparentDataUrl:${JSON.stringify(images.seal)},stampDataUrl:${JSON.stringify(images.seal)},bankFields:[{id:'qa-bank',labelEn:'QA Bank Account',labelZh:'测试银行账户',value:'QA-BANK-ACCOUNT-ONLY',visible:true,sortOrder:10}]})`);
 
   for(const type of ['quotation','invoice','contract','commercial','packing','invitation','authorization','statement']){
-   const kind=await create(type),output='#document-output-options-'+kind,host='#signing-controls-'+kind,preview='#'+kind+'-preview';
+   const kind=await create(type);if(type==='invitation')await run(`const d=quoteSettingsContext.editingRecords.invitation;d.editorStep=3;DocumentEditing.invitation(d)`);const output='#document-output-options-'+kind,host='#signing-controls-'+kind,preview='#'+kind+'-preview';
    const location=await run(`(()=>{const host=document.querySelector('${host}'),output=document.querySelector('${output}'),view=document.querySelector('#view-${kind}');return{oneHost:view.querySelectorAll('#signing-controls-${kind}').length,atBottom:!!output&&host.closest('.document-output-options')===output,topDuplicates:view.querySelectorAll('.document-appearance-toolbar [data-signature-choice],[data-tools-view] [data-signature-choice]').length,choices:host.querySelectorAll('[data-signature-choice]').length,signature:host.querySelectorAll('[data-signature-visible]').length,seal:host.querySelectorAll('[data-seal-visible]').length,visible:output?.getBoundingClientRect().height>0}})()`);
    assert.equal(location.oneHost,1,type+' has one signing editor');
    assert(location.atBottom&&location.visible,type+' signing controls are in visible bottom output options');
@@ -77,34 +77,17 @@ app.whenReady().then(async()=>{
   await set('#quote-photo-appendix',true);assert(await run("document.querySelectorAll('#quote-preview .photo-grid img').length>0"),'photo appendix pill changes actual detailed photo preview');
 
   await create('invoice');
-  const buttonLabel=await run("document.querySelector('#apply-pi-payment-shipping').textContent");
-  assert(buttonLabel.includes('标准')&&buttonLabel.includes('备注'),'PI action names the exact standard-notes operation');
-  assert(!/更新付款|同步付款|修改付款比例/.test(buttonLabel),'PI label does not imply changing payment-ratio or price fields');
-  await run("window.qaPiPrompts=[];window.confirm=message=>{qaPiPrompts.push(message);return false};const payment=document.querySelector('[data-termfield=payment]');if(payment.tagName==='SELECT'){const row=[...payment.options].find(option=>option.value==='40/60')||[...payment.options].find(option=>option.value);payment.value=row.value}else payment.value='40/60';payment.dispatchEvent(new Event('change',{bubbles:true}))");
+  assert.equal(await run("document.querySelector('#apply-pi-payment-shipping')"),null,'retired PI auto-fill action is removed');
   await set('#buyer-company','QA PI BUYER','input');await set('#buyer-contact','QA PI CONTACT','input');
   await set('.quote-line [data-qfield=qty]','2','input');await set('.quote-line [data-qfield=unitPrice]','1234.5','input');
   await set('[data-termfield=notes]','客户原有备注 QA','input');
-  const businessValues=()=>run("({payment:document.querySelector('[data-termfield=payment]').value,price:document.querySelector('.quote-line [data-qfield=unitPrice]').value,qty:document.querySelector('.quote-line [data-qfield=qty]').value,company:document.querySelector('#buyer-company').value,contact:document.querySelector('#buyer-contact').value})");
-  const before=await businessValues();
-  await run("document.querySelector('#apply-pi-payment-shipping').click()");
-  assert.equal(await run("document.querySelector('[data-termfield=notes]').value"),'客户原有备注 QA','cancel preserves nonempty notes');
-  assert.deepEqual(await businessValues(),before,'cancel leaves payment, price, quantity and buyer untouched');
-  assert.equal(await run('qaPiPrompts.length'),1,'nonempty notes require confirmation');
-  assert(await run("qaPiPrompts[0].includes('只替换备注')&&qaPiPrompts[0].includes('PDI')&&qaPiPrompts[0].includes('SWIFT')"),'confirmation explains full contents and limited edit scope');
-
-  await run("window.confirm=message=>{qaPiPrompts.push(message);return true};document.querySelector('#apply-pi-payment-shipping').click()");
-  const expected=await run("DocumentPresentation.terms('bilingual')"),actual=await run("document.querySelector('[data-termfield=notes]').value");
-  assert.equal(actual,expected,'PI action replaces notes with the complete canonical bilingual text');
-  assert(actual.includes('PDI')&&actual.includes('BIC/SWIFT')&&actual.includes('Hong Kong, China')&&actual.includes('中国香港')&&actual.includes('30%')&&actual.includes('70%'),'canonical bilingual notes include PDI, bank/SWIFT reminders and payment/shipping sequence');
-  assert(!actual.includes('客户原有备注 QA'),'accepted replacement removes the previous notes');
-  assert.deepEqual(await businessValues(),before,'accepted replacement changes no payment ratio, item value or buyer field');
-  assert(await run("document.querySelector('#quote-preview').textContent.includes('PDI')&&document.querySelector('#quote-preview').textContent.includes('BIC/SWIFT')&&document.querySelector('#quote-preview').textContent.includes('QA PI BUYER')"),'complete notes and original buyer reach live preview');
-  await set('[data-termfield=notes]','','input');
-  await run("window.qaBlankPiPrompts=0;window.confirm=()=>{qaBlankPiPrompts++;return false};document.querySelector('#apply-pi-payment-shipping').click()");
-  assert.equal(await run('qaBlankPiPrompts'),0,'blank notes can be filled directly');
-  assert.equal(await run("document.querySelector('[data-termfield=notes]').value"),expected);
-  assert.deepEqual(await businessValues(),before);
+  await set('[data-payment-choice]','custom');await set('[data-payment-detail=deposit]','40','input');
+  assert.equal(await run("document.querySelector('[data-termfield=payment]').value"),'40/60','custom deposit calculates the balance');
+  assert.equal(await run("document.querySelector('[data-termfield=notes]').value"),'客户原有备注 QA','changing payment never replaces customer notes');
+  assert.equal(await run("document.querySelector('.quote-line [data-qfield=unitPrice]').value"),'1234.5');
+  assert.equal(await run("document.querySelector('.quote-line [data-qfield=qty]').value"),'2');
+  assert(await run("document.querySelector('#quote-preview').textContent.includes('客户原有备注 QA')&&document.querySelector('#quote-preview').textContent.includes('QA PI BUYER')"),'original notes and buyer reach preview');
   assert.deepEqual(errors,[]);
-  console.log('PASS eight document types: single bottom signing controls, consistent pill switches, independent signature/seal/version preview, PDF-language independence, applicable bank/photo preview; PI complete bilingual notes, bank/PDI content, cancel/confirm boundaries and unchanged payment/item/buyer fields. Isolated data: '+dir+'; types: '+results.join(','));
+  console.log('PASS eight document types: single bottom signing controls, consistent pill switches, independent signature/seal/version preview, PDF-language independence, applicable bank/photo preview; removed PI auto-fill action, custom payment and unchanged notes/item/buyer fields. Isolated data: '+dir+'; types: '+results.join(','));
  }finally{win.destroy();await new Promise(resolve=>server.close(resolve));app.quit();}
 }).catch(error=>{console.error(error);app.exit(1);});

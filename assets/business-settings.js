@@ -12,7 +12,7 @@
   const draw=()=>{const row=rows.find(r=>r.value===value),copy=row?.descriptions||defaults[value]||{};trade.innerHTML='<h3>贸易方式与说明</h3><p>选项与制作界面的贸易方式同步。这里只维护已有语言说明，不自动翻译，也不写入备注。</p><button type="button" data-edit-terms>管理贸易方式选项</button><label>贸易方式<select data-explain-term>'+rows.map(r=>`<option value="${esc(r.value)}" ${r.value===value?'selected':''}>${esc(r.value)}${r.active===false?'（停用）':''}</option>`).join('')+'</select></label><div class="form-grid">'+Object.entries({zh:'中文',...DocumentLocales.languages}).map(([code,label])=>`<label>${esc(label)}说明<textarea data-term-copy="${code}">${esc(copy[code]||'')}</textarea></label>`).join('')+'</div><button type="button" data-save-explanation>保存设置</button><p data-explanation-status role="status"></p>';};
   trade.onchange=e=>{if(e.target.matches('[data-explain-term]')){value=e.target.value;draw();}};
   trade.onclick=async e=>{if(e.target.matches('[data-edit-terms]'))return OptionManager.edit('tradeTerms',c);if(!e.target.matches('[data-save-explanation]'))return;const catalog=structuredClone(OptionCatalog.ensure(c.settings)),row=catalog.tradeTerms.find(r=>r.value===value);if(!row)return;row.descriptions=Object.fromEntries([...trade.querySelectorAll('[data-term-copy]')].map(n=>[n.dataset.termCopy,n.value]));try{await c.save({optionCatalog:catalog});c.toast('贸易方式说明已保存。');}catch(error){c.toast('保存失败：'+error.message);}};draw();
-  renderJobTitles();
+  renderJobTitles();window.ReceivingAccounts?.mount();
   document.querySelectorAll('#invitation-title,#agency-authorizer-title,#company-signer-title,[data-signature-title]').forEach(n=>{if(n.tagName==='INPUT')n.setAttribute('list','company-job-title-options');});
   document.getElementById('product-transport-mapping')?.remove();
  }
