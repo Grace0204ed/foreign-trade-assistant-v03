@@ -17,7 +17,10 @@ app.whenReady().then(async()=>{
   assert.equal(await run("document.querySelectorAll('#quote-common-panel .editor-field-group-title').length"),2);
   assert(await run("getComputedStyle(document.querySelector('#quote-standard-detail-panel>.row-head')).display==='flex'"));
   assert(await run("!!document.querySelector('#quote-standard-detail-panel>.row-head>.actions #add-quote-item-btn')"),'original detail actions retained');
-  assert(await run("getComputedStyle(document.querySelector('#quote-items .schema-line-grid')).display==='grid'"));
+  assert(await run("getComputedStyle(document.querySelector('#quote-items .quote-line')).display==='table-row'"),'approved horizontal editor uses actual table rows');
+  assert(await run("document.querySelector('#quote-items .editing-sheet thead th:nth-child(2)').textContent.includes('条目类型')"),'item type leads the horizontal fields');
+  assert.equal(await run("document.querySelectorAll('#quote-items details').length"),0,'all configured fields stay directly editable');
+  assert(await run("document.querySelector('#quote-items .editing-sheet-scroll').scrollWidth>document.querySelector('#quote-items .editing-sheet-scroll').clientWidth"),'horizontal overflow stays inside the line table without squeezing fields');
   assert.equal(await run("document.querySelectorAll('#quote-items [data-qfield=hsCode]').length"),1);
   await run("document.querySelector('#buyer-company').value='Demo Buyer';document.querySelector('#buyer-company').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=hsCode]').value='84294000';document.querySelector('[data-qfield=hsCode]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=description]').value='Dynapac CA402 14-ton road roller';document.querySelector('[data-qfield=description]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-qfield=unitPrice]').value='23000';document.querySelector('[data-qfield=unitPrice]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#quote-common-panel').scrollIntoView()");
   await shot('pi-basic');await run("document.querySelector('#quote-standard-detail-panel').scrollIntoView()");await shot('pi-items-expanded');
@@ -35,6 +38,6 @@ app.whenReady().then(async()=>{
    await run("document.querySelector('#quote-standard-detail-panel').scrollIntoView()");await shot(type+'-items');
   }
   win.setSize(1024,900);await shot('packing-1024');
-  console.log('PASS approved demo editor: grouped forms, readable primary columns, expandable configurable fields, collapsed-field persistence, five shared editors and document-specific numbers. '+output);
+  console.log('PASS approved demo editor: grouped forms, readable primary columns, horizontal configurable fields, direct field persistence, five shared editors and document-specific numbers. '+output);
  }finally{win.destroy();server.close();app.quit();}
 }).catch(e=>{console.error(e);app.exit(1);});

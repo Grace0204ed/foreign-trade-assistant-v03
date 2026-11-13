@@ -6351,6 +6351,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       schemaVersion: 4,
       ...(currentQuote.templateSnapshot?.productTemplate ? {productTemplate:currentQuote.templateSnapshot.productTemplate} : {}),
       documentConfig: activeDocumentConfig(),
+      documentTransportRules: structuredClone(settings.documentTransportRules||{}),
       customerFields: configuredBlockFields("customer", settings.customerQuoteFields),
       itemFields: quoteLineColumns(),
       termFields: configuredBlockFields("terms", template().termFields || defaultTermFields),
@@ -7731,6 +7732,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote, printStandardHistory, exportProductCatalogPdf, renderVehiclePreview, printVehicleQuote, getActiveFreightTarget:activeFreightTarget, applyFreightResult };
   window.quoteSettingsContext={
     editingCollectQuote:collectQuoteFromForm,
+    get editingHistorical(){return currentQuote?.isFormal||pdfSnapshotMode;},
     editingRefresh(){renderQuoteTerms();renderQuoteItems();renderPreview();},
     get editingRecords(){return {quote:currentQuote,invitation:currentInvitation};},
     editingChanged(kind){if(kind==='quote'){collectQuoteFromForm();renderPreview();scheduleDraftRecovery();}else{collectInvitationFromForm();renderInvitationPreview();persistWork(true);}},
