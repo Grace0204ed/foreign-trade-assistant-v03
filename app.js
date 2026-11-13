@@ -6086,6 +6086,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   function validateQuoteLines() {
+    const editingIssue=DocumentEditing.validation(currentQuote);if(editingIssue){toast(editingIssue);return false;}
     if(currentQuote.documentType==='invoice'&&String(currentQuote.terms?.notes||'').includes(DocumentPresentation.paymentShipping.en)&&currentQuote.terms.payment!=='30/70'){toast('新版PI备注约定30%订金、70%尾款，请核对付款比例或修改条款后再签发。');return false;}
     if(currentQuote.currencyDisplay==="dual"&&(!currentQuote.secondaryCurrency||currentQuote.secondaryCurrency===currentQuote.currency||!(Number(currentQuote.exchangeRate?.rate)>0))){toast("双币种单据必须选择不同的第二币种，并填写大于0的明确汇率。");return false;}
     if(currentQuote.documentType==='packing') {
@@ -7581,6 +7582,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(invalid)return toast('日期无效，请输入真实的 YYYY-MM-DD 日期：'+invalid.value);
     if(!window.quotationDesktop?.createDocumentPreview)return toast('分页预览需要桌面版输出引擎；当前编辑内容已保留。');
     if(!window.DocumentOutputWorkspace)return toast('预览工作台未加载，请重新打开应用；编辑内容已保留。');
+    if(kind==='quote'){const issue=DocumentEditing.validation(d);if(issue)return toast(issue);}
     const entries=workspace?workspace.entries():[{type,label:documentTypeOf(type).labelZh,kind,data:d}];
     for(const entry of entries)entry.number=entry.type==='invitation'?[entry.data.visitorName,entry.data.date].filter(Boolean).join(' · '):entry.data.quoteNumber||entry.data.authorizationNumber||'';
     await window.DocumentOutputWorkspace.open({
