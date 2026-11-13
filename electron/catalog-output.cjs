@@ -14,6 +14,7 @@ module.exports=async function createCatalogWindow(BrowserWindow,html,parent){
     const file=path.join(directory,'catalog.html');fs.writeFileSync(file,document,{encoding:'utf8',flag:'wx',mode:0o600});
     await win.loadFile(file);
     await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));})()`);
+    await require('./paper-backgrounds.cjs').preparePaperBackgrounds(win.webContents);
     return win;
   }catch(error){win.destroy();throw error;}
 };

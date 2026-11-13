@@ -1,7 +1,8 @@
 @media screen{
  body.document-editor-focus .desktop-rail{display:none!important}
  body.document-editor-focus .app-shell{grid-template-columns:minmax(0,1fr)!important}
- body.document-editor-focus .main{margin-left:0!important;width:100%!important;min-width:0}
+ body.auth-ready.document-editor-focus .main{grid-column:1/-1!important;margin-left:0!important;width:100%!important;min-width:0;padding-left:0!important;padding-right:0!important}
+ body.document-editor-focus :is(#view-quote,#view-invitation){max-width:none!important;width:100%!important;margin-inline:0!important;padding-inline:clamp(12px,1.4vw,24px)!important}
  .editing-navigation{display:flex;gap:10px;align-items:center;margin-right:16px}
  #quote-items .editing-sheet-scroll{overflow:auto!important;max-height:620px;border:1px solid #dee6f3;border-radius:8px;overscroll-behavior:contain;scrollbar-width:thin}
  #quote-items .editing-sheet{table-layout:fixed;border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px}
@@ -11,9 +12,10 @@
  #quote-items .editing-sheet tr:nth-child(even) td{background:#fafcff}
  #quote-items .editing-sheet tr:focus-within td{background:#f1f6ff}
  #quote-items .editing-sheet .editing-number{position:sticky;left:0;z-index:2;text-align:center}
- #quote-items .editing-sheet .editing-type{position:sticky;left:44px;z-index:2}
+ #quote-items .editing-sheet .editing-type{position:sticky;left:var(--editing-type-left,44px);z-index:2}
  #quote-items .editing-sheet .editing-description{position:sticky;left:var(--editing-name-left);z-index:2;box-shadow:3px 0 6px #2036540b}
  #quote-items .editing-sheet th:is(.editing-number,.editing-type,.editing-description){z-index:5;background:#edf3fe}
+ :is(#view-quote,#view-invitation,#view-agency) .quote-editor table thead th,#quote-items .editing-sheet th{background:var(--editing-table-color,#285fc1)!important;color:var(--editing-header-text,#ffffff)!important}
  #quote-items .editing-cell{display:block;min-width:0;margin:0}
  #quote-items .editing-cell-caption{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
  #quote-items .editing-sheet :is(input,select,textarea){width:100%;min-width:0;min-height:36px;font-size:13px;padding:7px 8px;border-radius:5px;box-sizing:border-box}

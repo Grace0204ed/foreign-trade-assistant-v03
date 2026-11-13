@@ -50,6 +50,7 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
    // CSP blocks document scripts; this trusted main-process call only waits for
    // fonts and local/data images to finish loading.
    await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));})()`);active(p);
+   await require('./paper-backgrounds.cjs').preparePaperBackgrounds(win.webContents);active(p);
    const electronic=await require('./electronic-pdf.cjs').renderElectronic(win);active(p);
    Object.assign(p,{pdf:electronic.pdf,electronicPreviewPdf:electronic.previewPdf,views:{}});previews.set(p.token,p);
    return await view(p,'electronic',event.sender);

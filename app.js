@@ -5480,6 +5480,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     $('quote-items').innerHTML=DocumentEditing.lines(currentQuote,quoteLineColumns,(f,item)=>f.key==='image'?((item.kind||'product')==='product'?`<div class="quote-row-actions"><div class="quote-action-image-preview"${item.imageDataUrl?'':' hidden'}><img src="${escapeHtml(item.imageDataUrl||'')}" alt="产品图片"></div><label class="file-btn">上传图片<input class="quote-line-image-input" type="file" accept="image/*"></label><button class="clear-line-image" type="button"${item.imageDataUrl?'':' hidden'}>移除图片</button></div>`:''):renderQuoteLineInput(f,item));
     currentQuote.items.forEach(item=>{const row=$('quote-items').querySelector('[data-id="'+CSS.escape(item.id)+'"]');if(row)enhanceConfiguredMarkup(row,quoteLineColumns(item),'data-qfield');});
     window.DocumentFormUI?.quote(currentQuote.documentType);
+    window.DocumentEditing?.layout();
   }
 
   function updateQuoteLineAmounts() {
@@ -7478,6 +7479,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       host.querySelector('[data-signature-visible]').checked=choice!=='none'&&(doc.signingOptions?.signature??doc.signingSnapshot?.showSignature??doc.outputOptions?.[doc.documentType]?.signature??true);host.querySelector('[data-signature-visible]').disabled=false;host.querySelector('[data-seal-visible]').checked=doc.signingOptions?.seal??doc.signingSnapshot?.showSeal??true;
       const signed=DocumentWorkflow.signing(doc,doc.companySnapshot||settings,kind);host.querySelector('small').textContent=signed.showSignature&&!signed.signature?'所选签名素材缺失，请到公司设置上传或关闭显示签名。':'签名与语言独立；保存历史时保留本单证素材版本。';
       if(kind==='quote'&&$('document-show-signature'))$('document-show-signature').closest('label').hidden=true;
+      window.DocumentEditing?.colors(kind,doc);
       if(kind==='quote'){window.DocumentEditing?.signing(doc,host);window.DocumentEditing?.quote(doc,settings);}
     }
   }
