@@ -9,7 +9,9 @@
  .composer-editor .document-switch-buttons{display:flex;gap:7px;flex:1;flex-wrap:wrap}
  .composer-doc-chip{display:flex;align-items:center;gap:5px;border:1px solid #e3e9f0;border-radius:7px;padding:5px 7px;background:#fff}
  .composer-doc-chip.is-selected{background:#f0faf3;border-color:#e2f1e7}
- .composer-doc-chip input{width:19px!important;height:19px!important;min-height:19px!important;margin:0!important;accent-color:#078b1c;flex:none}
+ .composer-doc-chip input{width:19px!important;height:19px!important;min-height:19px!important;margin:0!important;accent-color:#078b1c!important;flex:none}
+ body :is(#view-quote,#view-invitation,#view-agency).composer-editor input[type=checkbox][data-composer-select]{appearance:auto!important;accent-color:#078b1c!important;background:#fff!important;border-color:#cbd6e3!important}
+ body :is(#view-quote,#view-invitation,#view-agency).composer-editor input[type=checkbox][data-composer-select]::before{content:none!important}
  .composer-editor .composer-doc-chip button{border:0;background:transparent!important;box-shadow:none;color:#162132!important;padding:0!important;font-size:13px;white-space:nowrap;min-height:20px}
  .composer-editor .composer-doc-chip.is-selected button{color:#07561a!important;font-weight:700}
  .composer-batch-actions{display:flex;gap:12px;align-items:center;margin-left:auto}

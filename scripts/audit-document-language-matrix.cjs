@@ -4,14 +4,18 @@ process.env.QUOTE_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fta-locale-matr
 app.setPath('userData',path.join(process.env.QUOTE_DATA_DIR,'profile'));app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const server=await require('../server').startServer(0),win=new BrowserWindow({show:false,webPreferences:{backgroundThrottling:false}});
- const run=s=>win.webContents.executeJavaScript(s),results=[];
+ const run=s=>win.webContents.executeJavaScript(s),results=[],wait=async source=>{for(let i=0;i<300;i++){if(await run(source))return;await new Promise(r=>setTimeout(r,40));}throw Error('Timeout '+source);};
  try{
   await win.loadURL('http://127.0.0.1:'+server.address().port);
   for(let i=0;i<200&&!await run('!!window.quoteApp&&!!window.flushPendingWork&&!!document.querySelector("#signing-controls-invitation")');i++)await new Promise(r=>setTimeout(r,40));
+  await run('window.foreignTradeStartupReady');
   for(const type of ['quotation','invoice','contract','commercial','packing','authorization','statement','invitation']){
    await run(`document.querySelector('[data-create-document=${type}]').click()`);
-   const selection=await run(`(()=>{const input=document.querySelector('#view-${['authorization','statement','procurement'].includes(type)?'agency':type==='invitation'?'invitation':'quote'} .document-batch-choices input');input.checked=false;const off=getComputedStyle(input).backgroundColor;input.checked=true;const on=getComputedStyle(input).backgroundColor,mark=getComputedStyle(input,'::before').content,border=getComputedStyle(input.closest('label')).borderTopColor;input.checked=false;return {off,on,mark,border}})()`);
-   assert.equal(selection.off,'rgb(32, 41, 54)',type+' unchecked dark');assert.equal(selection.on,'rgb(22, 130, 82)',type+' checked green');assert(selection.mark.includes('✓'),type+' check marker');assert.equal(selection.border,'rgb(22, 130, 82)',type+' checked border');
+   if(await run(`!!document.querySelector('#leave-work-modal')`))await run(`document.querySelector('[data-leave-save]').click()`);
+   const expectedKind=['authorization','statement'].includes(type)?'agency':type==='invitation'?'invitation':'quote';
+   await wait(`!document.querySelector('#leave-work-modal')&&document.querySelector('#view-${expectedKind}').classList.contains('active')&&quoteSettingsContext.documentType('${expectedKind}')==='${type}'`);
+   const selection=await run(`(()=>{const input=document.querySelector('#view-${['authorization','statement','procurement'].includes(type)?'agency':type==='invitation'?'invitation':'quote'} [data-composer-select]'),chip=input.closest('.composer-doc-chip'),previous=input.checked;input.checked=false;input.dispatchEvent(new Event('change',{bubbles:true}));const off=getComputedStyle(chip).backgroundColor;input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}));const on=getComputedStyle(chip).backgroundColor,border=getComputedStyle(chip).borderTopColor,checked=input.checked&&chip.classList.contains('is-selected'),accent=getComputedStyle(input).accentColor;input.checked=previous;input.dispatchEvent(new Event('change',{bubbles:true}));return {off,on,checked,accent,border}})()`);
+   assert.equal(selection.off,'rgb(255, 255, 255)',type+' unchecked chip follows latest white Demo');assert.equal(selection.on,'rgb(240, 250, 243)',type+' selected green chip');assert(selection.checked,type+' checkbox and chip selection match');assert.equal(selection.accent,'rgb(7, 139, 28)',type+' green checkbox');assert.equal(selection.border,'rgb(226, 241, 231)',type+' selected chip border');
    const kind=['authorization','statement','procurement'].includes(type)?'agency':type==='invitation'?'invitation':'quote';
    const id=kind==='quote'?'pdf-language':kind+'-language',states={};
    for(const lang of ['bilingual','en','fr','ja','es','ru','ar','it','de','ko']){

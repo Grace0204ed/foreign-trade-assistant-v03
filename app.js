@@ -4986,6 +4986,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       row.style.order=Number(field.sortOrder||0);
     });
     applyUnifiedAgencySigning();
+    window.DocumentComposer?.refresh('agency',currentAgentAuthorization);
   };
 
   function applyAgencySignature() {
