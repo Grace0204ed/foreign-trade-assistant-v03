@@ -2,7 +2,7 @@
  body.document-editor-focus .desktop-rail{display:none!important}
  body.document-editor-focus .app-shell{grid-template-columns:minmax(0,1fr)!important}
  body.auth-ready.document-editor-focus .main{grid-column:1/-1!important;margin-left:0!important;width:100%!important;min-width:0;padding-left:0!important;padding-right:0!important}
- body.document-editor-focus :is(#view-quote,#view-invitation){max-width:none!important;width:100%!important;margin-inline:0!important;padding-inline:clamp(12px,1.4vw,24px)!important}
+ body.document-editor-focus :is(#view-quote,#view-invitation,#view-agency){max-width:none!important;width:100%!important;margin-inline:0!important;padding-inline:clamp(12px,1.4vw,24px)!important}
  .editing-navigation{display:flex;gap:10px;align-items:center;margin-right:16px}
  #quote-items .editing-sheet-scroll{overflow:auto!important;max-height:620px;border:1px solid #dee6f3;border-radius:8px;overscroll-behavior:contain;scrollbar-width:thin}
  #quote-items .editing-sheet{table-layout:fixed;border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px}

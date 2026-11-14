@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>外贸助手 · 单证填写交互 Demo</title></head><body>
+<script>
+(async()=>{try{
+ const check=await fetch('/api/demo-editor');if(!check.ok||!(await check.json()).isolated)throw Error('isolated');
+ const response=await fetch('/index.html');let html=await response.text();
+ html=html.replace('<head>','<head><base href="/">').replace('</body>','<script src="/docs/demos/composer-fixture.js"><'+'/script></body>');
+ document.open();document.write(html);document.close();
+}catch(_){document.body.textContent='请在项目目录运行 npm run demo:composer，打开隔离数据的完整交互 Demo。此页面不会接入你的真实业务资料。';}})();
+</script></body></html>

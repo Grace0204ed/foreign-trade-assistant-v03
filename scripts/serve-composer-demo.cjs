@@ -1,0 +1,9 @@
+'use strict';
+const {app,BrowserWindow,ipcMain,dialog}=require('electron'),fs=require('fs'),os=require('os'),path=require('path'),crypto=require('crypto');
+const directory=fs.mkdtempSync(path.join(os.tmpdir(),'fta-composer-demo-'));process.env.QUOTE_DATA_DIR=path.join(directory,'data');app.setPath('userData',path.join(directory,'profile'));
+app.on('window-all-closed',()=>app.quit());
+const grants=new Map();require('../electron/document-output.cjs')({ipcMain,BrowserWindow,dialog,app,getBatchDirectory:(event,token)=>{const grant=grants.get(token);if(grant?.owner!==event.sender.id)throw Error('导出目录已失效');return grant.path;}});
+for(const [name,value]of Object.entries({'get-app-version':{version:require('../package.json').version,packaged:false,platform:process.platform,arch:process.arch},'get-license-status':{licensed:true},'get-update-state':{status:'current'},'get-publisher-contact':{}}))ipcMain.handle(name,()=>value);
+ipcMain.handle('select-pdf-directory',async event=>{const result=await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender),{properties:['openDirectory','createDirectory']});if(result.canceled)return null;const token=crypto.randomUUID();grants.set(token,{owner:event.sender.id,path:result.filePaths[0]});return token;});
+ipcMain.handle('finish-pdf-batch',(_event,token)=>{grants.delete(token);return true;});
+app.whenReady().then(async()=>{const module=require('../server');module.app.get('/api/demo-editor',(_request,response)=>response.json({isolated:true}));const server=await module.startServer(0),url='http://127.0.0.1:'+server.address().port+'/docs/demos/document-composer-20261115.html';const win=new BrowserWindow({width:1672,height:1030,minWidth:1000,minHeight:700,webPreferences:{preload:path.resolve('electron/preload.js'),contextIsolation:true}});console.log('独立交互 Demo：'+url+'（使用临时示例数据）');await win.loadURL(url);app.on('before-quit',()=>server.close());}).catch(error=>{console.error(error.message);app.exit(1);});

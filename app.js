@@ -3,6 +3,10 @@
     document.body.textContent='本地资料存储无法打开，请勿清空数据。请重启软件或联系支持：'+error.message;
     return;
   }
+  const startupHadUserData=['settings','products','quotes','invitations'].some(k=>!!window.BusinessDataStore.get('quote_assistant_v01_'+k));
+  let startupLoading=true,resolveStartup,rejectStartup;
+  window.foreignTradeStartupReady=new Promise((resolve,reject)=>{resolveStartup=resolve;rejectStartup=reject;});
+  window.foreignTradeStartupReady.catch(()=>{});
   const keys = {
     settings: "quote_assistant_v01_settings",
     products: "quote_assistant_v01_products",
@@ -512,13 +516,13 @@
   }
 
   function schedulePersistentStateBackup() {
-    if (!currentUser || restoringPersistentState) return;
+    if (!currentUser || restoringPersistentState || startupLoading) return;
     clearTimeout(stateBackupTimer);
     stateBackupTimer = setTimeout(backupPersistentState, 800);
   }
 
   async function backupPersistentState() {
-    if (!currentUser) return;
+    if (!currentUser || startupLoading) return;
     try {
       await api("/api/system/browser-state", {
         method: "PUT",
@@ -530,10 +534,10 @@
   }
 
   async function restorePersistentStateIfNeeded() {
-    if (!currentUser) return;
+    if (!currentUser || startupHadUserData) return;
     try {
       const data = await api("/api/system/browser-state");
-      if (data.exists && data.state && !hasLocalUserData()) {
+      if (data.exists && data.state) {
         applyPersistentState(data.state);
         renderAllSelectors();
         renderSettings();
@@ -797,8 +801,11 @@
       if (currentUser) {
         localStorage.setItem(keys.sidebarCollapsed, "true");
         applySidebarState();
-        await loadSharedSettings();
         await restorePersistentStateIfNeeded();
+        await loadSharedSettings();
+        window.AppLock?.configure(settings.applicationLock || defaultSettings.applicationLock);
+        if(activeViewName==='home')await renderHomeDashboard();
+        await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
         await loadServerData();
         await applyQuoteFromUrl();
         window.dispatchEvent(new CustomEvent("foreign-trade-auth-ready", { detail: currentUser }));
@@ -1605,7 +1612,7 @@
     if($("home-document-count"))$("home-document-count").textContent=allDocuments.length.toLocaleString();
     if($("home-product-count"))$("home-product-count").textContent=products.length.toLocaleString();
     if($("home-draft-count"))$("home-draft-count").textContent=drafts.length.toLocaleString();
-    try{const customers=await api("/api/customers");if($("home-customer-count"))$("home-customer-count").textContent=customers.length.toLocaleString();}catch(_){if($("home-customer-count"))$("home-customer-count").textContent="—";}
+    if($('home-customer-count'))$('home-customer-count').textContent='—';
     const labels={quotation:"报价单",invoice:"形式发票",contract:"销售合同",commercial:"商业发票",packing:"装箱单"};
     const recent=[...quotes].sort((a,b)=>String(b.updatedAt||b.createdAt||b.quoteDate||"").localeCompare(String(a.updatedAt||a.createdAt||a.quoteDate||""))).slice(0,5);
     if($("home-recent-documents"))$("home-recent-documents").innerHTML=recent.length?recent.map(item=>`<button type="button" class="home-recent-row" data-home-quote="${escapeHtml(item.id)}"><b>${escapeHtml(item.quoteNumber||"未编号")}</b><span>${escapeHtml(item.buyer?.company||item.buyer?.contact||"未填写客户")}</span><em>${escapeHtml(labels[item.documentType]||"报价单")}</em><i>${escapeHtml(item.status||"已保存")}</i></button>`).join(""):'<p class="home-empty">暂无历史文件</p>';
@@ -1614,7 +1621,8 @@
     const monthlyQuotes=monthly.filter(q=>(q.documentType||'quotation')==='quotation');
     const moneySummary=rows=>Object.entries(BusinessOverview.amounts(rows,quoteTotal)).map(([currency,value])=>escapeHtml(currency)+' '+value.toLocaleString(undefined,{maximumFractionDigits:2})).join('<br>')||'暂无金额';
 const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQuotes)],['本月 PI／合同',monthly.filter(q=>['invoice','contract'].includes(q.documentType)).length+' 份','分别统计，不推算成交率'],['本月商业发票',monthly.filter(q=>q.documentType==='commercial').length+' 份',moneySummary(monthly.filter(q=>q.documentType==='commercial'))],['产品资料',products.length+' 条',new Set(products.map(p=>ProductHierarchy.resolve(window.ProductHierarchyWorkspace?.config()||ProductHierarchy.seed(products),p)[0]).filter(Boolean)).size+' 种产品类型']];
-    $('overview-metrics').innerHTML=metrics.map(([label,value,note])=>`<article class="overview-metric"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`).join('');
+    const metricTag=startupLoading?'div':'article';
+    $('overview-metrics').innerHTML=metrics.map(([label,value,note])=>`<${metricTag} class="overview-metric"><span>${label}</span><strong>${value}</strong><small>${note}</small></${metricTag}>`).join('');
     $('overview-progress-counts').innerHTML=Object.entries(BusinessOverview.labels).map(([type,label])=>`<button type="button" data-overview-type="${type}"><span>${label}</span><b>${records.filter(q=>(q.documentType||'quotation')===type).length}</b></button>`).join('');
   }
 
@@ -4373,7 +4381,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const docType = documentTypeOf(documentType).key;
     currentQuote = {
       id: uid("quote"),
-      editingDetails:{version:1,parties:{seller:true,buyer:false}},
+      editingDetails:{version:1,transportPolicyVersion:2,parties:{seller:true,buyer:false}},
       status: "草稿",
       seriesId: "",
       version: 0,
@@ -5481,6 +5489,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     currentQuote.items.forEach(item=>{const row=$('quote-items').querySelector('[data-id="'+CSS.escape(item.id)+'"]');if(row)enhanceConfiguredMarkup(row,quoteLineColumns(item),'data-qfield');});
     window.DocumentFormUI?.quote(currentQuote.documentType);
     window.DocumentEditing?.layout();
+    window.DocumentComposer?.refresh('quote',currentQuote);
   }
 
   function updateQuoteLineAmounts() {
@@ -6895,9 +6904,9 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     });
     let splitPreviewFrame = 0;
     document.querySelector('.quote-input-pane')?.addEventListener('input', event => {
-      if (!event.target.closest('#quote-common-panel, #quote-standard-terms-panel')) return;
+      if (!event.target.closest('#quote-common-panel, #quote-standard-terms-panel, #quote-aftersales-panel')) return;
       cancelAnimationFrame(splitPreviewFrame);
-      splitPreviewFrame = requestAnimationFrame(() => { if (currentQuote) renderPreview(); });
+      splitPreviewFrame = requestAnimationFrame(() => { if (currentQuote) {renderPreview();window.DocumentComposer?.refresh('quote',currentQuote);} });
     });
     $("close-hs-code-modal-btn")?.addEventListener("click", closeHsCodeModal);
     $("cancel-hs-code-btn")?.addEventListener("click", closeHsCodeModal);
@@ -7247,7 +7256,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       if(activeViewName==='invitation'){collectInvitationFromForm();sharedBuyer={...sharedBuyer,contact:currentInvitation.visitorName,company:currentInvitation.visitorCompany,country:currentInvitation.country};drafts.set('invitation',structuredClone(currentInvitation));}
       if(activeViewName==='agency'){collectAgentAuthorizationForm();sharedBuyer={...sharedBuyer,contact:currentAgentAuthorization.agentName,country:currentAgentAuthorization.country,phone:currentAgentAuthorization.phone,email:currentAgentAuthorization.email,address:currentAgentAuthorization.address};drafts.set(AgencyDocuments.type(currentAgentAuthorization),structuredClone(currentAgentAuthorization));}
     }
-    function open(type,skipCapture=false){
+    function open(type,skipCapture=false,sourceOverride=null){
+      window.DocumentComposer?.activate(type);
       if(!skipCapture)capture();
       if(type==='invitation'){
         if(drafts.has(type))currentInvitation=structuredClone(drafts.get(type));else{newInvitation();Object.assign(currentInvitation,{visitorName:sharedBuyer.contact||'',visitorCompany:sharedBuyer.company||'',country:sharedBuyer.country||''});}
@@ -7259,13 +7269,14 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
         bindAgentAuthorizationForm();switchView('agency');updateDocumentSwitchState();return;
       }
       if(drafts.has(type))currentQuote=structuredClone(drafts.get(type));else{
-        const source=drafts.get('quotation');newQuote(false,type);currentQuote.documentType=type;currentQuote.buyer={...currentQuote.buyer,...sharedBuyer};
-        if(source){const sourceItems=type==='packing'?source.items.filter(item=>(item.kind||'product')==='product'):source.items;currentQuote.items=sourceItems.length?structuredClone(sourceItems).map(item=>({...item,id:uid('item')})):[blankQuoteLine({},type)];currentQuote.terms=structuredClone(source.terms);currentQuote.relatedOrderId=source.id;currentQuote.relatedOrderNumber=source.quoteNumber;}
+        const source=sourceOverride||drafts.get('quotation');newQuote(false,type);currentQuote.documentType=type;currentQuote.buyer={...currentQuote.buyer,...sharedBuyer};
+        if(source){const sourceItems=type==='packing'?source.items.filter(item=>(item.kind||'product')==='product'):source.items;currentQuote.items=sourceItems.length?structuredClone(sourceItems).map(item=>({...item,id:uid('item')})):[blankQuoteLine({},type)];currentQuote.terms=structuredClone(source.terms);currentQuote.relatedOrderId=source.id;currentQuote.relatedOrderNumber=source.quoteNumber;const details=structuredClone(source.editingDetails||{});delete details.parties;currentQuote.editingDetails={...currentQuote.editingDetails,...details};if(source.receivingAccountSnapshot)currentQuote.receivingAccountSnapshot=structuredClone(source.receivingAccountSnapshot);}
       }
       bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();
     }
+    function prepare(types){capture();const original=activeViewName==='quote'?currentQuote.documentType:activeViewName==='invitation'?'invitation':AgencyDocuments.type(currentAgentAuthorization),source=activeViewName==='quote'?structuredClone(currentQuote):null;for(const type of types)if(!drafts.has(type)){open(type,true,source);capture();persistWork(true);}if(drafts.has(original))open(original,true);capture();return [...drafts.keys()];}
     window.DocumentDraftWorkspace={
-      capture,
+      capture,prepare,
       entries(){capture();return [...drafts].filter(([type])=>Object.hasOwn(types,type)).map(([type,data])=>({type,label:types[type],data:structuredClone(data),kind:type==='invitation'?'invitation':['authorization','statement'].includes(type)?'agency':'quote'}));},
       replace(type,data){drafts.set(type,structuredClone(data));},
       activate(type,data){capture();if(data)drafts.set(type,structuredClone(data));open(type,true);}
@@ -7276,16 +7287,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const english={quotation:'Quotation',invoice:'Proforma Invoice',contract:'Sales Contract',commercial:'Commercial Invoice',packing:'Packing List',authorization:'Agency Documents',statement:'Commission Statement',procurement:'Personal Procurement',invitation:'Business Invitation'};
     section.innerHTML='<header class="page-head"><h2>新建单证</h2></header><div class="entry-grid">'+Object.entries(types).map(([key,label])=>`<button class="entry-card" data-create-document="${key}"><i aria-hidden="true">${symbols[key]||'文'}</i><div><b>${label}</b><span>${english[key]||''}</span></div><em aria-hidden="true">›</em></button>`).join('')+'</div>';
     document.querySelector('main').append(section);
-    for(const view of ['quote','invitation','agency']){
-      const bar=document.createElement('div');bar.className='document-jump-bar no-print';bar.innerHTML='<b>单证工作台</b><nav class="document-switch-buttons" aria-label="切换单证">'+Object.entries(types).map(([k,v])=>`<button type="button" data-switch-document="${k}">${v}</button>`).join('')+'</nav><small>点击切换；客户资料可共用，每份单证独立填写和保存。</small>';
-      bar.querySelector('nav').onclick=e=>{const type=e.target.closest('[data-switch-document]')?.dataset.switchDocument;if(type)open(type);};
-      const batch=document.createElement('details');
-      batch.innerHTML='<summary>同时准备多份单证</summary><div class="actions">'+Object.entries(types).map(([key,label])=>`<label><input type="checkbox" value="${key}"> ${label}</label>`).join('')+'</div><button type="button">准备所选草稿</button><small>只准备独立草稿；请逐份补充资料、核对后保存，不自动签发。</small>';
-      batch.querySelector('button').onclick=()=>{const selected=[...batch.querySelectorAll('input:checked')].map(el=>el.value);if(!selected.length)return toast('请先选择单证');selected.forEach(open);open(selected[0]);toast('已准备 '+selected.length+' 份独立草稿，可用上方选择框切换核对和保存。');};
-      batch.querySelector('.actions').classList.add('document-batch-choices');
-      bar.append(batch);
-      const host=$('view-'+view);host.prepend(bar);
-    }
+    for(const view of ['quote','invitation','agency'])$('view-'+view).prepend(DocumentComposer.bar(types,{open,prepare}));
     section.addEventListener('click',e=>{const type=e.target.closest('[data-create-document]')?.dataset.createDocument;if(type)open(type);});
     document.addEventListener('click',e=>{if(e.target.closest('[data-view-target]'))capture();},true);
     const status=$('quote-autosave-status').parentElement;
@@ -7364,7 +7366,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency,#product-editor-modal'))persistWork(true);});
     document.addEventListener('click',()=>persistWork(),true);
     window.hasUnsavedWork=()=>hasCurrentChanges()||Boolean(workCaptureError);
-    window.flushPendingWork=async()=>{persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;await window.BusinessDataStore.flush();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
+    window.flushPendingWork=async()=>{if(startupLoading)await window.foreignTradeStartupReady;persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;await window.BusinessDataStore.flush();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
     window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
     // Unfinished work is available on demand; startup never opens a recovery dialog.
@@ -7481,6 +7483,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       if(kind==='quote'&&$('document-show-signature'))$('document-show-signature').closest('label').hidden=true;
       window.DocumentEditing?.colors(kind,doc);
       if(kind==='quote'){window.DocumentEditing?.signing(doc,host);window.DocumentEditing?.quote(doc,settings);}
+      window.DocumentComposer?.refresh(kind,doc);
     }
   }
   let signatureEditLanguage='en',signatureSettingsVersion='en';
@@ -7576,7 +7579,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       finally{workRestoring=original.restoring;}
     }
   }
-  async function previewCurrentOutput(kind=currentOutputKind()){
+  async function previewCurrentOutput(kind=currentOutputKind(),selectedTypes=null){
     if($('document-output-preview'))return;
     // Read the current DOM before capturing the independent prepared drafts.
     const workspace=window.DocumentDraftWorkspace;
@@ -7586,7 +7589,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(!window.quotationDesktop?.createDocumentPreview)return toast('分页预览需要桌面版输出引擎；当前编辑内容已保留。');
     if(!window.DocumentOutputWorkspace)return toast('预览工作台未加载，请重新打开应用；编辑内容已保留。');
     if(kind==='quote'){const issue=DocumentEditing.validation(d);if(issue)return toast(issue);}
-    const entries=workspace?workspace.entries():[{type,label:documentTypeOf(type).labelZh,kind,data:d}];
+    const entries=(workspace?workspace.entries():[{type,label:documentTypeOf(type).labelZh,kind,data:d}]).filter(entry=>!selectedTypes||selectedTypes.includes(entry.type));
     for(const entry of entries)entry.number=entry.type==='invitation'?[entry.data.visitorName,entry.data.date].filter(Boolean).join(' · '):entry.data.quoteNumber||entry.data.authorizationNumber||'';
     await window.DocumentOutputWorkspace.open({
       entries,current:type,customer:d.buyer?.company||d.visitorCompany||d.visitorName||d.agentName||'',
@@ -7705,6 +7708,9 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   async function init() {
+    window.AppLock?.configure(settings.applicationLock || defaultSettings.applicationLock);
+    updateDesktopTopbar('home');
+    if(startupHadUserData){await renderHomeDashboard();await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));}
     const greeting=$('home-time-greeting');if(greeting){const hour=new Date().getHours();greeting.textContent=hour<6?'深夜好，注意休息':hour<11?'早上好，元气满满地开始今天的工作':hour<14?'中午好，轻松整理今天的工作':hour<18?'下午好，继续推进今天的工作':'晚上好，轻松整理今天的工作';}
     bindEvents();
     bindStandalonePresentation();
@@ -7733,10 +7739,11 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   window.quoteApp = { editProduct, deleteProduct, editQuote, copyQuote, deleteQuote, printStandardHistory, exportProductCatalogPdf, renderVehiclePreview, printVehicleQuote, getActiveFreightTarget:activeFreightTarget, applyFreightResult };
   window.quoteSettingsContext={
+    previewSelectedDocuments:types=>previewCurrentOutput(currentOutputKind(),types),
     editingCollectQuote:collectQuoteFromForm,
     get editingHistorical(){return currentQuote?.isFormal||pdfSnapshotMode;},
     editingRefresh(){renderQuoteTerms();renderQuoteItems();renderPreview();},
-    get editingRecords(){return {quote:currentQuote,invitation:currentInvitation};},
+    get editingRecords(){return {quote:currentQuote,invitation:currentInvitation,agency:currentAgentAuthorization};},
     editingChanged(kind){if(kind==='quote'){collectQuoteFromForm();renderPreview();scheduleDraftRecovery();}else{collectInvitationFromForm();renderInvitationPreview();persistWork(true);}},
     get settings(){return settings;},
     hydrateDocumentChoices,
@@ -7776,6 +7783,6 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     async saveConfig(config) { if(!isAdmin()) throw new Error("需要管理员权限"); const next={...settings,freightWorkspace:config}; await api("/api/settings",{method:"PUT",body:JSON.stringify(next)}); settings.freightWorkspace=config; save(keys.settings,settings); }
   };
   window.ProductHierarchyWorkspace?.init(window.quoteSettingsContext);
-  init();
+  init().then(async()=>{startupLoading=false;if(activeViewName==='home')await renderHomeDashboard();resolveStartup();schedulePersistentStateBackup();}).catch(error=>{startupLoading=false;rejectStartup(error);toast('启动未完成，资料已保留：'+error.message);});
 })();
 

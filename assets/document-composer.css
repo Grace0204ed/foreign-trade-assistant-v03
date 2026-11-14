@@ -1,0 +1,80 @@
+@media screen{
+ body.document-editor-focus .desktop-topbar{min-height:46px;height:46px;box-sizing:border-box;padding-block:5px}
+ body.document-editor-focus :is(#view-quote,#view-invitation,#view-agency){padding:0 20px 24px!important;max-width:none!important}
+ .composer-editor svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+ .composer-editor .quote-input-pane{padding:0!important}
+ .composer-editor .quote-editor>.panel{margin-bottom:10px}
+ .composer-editor .composer-selection-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 12px;padding:12px 120px 12px 14px;border:1px solid #e2e9ef;border-radius:10px;background:#fff;box-shadow:0 2px 5px #17364410}
+ .composer-selection-bar>b{white-space:nowrap;font-size:14px}.composer-selection-bar em{font-style:normal;color:#07861d}
+ .composer-editor .document-switch-buttons{display:flex;gap:7px;flex:1;flex-wrap:wrap}
+ .composer-doc-chip{display:flex;align-items:center;gap:5px;border:1px solid #e3e9f0;border-radius:7px;padding:5px 7px;background:#fff}
+ .composer-doc-chip.is-selected{background:#f0faf3;border-color:#e2f1e7}
+ .composer-doc-chip input{width:19px!important;height:19px!important;min-height:19px!important;margin:0!important;accent-color:#078b1c;flex:none}
+ .composer-editor .composer-doc-chip button{border:0;background:transparent!important;box-shadow:none;color:#162132!important;padding:0!important;font-size:13px;white-space:nowrap;min-height:20px}
+ .composer-editor .composer-doc-chip.is-selected button{color:#07561a!important;font-weight:700}
+ .composer-batch-actions{display:flex;gap:12px;align-items:center;margin-left:auto}
+ .composer-batch-actions>button{display:flex;align-items:center;gap:7px;min-height:34px;padding:7px 13px;font-size:13px;font-weight:650;white-space:nowrap}
+ .composer-batch-actions [data-composer-export]{background:#078617!important;color:#fff!important;border-color:#078617!important}
+ .composer-selected{position:relative;border:0!important;padding:0!important;margin:0!important}
+ .composer-selected summary{display:flex;gap:7px;align-items:center;list-style:none;cursor:pointer;padding:8px 12px;color:#087621;background:#edf9f0;border-radius:7px;font-weight:650;white-space:nowrap;font-size:13px}
+ .composer-selected summary::-webkit-details-marker{display:none}
+ .composer-selected>div{position:absolute;right:0;top:calc(100% + 6px);min-width:190px;padding:8px;display:grid;gap:4px;background:#fff;border:1px solid #dce6ef;border-radius:9px;box-shadow:0 12px 30px #19334d22;z-index:50}
+ .composer-selected>div button{text-align:left;background:#fff;border:0;font-size:13px;padding:9px}
+ .composer-editor>.page-head{display:grid!important;grid-template-columns:minmax(170px,1fr) minmax(220px,auto) minmax(310px,1fr);gap:16px;align-items:start;margin:0 0 12px;padding:0!important;min-height:62px}
+ .composer-title{text-align:center}.composer-title h2{margin:0 0 8px;font-size:23px;line-height:1.25}
+ .composer-editor>.page-head>.actions{justify-self:end;display:flex;gap:12px;margin:8px 0 0;flex-wrap:wrap;justify-content:flex-end}
+ .composer-editor>.page-head>.actions button{display:inline-flex;align-items:center;gap:7px;min-height:35px;padding:7px 14px;font-size:13px;font-weight:650}
+ .composer-editor #new-quote-btn{background:#0655ee;color:#fff;border-color:#0655ee}
+ .composer-save-state{display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;white-space:nowrap;padding:0!important;margin:0!important}
+ .composer-title .quote-draft-toolbar button{height:28px;min-height:28px!important;padding:3px 10px!important}
+ .composer-save-state button{padding:5px 12px;min-height:27px;font-size:12px}
+ .composer-save-state #quote-autosave-status{color:#17301b}
+ .composer-editor .editing-navigation{margin:8px 0 0}
+ .composer-editor .editing-navigation button{padding:0;background:transparent;border:0;box-shadow:none;display:flex;gap:8px;align-items:center;font-size:13px;font-weight:650}
+ .composer-editor .composer-fold{padding:0!important;overflow:hidden;border:1px solid #e1e8f0;border-radius:12px;box-shadow:0 2px 5px #17364414}
+ .composer-editor .composer-fold-head{display:flex!important;align-items:center;gap:10px;cursor:pointer;padding:9px 14px!important;margin:0!important;min-height:38px;border-bottom:1px solid #edf2f5;outline-offset:-3px}
+ .composer-editor .composer-fold-head h3,.composer-editor h3.composer-fold-head{font-size:15px!important;font-weight:700!important;color:#13202c}
+ .composer-editor .composer-fold-head h3{display:flex;align-items:center;gap:8px;margin:0!important;flex:0 1 auto!important;width:auto!important}
+ [data-composer-icon]{display:inline-flex;align-items:center;gap:7px;color:#07851a}
+ [data-composer-icon] svg:first-child{width:14px;height:14px;transition:transform .15s}
+ .composer-collapsed [data-composer-icon] svg:first-child{transform:rotate(-90deg)}
+ [data-composer-summary]:empty{display:none}
+ .composer-editor .composer-fold-head>.actions{margin-left:auto!important}
+ #view-quote.composer-editor :is(#quote-common-panel,#quote-standard-detail-panel,#quote-standard-terms-panel,#quote-aftersales-panel,#editing-receiving-panel,#document-output-options-quote) .composer-fold-head{padding:8px 14px!important;min-height:38px!important}
+ [data-composer-summary]{margin-left:auto;font-size:13px;font-weight:400;color:#243853;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .composer-editor #quote-common-panel>.composer-fold-head{background:color-mix(in srgb,var(--editing-table-color,#168000) 6%,white)}
+ .composer-editor .composer-collapsed>:not(.composer-fold-head){display:none!important}
+ .composer-editor .composer-collapsed>.composer-fold-head{border-bottom:0}
+ .composer-editor #quote-common-panel>:not(.composer-fold-head){margin-inline:18px}
+ .composer-editor #quote-common-panel .customer-paste-box{padding:0!important;border:0!important;background:transparent!important;margin:9px 18px 12px!important;gap:12px}
+ .composer-editor #quote-common-panel .customer-paste-box textarea{height:30px!important;min-height:30px!important;resize:vertical}
+ .composer-editor #quote-common-panel .form-grid{gap:8px 24px!important;padding:0 0 12px!important;margin:0 18px!important}
+ .composer-editor #quote-common-panel :is(input,select){min-height:30px!important;height:30px!important;padding:5px 8px;font-size:13px}
+ #view-quote.composer-editor .quote-editor{gap:9px;padding:0!important}
+ #view-quote.composer-editor #quote-common-panel .editor-field-group-title{padding-bottom:4px}
+ #view-quote.composer-editor #quote-common-panel .demo-basic-grid>label{gap:4px}
+ #view-quote.composer-editor #quote-common-panel .demo-basic-grid label>span{font-size:12px;line-height:16px;font-weight:600;color:#23324a}
+ #view-quote.composer-editor #quote-common-panel .customer-paste-box label>span{margin-bottom:3px;font-size:12px}
+ #view-quote.composer-editor #quote-common-panel .editor-field-group-title[style="order: -1;"]{display:none}
+ #view-quote.composer-editor #quote-common-panel .customer-paste-box textarea{font-size:13px;padding:5px 8px}
+ #view-quote.composer-editor #quote-common-panel .customer-paste-box button{height:32px;min-height:32px;padding:5px 12px;font-size:13px}
+ #view-quote.composer-editor #add-quote-item-btn{background:#078617!important;border-color:#078617!important}
+ .composer-editor #quote-common-panel .editor-field-group-title{margin:0}
+ #view-quote.composer-editor #quote-standard-detail-panel .row-head{min-height:44px;padding-block:6px!important}
+ .composer-editor #quote-standard-detail-panel .actions button{height:32px;min-height:32px;padding:5px 10px;font-size:13px}
+ .composer-editor #quote-items .editing-sheet-scroll{border:0;border-radius:0 0 10px 10px}
+ .composer-editor #quote-items .editing-sheet th{padding:6px;font-size:12px}
+ .composer-editor #quote-items .editing-sheet td{height:36px;padding:3px 6px}
+ .composer-editor #quote-items .editing-sheet :is(input,select,textarea){font-size:13px;min-height:29px;height:29px;padding:4px 6px;border-radius:5px}
+ .composer-editor #quote-items .editing-sheet textarea:focus{height:46px}
+ .composer-editor #quote-items .quote-row-actions img{max-height:26px;max-width:40px}
+ .composer-editor #quote-items .file-btn,.composer-editor #quote-items .remove-quote-item{padding:4px 8px;font-size:12px;min-height:28px;height:28px;box-sizing:border-box;line-height:18px}
+ .composer-editor #quote-terms,.composer-editor #quote-aftersales{padding:12px 18px;margin:0}
+ .composer-editor #editing-receiving-panel>.editing-flow-grid,.composer-editor #editing-receiving-panel>.editing-account-details{margin:12px 18px}
+ .composer-editor #editing-receiving-panel{margin-top:0!important}
+ .composer-editor .document-output-options>:not(.composer-fold-head){margin-inline:14px}
+ .composer-editor .document-output-options{margin-top:0!important}
+ .composer-editor .composer-fold[hidden]{display:none!important}
+ @media(max-width:1400px){.composer-editor .composer-selection-bar{gap:8px}.composer-editor .document-switch-buttons{gap:4px}.composer-doc-chip{padding:4px}.composer-editor .composer-doc-chip button{font-size:12px}.composer-batch-actions{gap:6px}}
+ @media(max-width:1080px){.composer-batch-actions{width:100%;justify-content:flex-end}.composer-editor>.page-head{grid-template-columns:1fr auto}.composer-title{grid-row:1;grid-column:1/-1}.composer-editor .editing-navigation{grid-row:2}.composer-editor>.page-head>.actions{grid-row:2;margin:0}.composer-save-state{white-space:normal}[data-composer-summary]{max-width:57%}}
+}

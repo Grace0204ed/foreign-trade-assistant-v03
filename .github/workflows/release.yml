@@ -37,7 +37,7 @@ jobs:
       - name: Verify compact bilingual settings option editors
         run: npm run test:compact-options
       - name: Verify saved document form order and full output regressions
-        run: npm run test:document-forms && npm run test:document-editing && npm run test:output-regression
+        run: npm run test:document-forms && npm run test:document-editing && npm run test:composer && npm run test:startup-home && npm run test:output-regression
       - name: Verify formal lock, hierarchy, fields, top settings, calculator and commission
         run: npm run test:iteration
       - name: Verify approved demo alignment and real pointer sorting

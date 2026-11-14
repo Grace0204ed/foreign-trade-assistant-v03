@@ -41,7 +41,7 @@
       <main class="main">
         <header class="desktop-topbar no-print">
           <div class="desktop-topbar-title">
-            <strong id="desktop-page-title">工作台</strong>
+            <strong id="desktop-page-title">首页 · 概览看板</strong>
             <small id="desktop-page-subtitle">本地离线使用 · 数据仅保存在本机</small>
           </div>
         </header>
@@ -51,8 +51,8 @@
           <div class="home-dashboard overview-dashboard">
             <div class="home-welcome"><div><h1 id="home-time-greeting">你好，轻松整理今天的工作</h1><p>今天可以从新建单证或最近文件继续工作。</p></div><button class="primary" data-view-target="create">＋ 新建单证</button></div>
             <section class="overview-intro"><span>业务工作台 / OVERVIEW</span><h2>概览看板</h2><p>报价进展、单证记录与产品资料，集中管理在本机。</p></section>
-            <div id="overview-metrics" class="overview-metrics"></div>
-            <section class="overview-progress home-card"><header><h3>单证业务概览</h3><small>各类单证分别统计 · 同号仅计最新版本</small></header><div id="overview-progress-counts"></div></section>
+            <div id="overview-metrics" class="overview-metrics" aria-live="polite"><div class="overview-metric"><span>本月报价</span><strong>—</strong><small>正在读取本机资料</small></div><div class="overview-metric"><span>本月 PI／合同</span><strong>—</strong><small>正在读取本机资料</small></div><div class="overview-metric"><span>本月商业发票</span><strong>—</strong><small>正在读取本机资料</small></div><div class="overview-metric"><span>产品资料</span><strong>—</strong><small>正在读取本机资料</small></div></div>
+            <section class="overview-progress home-card"><header><h3>单证业务概览</h3><small>各类单证分别统计 · 同号仅计最新版本</small></header><div id="overview-progress-counts"><button type="button" disabled><span>报价单</span><b>—</b></button><button type="button" disabled><span>形式发票</span><b>—</b></button><button type="button" disabled><span>销售合同</span><b>—</b></button><button type="button" disabled><span>商业发票</span><b>—</b></button><button type="button" disabled><span>装箱单</span><b>—</b></button></div></section>
             <div class="overview-actions"><button type="button" class="primary" data-overview-create="quotation">＋ 新建报价单</button><button type="button" data-view-target="products">从产品库选品</button><button type="button" data-view-target="history">查看历史单证</button><button type="button" data-home-settings="quotation-config">单证模板设置</button></div>
             <section class="overview-records home-card"><header><h3>最近单证记录 <small id="overview-record-count"></small></h3><button type="button" data-view-target="history">全部历史记录 →</button></header><div class="overview-filters"><input id="overview-search" aria-label="搜索单号或客户" placeholder="搜索单号、客户公司或联系人"><select id="overview-type" aria-label="单证类型"><option value="">全部类型</option><option value="quotation">报价单</option><option value="invoice">形式发票</option><option value="contract">销售合同</option><option value="commercial">商业发票</option><option value="packing">装箱单</option></select><label>从 <input id="overview-from" type="date"></label><label>至 <input id="overview-to" type="date"></label></div><div class="overview-table-wrap"><table class="overview-table"><thead><tr><th>单据编号</th><th>客户</th><th>单据类型</th><th>金额</th><th>状态</th><th>日期</th><th>操作</th></tr></thead><tbody id="overview-records-body"></tbody></table></div><p class="overview-footnote">金额按币种分别显示，不将不同币种相加；单证数量不等同于订单成交数量。</p></section>
             <div class="home-stats" hidden>
@@ -625,7 +625,8 @@
     <script src="./assets/customer-text-parser.js"></script>
     <script src="./assets/document-form-schema.js"></script>
     <script src="./assets/document-editing-model.js"></script>
-    <script src="./assets/document-editing.js"></script>
+    <script src="./assets/document-composer.js"></script>
+<script src="./assets/document-editing.js"></script>
     <script src="./assets/document-editing-business.js"></script>
     <script src="./assets/receiving-accounts.js"></script>
     <script src="./assets/document-form-ui.js"></script>
@@ -672,6 +673,7 @@
 <link rel="stylesheet" href="./assets/option-editor.css">
 <link rel="stylesheet" href="./assets/company-signing.css">
 <link rel="stylesheet" href="./assets/document-editing.css">
+<link rel="stylesheet" href="./assets/document-composer.css">
 </body>
 </html>
 
