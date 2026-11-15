@@ -12,7 +12,7 @@
   if(preview.parentElement!==paper)paper.append(preview);if(editor.parentElement!==form)form.append(editor);
   if(kind==='agency'){const picker=$('agency-template');if(picker)picker.closest('label').hidden=true;for(const name of ['agency-use-template','agency-save-template'])if($(name))$(name).hidden=true;}
   if(kind==='agency'){const basic=editor.querySelector('[data-form-section=basic]'),labels=basic?.querySelectorAll(':scope>.form-grid>label');if(labels?.length)basic.hidden=[...labels].every(label=>label.hidden);}
-  const scale=()=>{if(preview.parentElement===paper)preview.style.zoom=String(Math.min(1,Math.max(.25,(paper.clientWidth-24)/794)));};if(!observers.has(workspace)){const observer=new ResizeObserver(scale);observer.observe(paper);observers.set(workspace,observer);}requestAnimationFrame(scale);
+  const scale=()=>{if(preview.parentElement===paper){const zoom=String(Math.min(1,Math.max(.25,(paper.clientWidth-24)/794)));if(preview.style.zoom!==zoom)preview.style.zoom=zoom;}};if(!observers.has(workspace)){const observer=new ResizeObserver(()=>requestAnimationFrame(scale));observer.observe(paper);observers.set(workspace,observer);}requestAnimationFrame(scale);
  }
  window.DocumentSideEditor={refresh};
 })();
