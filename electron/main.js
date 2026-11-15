@@ -94,15 +94,8 @@ async function createWindow() {
     if(closeAllowed)return;
     event.preventDefault();if(closePending)return;closePending=true;
     (async()=>{
-      const unsaved=await win.webContents.executeJavaScript('Boolean(window.hasUnsavedWork?.())');
-      if(unsaved){
-        const {response}=await dialog.showMessageBox(win,{
-          type:'question',title:'保存草稿',message:'有未保存的内容，是否保存草稿后关闭软件？',
-          buttons:['保存草稿并关闭','不保存并关闭','取消'],defaultId:0,cancelId:2,noLink:true
-        });
-        if(response===2)return;
-        await win.webContents.executeJavaScript(`window.decideCloseWork?.(${JSON.stringify(response===1?'discard':'save')})`);
-      }
+      const saved=await win.webContents.executeJavaScript('(async()=>window.prepareLeaveWork?await window.prepareLeaveWork():true)()');
+      if(!saved)throw Error('自动保存尚未成功，窗口和内容已保留');
       await win.webContents.executeJavaScript('(async()=>{if(window.flushPendingWork)await window.flushPendingWork();})()');
       closeAllowed=true;win.close();
     })()

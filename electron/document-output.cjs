@@ -8,14 +8,14 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
   if(!p||p.closed)return;p.closed=true;previews.delete(p.token);
   const owner=owners.get(p.owner);owner?.records.delete(p);
   if(owner&&!owner.records.size){owner.sender.removeListener('destroyed',owner.close);owner.sender.removeListener('render-process-gone',owner.close);owners.delete(p.owner);}
-  try{if(!p.win.isDestroyed())p.win.destroy();}finally{clearDirectory(p.directory);}
+  try{if(p.win&&!p.win.isDestroyed())p.win.destroy();}finally{if(p.directory)clearDirectory(p.directory);}
  };
  const ownerFor=sender=>{
   let owner=owners.get(sender.id);if(owner)return owner;
   owner={sender,records:new Set(),close:()=>{for(const p of [...owner.records])dispose(p);}};
   owners.set(sender.id,owner);sender.once('destroyed',owner.close);sender.once('render-process-gone',owner.close);return owner;
  };
- const active=p=>{if(p.closed||p.win.isDestroyed())throw expired();};
+ const active=p=>{if(p.closed||p.win?.isDestroyed())throw expired();};
  const get=(event,token)=>{const p=previews.get(token);if(!p||p.owner!==event.sender.id)throw expired();active(p);return p;};
  app.on('before-quit',()=>{for(const owner of [...owners.values()])owner.close();for(const directory of [...temporaryDirectories])clearDirectory(directory);});
  ipcMain.handle('document-preview-create',async(event,payload)=>{
@@ -56,25 +56,40 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
    return await view(p,'electronic',event.sender);
   }catch(error){dispose(p);throw error;}
  });
- async function view(p,mode,sender){
+ async function view(p,mode,sender,settings={}){
   active(p);if(!['electronic','print'].includes(mode))throw Error('预览模式无效');
-  if(!p.views[mode]){if(mode==='print'&&!p.printPdf)p.printPdf=await p.win.webContents.printToPDF({printBackground:true,pageSize:'A4',preferCSSPageSize:true});
-   const {PDFParse}=require('pdf-parse'),parser=new PDFParse({data:mode==='print'?p.printPdf:p.electronicPreviewPdf});try{const result=await parser.getScreenshot({desiredWidth:1050,imageBuffer:false,imageDataUrl:true});const pages=result.pages.map(page=>({number:page.pageNumber,width:page.width,height:page.height,image:page.dataUrl}));if(!pages.length||pages.length>200)throw Error('预览内容过大，请分批处理');p.views[mode]=pages;}finally{await parser.destroy();}}
-  active(p);p.pages=p.views[mode];return {token:p.token,mode,pages:p.pages,printers:await sender.getPrintersAsync()};
+  const paper=settings.paperSize||p.printOptions?.paperSize||'A4',orientation=settings.orientation||p.printOptions?.orientation||'saved';if(!['A4','A3','Letter'].includes(paper)||!['saved','portrait','landscape'].includes(orientation))throw Error('打印设置无效');
+  const viewKey=mode==='print'?'print:'+paper+':'+orientation:'electronic';
+  if(mode==='print'){if(!p.win)throw Error('合并电子文档请按原单证进行打印');const css=orientation==='saved'&&paper==='A4'?'':'@page{size:'+paper+(orientation==='saved'?'':' '+orientation)+'!important}';await p.win.webContents.executeJavaScript('(()=>{let style=document.getElementById("output-print-override");if(!style){style=document.createElement("style");style.id="output-print-override";document.head.append(style);}style.textContent='+JSON.stringify(css)+'})()');p.printOptions={paperSize:paper,orientation};}
+  if(!p.views[viewKey]){if(mode==='print'){
+   if(!p.win)throw Error('合并电子文档请按原单证进行打印');
+   const css=orientation==='saved'&&paper==='A4'?'':'@page{size:'+paper+(orientation==='saved'?'':' '+orientation)+'!important}';
+   await p.win.webContents.executeJavaScript('(()=>{let style=document.getElementById("output-print-override");if(!style){style=document.createElement("style");style.id="output-print-override";document.head.append(style);}style.textContent='+JSON.stringify(css)+'})()');
+   p.printPdf=await p.win.webContents.printToPDF({printBackground:true,pageSize:paper,preferCSSPageSize:true,...(orientation==='saved'?{}:{landscape:orientation==='landscape'})});p.printOptions={paperSize:paper,orientation};
+  }
+   const {PDFParse}=require('pdf-parse'),parser=new PDFParse({data:mode==='print'?p.printPdf:p.electronicPreviewPdf});try{const result=await parser.getScreenshot({desiredWidth:1050,imageBuffer:false,imageDataUrl:true});const {PDFDocument}=require('pdf-lib'),source=await PDFDocument.load(mode==='print'?p.printPdf:p.electronicPreviewPdf);const pages=result.pages.map((page,i)=>({number:page.pageNumber,width:page.width,height:page.height,displayWidth:source.getPage(i).getWidth()*96/72,image:page.dataUrl}));if(!pages.length||pages.length>200)throw Error('预览内容过大，请分批处理');p.views[viewKey]=pages;}finally{await parser.destroy();}}
+  active(p);p.pages=p.views[viewKey];return {token:p.token,mode,pages:p.pages,printers:await sender.getPrintersAsync()};
  }
- ipcMain.handle('document-preview-mode',async(event,token,mode)=>view(get(event,token),mode,event.sender));
- ipcMain.handle('document-preview-export',async(event,token,batchToken)=>{
-  const p=get(event,token);
-  if(batchToken){const folder=getBatchDirectory(event,batchToken);for(let i=0;i<10000;i++){const name=i?p.name.replace(/\.pdf$/i,` (${i}).pdf`):p.name,target=path.join(folder,name);try{fs.writeFileSync(target,p.pdf,{flag:'wx'});return {status:'exported',filePath:target};}catch(error){if(error.code!=='EEXIST')throw error;}}throw Error('同名文件过多');}
-  const result=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'导出当前预览 PDF',defaultPath:path.join(app.getPath('desktop'),p.name),filters:[{name:'PDF',extensions:['pdf']}]});
+ ipcMain.handle('document-preview-mode',async(event,token,mode,settings)=>view(get(event,token),mode,event.sender,settings));
+ ipcMain.handle('document-preview-export',async(event,token,batchToken,fileName)=>{
+  const p=get(event,token);const outputName=fileName?safeName(fileName):p.name;
+  if(batchToken){const folder=getBatchDirectory(event,batchToken);for(let i=0;i<10000;i++){const name=i?outputName.replace(/\.pdf$/i,` (${i}).pdf`):outputName,target=path.join(folder,name);try{fs.writeFileSync(target,p.pdf,{flag:'wx'});return {status:'exported',filePath:target};}catch(error){if(error.code!=='EEXIST')throw error;}}throw Error('同名文件过多');}
+  const result=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'导出当前预览 PDF',defaultPath:path.join(app.getPath('desktop'),outputName),filters:[{name:'PDF',extensions:['pdf']}]});
   if(result.canceled||!result.filePath)return {status:'cancelled'};fs.writeFileSync(result.filePath,p.pdf);return {status:'exported',filePath:result.filePath};
  });
  ipcMain.handle('document-preview-print',async(event,token,options={})=>{
-  const p=get(event,token);await view(p,'print',event.sender);const ranges=[];
+  const p=get(event,token);await view(p,'print',event.sender,options);const ranges=[];const copies=Number(options.copies??1);if(!Number.isInteger(copies)||copies<1||copies>999)throw Error('打印份数应为1至999的整数');
   const pageText=String(options.pages??'').trim();
   if(pageText)for(const part of pageText.split(',')){const match=part.trim().match(/^(\d+)(?:-(\d+))?$/);if(!match)throw Error('页码格式应为 1-3,5');const from=Number(match[1]),to=Number(match[2]||from);if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||from<1||to<from||to>p.pages.length)throw Error('打印页码超出预览范围');ranges.push({from:from-1,to:to-1});}
   const printers=await p.win.webContents.getPrintersAsync();if(options.deviceName&&!printers.some(item=>item.name===options.deviceName))throw Error('所选打印机不可用');
-  return new Promise((resolve,reject)=>p.win.webContents.print({silent:false,printBackground:true,pageSize:'A4',margins:{marginType:'none'},deviceName:options.deviceName||'',landscape:p.pages[0].width>p.pages[0].height,...(ranges.length?{pageRanges:ranges}:{})},(success,reason)=>success?resolve({status:'submitted'}):/cancel/i.test(reason||'')?resolve({status:'cancelled'}):reject(Error(reason||'打印任务未提交'))));
+  return new Promise((resolve,reject)=>p.win.webContents.print({silent:false,printBackground:true,pageSize:p.printOptions?.paperSize||'A4',copies,margins:{marginType:'none'},deviceName:options.deviceName||'',landscape:p.pages[0].width>p.pages[0].height,...(ranges.length?{pageRanges:ranges}:{})},(success,reason)=>success?resolve({status:'submitted'}):/cancel/i.test(reason||'')?resolve({status:'cancelled'}):reject(Error(reason||'打印任务未提交'))));
+ });
+ function safeName(value){const raw=String(value||'document').trim();if(!raw||/[<>:"/\\|?*\x00-\x1f]/.test(raw)||/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(raw))throw Error('文件名包含不可用字符');const name=/\.pdf$/i.test(raw)?raw:raw+'.pdf';if(name.length>180)throw Error('文件名过长');return name;}
+ ipcMain.handle('document-preview-bundle',async(event,tokens,fileName)=>{
+  if(!Array.isArray(tokens)||!tokens.length||tokens.length>100||new Set(tokens).size!==tokens.length)throw Error('请选择有效的单证');
+  const records=tokens.map(token=>get(event,token));if(records.some(p=>p.bundle))throw Error('不能重复合并单证包');const {PDFDocument}=require('pdf-lib'),merged=await PDFDocument.create();
+  for(const record of records){const pdf=await PDFDocument.load(record.pdf);for(const page of await merged.copyPages(pdf,pdf.getPageIndices()))merged.addPage(page);}
+  const p={token:crypto.randomUUID(),owner:event.sender.id,pdf:Buffer.from(await merged.save()),name:safeName(fileName||'单证包.pdf'),closed:false,bundle:true,views:{}};ownerFor(event.sender).records.add(p);previews.set(p.token,p);return {token:p.token,documents:records.length,pages:merged.getPageCount()};
  });
  ipcMain.handle('document-preview-close',(event,token)=>{dispose(get(event,token));return true;});
  return {previews};

@@ -1,0 +1,21 @@
+'use strict';
+const {app}=require('electron'),assert=require('assert/strict'),fs=require('fs'),os=require('os'),path=require('path');
+const M=require('../assets/authorization-model');
+app.whenReady().then(()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fta-identities-')),db=new(require('better-sqlite3'))(path.join(dir,'identities.db'));
+try{
+ db.exec('CREATE TABLE quotations(id TEXT,quote_number TEXT);CREATE TABLE agent_authorizations(id TEXT,authorization_number TEXT);CREATE TABLE work_drafts(payload TEXT)');
+ db.prepare('INSERT INTO quotations VALUES(?,?)').run('legacy-quote','QA-20261015-061');const before=db.prepare('SELECT * FROM quotations').all();
+ const routes={},install=()=>require('../server/document-identities')({post:(url,handler)=>routes[url]=handler},db,path.join(dir,'browser-state.json'));install();
+ const allocate=body=>{let status=200,result;routes['/api/document-identities']({body},{status(value){status=value;return this},json(value){result=value}});return{status,...result};};
+ const first=allocate({key:'fixture-one',type:'invoice',date:'2026-11-15'});assert.equal(first.identity.number,'PI-20261115-062');
+ for(let i=0;i<20;i++)assert.deepEqual(allocate({key:'fixture-one',type:'invoice',date:'2026-11-16'}),first,'retries preserve original number and issue date');
+ assert.equal(allocate({key:'fixture-one',type:'contract',date:'2026-11-15'}).status,400,'one identity cannot belong to another type');
+ assert.equal(allocate({key:'fixture-two',type:'contract',date:'2026-11-16'}).identity.number,'SC-20261116-063','global sequence continues across days and types');
+ install();assert.equal(allocate({key:'fixture-three',type:'packing',date:'2027-01-01'}).identity.number,'PL-20270101-064','persisted counter survives reinstalling route');
+ assert.equal(allocate({key:'fixture-invalid',type:'invoice',date:'2026-02-30'}).status,400);assert.deepEqual(db.prepare('SELECT * FROM quotations').all(),before,'legacy history is untouched');
+ assert.equal(M.expiry('2026-11-15','12'),'2027-11-14');assert.equal(M.expiry('2024-02-15','1'),'2024-03-14');assert.equal(M.expiry('2026-11-15','custom'),'');
+ const company=M.initialize({date:'2026-11-15',selectedProducts:['全新工程机械','挖掘机'],customFields:{recipientCompany:'Company'},address:'Address',country:'Cameroon'});assert.equal(M.validation(company),'');assert.deepEqual(company.selectedProducts,['挖掘机']);
+ company.customFields.territoryMode='city';assert.match(M.validation(company),/城市/);company.customFields.authorizedCity='Douala';assert.equal(M.validation(company),'');
+ company.customFields.authorizedPartyType='individual';assert.match(M.validation(company),/姓名/);Object.assign(company,{agentName:'Person',phone:'123',email:'person@example.com'});assert.equal(M.validation(company),'');
+ console.log('PASS durable global numbering, retry idempotence, dates, legacy isolation and authorization model');
+}finally{db.close();app.quit();}}).catch(error=>{console.error(error);app.exit(1)});

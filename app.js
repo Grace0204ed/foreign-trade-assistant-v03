@@ -4418,9 +4418,11 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+    DocumentIdentity.mark(currentQuote,docType);
     bindQuoteToForm();
     renderQuoteItems();
     renderPreview();
+    if(activeViewName==='quote')ensureDocumentIdentity('quote',currentQuote);
   }
 
   async function applyQuoteFromUrl() {
@@ -4470,8 +4472,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+    DocumentIdentity.mark(currentInvitation,'invitation');
     bindInvitationToForm();
     renderInvitationPreview();
+    if(activeViewName==='invitation')ensureDocumentIdentity('invitation',currentInvitation);
   }
 
   function renderInvitationEditor() {
@@ -4625,6 +4629,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
         </header>
         <div class="invitation-watermark">${escapeHtml(party.nameEn || party.nameZh || "")}</div>
         <h1>${escapeHtml(invitationTitle(mode))}</h1>
+        ${currentInvitation.invitationNumber?`<div class="invitation-number">${escapeHtml(labelText("Document No.","单据编号",mode))}: ${escapeHtml(currentInvitation.invitationNumber)}</div>`:""}
         <div class="invitation-date">${escapeHtml(invitationText("date", mode))}: ${escapeHtml(formatInvitationDate(currentInvitation.date, mode))}</div>
         <div class="invitation-to">${escapeHtml(invitationText("toPrefix", mode))}: ${escapeHtml(mode==='zh'&&/^Embassy of the People's Republic of China$/.test(currentInvitation.embassy||'')?'中华人民共和国驻外使领馆':localizedSlashValue(currentInvitation.embassy || settings.invitationEmbassy || "",mode))}</div>
         <p class="invitation-paragraph">${escapeHtml(invitationIntroParagraph(mode)).replace(/\n/g, "<br>")}</p>
@@ -4670,6 +4675,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   async function saveInvitation() {
+    await ensureDocumentIdentity('invitation',currentInvitation);
     if(!validateConfiguredInputs('view-invitation'))return;
     const workKey=currentWorkKey("invitation");
     captureSigning(currentInvitation,"invitation");
@@ -4743,8 +4749,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       commissionTerms: defaultAgencyTerms("bilingual"), extraTerms: agencyDefaultCopy("bilingual").extra
     };
     if(documentType==='statement')Object.assign(currentAgentAuthorization,{...documentDefaults('statement'),documentType,tableHeaderColor:preferredDocumentColor(documentType),authorizationNumber:AgencyDocuments.number(documentType,date,agentAuthorizations),settlementSchema:2,selectedProducts:[],paymentChannel:'bank',commissionBasis:'rate',orderRate:'',fixedCommission:'',documentNotes:'',allowManualCompletion:true});
+    currentAgentAuthorization.id||=uid('agency');DocumentIdentity.mark(currentAgentAuthorization,documentType);if(documentType==='authorization')DocumentAuthorizationModel.initialize(currentAgentAuthorization);
     bindAgentAuthorizationForm();
     renderAgentAuthorizationPreview();
+    if(activeViewName==='agency')ensureDocumentIdentity('agency',currentAgentAuthorization);
   }
 
   async function loadAgentAuthorizations() {
@@ -4798,7 +4806,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const host=$("agency-product-options"); if(!host)return;
     const selected=new Set(currentAgentAuthorization?.selectedProducts || []);
     const config=currentAgentAuthorization?.documentConfigSnapshot||settings.documentConfigs?.agency;hydrateDocumentChoices(config);const field=config?.blocks?.items?.find(f=>f.fieldKey==='selectedProducts');
-    const options=field?.options||agencyProductGroups.flatMap(g=>g.items.map(([zh,en])=>({value:zh,labelZh:zh,labelEn:en,active:true}))),active=OptionCatalog.active({optionCatalog:{scope:options}},'scope'),parents=new Set(active.filter(o=>o.parentId).map(o=>o.parentId)),leaves=active.filter(o=>!parents.has(o.id));
+    const options=field?.options||agencyProductGroups.flatMap(g=>g.items.map(([zh,en])=>({value:zh,labelZh:zh,labelEn:en,active:true}))),active=OptionCatalog.active({optionCatalog:{scope:options}},'scope'),parents=new Set(active.filter(o=>o.parentId).map(o=>o.parentId)),leaves=active.filter(o=>!parents.has(o.id)&&(currentAgentAuthorization?.authorizationSchema!==2||!['全新工程机械','二手工程机械'].includes(o.value)));
     const groups=[...new Set(leaves.map(o=>o.parentId||''))];host.innerHTML=groups.map(group=>'<fieldset><legend>'+escapeHtml(active.find(o=>o.id===group)?.labelZh||field?.zh||'授权范围')+'</legend><div>'+leaves.filter(o=>(o.parentId||'')===group).map(o=>'<label><input type="checkbox" value="'+escapeHtml(o.value)+'" '+(selected.has(o.value)?'checked':'')+'><span>'+escapeHtml(o.labelZh||o.value)+'<small>'+escapeHtml(o.labelEn||o.value)+'</small></span></label>').join('')+'</div></fieldset>').join('');
   }
 
@@ -4813,7 +4821,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       commissionMin:Number(val("agency-commission-min") || 0), commissionMax:Number(val("agency-commission-max") || 0), markupAllowed:val("agency-markup") !== "no",
       paymentMethods:val("agency-payment-methods"), settlementDays:val("agency-settlement-days"), commissionTerms:val("agency-commission-terms"), extraTerms:val("agency-extra-terms")
     });
-    currentAgentAuthorization.documentType=val('agency-document-type')||'authorization';
+    currentAgentAuthorization.documentType=val('agency-document-type')||'authorization';if(currentAgentAuthorization.authorizationSchema===2)currentAgentAuthorization.showCommission=false;
     Object.entries(agencyDocumentFields).forEach(([id,key])=>{currentAgentAuthorization[key]=val(id);});
     currentAgentAuthorization.allowManualCompletion=$('agency-manual-completion').checked;
     collectStandaloneCustomFields(currentAgentAuthorization,$('view-agency'));
@@ -4875,6 +4883,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       for(const [id,title] of Object.entries({'agency-authorizer':'甲方常用名','agency-agent-name':'乙方护照英文全名','agency-country':'乙方国籍','agency-id-number':'乙方护照或当地证件号码（如适用）','agency-phone':'乙方电话或WhatsApp','agency-email':'乙方邮箱'}))$(id).closest('label').querySelector('span').textContent=title;
     }else{for(const [id,title] of Object.entries({'agency-id-number':'身份证/护照号','agency-phone':'联系电话','agency-email':'电子邮箱'}))$(id).closest('label').querySelector('span').textContent=title;}
     window.DocumentFormUI?.agencyConditions(a);
+    if(a.authorizationSchema===2&&!commercial&&$('authorization-workspace'))window.DocumentAuthorization?.refresh(a);
   }
 
   function changeAgencyDocumentType(){
@@ -4941,6 +4950,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function renderAgentAuthorizationPreview() {
     if (!$("agency-preview")) return;
     collectAgentAuthorizationForm();
+    if(currentAgentAuthorization.authorizationSchema===2&&AgencyDocuments.type(currentAgentAuthorization)==='authorization'){const a=currentAgentAuthorization; $('agency-preview').innerHTML=DocumentAuthorizationModel.render(a,a.companySnapshot||settings,a.documentConfigSnapshot||settings.documentConfigs.agency,{text:agencyText,country:DocumentWorkflow.countryText,date:DocumentWorkflow.dateText,safeImage:DocumentWorkflow.safeImage,signing:DocumentWorkflow.signing,signingHTML:DocumentWorkflow.signingHTML,products:agencySelectedProductText,value:(field,value)=>configuredValueText(field,value,a.language||'bilingual')});return;}
     if(AgencyDocuments.type(currentAgentAuthorization)!=='authorization'){
       $('agency-preview').dataset.language=currentAgentAuthorization.language||'bilingual';
       $('agency-preview').innerHTML=AgencyDocuments.render({...currentAgentAuthorization,date:DocumentWorkflow.dateText(currentAgentAuthorization.date,currentAgentAuthorization.language),validUntil:DocumentWorkflow.dateText(currentAgentAuthorization.validUntil,currentAgentAuthorization.language)},settings);
@@ -4986,7 +4996,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       row.style.order=Number(field.sortOrder||0);
     });
     applyUnifiedAgencySigning();
-    window.DocumentComposer?.refresh('agency',currentAgentAuthorization);
+    window.DocumentComposer?.refresh('agency',currentAgentAuthorization);window.DocumentAuthorization?.refresh(currentAgentAuthorization);
   };
 
   function applyAgencySignature() {
@@ -4998,6 +5008,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   async function saveAgentAuthorization() {
+    await ensureDocumentIdentity('agency',currentAgentAuthorization);const issue=DocumentAuthorizationModel.validation(currentAgentAuthorization);if(issue)return toast(issue);
     if(!validateConfiguredInputs('view-agency'))return;
     collectAgentAuthorizationForm();
     captureSigning(currentAgentAuthorization,currentAgentAuthorization.documentType);
@@ -5079,7 +5090,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function standaloneDocumentFields(type) {
     const config=settings.documentConfigs?.[type];
-    return ['basic','customer','items','terms'].flatMap(block=>(config?.blocks?.[block]||[])
+    return ['basic','customer','territory','items','terms','display'].flatMap(block=>(config?.blocks?.[block]||[])
       .map(normalizeField)
       .filter(field=>!field.deletedAt&&field.visible!==false&&field.active!==false)
       .sort((a,b)=>Number(a.sortOrder||0)-Number(b.sortOrder||0)));
@@ -6084,8 +6095,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function renderQuoteMetaPreview() {
     const rows = [];
-    const values={quoteNumber:currentQuote.quoteNumber,quoteDate:currentQuote.quoteDate,validUntil:currentQuote.validUntil,...(currentQuote.basicFields||{})};
-    configuredBlockFields("basic",[]).filter(field=>field.fieldKey!=='pdfLanguage').forEach(field=>{
+    const values={...(currentQuote.basicFields||{}),quoteNumber:currentQuote.quoteNumber,quoteDate:currentQuote.quoteDate,validUntil:currentQuote.validUntil};
+    const configured=configuredBlockFields("basic",[]).filter(field=>field.fieldKey!=='pdfLanguage');
+    const builtins=[{fieldKey:'quoteNumber',en:'Document No.',zh:'单据编号',fieldType:'text'},{fieldKey:'quoteDate',en:'Date',zh:'日期',fieldType:'date'}].filter(field=>!configured.some(row=>row.fieldKey===field.fieldKey));
+    [...builtins,...configured].forEach(field=>{
       const value=values[field.fieldKey];
       if(value!==''&&value!=null)rows.push(`<div class="configured-output-field">${escapeHtml(labelText(field.en,field.zh))}：${configuredValueHtml(field,value)}</div>`);
     });
@@ -6347,6 +6360,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function renderSalesContractSignatures() { return renderDocumentSignature(currentQuote.documentType); }
 
   async function saveQuote() {
+    await ensureDocumentIdentity('quote',currentQuote);
     if(!validateConfiguredInputs('view-quote'))return;
     const workKey=currentWorkKey("quote");
     captureSigning(currentQuote,currentQuote.documentType);
@@ -6491,7 +6505,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const nowIso = new Date().toISOString();
     q.id = uid("quote");
     q.quoteDate = today();
-    q.quoteNumber = nextQuoteNumber(q.quoteDate, true, q.documentType);
+    DocumentIdentity.mark(q,q.documentType||'quotation');q.quoteNumber = nextQuoteNumber(q.quoteDate, true, q.documentType);
     q.validUntil = addDays(7);
     q.validityRangeText = `${q.quoteDate} - ${q.validUntil}`;
     q.sourceQuoteId = id;
@@ -7150,7 +7164,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     $('document-specific-title').textContent=packing?'装箱单填写':'商业发票出货资料';
     $('packing-editor').hidden=true;
     $('shipment-document-editor').hidden=!shipping;
-    const names={quotation:['报价基础信息','报价明细','贸易条款'],invoice:['形式发票基础信息','形式发票商品明细','付款及交付条款'],contract:['销售合同基础信息','合同商品明细','合同条款'],commercial:['商业发票基础信息','商业发票商品明细','贸易条款'],packing:['装箱单基础信息','装箱商品明细','运输条款']};
+    const names={quotation:['报价基础信息','报价明细','贸易条款'],invoice:['形式发票基础信息','形式发票商品明细','付款及交付条款'],contract:['销售合同基础信息','商品明细','贸易条款'],commercial:['商业发票基础信息','商业发票商品明细','贸易条款'],packing:['装箱单基础信息','装箱商品明细','运输条款']};
     const titles=names[type]||names.quotation;
     ['quote-common-panel','quote-standard-detail-panel','quote-standard-terms-panel'].forEach((id,i)=>{const h=$(id)?.querySelector('h3');if(h)h.textContent=titles[i];});
     ['valid-until','validity-range-text'].forEach(id=>{if($(id))$(id).closest('label').hidden=!configuredBlockFields('basic',[]).some(f=>f.fieldKey==='validUntil');});
@@ -7249,6 +7263,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     for(const view of ['quote','invitation','agency']){const heading=document.querySelector('#view-'+view+' > .page-head h2');if(heading&&activeButton)heading.textContent=activeButton.textContent;}
     $('document-top-tools')?.querySelectorAll('details[open]').forEach(popup=>popup.open=false);
   }
+  function ensureDocumentIdentity(kind,record){
+    const type=kind==='quote'?record.documentType:kind==='agency'?AgencyDocuments.type(record):'invitation';
+    return DocumentIdentity.ensure(record,type).then(()=>{if(workflowDocument(kind)===record){const n=$(kind==='quote'?'quote-number':kind==='agency'?'agency-number':null);if(n)n.value=record.quoteNumber||record.authorizationNumber;DocumentIdentity.ui(kind,record);window.DocumentAuthorization?.refresh(record);}}).catch(error=>{toast('编号生成失败，填写内容已保留：'+error.message);throw error;});
+  }
   function initDocumentNavigation() {
     const types={quotation:'报价单',invoice:'形式发票（PI）',contract:'销售合同',commercial:'商业发票',packing:'装箱单',authorization:'代理授权书',statement:'佣金结算单',invitation:'商务邀请函'};
     const drafts=new Map();let sharedBuyer={};
@@ -7262,18 +7280,18 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       if(!skipCapture)capture();
       if(type==='invitation'){
         if(drafts.has(type))currentInvitation=structuredClone(drafts.get(type));else{newInvitation();Object.assign(currentInvitation,{visitorName:sharedBuyer.contact||'',visitorCompany:sharedBuyer.company||'',country:sharedBuyer.country||''});}
-        bindInvitationToForm();switchView('invitation');updateDocumentSwitchState();return;
+        bindInvitationToForm();switchView('invitation');updateDocumentSwitchState();ensureDocumentIdentity('invitation',currentInvitation).catch(()=>{});return;
       }
       if(type==='authorization'||type==='procurement'||type==='statement'){
-        if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization();Object.assign(currentAgentAuthorization,{documentType:type,tableHeaderColor:preferredDocumentColor(type),authorizationNumber:AgencyDocuments.number(type,today(),agentAuthorizations),agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
+        if(drafts.has(type))currentAgentAuthorization=structuredClone(drafts.get(type));else{newAgentAuthorization(type);Object.assign(currentAgentAuthorization,{documentType:type,tableHeaderColor:preferredDocumentColor(type),authorizationNumber:AgencyDocuments.number(type,today(),agentAuthorizations),recipientCompany:sharedBuyer.company||'',agentName:sharedBuyer.contact||'',country:sharedBuyer.country||'',phone:sharedBuyer.phone||'',email:sharedBuyer.email||'',address:sharedBuyer.address||''});}
         if(type==='statement'&&!drafts.has(type))Object.assign(currentAgentAuthorization,{...documentDefaults(type),settlementSchema:2,paymentChannel:'bank',commissionBasis:'rate',orderRate:'',fixedCommission:'',documentNotes:'',allowManualCompletion:true});
-        bindAgentAuthorizationForm();switchView('agency');updateDocumentSwitchState();return;
+        bindAgentAuthorizationForm();switchView('agency');updateDocumentSwitchState();ensureDocumentIdentity('agency',currentAgentAuthorization).catch(()=>{});return;
       }
       if(drafts.has(type))currentQuote=structuredClone(drafts.get(type));else{
         const source=sourceOverride||drafts.get('quotation');newQuote(false,type);currentQuote.documentType=type;currentQuote.buyer={...currentQuote.buyer,...sharedBuyer};
         if(source){const sourceItems=type==='packing'?source.items.filter(item=>(item.kind||'product')==='product'):source.items;currentQuote.items=sourceItems.length?structuredClone(sourceItems).map(item=>({...item,id:uid('item')})):[blankQuoteLine({},type)];currentQuote.terms=structuredClone(source.terms);currentQuote.relatedOrderId=source.id;currentQuote.relatedOrderNumber=source.quoteNumber;const details=structuredClone(source.editingDetails||{});delete details.parties;currentQuote.editingDetails={...currentQuote.editingDetails,...details};if(source.receivingAccountSnapshot)currentQuote.receivingAccountSnapshot=structuredClone(source.receivingAccountSnapshot);}
       }
-      bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();
+      bindQuoteToForm();renderQuoteItems();switchView('quote');renderPreview();ensureDocumentIdentity('quote',currentQuote).catch(()=>{});
     }
     function prepare(types){capture();const original=activeViewName==='quote'?currentQuote.documentType:activeViewName==='invitation'?'invitation':AgencyDocuments.type(currentAgentAuthorization),source=activeViewName==='quote'?structuredClone(currentQuote):null;for(const type of types)if(!drafts.has(type)){open(type,true,source);capture();persistWork(true);}if(drafts.has(original))open(original,true);capture();return [...drafts.keys()];}
     window.DocumentDraftWorkspace={
@@ -7323,6 +7341,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
   async function flushWorkQueue(){
     for(const [key,row] of [...pendingWork]){
+      if(row.data?.systemIdentity){await DocumentIdentity.ensure(row.data,row.data.systemIdentity.type);row.label=row.data.quoteNumber||row.data.authorizationNumber||row.data.invitationNumber||row.label;}
       await api('/api/work-drafts/'+encodeURIComponent(key),{method:'PUT',body:JSON.stringify(row)});
       if(pendingWork.get(key)===row)pendingWork.delete(key);
     }
@@ -7367,7 +7386,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     for(const name of ['input','change'])document.addEventListener(name,e=>{if(e.target.closest('#view-quote,#view-products,#view-invitation,#view-agency,#product-editor-modal'))persistWork(true);});
     document.addEventListener('click',()=>persistWork(),true);
     window.hasUnsavedWork=()=>hasCurrentChanges()||Boolean(workCaptureError);
-    window.flushPendingWork=async()=>{if(startupLoading)await window.foreignTradeStartupReady;persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;await window.BusinessDataStore.flush();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
+    window.flushPendingWork=async()=>{if(startupLoading)await window.foreignTradeStartupReady;await DocumentIdentity.settle();persistWork();if(workCaptureError)throw workCaptureError;await workQueue;await flushWorkQueue();await documentColorSaveQueue;await window.BusinessDataStore.flush();clearTimeout(stateBackupTimer);if(currentUser)await api("/api/system/browser-state",{method:"PUT",body:JSON.stringify(localStatePayload())});return true;};
     window.addEventListener('beforeunload',()=>{persistWork();for(const row of pendingWork.values())navigator.sendBeacon('/api/work-drafts',new Blob([JSON.stringify(row)],{type:'application/json'}));});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)persistWork();});
     // Unfinished work is available on demand; startup never opens a recovery dialog.
@@ -7377,7 +7396,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const rows=Object.values(readWork()).filter(r=>!r.completedAt).sort((a,b)=>b.savedAt.localeCompare(a.savedAt));if(!rows.length)return toast('暂无未完成工作');
     document.getElementById('work-recovery-modal')?.remove();const modal=document.createElement('div');modal.id='work-recovery-modal';modal.className='modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-label','恢复未完成工作');
     const names={quote:'单证',products:'产品编辑',invitation:'邀请函',agency:'代理文件'};
-    modal.innerHTML='<div class="modal-card"><h3>草稿箱与异常恢复</h3>'+rows.map((r,i)=>'<article><p>'+escapeHtml((r.category==='draft'?'已保存草稿':'异常恢复缓存')+' · '+(names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+([r.data.buyer?.company||r.data.visitorCompany||r.data.agentName||r.data.visitorName,r.data.buyer?.country||r.data.country,(r.data.items||[]).slice(0,3).map(item=>item.values?.description||item.values?.model||'').filter(Boolean).join('、'),r.data.product?.values?.name||r.data.product?.model].filter(Boolean).join(' · '))+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
+    modal.innerHTML='<div class="modal-card"><h3>草稿箱与异常恢复</h3>'+rows.map((r,i)=>'<article><p>'+escapeHtml((r.category==='draft'?'已保存草稿':'异常恢复缓存')+' · '+(names[r.kind]||r.kind)+' · '+(r.kind==='quote'?documentTypeOf(r.data.documentType).labelZh:r.data.product?.category||'')+' · '+r.label+' · '+([r.data.buyer?.company||r.data.visitorCompany||r.data.agentName||r.data.visitorName,r.data.buyer?.country||r.data.country,r.kind==='invitation'?r.data.visitorName:'',(r.data.items||[]).slice(0,3).map(item=>item.values?.description||item.values?.model||'').filter(Boolean).join('、'),r.data.product?.values?.name||r.data.product?.model].filter(Boolean).join(' · '))+' · '+new Date(r.savedAt).toLocaleString())+'</p><button data-resume="'+i+'">继续编辑</button> <button data-discard="'+i+'">放弃草稿</button></article>').join('')+'<button data-close>稍后处理</button></div>';document.body.append(modal);
     const recoveryTabs=document.createElement('nav');recoveryTabs.className='document-block-tabs';recoveryTabs.innerHTML='<button type="button" data-work-filter="all" aria-pressed="true">全部未完成</button><button type="button" data-work-filter="draft">草稿箱（'+rows.filter(r=>r.category==='draft').length+'）</button><button type="button" data-work-filter="recovery">异常恢复（'+rows.filter(r=>r.category!=='draft').length+'）</button>';modal.querySelector('h3').after(recoveryTabs);
     recoveryTabs.onclick=e=>{const button=e.target.closest('[data-work-filter]');if(!button)return;const filter=button.dataset.workFilter;recoveryTabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));modal.querySelectorAll('article').forEach((article,i)=>article.hidden=filter!=='all'&&(rows[i].category==='draft'?'draft':'recovery')!==filter);};
     modal.onclick=async e=>{try{
@@ -7582,6 +7601,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
   async function previewCurrentOutput(kind=currentOutputKind(),selectedTypes=null){
     if($('document-output-preview'))return;
+    await ensureDocumentIdentity(kind,workflowDocument(kind));await DocumentIdentity.settle();
     // Read the current DOM before capturing the independent prepared drafts.
     const workspace=window.DocumentDraftWorkspace;
     const d=currentWorkData(kind),type=kind==='quote'?d.documentType:kind==='invitation'?'invitation':AgencyDocuments.type(d);
@@ -7591,17 +7611,19 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(!window.DocumentOutputWorkspace)return toast('预览工作台未加载，请重新打开应用；编辑内容已保留。');
     if(kind==='quote'){const issue=DocumentEditing.validation(d);if(issue)return toast(issue);}
     const entries=(workspace?workspace.entries():[{type,label:documentTypeOf(type).labelZh,kind,data:d}]).filter(entry=>!selectedTypes||selectedTypes.includes(entry.type));
-    for(const entry of entries)entry.number=entry.type==='invitation'?[entry.data.visitorName,entry.data.date].filter(Boolean).join(' · '):entry.data.quoteNumber||entry.data.authorizationNumber||'';
+    for(const entry of entries){await DocumentIdentity.ensure(entry.data,entry.type);entry.date=entry.data.quoteDate||entry.data.date||'';entry.number=entry.type==='invitation'?[entry.data.visitorName,entry.data.date].filter(Boolean).join(' · '):entry.data.quoteNumber||entry.data.authorizationNumber||'';}
     await window.DocumentOutputWorkspace.open({
-      entries,current:type,customer:d.buyer?.company||d.visitorCompany||d.visitorName||d.agentName||'',
+      entries,current:type,company:d.companySnapshot||settings,customer:d.buyer?.company||d.visitorCompany||d.visitorName||d.agentName||'',
       create:entry=>withOutputDocument(entry,async()=>{
+        if(entry.kind==='agency'){const issue=DocumentAuthorizationModel.validation(currentAgentAuthorization);if(issue)throw Error(issue);}
         if(entry.kind==='invitation'){const errors=DocumentWorkflow.validateInvitation(currentInvitation);if(errors.length)throw Error(errors.join('；'));}
         captureSigning(workflowDocument(entry.kind),entry.kind);renderOutputKind(entry.kind);await prepareSigningImages();
         return window.quotationDesktop.createDocumentPreview({html:outputMarkup(entry.kind),fileName:outputFileName(entry.kind),batch:true});
       }),
       close:token=>window.quotationDesktop.closeDocumentPreview(token),
-      mode:(token,mode)=>window.quotationDesktop.setDocumentPreviewMode(token,mode),
-      export:(token,directory)=>window.quotationDesktop.exportDocumentPreview(token,directory),
+      mode:(token,mode,settings)=>window.quotationDesktop.setDocumentPreviewMode(token,mode,settings),
+      bundle:(tokens,fileName)=>window.quotationDesktop.bundleDocumentPreviews(tokens,fileName),
+      export:(token,directory,fileName)=>window.quotationDesktop.exportDocumentPreview(token,directory,fileName),
       print:(token,options)=>window.quotationDesktop.printDocumentPreview(token,options),
       selectDirectory:()=>window.quotationDesktop.selectPdfDirectory(),
       finishDirectory:token=>window.quotationDesktop.finishPdfBatch(token),
@@ -7678,11 +7700,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(prior){await queueWork(prior);}else{await api('/api/work-drafts/'+encodeURIComponent(key),{method:'DELETE'});delete workRecords[key];}
     workRestoring=true;try{if(baseline){if(kind==='quote'){currentQuote=structuredClone(baseline.data);bindQuoteToForm();renderQuoteItems();renderPreview();}if(kind==='invitation'){currentInvitation=structuredClone(baseline.data);bindInvitationToForm();renderInvitationPreview();}if(kind==='agency'){currentAgentAuthorization=structuredClone(baseline.data);bindAgentAuthorizationForm();renderAgentAuthorizationPreview();}if(kind==='products'){const originalId=editingProductId,temporary={...structuredClone(baseline.data.product),id:uid('restore-product')};products.push(temporary);editProduct(temporary.id);products=products.filter(p=>p!==temporary);editingProductId=baseline.data.editingId||'';syncProductEditorPresentation();}}}finally{workRestoring=false;}
   }
+  let autoLeavePromise=null;
   async function askLeaveWork(){
-    if(!hasCurrentChanges())return true;if(leavePending)return false;leavePending=true;
-    return new Promise(resolve=>{const modal=document.createElement('dialog');modal.id='leave-work-modal';modal.className='modal no-print';modal.innerHTML='<div class="modal-card" role="dialog" aria-modal="true"><h3>当前内容尚未保存</h3><p>草稿仅进入草稿箱；不保存会丢弃本次修改，原历史单证和其他草稿保持不变。</p><button data-leave-save>保存草稿并离开</button><button data-leave-discard>不保存并离开</button><button data-leave-cancel>取消</button><p role="status"></p></div>';document.body.append(modal);modal.showModal();modal.addEventListener('cancel',event=>{event.preventDefault();modal.remove();leavePending=false;resolve(false);});
-      modal.onclick=async event=>{const b=event.target.closest('button');if(!b)return;modal.querySelectorAll('button').forEach(x=>x.disabled=true);try{if(b.hasAttribute('data-leave-save'))await saveCurrentDraft();else if(b.hasAttribute('data-leave-discard'))await discardCurrentChanges();else{modal.remove();leavePending=false;resolve(false);return;}modal.remove();leavePending=false;resolve(true);}catch(error){modal.querySelector('[role=status]').textContent='处理失败，当前页面保留：'+error.message;modal.querySelectorAll('button').forEach(x=>x.disabled=false);}};
-    });
+    if(autoLeavePromise)return autoLeavePromise;
+    autoLeavePromise=(async()=>{try{await window.DocumentIdentity?.settle();persistWork(true);if(workCaptureError)throw workCaptureError;await workQueue;if(hasCurrentChanges())await saveCurrentDraft();await flushWorkQueue();await window.BusinessDataStore.flush();return true;}catch(error){toast('自动保存失败，当前内容已保留：'+error.message);return false;}finally{autoLeavePromise=null;}})();return autoLeavePromise;
   }
   function installDraftWorkflow(){
     // Establish baselines when entering a document, and after explicit saves.
@@ -7697,6 +7718,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(window.quoteApp)Object.assign(window.quoteApp,{editQuote,copyQuote,editProduct});
     const menuBase=handleDesktopMenuAction;handleDesktopMenuAction=async function(action){if(['settings','users','data','help','logout'].includes(action)&&!await askLeaveWork())return;return menuBase(action);};
     window.hasUnsavedWork=()=>hasCurrentChanges();
+    window.prepareLeaveWork=askLeaveWork;
     window.decideCloseWork=async choice=>{if(choice==='discard')await discardCurrentChanges();else if(hasCurrentChanges())await saveCurrentDraft();return true;};
     document.addEventListener('click',event=>{
       if(leaveReplaying||workRestoring||event.target.closest('#leave-work-modal,#document-output-preview,#pdf-selection-modal'))return;
@@ -7745,7 +7767,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     get editingHistorical(){return currentQuote?.isFormal||pdfSnapshotMode;},
     editingRefresh(){renderQuoteTerms();renderQuoteItems();renderPreview();},
     get editingRecords(){return {quote:currentQuote,invitation:currentInvitation,agency:currentAgentAuthorization};},
-    editingChanged(kind){if(kind==='quote'){collectQuoteFromForm();renderPreview();scheduleDraftRecovery();}else{collectInvitationFromForm();renderInvitationPreview();persistWork(true);}},
+    editingChanged(kind){if(kind==='quote'){collectQuoteFromForm();renderPreview();scheduleDraftRecovery();}else if(kind==='agency'){renderAgentAuthorizationPreview();persistWork(true);}else{collectInvitationFromForm();renderInvitationPreview();persistWork(true);}},
+    authorizationChanged(){renderAgentAuthorizationPreview();persistWork(true);},
     get settings(){return settings;},
     hydrateDocumentChoices,
     get defaultTermFields(){return structuredClone(defaultTermFields);},

@@ -55,7 +55,7 @@ app.whenReady().then(async()=>{
   assert.equal(await run(`document.querySelector('#quote-items .quote-line-image-input')`),null,'disabled image field has no upload input');
   assert.deepEqual(await run(`[...document.querySelectorAll('#quote-items .quote-line:first-child [data-form-field]')].map(n=>n.querySelector('span')?.textContent.split(' *')[0])`),['条目类型','当前数量','已保存设备名称','当前单价','当前金额','币种','当前设备序号','默认零值','默认否'],'visible fields use current names/order');
   assert.equal(await run(`document.querySelector('#quote-items [data-qfield=legacy_only],#quote-items [data-qfield=custom_hidden],#quote-items [data-qfield=legacy_deleted],#quote-items [data-qfield=year],#quote-items [data-qfield=hours]')`),null,'hidden/deleted/legacy product fields stay absent');
-  await run(`document.getElementById('quote-number').value='QA-CONFIG-ALIGNMENT';document.getElementById('open-product-picker-btn').click();document.querySelector('[data-pick-product="${product.id}"]').click()`);
+  await run(`(async()=>{await DocumentIdentity.settle();delete quoteSettingsContext.editingRecords.quote.systemIdentity;document.getElementById('quote-number').value='QA-CONFIG-ALIGNMENT';document.getElementById('open-product-picker-btn').click();document.querySelector('[data-pick-product="${product.id}"]').click()})()`);
   const imported=`[...document.querySelectorAll('#quote-items .quote-line')].at(-1)`;
   assert.equal(await run(`${imported}.querySelector('[data-qfield=description]').value`),'Unified Equipment Name','unified product name imports as document description');
   assert.equal(await run(`${imported}.querySelector('[data-qfield=custom_serial]').value`),'SERIAL-IMPORTED','same-key configured product values import');

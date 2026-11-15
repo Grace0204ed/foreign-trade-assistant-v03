@@ -20,7 +20,7 @@ app.whenReady().then(async()=>{
    c.blocks.basic.push({id:'roundtrip-zero',fieldKey:'roundtrip_zero',zh:'零值',en:'Zero Value',fieldType:'number',visible:true,active:true,sortOrder:910,defaultValue:0});
    c.blocks.basic.push({id:'roundtrip-flag',fieldKey:'roundtrip_flag',zh:'确认开关',en:'Confirmation',fieldType:'checkbox',visible:true,active:true,sortOrder:920,defaultValue:false});
    c.blocks.customer.push({id:'roundtrip-choice',fieldKey:'roundtrip_choice',zh:'客户来源',en:'Customer Source',fieldType:'select',visible:true,active:true,sortOrder:900,defaultValue:'A',options:[{id:'A',value:'A',labelZh:'推荐',labelEn:'Referral',active:true},{id:'B',value:'B',labelZh:'展会',labelEn:'Exhibition',active:true}]});
-   const customerField=c.blocks.customer.find(f=>f.fieldKey==='visitorName')||c.blocks.customer[0];customerField.zh='已改名客户';customerField.en='Renamed Customer';
+   const customerField=c.blocks.customer.find(f=>f.fieldKey==='visitorName')||(c.authorizationSchemaVersion?c.blocks.customer.find(f=>f.fieldKey==='roundtrip_choice'):c.blocks.customer[0]);customerField.zh='已改名客户';customerField.en='Renamed Customer';
   }await window.quoteSettingsContext.save(s)})()`);
   await win.reload();await wait('!!window.quoteSettingsContext && document.querySelectorAll("#overview-metrics article").length===4');
   for(const type of ['quotation','invoice','contract','commercial','packing','invitation','agency']){
@@ -35,7 +35,7 @@ app.whenReady().then(async()=>{
    await wait(`document.getElementById('${preview}').textContent.includes('SAVED-${type}')`);
    assert(await run(`document.getElementById('${preview}').textContent.includes('${type==='invitation'?'展会':'Exhibition'}')`),type+' dropdown label in preview');
    assert(await run(`document.getElementById('${preview}').textContent.includes('${type==='invitation'?'已改名客户':'Renamed Customer'}')`),type+' renamed heading in preview');
-   if(type==='agency')await run(`for(const [id,value]of Object.entries({'agency-agent-name':'Test Agent','agency-country':'Zambia','agency-id-number':'ID-TEST','agency-phone':'+260700000000','agency-email':'test@example.com'})){document.getElementById(id).value=value;}document.querySelector('#agency-product-options input').checked=true`);
+   if(type==='agency')await run(`for(const [id,value]of Object.entries({'agency-agent-name':'Test Agent','agency-country':'Zambia','agency-id-number':'ID-TEST','agency-phone':'+260700000000','agency-email':'test@example.com','agency-address':'Test address'})){document.getElementById(id).value=value;}document.querySelector('#agency-product-options input').checked=true;const recipient=document.querySelector('[data-standalone-field=recipientCompany]');recipient.value='Test Company';recipient.dispatchEvent(new Event('input',{bubbles:true}));`);
    const save=type==='invitation'?'save-invitation-btn':type==='agency'?'agency-save-btn':'save-quote-btn';
    await run(`document.getElementById('${save}').click()`);
    let record;

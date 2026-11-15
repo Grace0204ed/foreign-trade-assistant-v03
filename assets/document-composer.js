@@ -48,11 +48,11 @@
  }
  const term=key=>document.querySelector('[data-termfield="'+key+'"]')?.value||'';
  function refresh(kind,record){
-  const root=$('view-'+kind);if(!root||!record)return;root.classList.add('composer-editor');titleRow(root);
+  const root=$('view-'+kind);if(!root||!record)return;root.classList.add('composer-editor');titleRow(root);window.DocumentIdentity?.ui(kind,record);
   const type=kind==='quote'?record.documentType:kind==='invitation'?'invitation':record.documentType;
   if(kind==='quote'){
    fold($('quote-common-panel'),type+':basic','file');
-   fold($('quote-standard-detail-panel'),type+':items','cart');
+   const items=$('quote-standard-detail-panel');if(items){visibility(items,true);items.classList.remove('composer-collapsed','composer-fold');delete items.dataset.composerKey;const heading=items.querySelector('.row-head');if(heading){heading.onclick=null;heading.onkeydown=null;for(const attribute of ['role','tabindex','aria-expanded'])heading.removeAttribute(attribute);heading.classList.remove('composer-fold-head');heading.querySelector('[data-composer-icon]')?.remove();}}
    let after=$('quote-aftersales-panel');if(!after){after=document.createElement('section');after.id='quote-aftersales-panel';after.className='panel';after.innerHTML='<h3>售后与质保</h3><div id="quote-aftersales" class="form-grid"></div>';$('quote-standard-terms-panel').after(after);}
    const fields=$('quote-terms').querySelectorAll(':scope>[data-form-field="afterSales"],:scope>[data-form-field="warranty"]');
    if(fields.length){$('quote-aftersales').replaceChildren(...fields);}const config=record.isFormal?record.templateSnapshot?.documentConfig:C().settings.documentConfigs?.[type];
@@ -70,6 +70,5 @@
   if(kind==='invitation')output.hidden=Number(record.editorStep||0)!==3;
  }
  document.addEventListener('invalid',event=>{const panel=event.target.closest('.composer-fold');if(panel)setOpen(panel,true);},true);
- document.addEventListener('click',event=>{if(event.target.closest('#add-quote-item-btn'))setOpen($('quote-standard-detail-panel'),true);},true);
  window.DocumentComposer={bar,activate,refresh,selection,icon,setOpen};
 })();

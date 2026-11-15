@@ -38,6 +38,8 @@ jobs:
         run: npm run test:compact-options
       - name: Verify saved document form order and full output regressions
         run: npm run test:document-forms && npm run test:document-editing && npm run test:composer && npm run test:startup-home && npm run test:output-regression
+      - name: Verify authorization UI, durable document identities and merged print center
+        run: npm run test:authorization-center
       - name: Verify formal lock, hierarchy, fields, top settings, calculator and commission
         run: npm run test:iteration
       - name: Verify approved demo alignment and real pointer sorting

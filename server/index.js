@@ -48,6 +48,7 @@ app.post('/api/products/parse-file', requireLogin, (req,res)=>{
   }catch(error){res.status(400).json({message:'无法读取表格：'+error.message});}
 });
 require("./work-drafts")(app, db);
+require("./document-identities")(app,db,browserStatePath);
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use("/uploads", express.static(uploadDir));
 app.post("/api/uploads/image", requireLogin, requireAdmin, express.raw({ type: ["image/jpeg","image/png","image/webp"], limit: "8mb" }), (req, res) => {

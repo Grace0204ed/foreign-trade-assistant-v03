@@ -37,6 +37,10 @@
  .composer-editor .composer-fold-head{display:flex!important;align-items:center;gap:10px;cursor:pointer;padding:9px 14px!important;margin:0!important;min-height:38px;border-bottom:1px solid #edf2f5;outline-offset:-3px}
  .composer-editor .composer-fold-head h3,.composer-editor h3.composer-fold-head{font-size:15px!important;font-weight:700!important;color:#13202c}
  .composer-editor .composer-fold-head h3{display:flex;align-items:center;gap:8px;margin:0!important;flex:0 1 auto!important;width:auto!important}
+ .composer-editor h3.composer-fold-head{display:grid!important;grid-template-columns:39px minmax(0,max-content) minmax(0,1fr);gap:8px}
+ .composer-editor h3.composer-fold-head>[data-composer-summary]{justify-self:end;max-width:100%;min-width:0}
+ .composer-editor .row-head.composer-fold-head h3>[data-composer-icon]{width:39px}
+ .composer-editor #quote-standard-detail-panel>.row-head{cursor:default}
  [data-composer-icon]{display:inline-flex;align-items:center;gap:7px;color:#07851a}
  [data-composer-icon] svg:first-child{width:14px;height:14px;transition:transform .15s}
  .composer-collapsed [data-composer-icon] svg:first-child{transform:rotate(-90deg)}
@@ -76,6 +80,10 @@
  .composer-editor #editing-receiving-panel{margin-top:0!important}
  .composer-editor .document-output-options>:not(.composer-fold-head){margin-inline:14px}
  .composer-editor .document-output-options{margin-top:0!important}
+ .composer-editor .document-output-options :is(.document-simple-options,.document-signing-controls){display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+ .composer-editor .document-output-options :is(.document-simple-options,.document-signing-controls)>label{min-height:42px;display:flex;justify-content:flex-start;gap:10px;padding:8px 12px;margin:0}
+ .composer-editor .document-output-options .document-signing-controls small{grid-column:1/-1}
+ .composer-editor .document-output-options>:not(.composer-fold-head){margin-block:12px}
  .composer-editor .composer-fold[hidden]{display:none!important}
  @media(max-width:1400px){.composer-editor .composer-selection-bar{gap:8px}.composer-editor .document-switch-buttons{gap:4px}.composer-doc-chip{padding:4px}.composer-editor .composer-doc-chip button{font-size:12px}.composer-batch-actions{gap:6px}}
  @media(max-width:1080px){.composer-batch-actions{width:100%;justify-content:flex-end}.composer-editor>.page-head{grid-template-columns:1fr auto}.composer-title{grid-row:1;grid-column:1/-1}.composer-editor .editing-navigation{grid-row:2}.composer-editor>.page-head>.actions{grid-row:2;margin:0}.composer-save-state{white-space:normal}[data-composer-summary]{max-width:57%}}
