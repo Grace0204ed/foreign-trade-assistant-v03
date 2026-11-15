@@ -37,11 +37,11 @@
   const available=accounts.filter(a=>a.companyId===state.receivingCompany&&a.type===state.receivingType),update=(selector,rows,selected,blank)=>{const node=panel.querySelector(selector),markup=options(rows,selected,blank);if(node.innerHTML!==markup)node.innerHTML=markup;node.value=selected||'';};
   update('[data-receiving-company]',companyIds.map(id=>({value:id,labelZh:accounts.find(a=>a.companyId===id)?.companyName})),state.receivingCompany);
   update('[data-receiving-type]',[...M().accountTypes,['legacy','原有收款账户']].map(([value,labelZh])=>({value,labelZh})),state.receivingType);
-  update('[data-receiving-account]',available.map(a=>({value:a.id,labelZh:a.name})),available.some(a=>a.id===saved?.id)?saved.id:'','沿用公司默认收款资料');
+  update('[data-receiving-account]',available.map(a=>({value:a.id,labelZh:a.name})),available.some(a=>a.id===saved?.id)?saved.id:'',saved?'请选择收款账户':'沿用公司默认收款资料');
   const details=panel.querySelector('.editing-account-details'),markup=saved?(saved.fields||[]).map(f=>'<div><small>'+E(f.labelZh||f.labelEn)+'</small>'+E(f.value)+'</div>').join('')+(saved.qr?'<img src="'+E(saved.qr)+'" alt="收款二维码">':''):'';if(details.innerHTML!==markup)details.innerHTML=markup;
   panel.onchange=e=>{if(e.target.hasAttribute('data-receiving-company'))state.receivingCompany=e.target.value;if(e.target.hasAttribute('data-receiving-type'))state.receivingType=e.target.value;
    if(e.target.hasAttribute('data-receiving-company')||e.target.hasAttribute('data-receiving-type')){const next=accounts.find(a=>a.companyId===state.receivingCompany&&a.type===state.receivingType);q.receivingAccountSnapshot=next?M().snapshotAccount(next):{companyId:state.receivingCompany,type:state.receivingType,fields:[]};}
-   if(e.target.hasAttribute('data-receiving-account')){const account=accounts.find(a=>a.id===e.target.value);if(account)q.receivingAccountSnapshot=M().snapshotAccount(account);else delete q.receivingAccountSnapshot;}
+   if(e.target.hasAttribute('data-receiving-account')){const account=available.find(a=>a.id===e.target.value);q.receivingAccountSnapshot=account?M().snapshotAccount(account):{companyId:state.receivingCompany,type:state.receivingType,fields:[]};}
    changed();receiving(q,settings);
   };
  }
