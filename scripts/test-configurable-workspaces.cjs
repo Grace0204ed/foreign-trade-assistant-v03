@@ -31,7 +31,7 @@ assert.ok(!indexText.includes('id="quote-secondary-currency"')&&!indexText.inclu
 assert.ok(serverText.includes('currencyDisplay:q.currencyDisplay')&&serverText.includes('secondaryCurrency:q.secondaryCurrency')&&serverText.includes('exchangeRate:q.exchangeRate'),'server quote metadata does not persist dual currency settings');
 assert.ok(serverText.includes('convertToMain'),'server totals are not normalized into the primary currency');
 assert.ok(indexText.includes('quote-preview-mode')&&appText.includes("event.ctrlKey"),'preview modes or Ctrl+wheel zoom are missing');
-assert.ok(appText.includes('showBankControl'),'per-document bank control visibility is missing');
+assert.ok(indexText.includes('id="document-show-bank"'),'receiving visibility switch is missing; runtime visibility is covered by test:side-editors');
 assert.ok(appText.includes('is-quarter-turn'),'rotated signature preview sizing is missing');
 assert.ok(!serverText.includes('installVehicleQuoteRoutes'),'retired vehicle quote routes are still installed');
 assert.ok(!require('fs').existsSync(require('path').join(__dirname,'../server/vehicle-quotes.js')),'retired vehicle quote server module still exists');
