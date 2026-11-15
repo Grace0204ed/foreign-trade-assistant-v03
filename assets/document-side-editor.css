@@ -16,7 +16,7 @@
  .document-side-form .document-output-options{margin-top:10px}
 }
 @media print{
- body:is(.printing-agency,.printing-invitation) .document-side-editor>.document-side-workspace{display:block!important}
+ body.printing-agency #view-agency.document-side-editor>#document-side-workspace-agency,body.printing-invitation #view-invitation.document-side-editor>#document-side-workspace-invitation{display:block!important}
  .document-side-workspace>.document-side-form{display:none!important}
  .document-side-workspace>.document-side-paper{display:block!important;position:static;padding:0;border:0;box-shadow:none;overflow:visible}
  .document-side-workspace :is(#agency-preview,#invitation-preview){zoom:1!important;width:100%!important}
