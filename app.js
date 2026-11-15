@@ -4934,6 +4934,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   function applyAgencyLanguageDefaults(){
+    if(currentAgentAuthorization?.authorizationSchema===2){renderAgentAuthorizationPreview();return;}
     const mode=$("agency-language")?.value||"bilingual",next=agencyDefaultCopy(mode);
     const all=["bilingual","zh-es","zh-fr","zh","en","es","fr",...DocumentLocales.extra].map(agencyDefaultCopy);
     [["agency-payment-methods","payment"],["agency-settlement-days","settlement"],["agency-commission-terms","commission"],["agency-extra-terms","extra"]].forEach(([id,key])=>{const input=$(id);if(!input)return;const current=input.value.trim();if(!current||all.some(item=>item[key]===current))input.value=next[key];});

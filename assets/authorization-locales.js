@@ -1,4 +1,6 @@
 (function(){'use strict';const rows=[
+['Authorized Product Scope','Produits autorisés','Productos autorizados','対象製品','Разрешённые товары','نطاق المنتجات المصرح بها','Prodotti autorizzati','Autorisierte Produkte','판매 위임 제품 범위'],
+['Terms of Authorization','Conditions de l’autorisation','Condiciones de autorización','授権条件','Условия полномочий','شروط التفويض','Condizioni di autorizzazione','Vollmachtsbedingungen','위임 조건'],
 ['Authorized Party','Partie autorisée','Parte autorizada','被授権者','Уполномоченная сторона','الطرف المفوَّض','Parte autorizzata','Bevollmächtigter','수권 당사자'],
 ['Authorized Territory','Territoire autorisé','Territorio autorizado','授権地域','Территория полномочий','النطاق الجغرافي للتفويض','Territorio autorizzato','Bevollmächtigtes Gebiet','수권 지역'],
 ['Authorization Type','Type d’autorisation','Tipo de autorización','授権の種類','Тип полномочий','نوع التفويض','Tipo di autorizzazione','Art der Vollmacht','수권 유형'],
