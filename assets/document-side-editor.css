@@ -1,0 +1,23 @@
+@media screen{
+ .document-side-editor>.document-side-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start;width:100%}
+ .document-side-paper{min-width:0;padding:12px;background:#fff;border:1px solid #dce5ef;border-radius:10px;overflow:auto;box-shadow:0 4px 18px #17304b0d}
+ .document-side-editor .document-side-paper>:is(#agency-preview,#invitation-preview){display:block!important;width:794px;max-width:none;margin:0!important;box-sizing:border-box;background-color:#fff}
+ .document-side-form,.document-side-form>.quote-editor{display:block!important;min-width:0;width:100%;max-width:none;margin:0;padding:0}
+ .document-side-form .schema-form-panel{margin-bottom:10px;border:1px solid #dce5ef;border-radius:10px;overflow:hidden;background:#fff}
+ .document-side-form .schema-form-panel>h3{font-size:12px;padding:10px 12px;margin:0;background:#f7faff;border-bottom:1px solid #e5edf5}
+ .document-side-form .form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;padding:12px!important}
+ .document-side-form label{min-width:0;font-size:11px}
+ .document-side-form input:is([type=checkbox],[type=radio]){width:16px!important;min-width:16px!important;height:16px!important;min-height:16px!important;flex:none}
+ .document-side-form :is(input:not([type=checkbox]):not([type=radio]),select,textarea){min-width:0;max-width:100%;font-size:12px;box-sizing:border-box}
+ #view-agency.document-side-editor .schema-form-panel>.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px 14px!important}
+ #view-agency.document-side-editor .schema-form-panel>.form-grid>.wide{grid-column:1/-1}
+ #view-agency.document-side-editor .schema-form-panel :is(input:not([type=checkbox]):not([type=radio]),select){height:32px;min-height:32px;padding:5px 8px}
+ .document-side-form .editing-invitation-steps{gap:4px}.document-side-form .editing-invitation-steps button{padding:8px 4px;font-size:11px;white-space:normal}
+ .document-side-form .document-output-options{margin-top:10px}
+}
+@media print{
+ body:is(.printing-agency,.printing-invitation) .document-side-editor>.document-side-workspace{display:block!important}
+ .document-side-workspace>.document-side-form{display:none!important}
+ .document-side-workspace>.document-side-paper{display:block!important;position:static;padding:0;border:0;box-shadow:none;overflow:visible}
+ .document-side-workspace :is(#agency-preview,#invitation-preview){zoom:1!important;width:100%!important}
+}

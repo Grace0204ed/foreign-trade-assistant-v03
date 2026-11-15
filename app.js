@@ -6310,8 +6310,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function renderDocumentLayout(termFields) {
     const host=$('quote-preview'),type=currentQuote.documentType||'quotation',e=escapeHtml,l=(en,zh)=>e(labelText(en,zh));
     const options=TradeDocumentLayouts.options(type,currentQuote.outputOptions?.[type]);
-    const bankControl=activeDocumentConfig(type)?.blocks?.layout?.find(field=>field.fieldKey==='showBankControl');
-    const bankToggle=$('document-show-bank')?.closest('label');if(bankToggle)bankToggle.hidden=bankControl?.visible===false||bankControl?.active===false;
+    const bankToggle=$('document-show-bank')?.closest('label');if(bankToggle)bankToggle.hidden=type==='packing';
     // Share the compact header without merging the documents' distinct bodies.
     if(type==='quotation'){
       host.classList.add('september-quotation');
@@ -7502,7 +7501,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       }
       if(kind==='agency'){let bank=host.querySelector('[data-receiving-visible]');if(!bank){const label=document.createElement('label');label.innerHTML='<input type="checkbox" data-receiving-visible>显示收款信息';host.querySelector('small').before(label);bank=label.querySelector('input');}bank.closest('label').hidden=doc.documentType!=='statement';bank.checked=doc.showBankInfo!==false;}
       const choice=doc.signingSnapshot?.choice||doc.signatureChoice||(kind==='invitation'?'zh':'en'),select=host.querySelector('[data-signature-choice]');
-      const versions=[...new Set(['zh','en',...Object.keys(settings.companySignatures||{}),...(choice!=='none'?[choice]:[])])].filter(v=>v!=='none');select.innerHTML=versions.map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(({zh:'中文签名',en:'英文签名'})[v]||v+'签名')+'</option>').join('');select.value=choice==='none'?(kind==='invitation'?'zh':'en'):choice;
+      const versions=[...new Set(['zh','en',...Object.keys(settings.companySignatures||{}),...(choice!=='none'?[choice]:[])])].filter(v=>v!=='none');const choices=versions.map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(({zh:'中文签名',en:'英文签名'})[v]||v+'签名')+'</option>').join('');if(select.innerHTML!==choices)select.innerHTML=choices;select.value=choice==='none'?(kind==='invitation'?'zh':'en'):choice;
       host.querySelector('[data-signature-visible]').checked=choice!=='none'&&(doc.signingOptions?.signature??doc.signingSnapshot?.showSignature??doc.outputOptions?.[doc.documentType]?.signature??true);host.querySelector('[data-signature-visible]').disabled=false;host.querySelector('[data-seal-visible]').checked=doc.signingOptions?.seal??doc.signingSnapshot?.showSeal??true;
       const signed=DocumentWorkflow.signing(doc,doc.companySnapshot||settings,kind);host.querySelector('small').textContent=signed.showSignature&&!signed.signature?'所选签名素材缺失，请到公司设置上传或关闭显示签名。':'签名与语言独立；保存历史时保留本单证素材版本。';
       if(kind==='quote'&&$('document-show-signature'))$('document-show-signature').closest('label').hidden=true;
@@ -7544,7 +7543,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
   function installDocumentWorkflow(){
     const baseSettings=renderSettings;renderSettings=function(){baseSettings();renderBilingualSignatureSettings();};
-    for(const [name,get,set] of [['quote',()=>renderPreview,f=>renderPreview=f],['invitation',()=>renderInvitationPreview,f=>renderInvitationPreview=f],['agency',()=>renderAgentAuthorizationPreview,f=>renderAgentAuthorizationPreview=f]]){const original=get();set(function(...args){const live=settings,doc=workflowDocument(name);if(name!=='quote'&&doc?.companySnapshot)settings={...settings,...structuredClone(doc.companySnapshot)};if(name!=='quote'&&doc?.documentConfigSnapshot)settings.documentConfigs={...settings.documentConfigs,[name]:structuredClone(doc.documentConfigSnapshot)};let result;try{result=original(...args);}finally{settings=live;}renderSigningControls();prepareSigningImages();return result;});}
+    for(const [name,get,set] of [['quote',()=>renderPreview,f=>renderPreview=f],['invitation',()=>renderInvitationPreview,f=>renderInvitationPreview=f],['agency',()=>renderAgentAuthorizationPreview,f=>renderAgentAuthorizationPreview=f]]){const original=get();set(function(...args){const live=settings,doc=workflowDocument(name);if(name!=='quote'&&doc?.companySnapshot)settings={...settings,...structuredClone(doc.companySnapshot)};if(name!=='quote'&&doc?.documentConfigSnapshot)settings.documentConfigs={...settings.documentConfigs,[name]:structuredClone(doc.documentConfigSnapshot)};let result;try{result=original(...args);}finally{settings=live;}renderSigningControls();window.DocumentSideEditor?.refresh(name,doc);for(const kind of ['quote','invitation','agency'])window.DocumentDisplayControls?.refresh(kind,workflowDocument(kind));prepareSigningImages();return result;});}
     window.prepareDocumentSigningImages=prepareSigningImages;
     const view=$('view-invitation');
     view.addEventListener('change',event=>{

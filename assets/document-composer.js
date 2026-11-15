@@ -61,8 +61,6 @@
    fold(after,type+':aftersales','shield',false,term('warranty')?'质保：'+term('warranty'):'');
    const p=record.editingDetails?.payment,ratio=p?.custom?p.deposit+'% + '+(100-Number(p.deposit))+'%':term('payment').replace('/','% + ')+'%';
    fold($('quote-standard-terms-panel'),type+':terms','layers',false,[term('shipping')?'贸易方式：'+term('shipping'):'',term('payment')?'付款：'+ratio:'',term('deliveryTime')?'交货时间：'+term('deliveryTime'):''].filter(Boolean).join('  |  '));
-   const account=record.receivingAccountSnapshot?.name||record.companySnapshot?.companyNameZh||C().settings.companyNameZh||'';
-   fold($('editing-receiving-panel'),type+':bank','bank',false,account?'收款账户：'+account:'');
   }
   const output=$('document-output-options-'+kind);
   const enabled=n=>n?.checked?'开启':'关闭';

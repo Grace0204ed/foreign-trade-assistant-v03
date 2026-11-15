@@ -1,0 +1,13 @@
+[data-output-controls-row]{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px}
+.composer-collapsed>[data-output-controls-row]{display:none!important}
+[data-output-controls-row] :is(.document-simple-options,.document-signing-controls,.editing-party-controls){display:contents!important}
+[data-output-controls-row] label{display:inline-flex!important;align-items:center;flex-direction:row!important;gap:7px;width:auto!important;min-width:0!important;height:38px!important;min-height:38px!important;margin:0!important;padding:6px 9px!important;white-space:nowrap;font-size:12px;box-sizing:border-box;border-radius:6px}
+[data-output-controls-row] label[hidden]{display:none!important}
+[data-output-controls-row] small{display:none!important}
+[data-output-controls-row] [data-signature-choice]{width:105px;min-width:0;height:24px!important;min-height:24px!important;padding:2px 6px!important}
+[data-output-controls-row] label:has(input[type=checkbox]){min-width:124px!important}
+#editing-receiving-panel{padding:0 12px 12px;margin:0;border:0;box-shadow:none;background:transparent}
+#editing-receiving-panel>.editing-flow-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#editing-receiving-panel label{min-width:0}
+#editing-receiving-panel[hidden]{display:none!important}
+@media(max-width:800px){#editing-receiving-panel>.editing-flow-grid{grid-template-columns:1fr}}
