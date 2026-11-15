@@ -32,18 +32,18 @@ app.whenReady().then(async()=>{
  let port;for(let i=0;i<60;i++){port=(await(await fetch(base+'/api/ports')).json()).ports.find(p=>p.portName==='QA Test Port');if(port)break;await new Promise(r=>setTimeout(r,50));}assert(port&&port.sortOrder===-10&&port.isOriginPort);
  await wait("window.freightContext.ports.some(p=>p.portName==='QA Test Port')");
  await wait("!document.querySelector('.dictionary-modal')");
- await run("document.querySelector('[data-create-document=invoice]').click()");
+ await run("document.querySelector('[data-create-document=invoice]').click()");await wait("quoteSettingsContext.editingRecords.quote.documentType==='invoice'&&document.querySelector('#view-quote').classList.contains('active')");await run('DocumentIdentity.settle()');const quoteNumber=await run('quoteSettingsContext.editingRecords.quote.quoteNumber');assert(quoteNumber.startsWith('PI-'),'PI identity is generated internally');
  assert(await run("!![...document.querySelectorAll('[data-qfield=billingUnit] option')].find(o=>o.value==='QA-UNIT')"));
  assert(await run("!![...document.querySelectorAll('#originPort-options option')].find(o=>o.value.includes('QA Test Port'))"));
- await run(`(()=>{for(const [selector,value,event] of [['#quote-number','QA-PRESENTATION','input'],['[data-qfield=description]','QA Machine long specification '.repeat(8),'input'],['[data-qfield=unitPrice]','100','input'],['#pdf-language','en','change'],['#document-table-color','#ffee00','input'],['#document-product-style','bold-black','change'],['#document-product-color','#223344','input']]){const i=document.querySelector(selector);assertElement(i,selector);i.value=value;i.dispatchEvent(new Event(event,{bubbles:true}));}function assertElement(i,s){if(!i)throw Error('Missing '+s)}})()`);
+ await run(`(()=>{for(const [selector,value,event] of [['[data-qfield=description]','QA Machine long specification '.repeat(8),'input'],['[data-qfield=unitPrice]','100','input'],['#pdf-language','en','change'],['#document-table-color','#ffee00','input'],['#document-product-style','bold-black','change'],['#document-product-color','#223344','input']]){const i=document.querySelector(selector);assertElement(i,selector);i.value=value;i.dispatchEvent(new Event(event,{bubbles:true}));}function assertElement(i,s){if(!i)throw Error('Missing '+s)}})()`);
  assert.equal(await run("document.querySelector('[data-termfield=notes]').value"),'','new PI notes stay blank until explicitly requested');
  await run("const notes=document.querySelector('[data-termfield=notes]');notes.value=DocumentPresentation.terms('bilingual');notes.dispatchEvent(new Event('input',{bubbles:true}));");
  const style=await run(`(()=>{const h=getComputedStyle(document.querySelector('#quote-preview thead th')),p=getComputedStyle(document.querySelector('#quote-preview tbody .preview-col-description'));return {background:h.backgroundColor,text:h.color,weight:p.fontWeight,color:p.color,terms:document.querySelector('#quote-preview').innerText}})()`);
  assert(await run("!!document.querySelector('.desktop-topbar #pdf-language')"),'language belongs to the main top toolbar, not the form');
  assert.equal(style.background,'rgb(255, 238, 0)');assert.equal(style.text,'rgb(17, 17, 17)');assert.equal(style.weight,'700');assert.equal(style.color,'rgb(34, 51, 68)');assert(style.terms.includes('Incorrect or incomplete payment details may result in the transfer being rejected or delayed.'));
  await run("document.querySelector('#save-quote-btn').click()");
- let records;for(let i=0;i<60;i++){records=(await(await fetch(base+'/api/quotations')).json()).quotations;if(records.some(q=>q.quote_number==='QA-PRESENTATION'))break;await new Promise(r=>setTimeout(r,50));}
- const record=records.find(q=>q.quote_number==='QA-PRESENTATION');assert(record);
+ let records;for(let i=0;i<60;i++){records=(await(await fetch(base+'/api/quotations')).json()).quotations;if(records.some(q=>q.quote_number===quoteNumber))break;await new Promise(r=>setTimeout(r,50));}
+ const record=records.find(q=>q.quote_number===quoteNumber);assert(record);
  await win.reload();await wait("!!document.querySelector('#overview-metrics article')");await run(`window.quoteApp.editQuote('${record.id}')`);
  assert(await run("getComputedStyle(document.querySelector('#quote-preview thead th')).backgroundColor==='rgb(255, 238, 0)'"));
  assert(await run("getComputedStyle(document.querySelector('#quote-preview tbody .preview-col-description')).color==='rgb(34, 51, 68)'"));
