@@ -55,13 +55,15 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('#crm-edit').click()");assert(!await run("!!document.querySelector('[data-customer-key=country]')"));
   assert(await run("[...document.querySelector('[name=group_name]').options].some(o=>o.value==='新测试分组')"),'removed group still available for existing customer');
   await run("document.querySelector('form.modal .primary').click()");await wait("!document.querySelector('.modal-backdrop')");assert.equal((await request('/api/customers/'+id)).country,'Kenya');
-  await win.loadURL(base+'/index.html?settings=customer-config');await wait("!!document.querySelector('[data-crm-tab]')");await run("document.querySelector('[data-settings-section=invoice-config]').click()");await wait("!!document.querySelector('#settings-invoice-config-host .refined-row')&&document.querySelector('#settings-invoice-config-host').getBoundingClientRect().height>0");
+  await win.loadURL(base+'/index.html?settings=customer-config');await wait("!!document.querySelector('[data-crm-tab]')");await run("document.querySelector('[data-settings-section=invoice-config]').click()");await wait("!!document.querySelector('#settings-invoice-config-host [data-refined-add]')&&document.querySelector('#settings-invoice-config-host').getBoundingClientRect().height>0");
   assert(!await run("!!document.querySelector('#settings-invoice-config-host [data-document-fields] table')"),'document settings use demo master/detail, not legacy table');
-  await run("document.querySelector('#settings-invoice-config-host [data-refined-prop=zh]').value='测试发票编号';document.querySelector('#settings-invoice-config-host [data-refined-prop=zh]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#settings-invoice-config-host [data-document-save]').click()");
-  await wait("window.quoteSettingsContext.settings.documentConfigs.invoice.blocks.basic[0].zh==='测试发票编号'");
+  assert(await run("quoteSettingsContext.settings.documentConfigs.invoice.blocks.basic.every(f=>!['quoteNumber','quoteDate'].includes(f.fieldKey))"),'built-in identity is not editable settings');
+  await run("document.querySelector('#settings-invoice-config-host [data-refined-add]').click()");await wait("!!document.querySelector('.field-edit-modal [data-save]')");await run("document.querySelector('.field-edit-modal [data-field-prop=zh]').value='客户参考';document.querySelector('.field-edit-modal [data-field-prop=en]').value='Customer Reference';document.querySelector('.field-edit-modal [data-save]').click()");await wait("!!document.querySelector('#settings-invoice-config-host .refined-row')&&!document.querySelector('.field-edit-modal')");
+  await run("document.querySelector('#settings-invoice-config-host [data-refined-prop=zh]').value='测试客户参考';document.querySelector('#settings-invoice-config-host [data-refined-prop=zh]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#settings-invoice-config-host [data-document-save]').click()");
+  await wait("window.quoteSettingsContext.settings.documentConfigs.invoice.blocks.basic[0].zh==='测试客户参考'");
   // Verify persisted server data, not just the current UI reference.
-  for(let i=0;i<100;i++){if((await request('/api/settings')).settings.documentConfigs?.invoice?.blocks.basic[0].zh==='测试发票编号')break;await new Promise(r=>setTimeout(r,50));}
-  assert.equal((await request('/api/settings')).settings.documentConfigs.invoice.blocks.basic[0].zh,'测试发票编号');
+  for(let i=0;i<100;i++){if((await request('/api/settings')).settings.documentConfigs?.invoice?.blocks.basic[0]?.zh==='测试客户参考')break;await new Promise(r=>setTimeout(r,50));}
+  assert.equal((await request('/api/settings')).settings.documentConfigs.invoice.blocks.basic[0].zh,'测试客户参考');
   await run("document.querySelector('#settings-invoice-config-host [data-block=terms]').click()");
   assert.equal(await run("document.querySelector('#settings-invoice-config-host [data-refined-prop=fieldType]').selectedOptions[0].textContent"),'下拉选择');
   await paint();fs.writeFileSync(path.join(process.env.QUOTE_DATA_DIR,'document-settings.png'),await win.webContents.capturePage().then(i=>i.toPNG()));

@@ -51,6 +51,7 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
    // fonts and local/data images to finish loading.
    await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));})()`);active(p);
    await require('./paper-backgrounds.cjs').preparePaperBackgrounds(win.webContents);active(p);
+   p.savedOrientation=await win.webContents.executeJavaScript("document.querySelector('#quote-preview,#agency-preview,#invitation-preview')?.dataset.pageOrientation==='landscape'?'landscape':'portrait'");
    const electronic=await require('./electronic-pdf.cjs').renderElectronic(win);active(p);
    Object.assign(p,{pdf:electronic.pdf,electronicPreviewPdf:electronic.previewPdf,views:{}});previews.set(p.token,p);
    return await view(p,'electronic',event.sender);
@@ -59,16 +60,16 @@ module.exports=function installDocumentOutput({ipcMain,BrowserWindow,dialog,app,
  async function view(p,mode,sender,settings={}){
   active(p);if(!['electronic','print'].includes(mode))throw Error('预览模式无效');
   const paper=settings.paperSize||p.printOptions?.paperSize||'A4',orientation=settings.orientation||p.printOptions?.orientation||'saved';if(!['A4','A3','Letter'].includes(paper)||!['saved','portrait','landscape'].includes(orientation))throw Error('打印设置无效');
-  const viewKey=mode==='print'?'print:'+paper+':'+orientation:'electronic';
-  if(mode==='print'){if(!p.win)throw Error('合并电子文档请按原单证进行打印');const css=orientation==='saved'&&paper==='A4'?'':'@page{size:'+paper+(orientation==='saved'?'':' '+orientation)+'!important}';await p.win.webContents.executeJavaScript('(()=>{let style=document.getElementById("output-print-override");if(!style){style=document.createElement("style");style.id="output-print-override";document.head.append(style);}style.textContent='+JSON.stringify(css)+'})()');p.printOptions={paperSize:paper,orientation};}
+  const effectiveOrientation=orientation==='saved'?(p.savedOrientation||'portrait'):orientation,viewKey=mode==='print'?'print:'+paper+':'+orientation:'electronic';
+  if(mode==='print'){if(!p.win)throw Error('合并电子文档请按原单证进行打印');const css=orientation==='saved'&&paper==='A4'?'':'@page{size:'+paper+' '+effectiveOrientation+'!important}';await p.win.webContents.executeJavaScript('(()=>{let style=document.getElementById("output-print-override");if(!style){style=document.createElement("style");style.id="output-print-override";document.head.append(style);}style.textContent='+JSON.stringify(css)+'})()');p.printOptions={paperSize:paper,orientation};}
   if(!p.views[viewKey]){if(mode==='print'){
    if(!p.win)throw Error('合并电子文档请按原单证进行打印');
-   const css=orientation==='saved'&&paper==='A4'?'':'@page{size:'+paper+(orientation==='saved'?'':' '+orientation)+'!important}';
+   const css=orientation==='saved'&&paper==='A4'?'':'@page{size:'+paper+' '+effectiveOrientation+'!important}';
    await p.win.webContents.executeJavaScript('(()=>{let style=document.getElementById("output-print-override");if(!style){style=document.createElement("style");style.id="output-print-override";document.head.append(style);}style.textContent='+JSON.stringify(css)+'})()');
    p.printPdf=await p.win.webContents.printToPDF({printBackground:true,pageSize:paper,preferCSSPageSize:true,...(orientation==='saved'?{}:{landscape:orientation==='landscape'})});p.printOptions={paperSize:paper,orientation};
   }
    const {PDFParse}=require('pdf-parse'),parser=new PDFParse({data:mode==='print'?p.printPdf:p.electronicPreviewPdf});try{const result=await parser.getScreenshot({desiredWidth:1050,imageBuffer:false,imageDataUrl:true});const {PDFDocument}=require('pdf-lib'),source=await PDFDocument.load(mode==='print'?p.printPdf:p.electronicPreviewPdf);const pages=result.pages.map((page,i)=>({number:page.pageNumber,width:page.width,height:page.height,displayWidth:source.getPage(i).getWidth()*96/72,image:page.dataUrl}));if(!pages.length||pages.length>200)throw Error('预览内容过大，请分批处理');p.views[viewKey]=pages;}finally{await parser.destroy();}}
-  active(p);p.pages=p.views[viewKey];return {token:p.token,mode,pages:p.pages,printers:await sender.getPrintersAsync()};
+  active(p);p.pages=p.views[viewKey];return {token:p.token,mode,pages:p.pages,paperOrientation:p.savedOrientation||'portrait',printers:await sender.getPrintersAsync()};
  }
  ipcMain.handle('document-preview-mode',async(event,token,mode,settings)=>view(get(event,token),mode,event.sender,settings));
  ipcMain.handle('document-preview-export',async(event,token,batchToken,fileName)=>{
