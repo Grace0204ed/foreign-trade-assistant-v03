@@ -45,6 +45,7 @@ app.whenReady().then(async()=>{
     const normalizeTitle=s=>s.toLocaleLowerCase().replace(/[\s’'’.-]/g,'');
     assert(normalizeTitle(state.text).includes(normalizeTitle(expectedTitle)),`${type}/${lang} title missing: ${expectedTitle}; ${state.text.slice(0,350)}`);
     assert(!/\[(?:fr|es|ja|ru|ar|it|de|ko):/.test(state.text),`${type}/${lang} unresolved translation: ${state.text.match(/\[(?:fr|es|ja|ru|ar|it|de|ko):[^\]]*\]/g)}`);
+    if(type==='authorization')assert(await run(`['showLogo','showCompanyHeader','authorizedPartyType','territoryMode','validityMonths','allowBrandUse','noSubAuthorization','finalPriceConfirmation'].every(key=>!Object.hasOwn(quoteSettingsContext.editingRecords.agency.customFields||{},key))`),'legacy authorization never acquires new editor policy defaults');
     if(kind==='agency'){assert(state.text.includes('QA Recipient 456'));if(type==='statement')assert(state.text.includes('SC-QA-456'));}
     if(type==='invitation'){assert(state.text.includes('QA-PASS-789'));assert(!state.text.includes('Male / 男'),`${lang} gender must follow output language`);if(!['en','zh'].includes(lang))assert(state.text.includes(require('../assets/document-fixed-locales.js').lookup('Male',lang)),`${lang} localized gender`);}
     if(!standalone&&lang!=='en')assert(!state.text.includes('Port of Discharge'),`${type}/${lang} untranslated destination port label`);

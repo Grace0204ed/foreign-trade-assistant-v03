@@ -5090,10 +5090,14 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function standaloneDocumentFields(type) {
     const config=settings.documentConfigs?.[type];
-    return ['basic','customer','territory','items','terms','display'].flatMap(block=>(config?.blocks?.[block]||[])
+    const fields=['basic','customer','territory','items','terms','display'].flatMap(block=>(config?.blocks?.[block]||[])
       .map(normalizeField)
       .filter(field=>!field.deletedAt&&field.visible!==false&&field.active!==false)
       .sort((a,b)=>Number(a.sortOrder||0)-Number(b.sortOrder||0)));
+    if(type!=='agency'||currentAgentAuthorization?.authorizationSchema===2)return fields;
+    // New editor policy switches must never become extra clauses in old letters.
+    const newControls=new Set([...Object.keys(DocumentAuthorizationModel.defaults).filter(key=>key!=='authorizationType'),'recipientCompany']);
+    return fields.filter(field=>!newControls.has(field.fieldKey));
   }
 
   const standaloneFieldMappings={
