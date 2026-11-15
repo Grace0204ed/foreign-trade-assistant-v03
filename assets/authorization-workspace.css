@@ -84,3 +84,22 @@ body #view-agency.authorization-v2-editor #agency-product-options label:has(inpu
 @media screen{#view-agency.authorization-v2-editor [data-authorization-group=customer] [data-form-field=address]{grid-column:auto!important}#view-agency.authorization-v2-editor .composer-title [data-document-identity]{display:none}#view-agency.authorization-v2-editor [data-receiving-visible]{display:none}#view-agency.authorization-v2-editor label:has(>[data-receiving-visible]){display:none!important}#view-agency.authorization-v2-editor #agency-product-options label:has(input:checked){box-shadow:none!important;outline:none!important}}
 
 @media print{body.printing-agency #view-agency.authorization-v2-editor>#authorization-workspace{display:block!important}body.printing-agency #authorization-workspace>.authorization-form{display:none!important}body.printing-agency #authorization-workspace>.authorization-live{position:static;padding:0;border:0;box-shadow:none;overflow:visible}body.printing-agency #authorization-workspace #agency-preview{zoom:1!important;width:100%!important}}
+
+@media screen{
+ #view-agency.authorization-v2-editor [data-authorization-group=display]>.form-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+ #view-agency.authorization-v2-editor #document-output-options-agency,#view-agency.authorization-v2-editor #signing-controls-agency{display:contents!important}
+ #view-agency.authorization-v2-editor [data-authorization-group=display] label{display:flex;flex-direction:row;align-items:center;gap:7px;min-height:36px;padding:5px 0;order:1}
+ #view-agency.authorization-v2-editor #signing-controls-agency>label:first-child{grid-column:1/-1;order:2}
+ #view-agency.authorization-v2-editor #signing-controls-agency>label:first-child select{max-width:240px}
+ #view-agency.authorization-v2-editor [data-authorization-group=display] input[type=checkbox]{appearance:none!important;width:33px!important;min-width:33px!important;height:18px!important;min-height:18px!important;border:0!important;border-radius:20px!important;background:#9ca9b6!important;position:relative;cursor:pointer}
+ #view-agency.authorization-v2-editor [data-authorization-group=display] input[type=checkbox]:before{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .12s}
+ #view-agency.authorization-v2-editor [data-authorization-group=display] input[type=checkbox]:checked{background:#008e22!important}
+ #view-agency.authorization-v2-editor [data-authorization-group=display] input[type=checkbox]:checked:before{transform:translateX(15px)}
+}
+
+.authorization-title-en{text-align:center;font-size:16px;letter-spacing:1px;margin:0 0 8px;font-weight:600}
+@media screen{
+ #view-agency.authorization-v2-editor [data-authorization-group=terms]>.form-grid>label:has(input[type=checkbox]){display:flex!important;align-items:center;flex-direction:row!important;background:transparent!important;border:0!important;padding:0!important;min-height:25px;gap:8px}
+ #view-agency.authorization-v2-editor [data-authorization-group=terms] input[type=checkbox],#view-agency.authorization-v2-editor [data-authorization-group=display] input[type=checkbox]{order:-1}
+ #view-agency.authorization-v2-editor [data-authorization-group=display] label:not(:has([data-signature-choice])){background:#f5fbf7!important;border:1px solid #d7e8dc!important;border-radius:6px!important;min-height:38px;padding:6px 8px!important;font-size:12px}
+}
