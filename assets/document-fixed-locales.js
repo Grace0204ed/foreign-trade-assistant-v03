@@ -351,6 +351,7 @@ Female|Féminin|Femenino|女性|Женский|أنثى|Femminile|Weiblich|여�
   add('Used Machinery Sales and Purchase Contract',['Contrat de vente de machines d’occasion','Contrato de compraventa de maquinaria usada','中古機械売買契約書','Договор купли-продажи подержанной техники','عقد بيع وشراء الآلات المستعملة','Contratto di compravendita di macchinari usati','Kaufvertrag für gebrauchte Maschinen','중고 기계 매매 계약서']);
   add('Trade terms',['Conditions commerciales','Condiciones comerciales','取引条件','Условия торговли','شروط التجارة','Condizioni commerciali','Handelsbedingungen','거래 조건']);
   add('Balance',['Solde','Saldo','残金','Остаток','الرصيد','Saldo','Restbetrag','잔금']);
+  add('Payment and Delivery Notes',['Remarques sur le paiement et la livraison','Notas de pago y entrega','支払と引渡しに関する備考','Примечания об оплате и поставке','ملاحظات الدفع والتسليم','Note su pagamento e consegna','Zahlungs- und Lieferhinweise','결제 및 인도 비고']);
   function lookup(source,language){
     if(labels[source]?.[language])return labels[source][language];
     const match=String(source).match(/^Under this agreement, Party A shall pay Party B, the individual commission recipient, a fixed commission of (.*?) for sales contract (.*?)\. No percentage-based or cumulative commission applies\.$/s);
