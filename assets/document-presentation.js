@@ -72,8 +72,8 @@
       header.querySelectorAll('strong,h1').forEach(node=>node.style.setProperty('color','inherit','important'));
     });
     globalThis.DocumentLocales?.apply(host,doc.pdfLanguage||doc.language||'bilingual');
-    const selectors={title:'.document-heading h1,.preview-title h2,.invitation-title,.agency-sheet h1',tableHeader:'thead th',product:'tbody .preview-col-description,tbody .preview-col-productType,tbody .preview-col-brand,tbody .preview-col-model',body:'.preview-fields,.document-parties,.document-shipment',notes:'.terms-content,.shipping-notes,.contract-clause',footer:'.document-footer'};
-    selectors.body+=',.invitation-content,.invitation-body,.agency-sheet p,.agency-sheet td,.commission-field';
+    const selectors={title:'.reference-contract-title,.document-heading h1,.preview-title h2,.invitation-title,.agency-sheet h1',tableHeader:'thead th',product:'.reference-contract-item>strong,.reference-contract-item [data-reference-column=brand],.reference-contract-item [data-reference-column=model],tbody .preview-col-description,tbody .preview-col-productType,tbody .preview-col-brand,tbody .preview-col-model',body:'.preview-fields,.document-parties,.document-shipment',notes:'.reference-terms,.terms-content,.shipping-notes,.contract-clause',footer:'.document-footer'};
+    selectors.body+=',.reference-contract-clause p,.reference-contract-item>div,.invitation-content,.invitation-body,.agency-sheet p,.agency-sheet td,.commission-field';
     const config=typography(doc.documentTypography);for(const [region,selector] of Object.entries(selectors))host.querySelectorAll(selector).forEach(node=>{for(const key of ['fontFamily','fontSize','fontWeight','color','lineHeight','letterSpacing']){const v=config[region][key];if(v!=null)node.style.setProperty(key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),typeof v==='number'&&['fontSize','letterSpacing'].includes(key)?v+'px':String(v),'important');}});
     readableTables(host);
   }

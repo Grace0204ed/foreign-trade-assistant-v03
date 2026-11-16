@@ -346,6 +346,11 @@ Female|Féminin|Femenino|女性|Женский|أنثى|Femminile|Weiblich|여�
   add('Delivery Address',['Adresse de livraison','Dirección de entrega','配送先住所','Адрес доставки','عنوان التسليم','Indirizzo di consegna','Lieferadresse','배송 주소']);
   add('Sea freight',['Fret maritime','Flete marítimo','海上運賃','Морской фрахт','الشحن البحري','Nolo marittimo','Seefracht','해상 운임']);
   Object.assign(labels,{Name:{fr:'Nom',es:'Nombre',ja:'氏名',ru:'Имя',ar:'الاسم',it:'Nome',de:'Name',ko:'이름'},'Charge Description':{fr:'Description des frais',es:'Descripción del cargo',ja:'費用明細',ru:'Описание расходов',ar:'وصف الرسوم',it:'Descrizione spese',de:'Kostenbeschreibung',ko:'비용 설명'}});
+  add('Amount in words',['Montant en lettres','Importe en letras','金額の文字表記','Сумма прописью','المبلغ كتابة','Importo in lettere','Betrag in Worten','금액 문자 표기']);
+  add('Machinery Sales and Purchase Contract',['Contrat de vente de machines','Contrato de compraventa de maquinaria','機械売買契約書','Договор купли-продажи техники','عقد بيع وشراء الآلات','Contratto di compravendita di macchinari','Maschinenkaufvertrag','기계 매매 계약서']);
+  add('Used Machinery Sales and Purchase Contract',['Contrat de vente de machines d’occasion','Contrato de compraventa de maquinaria usada','中古機械売買契約書','Договор купли-продажи подержанной техники','عقد بيع وشراء الآلات المستعملة','Contratto di compravendita di macchinari usati','Kaufvertrag für gebrauchte Maschinen','중고 기계 매매 계약서']);
+  add('Trade terms',['Conditions commerciales','Condiciones comerciales','取引条件','Условия торговли','شروط التجارة','Condizioni commerciali','Handelsbedingungen','거래 조건']);
+  add('Balance',['Solde','Saldo','残金','Остаток','الرصيد','Saldo','Restbetrag','잔금']);
   function lookup(source,language){
     if(labels[source]?.[language])return labels[source][language];
     const match=String(source).match(/^Under this agreement, Party A shall pay Party B, the individual commission recipient, a fixed commission of (.*?) for sales contract (.*?)\. No percentage-based or cumulative commission applies\.$/s);

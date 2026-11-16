@@ -44,6 +44,7 @@
    for(const [key,zh,en]of [['afterSales','售后说明','After-sales'],['warranty','质保说明','Warranty']])if(!config.blocks.terms.some(f=>f.fieldKey===key))config.blocks.terms.push(field(key,zh,en,'textarea',{sortOrder:key==='afterSales'?1200:1210}));
    config.formSchemaVersion=3;
   }
+  if(type==='commercial'&&!config.referencePaymentSchemaVersion){for(const f of [field('payment','付款比例','Payment Ratio','select',{sortOrder:10}),field('paymentCondition','付款方式','Payment Method','select',{sortOrder:20}),field('deliveryTime','交货时间','Delivery Time','select',{sortOrder:30}),field('notes','付款与交付备注','Payment and Delivery Notes','textarea',{sortOrder:40})])if(!config.blocks.terms.some(existing=>existing.fieldKey===f.fieldKey))config.blocks.terms.push(f);config.referencePaymentSchemaVersion=1;}
   if(type==='agency'&&!config.authorizationSchemaVersion){
    config.blocks.territory||=[];config.blocks.display||=[];
    const option=(value,labelZh,labelEn)=>({id:'auth-'+value,value,labelZh,labelEn,active:true});

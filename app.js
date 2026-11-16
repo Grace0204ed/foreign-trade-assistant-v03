@@ -4389,6 +4389,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       sourceQuoteId: "",
       documentType: docType,
       ...(docType==='quotation'?{quotationPaperVersion:3}:{}),
+      ...(['commercial','contract'].includes(docType)?{referencePaperVersion:2}:{}),
       tableHeaderColor: preferredDocumentColor(docType),
       quoteStyle: normalizedQuoteStyle(settings.quoteStyle),
       quoteNumber: nextQuoteNumber(d, advanceNumber, docType),
@@ -6376,6 +6377,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       packingTotals:'',shippingNotes:!shipmentFieldsConfigured.some(f=>f.fieldKey==='shippingNotes')&&d.notes?block(l('Shipment remarks','出货备注'),`<p class="preserve-lines">${e(d.notes)}</p>`):''};
     host.classList.add('trade-layout','trade-layout-'+type);host.dataset.layout=type;
     host.innerHTML=TradeDocumentLayouts.render(type,parts);
+    if(['commercial','contract'].includes(type))window.TradeReferencePaper?.apply(host,currentQuote,{...parts,config:activeDocumentConfig(),label:labelText,money:dualMoneyText,totalVisible:visibleQuoteField('totalAmount'),total:quoteTotal(currentQuote),terms:visibleTerms,value:displayTermValue,html:ConfiguredFields.html,columns:quotePreviewColumns,cell:quotePreviewCell,countryVisible:configuredBlockFields('customer',[]).some(f=>f.fieldKey==='country')});
     $('document-show-bank').disabled=type==='packing';$('document-show-bank').checked=options.bank;
     $('document-show-signature').checked=options.signature;
   }
@@ -6398,8 +6400,9 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     currentQuote.templateSnapshot = structuredClone({
       schemaVersion: 4,
       ...(currentQuote.documentType==='quotation'?{quotationPaperVersion:currentQuote.quotationPaperVersion||1}:{}),
+      ...(['commercial','contract'].includes(currentQuote.documentType)?{referencePaperVersion:TradePaperModel.version(currentQuote)}:{}),
       ...(currentQuote.templateSnapshot?.productTemplate ? {productTemplate:currentQuote.templateSnapshot.productTemplate} : {}),
-      documentConfig: activeDocumentConfig(),
+      documentConfig: {...activeDocumentConfig(),...(currentQuote.documentType==='contract'&&TradePaperModel.version(currentQuote)>=2?{contractClauses:currentQuote.templateSnapshot?.documentConfig?.contractClauses||activeDocumentConfig().contractClauses||TradeContractClauses.defaults()}: {})},
       documentTransportRules: structuredClone(settings.documentTransportRules||{}),
       customerFields: configuredBlockFields("customer", settings.customerQuoteFields),
       itemFields: quoteLineColumns(),
@@ -6494,6 +6497,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       id:q.id, customerId:q.customer_id || null, quoteNumber:q.quote_number || "", status:q.status || "草稿",seriesId:q.series_id||q.id,version:Number(q.version||0),isFormal:!!q.is_formal,sourceQuoteId:q.source_quote_id||"",formalizedAt:q.formalized_at||null,
       ...meta.documentExtras,
       ...((meta.documentType||'quotation')==='quotation'?{quotationPaperVersion:meta.documentExtras?.quotationPaperVersion??meta.documentExtras?.templateSnapshot?.quotationPaperVersion??1}:{}),
+      ...(['commercial','contract'].includes(meta.documentType)?{referencePaperVersion:meta.documentExtras?.referencePaperVersion??meta.documentExtras?.templateSnapshot?.referencePaperVersion??1}:{}),
       templateSnapshot:meta.documentExtras?.templateSnapshot||{documentConfig:storedConfig,productTemplate:storedTemplate},
       documentType:meta.documentType || "quotation", quoteStyle:meta.quoteStyle || q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
       companySnapshot: Object.keys(companyProfileData(q.settingsSnapshot || {})).length ? companyProfileData(q.settingsSnapshot) : companyProfileData(settings),
@@ -6543,6 +6547,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     q.updatedAt = nowIso;
     q.savedAt = "";
     if(q.documentType==='quotation')q.quotationPaperVersion=3;
+    if(['commercial','contract'].includes(q.documentType))q.referencePaperVersion=2;
     currentQuote = q;
     switchView("quote");
     bindQuoteToForm();
@@ -7055,7 +7060,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   // Document workspace: recovery snapshots never overwrite formal quotation history.
   let draftDatabase, workspaceReady = false;
-  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass','editingDetails','receivingAccountSnapshot','quotationPaperVersion'];
+  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass','editingDetails','receivingAccountSnapshot','quotationPaperVersion','referencePaperVersion'];
   let packingSourceBusy = false;
   async function refreshPackingSources() {
     const select=$('packing-source-select');
