@@ -8,7 +8,7 @@
   const company=document.createElement('div');company.className='simple-quotation-company';for(const text of String(content.companyName||'').split(/\s+\|\s+/)){const name=document.createElement('strong');name.textContent=text;company.append(name);}if(content.companyAddress){const address=document.createElement('p');address.textContent=content.companyAddress;company.append(address);}header.append(company);
   if(content.logo){const logo=document.createElement('img');logo.src=content.logo;logo.alt='Logo';header.append(logo);}
   const meta=host.querySelector('.compact-document-meta .preview-meta'),customer=host.querySelector(':scope>.preview-panel');const info=document.createElement('section');info.className='simple-quotation-info';
-  if(customer){customer.classList.add('simple-quotation-customer','buyer-panel');for(const field of customer.querySelectorAll('.document-customer-field'))if(!field.querySelector('bdi')?.textContent.trim()&&!field.querySelector('img'))field.remove();info.append(customer);}if(meta)info.append(meta);
+  if(customer){customer.classList.add('simple-quotation-customer','buyer-panel');info.append(customer);}if(meta)info.append(meta);
   host.querySelector('.compact-letterhead')?.remove();host.querySelector('.compact-document-meta')?.remove();host.prepend(header,info);
   const items=host.querySelector('table')?.closest('.preview-panel');items?.classList.add('simple-quotation-items','document-items');if(items?.querySelector(':scope>h3'))items.querySelector(':scope>h3').hidden=true;
   const terms=host.querySelector(':scope>.terms-panel');if(terms&&!terms.querySelector('.terms-content p,.configured-rich-output,img'))terms.remove();
