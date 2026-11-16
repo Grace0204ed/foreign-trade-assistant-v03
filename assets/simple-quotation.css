@@ -1,0 +1,40 @@
+/* Paper styling only: the editor and the other document types retain their layouts. */
+#quote-preview.simple-quotation{display:block!important;--simple-quotation-ink:#202b33;color:var(--simple-quotation-ink);padding:0!important;border-radius:0!important;box-shadow:none;line-height:1.55}
+#quote-preview.simple-quotation>.simple-quotation-header{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1fr) auto;align-items:center;gap:22px;margin:0!important;padding:34px 28px!important;border:0!important;border-radius:0!important;background:var(--simple-quotation-tint)!important;break-inside:avoid}
+#quote-preview.simple-quotation .simple-quotation-header:not(:has(>img)){grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#quote-preview.simple-quotation .simple-quotation-title h1{color:var(--simple-quotation-heading)!important;font-size:34px;font-weight:400;line-height:1.2;margin:0;letter-spacing:0;overflow-wrap:anywhere}
+#quote-preview.simple-quotation .simple-quotation-title h1>span{display:block;word-break:keep-all}
+#quote-preview.simple-quotation .simple-quotation-company{min-width:0;font-size:12px;overflow-wrap:anywhere}
+#quote-preview.simple-quotation .simple-quotation-company strong{font-size:15px;line-height:1.35;display:block;color:var(--simple-quotation-ink)}
+#quote-preview.simple-quotation .simple-quotation-company p{margin:7px 0 0;color:#52616b;font-size:11px}
+#quote-preview.simple-quotation .simple-quotation-header>img{width:112px;height:66px;object-fit:contain;max-width:100%}
+#quote-preview.simple-quotation>.simple-quotation-info{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);align-items:start;gap:35px;padding:26px 28px;margin:0;break-inside:avoid}
+#quote-preview.simple-quotation .simple-quotation-customer{padding:0!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none;background:transparent}
+#quote-preview.simple-quotation .simple-quotation-customer h3{font-size:11px;font-weight:400;color:#65757f;border-inline-start:2px solid var(--document-table-color);padding-inline-start:6px;border-bottom:0;margin-bottom:9px}
+#quote-preview.simple-quotation .simple-quotation-customer .preview-fields{display:block!important;font-size:11px}
+#quote-preview.simple-quotation .document-customer-field{margin:4px 0;line-height:1.5;overflow-wrap:anywhere}
+#quote-preview.simple-quotation .document-customer-field[data-field-key=company] bdi{font-size:14px;font-weight:700}
+#quote-preview.simple-quotation .simple-quotation-info>.preview-meta{margin:0;padding:0;text-align:start;min-width:0;font-size:11px;background:transparent;border:0}
+#quote-preview.simple-quotation .preview-meta .configured-output-field{margin:0 0 7px;line-height:1.5;word-break:keep-all;overflow-wrap:break-word}
+#quote-preview.simple-quotation .preview-meta bdi{word-break:keep-all;overflow-wrap:break-word}
+#quote-preview.simple-quotation>.simple-quotation-items{padding:0 28px 24px!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none;background:transparent;break-inside:auto!important}
+#quote-preview.simple-quotation .simple-quotation-items table{border-collapse:collapse;border:0;border-radius:4px;overflow:hidden}
+#quote-preview.simple-quotation .simple-quotation-items th{background:var(--document-table-color)!important;color:var(--document-header-text)!important;border:0!important;padding:11px 6px!important;text-align:start}
+#quote-preview.simple-quotation .simple-quotation-items td{border:0!important;padding:10px 6px!important;vertical-align:middle;background:transparent!important}
+#quote-preview.simple-quotation .simple-quotation-items tbody tr:nth-child(even){background:var(--simple-quotation-tint)}
+#quote-preview.simple-quotation .simple-quotation-items :is(.preview-col-qty,.preview-col-unitPrice,.preview-col-amount){text-align:end}
+#quote-preview.simple-quotation .simple-quotation-items .preview-col-itemType{word-break:keep-all!important;overflow-wrap:break-word!important}
+#quote-preview.simple-quotation .simple-quotation-items .preview-total{display:flex;justify-content:space-between;gap:20px;align-items:baseline;width:51%;max-width:100%;margin:26px 0 0 auto;padding:12px 0 0;border:0;border-top:1px solid #d8e1de;font-size:18px;line-height:1.4;background:transparent;text-align:end;color:var(--document-heading-color)}
+#quote-preview.simple-quotation .simple-quotation-total-label{font-size:14px;font-weight:400;color:var(--simple-quotation-ink);text-align:start}
+#quote-preview.simple-quotation .simple-quotation-total-value{font-size:19px;overflow-wrap:anywhere;color:var(--simple-quotation-heading)}
+#quote-preview.simple-quotation>.preview-panel:not(.simple-quotation-items){border:0!important;border-radius:0!important;box-shadow:none}
+#quote-preview.simple-quotation>:is(.terms-panel,.bank-panel,.simple-quotation-contact){display:block;margin:0!important;padding:20px 28px!important;background:var(--simple-quotation-tint)!important;border:0!important;border-radius:0!important;box-shadow:none;break-inside:auto!important}
+#quote-preview.simple-quotation .terms-content h3,#quote-preview.simple-quotation .bank-panel h3{color:var(--simple-quotation-ink);font-size:12px;margin-bottom:10px}
+#quote-preview.simple-quotation .terms-content p{padding:3px 0;margin:0;border:0;line-height:1.6;font-size:11px}
+#quote-preview.simple-quotation>.document-signature-block{margin:0!important;padding:20px 28px!important;border:0;background:var(--simple-quotation-tint)}
+#quote-preview.simple-quotation>.preview-panel:has(.photo-grid){padding:10px 28px!important;background:transparent}
+#quote-preview.simple-quotation .simple-quotation-contact{font-size:10px;color:#52616b}
+#quote-preview.simple-quotation .simple-quotation-contact *{color:inherit!important}
+#quote-preview.simple-quotation .simple-quotation-contact .preview-contact-list>div{display:flex;flex-wrap:wrap;gap:5px 18px}
+#quote-preview.simple-quotation [hidden]{display:none!important}
+@media print{#quote-preview.simple-quotation .simple-quotation-header,#quote-preview.simple-quotation th,#quote-preview.simple-quotation tbody tr{print-color-adjust:exact;-webkit-print-color-adjust:exact}#quote-preview.simple-quotation .simple-quotation-items thead{display:table-header-group}#quote-preview.simple-quotation .simple-quotation-items tbody tr{break-inside:avoid}body.printing-standard #quote-preview.simple-quotation>:has(+.document-signature-block){break-inside:auto!important;page-break-inside:auto!important}body.printing-standard #quote-preview.simple-quotation>.simple-quotation-header{margin:0!important}}

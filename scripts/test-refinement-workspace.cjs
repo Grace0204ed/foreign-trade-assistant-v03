@@ -55,9 +55,9 @@ app.whenReady().then(async()=>{
    await run("document.querySelector('#document-top-tools [data-tools-view]:not([hidden]) .document-text-options summary').click();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");assert(!await run("!!document.querySelector('#document-top-tools details[open]')"));
   }
   await run("document.querySelector('.view.active [data-switch-document=quotation]').click();document.querySelector('#document-table-color').value='#326f59';document.querySelector('#document-table-color').dispatchEvent(new Event('input',{bubbles:true}))");
-  assert.equal(await run("getComputedStyle(document.querySelector('#quote-preview .compact-letterhead')).backgroundColor"),'rgb(50, 111, 89)');
-  assert(await run("getComputedStyle(document.querySelector('#quote-preview .compact-company-name')).color!=='rgb(50, 111, 89)'"));
-  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display===(matchMedia('(max-width:1250px)').matches?'block':'grid')"));
+  assert.equal(await run("getComputedStyle(document.querySelector('#quote-preview thead th')).backgroundColor"),'rgb(50, 111, 89)');
+  assert(await run("(()=>{const header=document.querySelector('#quote-preview .simple-quotation-header'),company=header.querySelector('.simple-quotation-company');return getComputedStyle(header).backgroundColor!=='rgb(50, 111, 89)'&&DocumentPresentation.contrastRatio(getComputedStyle(company).color,getComputedStyle(header).backgroundColor)>=4.5})()"),'simple quotation keeps a pale header and readable company name');
+  assert(await run("getComputedStyle(document.querySelector('.quote-split-workspace')).display==='block'&&getComputedStyle(document.querySelector('.quote-output-pane')).display==='none'"),'quotation filling stays full width with a click-to-open preview at every desktop width');
   fs.writeFileSync(path.join(output,'editor.png'),(await win.webContents.capturePage()).toPNG());
   win.setSize(1024,900);await run("document.querySelector('#quote-items').scrollIntoView();new Promise(r=>setTimeout(r,200))");fs.writeFileSync(path.join(output,'editor-1024.png'),(await win.webContents.capturePage()).toPNG());
   await request('/api/customers',{name:'ISOLATED CRM TEST',company:'QA',stage:'潜在客户'});const customer=(await request('/api/customers'))[0];

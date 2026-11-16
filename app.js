@@ -4388,6 +4388,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       isFormal: false,
       sourceQuoteId: "",
       documentType: docType,
+      ...(docType==='quotation'?{quotationPaperVersion:2}:{}),
       tableHeaderColor: preferredDocumentColor(docType),
       quoteStyle: normalizedQuoteStyle(settings.quoteStyle),
       quoteNumber: nextQuoteNumber(d, advanceNumber, docType),
@@ -6325,6 +6326,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       // seals, then append the complete signature/seal block only when chosen.
       host.querySelectorAll('.stamp-box,.signature-section,.pi-company-signature,.sales-contract-signatures,.document-signature-block').forEach(node=>node.remove());
       if(options.signature||currentQuote.editingDetails?.parties)host.insertAdjacentHTML('beforeend',renderDocumentSignature(type));
+      window.DocumentSimpleQuotation?.apply(host,currentQuote,{title:documentTypeTitle(),companyName:localizedText(settings.companyNameEn,settings.companyNameZh),companyAddress:localizedText(settings.companyAddressEn,settings.companyAddressZh),logo:settings.logoDataUrl,contact:renderCompanyContactPreview()});
       return;
     }
     $('document-show-bank').disabled=false;
@@ -6378,6 +6380,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     currentQuote.savedAt = nowIso;
     currentQuote.templateSnapshot = structuredClone({
       schemaVersion: 4,
+      ...(currentQuote.documentType==='quotation'?{quotationPaperVersion:currentQuote.quotationPaperVersion||1}:{}),
       ...(currentQuote.templateSnapshot?.productTemplate ? {productTemplate:currentQuote.templateSnapshot.productTemplate} : {}),
       documentConfig: activeDocumentConfig(),
       documentTransportRules: structuredClone(settings.documentTransportRules||{}),
@@ -6473,6 +6476,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     return {
       id:q.id, customerId:q.customer_id || null, quoteNumber:q.quote_number || "", status:q.status || "草稿",seriesId:q.series_id||q.id,version:Number(q.version||0),isFormal:!!q.is_formal,sourceQuoteId:q.source_quote_id||"",formalizedAt:q.formalized_at||null,
       ...meta.documentExtras,
+      ...((meta.documentType||'quotation')==='quotation'?{quotationPaperVersion:meta.documentExtras?.quotationPaperVersion??meta.documentExtras?.templateSnapshot?.quotationPaperVersion??1}:{}),
       templateSnapshot:meta.documentExtras?.templateSnapshot||{documentConfig:storedConfig,productTemplate:storedTemplate},
       documentType:meta.documentType || "quotation", quoteStyle:meta.quoteStyle || q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
       companySnapshot: Object.keys(companyProfileData(q.settingsSnapshot || {})).length ? companyProfileData(q.settingsSnapshot) : companyProfileData(settings),
@@ -6521,6 +6525,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     q.createdAt = nowIso;
     q.updatedAt = nowIso;
     q.savedAt = "";
+    if(q.documentType==='quotation')q.quotationPaperVersion=2;
     currentQuote = q;
     switchView("quote");
     bindQuoteToForm();
@@ -7035,7 +7040,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   // Document workspace: recovery snapshots never overwrite formal quotation history.
   let draftDatabase, workspaceReady = false;
-  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass','editingDetails','receivingAccountSnapshot'];
+  const documentExtraFields = ['basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass','editingDetails','receivingAccountSnapshot','quotationPaperVersion'];
   let packingSourceBusy = false;
   async function refreshPackingSources() {
     const select=$('packing-source-select');
@@ -7130,7 +7135,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     }
     host.querySelectorAll('.packing-summary,.packing-route,.document-related-order').forEach(el=>el.remove());
     const pendingPrices=currentQuote.items.some(item=>item.values?.unitPrice===''||item.values?.unitPrice==null);
-    const totalBox=host.querySelector('.preview-total');if(totalBox)totalBox.textContent=(pendingPrices?labelText('Priced items subtotal','已报价项目小计'):labelText('Total','总金额'))+': '+dualMoneyText(total(),currentQuote.currency||settings.currency);
+    const totalBox=host.querySelector('.preview-total');if(totalBox){const title=pendingPrices?labelText('Priced items subtotal','已报价项目小计'):labelText('Total','总金额'),amount=dualMoneyText(total(),currentQuote.currency||settings.currency);if(host.classList.contains('simple-quotation'))totalBox.innerHTML='<span class="simple-quotation-total-label">'+escapeHtml(title)+'</span><strong class="simple-quotation-total-value">'+escapeHtml(amount)+'</strong>';else totalBox.textContent=title+': '+amount;}
     host.querySelectorAll('.quote-incomplete-warning').forEach(node=>node.remove());
     const incompleteNotice=host.querySelector('.quote-incomplete-warning');
     if(incompleteNotice)incompleteNotice.textContent=labelText('Draft quotation: some items are pending pricing and excluded from the subtotal.','报价草稿：部分项目价格待补，不计入小计。');
