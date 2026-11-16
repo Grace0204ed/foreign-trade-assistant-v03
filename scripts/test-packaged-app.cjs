@@ -35,7 +35,7 @@ const executablePath=process.env.TEST_APP_EXE||path.resolve('dist/win-unpacked/�
   await page.evaluate(()=>document.body.classList.remove('printing-standard'));
 
   await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},path.join(dir,'preview-export.pdf'));
-  await page.click('#view-quote [data-form-preview]');await page.waitForSelector('[data-export-preview]:not(:disabled)',{timeout:60000});
+  await page.click('#export-pdf-btn');await page.waitForSelector('[data-export-preview]:not(:disabled)',{timeout:60000});
   assert(await page.locator('.preview-pages img').first().evaluate(img=>img.naturalWidth>500),'packaged runtime renders actual PDF pages');
   await page.click('[data-export-preview]');await page.waitForFunction(()=>document.querySelector('[data-output-status]').textContent.includes('PDF已导出'));
   assert(fs.statSync(path.join(dir,'preview-export.pdf')).size>10000);

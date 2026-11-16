@@ -4388,7 +4388,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       isFormal: false,
       sourceQuoteId: "",
       documentType: docType,
-      ...(docType==='quotation'?{quotationPaperVersion:2}:{}),
+      ...(docType==='quotation'?{quotationPaperVersion:3}:{}),
       tableHeaderColor: preferredDocumentColor(docType),
       quoteStyle: normalizedQuoteStyle(settings.quoteStyle),
       quoteNumber: nextQuoteNumber(d, advanceNumber, docType),
@@ -4402,7 +4402,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       currencyDisplay: "single",
       secondaryCurrency: (settings.currency || "USD") === "CNY" ? "USD" : "CNY",
       exchangeRate: { sourceCurrency:settings.currency || "USD", targetCurrency:(settings.currency || "USD") === "CNY" ? "USD" : "CNY", rate:0, capturedAt:"" },
-      buyer: {},
+      buyer: {identity:'company',identityProfiles:{}},
       customerId: null,
       items: [blankQuoteLine({}, docType)],
       terms: {
@@ -5260,6 +5260,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       email: $("buyer-email").value,
       address: $("buyer-address").value
     };
+    window.DocumentBuyer?.collect(currentQuote);
     currentQuote.basicFields = {...(currentQuote.basicFields || {})};
     document.querySelectorAll('[data-basic-custom]').forEach((input) => {
       currentQuote.basicFields[input.dataset.basicCustom] = readConfiguredControl(input);
@@ -5396,6 +5397,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       .slice()
       .sort((a,b)=>(a.key==='itemType'?-1:0)-(b.key==='itemType'?-1:0)||Number(a.sortOrder||0)-Number(b.sortOrder||0))
       .filter((column) => column.visible !== false && column.active !== false)
+      .filter(column=>(item?.kind!=='freight')||['itemType','description','unitPrice','currency','amount',...(Number(item.values?.qty||1)!==1?['qty','billingUnit']:[])].includes(column.key||column.fieldKey))
       .map((column) => ({...column,key:column.key || column.fieldKey,labelZh:column.labelZh || column.zh,labelEn:column.labelEn || column.en,type:column.type || column.fieldType}));
   }
 
@@ -5411,6 +5413,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const key = escapeHtml(column.key);
     const required = column.required ? " required" : "";
     const isEquipment=(item.kind||"product")==="product";
+    if(item.kind==='freight'&&['description','qty','billingUnit'].includes(column.key))return '<span>'+escapeHtml(column.key==='description'?'海运费':values[column.key]||'1')+'</span>';
     if(['originPort','port','destinationPort'].includes(column.key))return renderTermInput({...column,fieldKey:column.key},values[column.key]||'').replaceAll('data-termfield','data-qfield');
     if(column.catalogKey){const options=OptionCatalog.active(settings,column.catalogKey),value=String(values[column.key]??'');return '<select data-qfield="'+key+'"><option value="">请选择</option>'+options.map(o=>'<option value="'+escapeHtml(o.value)+'"'+(String(o.value)===value?' selected':'')+'>'+escapeHtml(o.labelZh||o.value)+'</option>').join('')+'</select>';}
     if(column.key==='route'){
@@ -5503,7 +5506,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function renderQuoteItems() {
     if(!currentQuote.items?.length)currentQuote.items=[blankQuoteLine()];
     currentQuote.items.forEach(item=>{item.values||={};if(currentQuote.documentType==='packing')item.values={...(currentQuote.packing?.[item.id]||{}),...item.values};quoteLineColumns(item).forEach(f=>{if(!Object.hasOwn(item.values,f.key)&&f.defaultValue!=null)item.values[f.key]=structuredClone(f.defaultValue);});});
-    $('quote-items').innerHTML=DocumentEditing.lines(currentQuote,quoteLineColumns,(f,item)=>f.key==='image'?((item.kind||'product')==='product'?`<div class="quote-row-actions"><div class="quote-action-image-preview"${item.imageDataUrl?'':' hidden'}><img src="${escapeHtml(item.imageDataUrl||'')}" alt="产品图片"></div><label class="file-btn">上传图片<input class="quote-line-image-input" type="file" accept="image/*"></label><button class="clear-line-image" type="button"${item.imageDataUrl?'':' hidden'}>移除图片</button></div>`:''):renderQuoteLineInput(f,item));
+    $('quote-items').innerHTML=DocumentEditing.lines(currentQuote,quoteLineColumns,(f,item)=>f.key==='image'?(`<div class="quote-row-actions"><div class="quote-action-image-preview"${item.imageDataUrl?'':' hidden'}><img src="${escapeHtml(item.imageDataUrl||'')}" alt="产品图片"></div><label class="file-btn">上传图片<input class="quote-line-image-input" type="file" accept="image/*"></label><button class="clear-line-image" type="button"${item.imageDataUrl?'':' hidden'}>移除图片</button></div>`):renderQuoteLineInput(f,item));
     currentQuote.items.forEach(item=>{const row=$('quote-items').querySelector('[data-id="'+CSS.escape(item.id)+'"]');if(row)enhanceConfiguredMarkup(row,quoteLineColumns(item),'data-qfield');});
     window.DocumentFormUI?.quote(currentQuote.documentType);
     window.DocumentEditing?.layout();
@@ -5534,8 +5537,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   const productPickerStates=new Map();
+  const productPickerSelection=new Set();
   const productPickerKey=()=>String(currentQuote.id)+'|'+String(currentQuote.documentType||'quotation');
   function openProductPicker() {
+    productPickerSelection.clear();
     const state=productPickerStates.get(productPickerKey())||{search:'',category:'',brand:'',hierarchy:[]};
     $('product-picker-search').value=state.search;
     if(!$('product-picker-category')){const row=document.createElement('div');row.className='form-grid';row.innerHTML='<label>分类<select id="product-picker-category"></select></label><label>品牌<select id="product-picker-brand"></select></label>';$('product-picker-search').after(row);for(const id of ['product-picker-category','product-picker-brand'])$(id).onchange=()=>renderProductPicker();}
@@ -5566,7 +5571,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const searchable=product=>[...Object.entries(product).filter(([key,value])=>!/(image|photo|snapshot)/i.test(key)&&['string','number'].includes(typeof value)).map(([,value])=>value),...Object.entries(product.values||{}).filter(([key])=>!/(image|photo)/i.test(key)).map(([,value])=>value)].join(' ');
     const list=products.filter(product=>(!hierarchy.some(Boolean)||hierarchy.every((id,i)=>!id||ProductHierarchy.resolve(ProductHierarchyWorkspace.config(),product)[i]===id))&&(!category||product.category===category)&&(!brand||(product.brand||product.values?.brand)===brand)&&(!keyword||normalize(searchable(product)).includes(keyword))).sort((a,b)=>String(a.model||a.values?.model||productDisplayName(a)).localeCompare(String(b.model||b.values?.model||productDisplayName(b)),'zh-CN',{numeric:true,sensitivity:'base'}));
     $("product-picker-list").innerHTML = list.map((product) => `
-      <article class="product-pick-card" data-product-id="${escapeHtml(product.id)}">
+      <label class="product-pick-card${productPickerSelection.has(product.id)?' is-selected':''}" data-product-id="${escapeHtml(product.id)}"><input type="checkbox" data-pick-product="${escapeHtml(product.id)}" ${productPickerSelection.has(product.id)?'checked':''}>
         ${product.imageDataUrl ? `<img src="${product.imageDataUrl}" alt="">` : `<div class="thumb-empty">No Image</div>`}
         <div>
           <h4>${escapeHtml(productDisplayName(product))}</h4>
@@ -5575,10 +5580,13 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
           <p>${product.specificPrice!=null&&product.specificPrice!==""?`具体价格：${money(product.specificPrice,product.currency||"USD")}`:"具体价格：待询价"}${product.referencePrice?` · 参考价：${money(product.referencePrice,settings.currency)}`:""}</p>
           <small>${escapeHtml(product.remark || "")}</small>
         </div>
-        <button type="button" data-pick-product="${escapeHtml(product.id)}">Import to Quotation / 导入报价单</button>
-      </article>
+      </label>
     `).join("") || `<p class="empty">No product found. / 未找到产品。</p>`;
+    syncProductPickerSelection();
   }
+
+  function syncProductPickerSelection(){if($('product-picker-selected-count'))$('product-picker-selected-count').textContent='已选 '+productPickerSelection.size+' 个产品';if($('product-picker-reference'))$('product-picker-reference').disabled=!productPickerSelection.size;}
+  function referenceSelectedProducts(){const ids=[...productPickerSelection].filter(id=>products.some(p=>p.id===id));if(!ids.length)return;collectQuoteFromForm();for(const id of ids)addProductFromLibrary(id,true);productPickerSelection.clear();renderQuoteItems();renderPreview();closeProductPicker();persistWork(true);toast('已引用 '+ids.length+' 个产品。');}
 
   function renderCostFieldInput(field, value) {
     const key = escapeHtml(field.fieldKey);
@@ -5703,10 +5711,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     addManualProduct();
   }
 
-  function addProductFromLibrary(productId) {
+  function addProductFromLibrary(productId,defer=false) {
     const p = products.find((x) => x.id === productId);
     if (!p) return toast("请选择产品库产品。");
-    collectQuoteFromForm();
+    if(!defer)collectQuoteFromForm();
     const values = productValues(p);
     const defaults = blankQuoteLine().values;
     currentQuote.items.push({
@@ -5735,6 +5743,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
         remark: values.remark || p.remark || ""
       }
     });
+    if(defer)return;
     renderQuoteItems();
     closeProductPicker();
     renderPreview();
@@ -5792,9 +5801,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function previewDescription(item) {
     const values = item.values || {};
+    if(item.kind==='freight')return quoteItemTypeText(item);
     const translation=documentTranslatedValue('item:'+item.id+':description');
     if(translation) return translation;
-    if((item.kind||'product')!=='product'&&activeDocumentConfig()?.itemSchemas){const columns=new Set(quoteLineColumns().map(f=>f.key)),fields=DocumentFormSchema.fields(activeDocumentConfig(),item.kind).filter(f=>!columns.has(f.fieldKey)&&!['image','calculated'].includes(f.fieldType)&&values[f.fieldKey]!==''&&values[f.fieldKey]!=null);return [localizedSlashValue(values.description||itemKindLabel(item.kind),displayMode()),...fields.map(f=>labelText(f.en,f.zh)+': '+configuredValueText(f,values[f.fieldKey]))].filter(Boolean).join(' | ');}
+    if((item.kind||'product')!=='product'&&activeDocumentConfig()?.itemSchemas&&(!(currentQuote.isFormal||pdfSnapshotMode)||Number(currentQuote.templateSnapshot?.schemaVersion)>=4))return localizedSlashValue(values.description||itemKindLabel(item.kind),displayMode());
     if (values.description) return localizedSlashValue(values.description,displayMode());
     if (["freight", "trucking", "custom"].includes(item.kind || "")) {
       const skip = new Set(["qty", "unitPrice", "currency", "remark"]);
@@ -5834,7 +5844,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     return field ? !field.deletedAt&&field.visible!==false&&field.active!==false : true;
   }
 
-  function quotePreviewColumns() {
+  function quotePreviewColumns(item) {
+    if(item){const columns=quoteLineColumns(item).filter(c=>(c.key!=='image'||currentQuote.showProductPhotos!==false)&&(item.kind!=='freight'||c.key!=='itemType')).map(c=>({key:c.key,en:item.kind==='freight'&&c.key==='description'?'Charge Description':c.labelEn||c.key,zh:item.kind==='freight'&&c.key==='description'?'费用名称':c.labelZh||c.key,type:c.type}));return columns.some(c=>c.key==='sequence')?columns:[{key:'sequence',en:'No.',zh:'序号'},...columns];}
     // September quotation layout: honor the configured columns, including custom fields.
     if((currentQuote.documentType||'quotation')==='quotation')return quoteLineColumns()
       .filter(column=>column.key!=='image'||currentQuote.showProductPhotos!==false)
@@ -5855,13 +5866,14 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     })];
   }
 
-  function renderQuotePreviewHead() {
+  function renderQuotePreviewHead(columns=quotePreviewColumns()) {
     const printCore = new Set(["sequence","description","hsCode","qty","billingUnit","unitPrice","amount","image"]);
-    return quotePreviewColumns().map((column) => `<th class="preview-col-${escapeHtml(column.key)}${printCore.has(column.key)?"":" preview-col-extra"}">${labelHtml(column.en, column.zh)}</th>`).join("");
+    return columns.map((column) => `<th class="preview-col-${escapeHtml(column.key)}${printCore.has(column.key)?"":" preview-col-extra"}">${labelHtml(column.en, column.zh)}</th>`).join("");
   }
 
   // Keep canonical values in storage; translate only document output.
   function quoteItemTypeText(item, mode = displayMode()) {
+    if(item.kind==='freight'){if(mode==='zh')return '海运费';const language=mode.startsWith('zh-')?mode.slice(3):mode==='bilingual'?'en':mode,value=DocumentLocales.label('Sea freight',language)||'Sea freight';return mode.startsWith('zh-')||mode==='bilingual'?value+' / 海运费':value;}
     const field=configuredBlockFields('items',settings.quoteLineColumns).find(f=>f.fieldKey==='itemType');
     const option=DocumentItemTypes.match(field,item.values?.itemType);
     if(option)return labelText(option.labelEn||option.value,option.labelZh||option.value);
@@ -5926,22 +5938,24 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     return `${money(mainAmount,main)} / ${money(mainAmount*Number(currentQuote.exchangeRate.rate),currentQuote.secondaryCurrency)}`;
   }
 
-  function renderQuotePreviewRows() {
-    const columns = quotePreviewColumns();
+  function renderQuotePreviewRows(items=currentQuote.items,columns=quotePreviewColumns(),offset=0) {
     const printCore = new Set(["sequence","description","hsCode","qty","billingUnit","unitPrice","amount","image"]);
-    return (currentQuote.items || []).filter(item=>currentQuote.documentType !== 'packing' || (item.kind||'product')==='product').map((item, index) => {
+    return (items || []).filter(item=>currentQuote.documentType !== 'packing' || (item.kind||'product')==='product').map((item, index) => {
       return `<tr class="${item.imageDataUrl?"preview-row-with-image":""}">${columns.map((column) => {
         const label = `${column.en || column.key} / ${column.zh || column.key}`;
-        if(column.key === 'sequence') return `<td class="preview-col-sequence" data-label="${escapeHtml(label)}">${index+1}</td>`;
+        if(column.key === 'sequence') return `<td class="preview-col-sequence" data-label="${escapeHtml(label)}">${offset+index+1}</td>`;
         if(['packages','netWeight','grossWeight','cbm','marks'].includes(column.key)) return `<td>${escapeHtml(item.values?.[column.key] ?? currentQuote.packing?.[item.id]?.[column.key] ?? '—')}</td>`;
-        if (column.key === "image") return `<td class="preview-col-image preview-product-image" data-label="${escapeHtml(label)}">${(item.kind||'product')==='product'&&(item.imageDataUrl||item.additionalImages?.[0])?`<img src="${escapeHtml(item.imageDataUrl||item.additionalImages[0])}" alt="${escapeHtml(labelText('Image','图片'))}">`:'—'}</td>`;
+        if (column.key === "image") return `<td class="preview-col-image preview-product-image" data-label="${escapeHtml(label)}">${(item.imageDataUrl||item.additionalImages?.[0])?`<img src="${escapeHtml(item.imageDataUrl||item.additionalImages[0])}" alt="${escapeHtml(labelText('Image','图片'))}">`:'—'}</td>`;
         const value = quotePreviewCell(item, column);
-        const printMeta = column.key === "description" && !['commercial','packing'].includes(currentQuote.documentType)
-          ? `<span class="print-product-meta">${escapeHtml(quoteLineColumns().filter(c=>!['image','richtext'].includes(c.type)&&!['image','description','hsCode','qty','billingUnit','unitPrice','amount','currency','remark','itemType'].includes(c.key)).map(c=>{const value=quotePreviewCell(item,c);return value&&value!=='—'?labelText(c.labelEn||c.key,c.labelZh||c.key)+': '+value:'';}).filter(Boolean).join(' · '))}</span>`
-          : "";
+        const printMeta = "";
         return `<td class="preview-col-${escapeHtml(column.key)}${printCore.has(column.key)?"":" preview-col-extra"}" data-label="${escapeHtml(label)}"><div class="preview-cell-value">${ConfiguredFields.html({fieldType:column.type},value)}</div>${printMeta}</td>`;
       }).join("")}</tr>`;
     }).join("");
+  }
+
+  function renderQuotePreviewTables(){
+    const groups=[];for(const item of currentQuote.items||[]){if(currentQuote.documentType==='packing'&&(item.kind||'product')!=='product')continue;const columns=quotePreviewColumns(item),signature=JSON.stringify(columns),last=groups.at(-1);if(last?.signature===signature)last.items.push(item);else groups.push({columns,signature,items:[item],offset:groups.reduce((sum,g)=>sum+g.items.length,0)});}
+    return groups.map(g=>`<table class="document-item-group" data-item-group="${escapeHtml(g.items[0].kind||'product')}"><thead><tr>${renderQuotePreviewHead(g.columns)}</tr></thead><tbody>${renderQuotePreviewRows(g.items,g.columns,g.offset)}</tbody></table>`).join('');
   }
 
   function displayTermValue(field) {
@@ -5979,6 +5993,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   function quoteSectionTitle(key) {
+    if(key==='customer'&&currentQuote.buyer?.identity)return labelText('Buyer Information','买方信息');
     if(currentQuote.documentType==='invoice') {
       const titles={items:['Proforma Invoice Items','形式发票商品明细'],terms:['Payment and Delivery Terms','付款及交付条款']};
       if(titles[key])return labelText(...titles[key]);
@@ -5991,7 +6006,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   function customerPreviewFields(buyer = {}) {
     normalizeCustomerQuoteFields();
-    return configuredBlockFields("customer",settings.customerQuoteFields).map((field)=>`<div class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <bdi>${configuredValueHtml(field,buyer[field.fieldKey])}</bdi></div>`).join("");
+    return configuredBlockFields("customer",settings.customerQuoteFields).filter(field=>globalThis.DocumentBuyer?.visible(field,buyer)!==false).map(source=>{const field=globalThis.DocumentBuyer?.field(source,buyer)||source;return `<div class="document-customer-field" data-field-key="${escapeHtml(field.fieldKey)}"><b>${escapeHtml(labelText(field.en,field.zh))}:</b> <bdi>${configuredValueHtml(field,buyer[field.fieldKey])}</bdi></div>`;}).join("");
   }
 
   function applyCustomerQuoteFieldLabels() {
@@ -6058,6 +6073,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     for(const [title,order] of [[DocumentFormSchema.labels[currentQuote.documentType]?.basic||'单据信息','-1'],[DocumentFormSchema.labels[currentQuote.documentType]?.customer||'客户信息','1']]){
       const heading=document.createElement('h4');heading.className='editor-field-group-title';heading.textContent=title;heading.style.order=order;grid.append(heading);
     }
+    window.DocumentBuyer?.bind(currentQuote,configuredBlockFields('customer',settings.customerQuoteFields));
   }
 
   function bankValueText(field, mode = displayMode()) {
@@ -6139,6 +6155,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       const itemCurrency=item.values?.currency||currentQuote.currency;
       if(itemCurrency!==currentQuote.currency && !(Number(currentQuote.exchangeRate?.rate)>0 && [currentQuote.exchangeRate?.sourceCurrency,currentQuote.exchangeRate?.targetCurrency].includes(itemCurrency) && [currentQuote.exchangeRate?.sourceCurrency,currentQuote.exchangeRate?.targetCurrency].includes(currentQuote.currency))) { toast(`第 ${rowIndex+1} 行币种为 ${itemCurrency}，请填写与 ${currentQuote.currency} 之间的明确汇率。`); return false; }
       for (const column of quoteLineColumns(item).filter(column=>column.required)) {
+        if(item.kind==='freight'&&column.key==='description')continue;
         if ((item.kind || "product") !== "product" && ["condition","hsCode"].includes(column.key)) continue;
         if (column.key === "amount") continue;
         if (column.key === "image") {
@@ -6206,8 +6223,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
         ${renderQuoteMetaPreview()}
       </section>
       <section class="preview-panel"><h3>${quoteSectionTitle("customer")}</h3><div class="preview-fields">${customerPreviewFields(currentQuote.buyer)}</div></section>
-      <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3><table><thead><tr>${renderQuotePreviewHead()}</tr></thead><tbody>${renderQuotePreviewRows()}</tbody></table>${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">部分项目尚未填写价格，导出前请核对。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${escapeHtml(dualMoneyText(total(), currentQuote.currency))}</div>` : ""}</section>
-      ${showProductPhotos && currentQuote.photoAppendix ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.filter(i => (i.kind || "product") === "product").flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || i.values.model || '')}</div></article>`)).join("")}</div></section>` : ""}
+      <section class="preview-panel"><h3>${quoteSectionTitle("items")}</h3>${renderQuotePreviewTables()}${currentQuote.items.some(item=>item.values?.unitPrice===""||item.values?.unitPrice==null)?`<div class="quote-incomplete-warning">部分项目尚未填写价格，导出前请核对。</div>`:""}${visibleQuoteField("totalAmount") ? `<div class="preview-total">${labelText("Total", "总金额")}：${escapeHtml(dualMoneyText(total(), currentQuote.currency))}</div>` : ""}</section>
+      ${showProductPhotos && currentQuote.photoAppendix ? `<section class="preview-panel"><h3>${labelText("Product Photos", "产品图片")}</h3><div class="photo-grid">${currentQuote.items.flatMap(i => [i.imageDataUrl, ...(i.additionalImages || [])].filter(Boolean).map(src => `<article class="photo-card"><img src="${escapeHtml(src)}"><div>${escapeHtml(i.values.description || i.values.model || '')}</div></article>`)).join("")}</div></section>` : ""}
       ${visibleTermFields.length || settings.stampDataUrl || renderValidityRangePreview() ? `<section class="preview-panel terms-panel"><div class="terms-content"><h3>${quoteSectionTitle("terms")}</h3>${visibleTermFields.map((field) => `<p>${field.fieldKey==='notes'&&String(currentQuote.terms.notes||'').includes(DocumentPresentation.paymentShipping.en)?'':labelText(field.en, field.zh)+'：'}${ConfiguredFields.html(field,displayTermValue(field))}</p>`).join("")}${renderValidityRangePreview()}</div>${settings.stampDataUrl ? `<div class="stamp-box"><img src="${settings.stampDataUrl}" alt="Company Stamp"><span>${labelText("Company Stamp", "公司公章")}</span></div>` : ""}</section>` : ""}
       ${renderBankPreview()}
       ${['contract','invoice'].includes(currentQuote.documentType)?renderSalesContractSignatures():''}
@@ -6525,7 +6542,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     q.createdAt = nowIso;
     q.updatedAt = nowIso;
     q.savedAt = "";
-    if(q.documentType==='quotation')q.quotationPaperVersion=2;
+    if(q.documentType==='quotation')q.quotationPaperVersion=3;
     currentQuote = q;
     switchView("quote");
     bindQuoteToForm();
@@ -6828,10 +6845,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     $("open-product-picker-btn").addEventListener("click", openProductPicker);
     $("close-product-picker-btn").addEventListener("click", closeProductPicker);
     $("product-picker-search").addEventListener("input", renderProductPicker);
-    $("product-picker-list").addEventListener("click", (event) => {
-      const button = event.target.closest("[data-pick-product]");
-      if (button) addProductFromLibrary(button.dataset.pickProduct);
-    });
+    $("product-picker-list").addEventListener("change",event=>{const input=event.target.closest('[data-pick-product]');if(!input)return;const id=input.dataset.pickProduct;input.checked?productPickerSelection.add(id):productPickerSelection.delete(id);input.closest('.product-pick-card').classList.toggle('is-selected',input.checked);syncProductPickerSelection();});
+    $('product-picker-reference').addEventListener('click',referenceSelectedProducts);
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
     $("quote-style-select").addEventListener("change", renderPreview);
     $("pdf-language").addEventListener("change", renderPreview);
@@ -7122,6 +7137,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   function applyDocumentWorkspacePreview() {
     syncDocumentEditor();
     window.DocumentFormUI?.quote(currentQuote.documentType);
+    window.DocumentBuyer?.bind(currentQuote,configuredBlockFields('customer',settings.customerQuoteFields));
     const shipment=['commercial','packing'].includes(currentQuote.documentType);
     $('packing-editor').hidden=true;
     $('shipment-document-editor').hidden=true;
@@ -7608,6 +7624,11 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       finally{workRestoring=original.restoring;}
     }
   }
+  async function inspectCurrentDocument(kind=currentOutputKind()){
+    if(!window.quotationDesktop?.createDocumentPreview)return toast('完整预览需要桌面版输出引擎，填写内容已保留。');
+    return window.DocumentInspection.open({create:async()=>{await ensureDocumentIdentity(kind,workflowDocument(kind));currentWorkData(kind);renderOutputKind(kind);await prepareSigningImages();return window.quotationDesktop.createDocumentPreview({html:outputMarkup(kind),fileName:outputFileName(kind)});},close:token=>window.quotationDesktop.closeDocumentPreview(token)});
+  }
+
   async function previewCurrentOutput(kind=currentOutputKind(),selectedTypes=null){
     if($('document-output-preview'))return;
     await ensureDocumentIdentity(kind,workflowDocument(kind));await DocumentIdentity.settle();
@@ -7779,6 +7800,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     editingChanged(kind){if(kind==='quote'){collectQuoteFromForm();renderPreview();scheduleDraftRecovery();}else if(kind==='agency'){renderAgentAuthorizationPreview();persistWork(true);}else{collectInvitationFromForm();renderInvitationPreview();persistWork(true);}},
     authorizationChanged(){renderAgentAuthorizationPreview();persistWork(true);},
     get settings(){return settings;},
+    exportDocument:type=>previewCurrentOutput(type==='invitation'?'invitation':['agency','authorization','statement'].includes(type)?'agency':'quote'),
     hydrateDocumentChoices,
     get defaultTermFields(){return structuredClone(defaultTermFields);},
     get products(){return products;},
@@ -7787,7 +7809,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     documentType:kind=>kind==='invitation'?'invitation':kind==='agency'?(currentAgentAuthorization?.documentType||'authorization'):(currentQuote?.documentType||'quotation'),
     openSettings:openSettingsSection,
     outputHtml:kind=>{renderOutputKind(kind);return outputMarkup(kind);},
-    previewDocument:async type=>{const kind=type==='invitation'?'invitation':['agency','statement'].includes(type)?'agency':'quote',doc=workflowDocument(kind),actual=kind==='agency'?(type==='agency'?'authorization':type):type;if(!doc||((doc.documentType||'quotation')!==actual&&kind!=='invitation'))return toast('请先在制作界面打开对应的单证，再查看它的实际 PDF。');return previewCurrentOutput(kind);},
+    previewDocument:async type=>{const kind=type==='invitation'?'invitation':['agency','statement'].includes(type)?'agency':'quote',doc=workflowDocument(kind),actual=kind==='agency'?(type==='agency'?'authorization':type):type;if(!doc||((doc.documentType||'quotation')!==actual&&kind!=='invitation'))return toast('请先在制作界面打开对应的单证，再查看它的实际 PDF。');return inspectCurrentDocument(kind);},
     editProduct,renderProducts,newProduct:()=>{clearProductForm();openProductEditorModal();},
     previewClassificationDelete:async nodeId=>(await api('/api/products/classification-delete-preview',{method:'POST',body:JSON.stringify({nodeId})})).plan,
     deleteClassification:async plan=>{

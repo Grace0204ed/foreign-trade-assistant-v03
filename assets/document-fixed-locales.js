@@ -341,6 +341,11 @@ Female|Féminin|Femenino|女性|Женский|أنثى|Femminile|Weiblich|여�
   add('Company Stamp',['Cachet de la société','Sello de la empresa','社印','Печать компании','ختم الشركة','Timbro della società','Firmenstempel','회사 직인']);
   add('Authorizing Party',['Partie mandante','Parte autorizante','授権者','Доверитель','الطرف المفوِّض','Parte autorizzante','Vollmachtgeber','위임자']);
   add('Valid Until',['Valable jusqu’au','Válido hasta','有効期限','Действительно до','صالح حتى','Valido fino al','Gültig bis','유효기한']);
+  add('Buyer Information',['Informations acheteur','Información del comprador','買主情報','Сведения о покупателе','معلومات المشتري','Informazioni acquirente','Käuferinformationen','구매자 정보']);
+  add('Company Name',['Nom de la société','Nombre de la empresa','会社名','Название компании','اسم الشركة','Ragione sociale','Firmenname','회사명']);
+  add('Delivery Address',['Adresse de livraison','Dirección de entrega','配送先住所','Адрес доставки','عنوان التسليم','Indirizzo di consegna','Lieferadresse','배송 주소']);
+  add('Sea freight',['Fret maritime','Flete marítimo','海上運賃','Морской фрахт','الشحن البحري','Nolo marittimo','Seefracht','해상 운임']);
+  Object.assign(labels,{Name:{fr:'Nom',es:'Nombre',ja:'氏名',ru:'Имя',ar:'الاسم',it:'Nome',de:'Name',ko:'이름'},'Charge Description':{fr:'Description des frais',es:'Descripción del cargo',ja:'費用明細',ru:'Описание расходов',ar:'وصف الرسوم',it:'Descrizione spese',de:'Kostenbeschreibung',ko:'비용 설명'}});
   function lookup(source,language){
     if(labels[source]?.[language])return labels[source][language];
     const match=String(source).match(/^Under this agreement, Party A shall pay Party B, the individual commission recipient, a fixed commission of (.*?) for sales contract (.*?)\. No percentage-based or cumulative commission applies\.$/s);

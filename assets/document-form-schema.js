@@ -70,7 +70,7 @@
       const specific=kind==='freight'?freight:kind==='trucking'?[field('from','起运地','From'),field('to','目的地','To')]:[];
       config.itemSchemas[kind]=merge(legacy,[route,...specific,...common]);
       config.itemSchemas[kind].forEach((f,i)=>f.sortOrder=f.fieldKey==='itemType'?-100:(i+1)*10);
-     }const fields=config.itemSchemas[kind];const i=fields.findIndex(f=>f.fieldKey==='itemType');if(i>=0)fields[i]=route;else fields.unshift(route);dictionaries(fields);
+     }const fields=config.itemSchemas[kind];if(kind==='custom'&&!fields.some(f=>f.fieldKey==='image'))fields.push(field('image','图片','Image','image',{sortOrder:15}));const i=fields.findIndex(f=>f.fieldKey==='itemType');if(i>=0)fields[i]=route;else fields.unshift(route);dictionaries(fields);
     }
    }
   }
