@@ -27,3 +27,4 @@
 #quote-preview .document-financial-total{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:6px;row-gap:2px;font-size:12px}
 #quote-preview .document-financial-total>strong{color:var(--document-heading-color);font-size:14px}
 #quote-preview .document-financial-terms .reference-amount-words{font-weight:700;margin:0}
+#quote-preview .document-total-allocation{text-align:right;margin:4px 0 12px;font-size:10px;line-height:1.5;break-inside:avoid;break-before:avoid}#quote-preview .document-total-allocation p{margin:3px 0}
