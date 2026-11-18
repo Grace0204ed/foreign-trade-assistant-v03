@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const { app, BrowserWindow, dialog, ipcMain, shell, Menu, net } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { getMachineId, getLicenseStatus, activateLicense } = require("./license");
+const registerInputFocus=require('./editor-input-focus.cjs')({ipcMain,BrowserWindow});
 require('./document-output.cjs')({ipcMain,BrowserWindow,dialog,app,getBatchDirectory:(event,token)=>{const grant=pdfDirectories.get(token);if(!grant||grant.sender!==event.sender.id)throw Error('导出目录授权已失效');return grant.directory;}});
 // Some office networks interrupt GitHub release downloads over HTTP/2.
 app.commandLine.appendSwitch("disable-http2");
@@ -90,6 +91,7 @@ async function createWindow() {
     webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false}
   });
   let closeAllowed=false, closePending=false;
+  registerInputFocus(win);
   win.on('close',event=>{
     if(closeAllowed)return;
     event.preventDefault();if(closePending)return;closePending=true;

@@ -7156,6 +7156,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     }
     host.querySelectorAll('.packing-summary,.packing-route,.document-related-order').forEach(el=>el.remove());
     const pendingPrices=currentQuote.items.some(item=>item.values?.unitPrice===''||item.values?.unitPrice==null);
+    window.TradeReferencePaper?.amountWords(host,currentQuote,{label:labelText,money:dualMoneyText,total:quoteTotal(currentQuote),totalVisible:visibleQuoteField('totalAmount')});
     const totalBox=host.querySelector('.preview-total');if(totalBox){const title=pendingPrices?labelText('Priced items subtotal','已报价项目小计'):labelText('Total','总金额'),amount=dualMoneyText(total(),currentQuote.currency||settings.currency);if(host.classList.contains('simple-quotation'))totalBox.innerHTML='<span class="simple-quotation-total-label">'+escapeHtml(title)+'</span><strong class="simple-quotation-total-value">'+escapeHtml(amount)+'</strong>';else totalBox.textContent=title+': '+amount;}
     host.querySelectorAll('.quote-incomplete-warning').forEach(node=>node.remove());
     const incompleteNotice=host.querySelector('.quote-incomplete-warning');

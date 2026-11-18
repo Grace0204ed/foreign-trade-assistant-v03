@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer, webFrame } = require("electron");
 
+if(process.platform==='win32')document.addEventListener('pointerdown',event=>{
+  const input=event.target.closest?.('input,textarea,select,[contenteditable="true"]');
+  if(event.isTrusted&&input&&!input.disabled&&!input.readOnly&&!document.hasFocus())ipcRenderer.send('editor-input-focus');
+},true);
+
 contextBridge.exposeInMainWorld("quotationDesktop", {
   createDocumentPreview: payload => ipcRenderer.invoke('document-preview-create',payload),
   setDocumentPreviewMode: (token,mode,settings) => ipcRenderer.invoke('document-preview-mode',token,mode,settings),
