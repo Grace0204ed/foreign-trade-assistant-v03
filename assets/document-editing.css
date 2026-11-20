@@ -63,3 +63,5 @@
  @media(max-width:600px){.editing-flow-grid,.editing-account-details,.editing-custom-grid{grid-template-columns:1fr}}
  @media(max-width:800px){.editing-invitation-steps{grid-template-columns:1fr 1fr}.editing-invitation-footer{padding:14px 14px 64px}.editing-invitation-footer>div{flex-wrap:wrap}}
 }
+.quote-library-actions{display:grid;gap:6px;justify-items:start}
+.quote-library-actions button{max-width:100%;white-space:nowrap}

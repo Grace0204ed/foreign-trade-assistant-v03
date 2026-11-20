@@ -44,6 +44,11 @@
    for(const [key,zh,en]of [['afterSales','售后说明','After-sales'],['warranty','质保说明','Warranty']])if(!config.blocks.terms.some(f=>f.fieldKey===key))config.blocks.terms.push(field(key,zh,en,'textarea',{sortOrder:key==='afterSales'?1200:1210}));
    config.formSchemaVersion=3;
   }
+  if(['quotation','invoice','contract','commercial','packing'].includes(type)&&!config.factoryDeliverySchemaVersion){
+   let delivery=config.blocks.terms.find(f=>f.fieldKey==='transportDeliveryPlace'&&!f.deletedAt);
+   if(!delivery){delivery=field('transportDeliveryPlace','工厂交货地点','Factory Delivery Place','text',{sortOrder:1010});config.blocks.terms.push(delivery);}
+   delivery.visible=true;delivery.active=true;config.factoryDeliverySchemaVersion=1;
+  }
   if(type==='commercial'&&!config.referencePaymentSchemaVersion){for(const f of [field('payment','付款比例','Payment Ratio','select',{sortOrder:10}),field('paymentCondition','付款方式','Payment Method','select',{sortOrder:20}),field('deliveryTime','交货时间','Delivery Time','select',{sortOrder:30}),field('notes','付款与交付备注','Payment and Delivery Notes','textarea',{sortOrder:40})])if(!config.blocks.terms.some(existing=>existing.fieldKey===f.fieldKey))config.blocks.terms.push(f);config.referencePaymentSchemaVersion=1;}
   if(type==='agency'&&!config.authorizationSchemaVersion){
    config.blocks.territory||=[];config.blocks.display||=[];
