@@ -29,6 +29,7 @@
 #quote-preview .document-financial-terms .reference-amount-words{font-weight:700;margin:0}
 #quote-preview .document-total-allocation{text-align:right;margin:4px 0 12px;font-size:10px;line-height:1.5;break-inside:avoid;break-before:avoid}#quote-preview .document-total-allocation p{margin:3px 0}
 @media print{
+ #quote-preview.trade-layout-invoice .terms-content>p{break-inside:avoid}
  #quote-preview.trade-layout-invoice .document-financial-terms{margin:2px 0 2px;line-height:1.25}
  #quote-preview.trade-layout-invoice .document-financial-terms p{margin:1px 0;line-height:1.25}
  #quote-preview.trade-layout-invoice .document-total-allocation{margin:0 0 1px;line-height:1.25}
