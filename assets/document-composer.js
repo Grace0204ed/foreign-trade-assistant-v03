@@ -12,12 +12,13 @@
   document.querySelectorAll('[data-composer-list]').forEach(n=>n.innerHTML=selection().map(type=>'<button type="button" data-composer-open="'+type+'">'+escape(types[type])+'</button>').join('')||'<span>尚未选择单证</span>');
   document.querySelectorAll('[data-composer-prepare],[data-composer-export]').forEach(n=>n.disabled=!selected.size);
  }
+ function company(kind){const context=C();if(!context?.documentCompanies)return;const state=context.documentCompanies(kind),node=document.querySelector('#view-'+kind+' [data-composer-company]');if(!node)return;const html=state.rows.map(row=>'<option value="'+escape(row.id)+'">'+escape(row.name||'未命名公司')+'</option>').join('');if(node.innerHTML!==html)node.innerHTML=html;node.value=state.id||'';node.disabled=state.locked;node.title=node.selectedOptions[0]?.textContent||'';}
  function activate(type){if(!chosen){selected.add(type);chosen=true;}sync();}
  function bar(labels,callbacks){
   types=labels;actions=callbacks;
   const element=document.createElement('div');element.className='document-jump-bar composer-selection-bar no-print';
-  element.innerHTML='<b>选择单证 <em>（可多选）</em></b><nav class="document-switch-buttons" aria-label="选择和切换单证">'+Object.entries(types).map(([type,label])=>'<div class="composer-doc-chip"><input aria-label="选择'+escape(label)+'" type="checkbox" data-composer-select value="'+type+'"><button type="button" data-switch-document="'+type+'">'+escape(label)+'</button></div>').join('')+'</nav><div class="composer-batch-actions"><details class="composer-selected"><summary><span data-composer-count></span>'+icon('down')+'</summary><div data-composer-list></div></details><button type="button" data-composer-prepare>'+icon('batch')+'批量制作</button><button type="button" data-composer-export>'+icon('download')+'批量导出PDF</button></div>';
-  element.onchange=e=>{if(!e.target.matches('[data-composer-select]'))return;e.target.checked?selected.add(e.target.value):selected.delete(e.target.value);chosen=true;sync();};
+  element.innerHTML='<b>选择单证 <em>（可多选）</em></b><nav class="document-switch-buttons" aria-label="选择和切换单证">'+Object.entries(types).map(([type,label])=>'<div class="composer-doc-chip"><input aria-label="选择'+escape(label)+'" type="checkbox" data-composer-select value="'+type+'"><button type="button" data-switch-document="'+type+'">'+escape(label)+'</button></div>').join('')+'</nav><div class="composer-batch-actions"><label class="composer-company"><span>制作公司</span><select data-composer-company aria-label="制作公司"></select></label><details class="composer-selected"><summary><span data-composer-count></span>'+icon('down')+'</summary><div data-composer-list></div></details><button type="button" data-composer-prepare>'+icon('batch')+'批量制作</button><button type="button" data-composer-export>'+icon('download')+'批量导出PDF</button></div>';
+  element.onchange=e=>{if(e.target.matches('[data-composer-company]')){const kind=element.closest('.view')?.id.replace('view-','');try{C().selectDocumentCompany(kind,e.target.value);}catch(error){C().toast(error.message);company(kind);}return;}if(!e.target.matches('[data-composer-select]'))return;e.target.checked?selected.add(e.target.value):selected.delete(e.target.value);chosen=true;sync();};
   element.onclick=async e=>{const button=e.target.closest('button');if(!button)return;const type=button.dataset.switchDocument||button.dataset.composerOpen;if(type){e.preventDefault();element.querySelector('details')?.removeAttribute('open');actions.open(type);return;}
    try{if(button.hasAttribute('data-composer-prepare')){actions.prepare(selection());C().toast('已准备 '+selected.size+' 份独立单证，已有内容保留。');}
     if(button.hasAttribute('data-composer-export')){actions.prepare(selection());await C().previewSelectedDocuments(selection());}
@@ -48,7 +49,7 @@
  }
  const term=key=>document.querySelector('[data-termfield="'+key+'"]')?.value||'';
  function refresh(kind,record){
-  const root=$('view-'+kind);if(!root||!record)return;root.classList.add('composer-editor');titleRow(root);window.DocumentIdentity?.ui(kind,record);
+  company(kind);const root=$('view-'+kind);if(!root||!record)return;root.classList.add('composer-editor');titleRow(root);window.DocumentIdentity?.ui(kind,record);
   const type=kind==='quote'?record.documentType:kind==='invitation'?'invitation':record.documentType;
   if(kind==='quote'){
    fold($('quote-common-panel'),type+':basic','file');

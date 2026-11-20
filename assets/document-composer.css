@@ -88,3 +88,8 @@
  @media(max-width:1400px){.composer-editor .composer-selection-bar{gap:8px}.composer-editor .document-switch-buttons{gap:4px}.composer-doc-chip{padding:4px}.composer-editor .composer-doc-chip button{font-size:12px}.composer-batch-actions{gap:6px}}
  @media(max-width:1080px){.composer-batch-actions{width:100%;justify-content:flex-end}.composer-editor>.page-head{grid-template-columns:1fr auto}.composer-title{grid-row:1;grid-column:1/-1}.composer-editor .editing-navigation{grid-row:2}.composer-editor>.page-head>.actions{grid-row:2;margin:0}.composer-save-state{white-space:normal}[data-composer-summary]{max-width:57%}}
 }
+@media screen{
+ .composer-company{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;color:#526984}
+ .composer-company select{width:180px;min-height:34px;max-width:180px;padding:6px 26px 6px 8px;font-size:12px;text-overflow:ellipsis}
+ @media(max-width:1100px){.composer-batch-actions{flex-wrap:wrap}.composer-company select{width:160px}}
+}
