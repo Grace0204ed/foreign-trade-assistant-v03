@@ -26,7 +26,7 @@
    }
   }
   for(const key of ['basic','customer','items','terms'])editor.append(groups[key].parentElement);
-  const output=$('document-output-options-'+kind);if(output)editor.append(output);
+  const output=$('document-output-options-'+kind);if(output&&!output.dataset.compactDisplay)editor.append(output);
   for(const key of ['invitation-inviter','invitation-signer-title','invitation-style','agency-company','agency-authorizer','agency-authorizer-title'])$(key)?.closest('label')?.setAttribute('hidden','');
   if(type==='invitation'){
    for(const id of ['invitation-recipient-type','invitation-company']){const n=$(id)?.closest('label');if(n)groups.customer.prepend(n);}
