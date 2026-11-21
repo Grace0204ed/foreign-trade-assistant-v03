@@ -4278,7 +4278,9 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(!workRestoring)markWorkBaseline('products');
   }
 
+  let savingQuoteProducts=false;
   function saveQuoteProduct(itemId) {
+    if(savingQuoteProducts)return;
     collectQuoteFromForm();
     const item=currentQuote.items.find(item=>item.id===itemId);
     if(!item||(item.kind||'product')!=='product'||item.values.productId)return;
@@ -4291,6 +4293,45 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     clearProductForm();
     fillProductEditor({quoteSource:source,values,brand:values.brand||'',model:values.model||'',category:values.productType||'',condition:values.condition||'',year:values.year||'',workingHours:values.hours||'',specificPrice:values.unitPrice??'',currency:values.currency||currentQuote.currency||'USD',imageDataUrl:item.imageDataUrl||'',additionalImages:structuredClone(item.additionalImages||[]),remark:values.remark||''});
     persistWork(true);
+  }
+
+  async function saveAllQuoteProducts() {
+    if(savingQuoteProducts)return;
+    if($('product-editor-modal')?.open)return toast('请先完成当前产品编辑。');
+    collectQuoteFromForm();
+    const quote=currentQuote,button=$('save-all-quote-products-btn');
+    const rows=quote.items.filter(item=>(item.kind||'product')==='product');
+    const ready=rows.filter(item=>!item.values.productId&&String(item.values.description||item.values.model||'').trim());
+    const blank=rows.filter(item=>!item.values.productId&&!String(item.values.description||item.values.model||'').trim()).length;
+    if(!ready.length)return toast('没有需要新增到产品库的商品。');
+    savingQuoteProducts=true;button.disabled=true;
+    let added=0,existing=rows.filter(item=>item.values.productId).length;
+    const sourceKey=(quote.editingDetails||={}).productSourceKey||=quote.id;
+    const productIds=quote.editingDetails.libraryProductIds||={};
+    const queue=ready.map(item=>{productIds[item.id]||=uid('product');return structuredClone(item);});
+    const remember=row=>{serverProducts=serverProducts.filter(p=>p.id!==row.id).concat(row);products=products.filter(p=>p.id!==row.id).concat(toLegacyProduct(row));};
+    const findSource=(list,item)=>list.find(p=>p.values?._quoteSource?.quoteId===sourceKey&&p.values._quoteSource.itemId===item.id);
+    const link=(item,row)=>{remember(row);const current=quote.items.find(p=>p.id===item.id);if(current)current.values.productId=row.id;};
+    try{
+      // Persist stable IDs before any inserts, so a lost response or a restart can
+      // retry the remaining rows without inserting the same source twice.
+      persistWork(true);await workQueue;if(workCaptureError)throw workCaptureError;
+      const latest=(await api('/api/products')).products||[];
+      for(const [index,item] of queue.entries()){
+        button.textContent='保存中 '+(index+1)+' / '+queue.length;
+        const known=findSource(latest,item);if(known){link(item,known);existing++;continue;}
+        const values=structuredClone(item.values);delete values.productId;
+        values._quoteSource={quoteId:sourceKey,itemId:item.id};values.name=values.description||[values.brand,values.model].filter(Boolean).join(' ');
+        const product={id:productIds[item.id],templateName:settings.templates[0]?.name||'',values,category:values.productType||'',brand:values.brand||'',model:values.model||'',condition:values.condition||'',year:values.year||'',workingHours:values.hours||'',specificPrice:values.unitPrice??'',currency:values.currency||quote.currency||'USD',imageDataUrl:item.imageDataUrl||'',recordType:'model'};
+        const mapped=window.BusinessSettings?.mapProduct(product,settings)||product,payload=serverProductFromLegacy(mapped);
+        for(const key of ['transportLength','transportWidth','transportHeight','transportCbm','dimensionUnit','weight','transportMethod'])if(mapped[key]!=null)payload[key]=mapped[key];
+        try{const result=await api('/api/products',{method:'POST',body:JSON.stringify(payload)});link(item,result.product);latest.push(result.product);added++;}
+        catch(error){const refreshed=(await api('/api/products')).products||[],saved=findSource(refreshed,item);if(!saved)throw error;link(item,saved);latest.push(saved);if(saved.id===product.id)added++;else existing++;}
+      }
+      save(keys.products,products);renderProducts();
+      toast('已保存 '+added+' 项商品'+(existing?'，'+existing+' 项已在产品库':'')+(blank?'，空白商品未保存':'')+'。');
+    }catch(error){save(keys.products,products);renderProducts();toast('已保存 '+added+' 项，剩余商品未完成，可重试：'+error.message);}
+    finally{savingQuoteProducts=false;button.textContent='全部保存到产品库';button.disabled=false;if(currentQuote===quote&&activeViewName==='quote'){collectQuoteFromForm();renderQuoteItems();persistWork(true);}}
   }
 
   function deleteProduct(id) {
@@ -6958,6 +6999,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     $("product-picker-list").addEventListener("change",event=>{const input=event.target.closest('[data-pick-product]');if(!input)return;const id=input.dataset.pickProduct;input.checked?productPickerSelection.add(id):productPickerSelection.delete(id);input.closest('.product-pick-card').classList.toggle('is-selected',input.checked);syncProductPickerSelection();});
     $('product-picker-reference').addEventListener('click',referenceSelectedProducts);
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);
+    $("save-all-quote-products-btn").addEventListener("click", saveAllQuoteProducts);
     $("quote-style-select").addEventListener("change", renderPreview);
     $("pdf-language").addEventListener("change", renderPreview);
     $("buyer-country").addEventListener("change", applyBuyerCountryDialCode);
