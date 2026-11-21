@@ -27,6 +27,10 @@ app.whenReady().then(async()=>{
    assert.equal(await run(`JSON.stringify(quoteSettingsContext.settings.companyProfiles)`),globalBefore,'company source records untouched');
    assert(await run(`document.querySelector('#${host}').textContent.includes('QA B COMPANY')`),type+' live company header');
    assert(!await run(`document.querySelector('#${host}').textContent.includes('QA A COMPANY')`),type+' no stale company header');
+   const logos=`#${host} .document-letterhead img,#${host} .agency-letterhead img,#${host} .authorization-logo,#${host} .invitation-header>img`;
+   if(type==='statement')await set('#signing-controls-'+kind+' [data-display-logo]',true);assert(await run(`!!document.querySelector(${JSON.stringify(logos)})`),type+' selected logo appears');
+   await set('#signing-controls-'+kind+' [data-display-logo]',false);assert(!await run(`!!document.querySelector(${JSON.stringify(logos)})`),type+' independent logo control hides only logo');
+   await set('#signing-controls-'+kind+' [data-display-logo]',true);assert(await run(`!!document.querySelector(${JSON.stringify(logos)})`),type+' independent logo control restores original logo');
    await set('#signing-controls-'+kind+' [data-display-signing-mode]','manual');
    assert.equal(await run(`document.querySelector('#signing-controls-${kind} [data-signature-choice]').value`),'none','manual choice stays selected');
    assert(await run(`!!document.querySelector('#${host} [data-manual-signature]')&&!!document.querySelector('#${host} [data-manual-seal]')`),type+' both handwriting spaces retained');

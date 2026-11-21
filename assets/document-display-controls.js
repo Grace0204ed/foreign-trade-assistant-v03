@@ -38,7 +38,7 @@
   if(!output.dataset.compactDisplay)mount(kind,output,root,host);
   if(output.parentElement!==root)root.append(output);for(const n of output.children)n.style.removeProperty('display');
   const content=host.querySelector('[data-display-content]'),receiving=$('editing-receiving-panel');if(kind==='quote'&&receiving){content.append(receiving);receiving.style.removeProperty('display');}
-  const logo=record.editingDetails?.display?.logo??(kind==='agency'&&record.authorizationSchema===2?record.customFields?.showLogo!==false:true);host.querySelector('[data-display-logo]').checked=logo;
+  const logo=record.editingDetails?.display?.logo??(kind==='agency'&&record.authorizationSchema===2?record.customFields?.showLogo!==false:record.documentType!=='statement');host.querySelector('[data-display-logo]').checked=logo;
   if(kind==='agency'&&record.authorizationSchema===2){const original=root.querySelector('[data-form-field=showLogo]');if(original)original.hidden=true;const section=root.querySelector('[data-authorization-group=display]');if(section)section.hidden=![...section.querySelectorAll('label')].some(n=>!n.hidden);}
   const currentMode=mode(record);host.querySelector('[data-display-signing-mode]').value=currentMode;host.querySelector('[data-display-electronic]').hidden=currentMode==='manual';
   const version=host.querySelector('[data-signature-choice]').closest('label');version.hidden=currentMode==='manual'||!host.querySelector('[data-signature-visible]').checked;
@@ -49,7 +49,7 @@
   if(opened===output){if(!root.classList.contains('active'))close(false);else{output.hidden=false;place(output);}}else output.hidden=true;
   apply(kind,record);
  }
- function apply(kind,record){if(record.editingDetails?.display?.logo!==false)return;const preview=$(kind+'-preview');if(!preview)return;preview.querySelectorAll('.preview-company>img,.document-letterhead>img,.agency-letterhead>img,.authorization-logo,.simple-quotation-brand img,.simple-quotation-header>img,.reference-letterhead img').forEach(n=>n.remove());}
+ function apply(kind,record){const preview=$(kind+'-preview');if(!preview)return;const visible=record.editingDetails?.display?.logo;if(visible===true&&record.documentType==='statement'){const head=preview.querySelector('.agency-letterhead'),logo=DocumentWorkflow.safeImage((record.companySnapshot||C().settings).logoDataUrl);if(head&&logo&&!head.querySelector('img')){const image=document.createElement('img');image.src=logo;image.alt='Logo';head.prepend(image);}}if(visible!==false)return;preview.querySelectorAll('.preview-company>img,.document-letterhead>img,.agency-letterhead>img,.invitation-header>img,.authorization-logo,.simple-quotation-brand img,.simple-quotation-header>img,.reference-letterhead img').forEach(n=>n.remove());}
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&opened){e.preventDefault();close();}});window.addEventListener('resize',()=>opened&&place(opened));
  window.DocumentDisplayControls={refresh,open,close,apply};
 })();
