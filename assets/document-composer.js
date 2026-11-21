@@ -64,9 +64,8 @@
    fold($('quote-standard-terms-panel'),type+':terms','layers',false,[term('shipping')?'贸易方式：'+term('shipping'):'',term('payment')?'付款：'+ratio:'',term('deliveryTime')?'交货时间：'+term('deliveryTime'):''].filter(Boolean).join('  |  '));
   }
   const output=$('document-output-options-'+kind);
-  const enabled=n=>n?.checked?'开启':'关闭';
-  fold(output,type+':output','settings',false,[kind==='quote'?'收款信息：'+enabled($('document-show-bank')):'',root.querySelector('[data-signature-visible]')?'签名：'+enabled(root.querySelector('[data-signature-visible]')):'',root.querySelector('[data-seal-visible]')?'公章：'+enabled(root.querySelector('[data-seal-visible]')):''].filter(Boolean).join('  |  '));
-  if(kind==='invitation')output.hidden=Number(record.editorStep||0)!==3;
+  // The shared display settings now open from the page actions, not a form fold.
+  if(output&&!output.dataset.compactDisplay)output.classList.remove('composer-collapsed');
  }
  document.addEventListener('invalid',event=>{const panel=event.target.closest('.composer-fold');if(panel)setOpen(panel,true);},true);
  window.DocumentComposer={bar,activate,refresh,selection,icon,setOpen};

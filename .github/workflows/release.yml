@@ -37,7 +37,7 @@ jobs:
       - name: Verify compact bilingual settings option editors
         run: npm run test:compact-options
       - name: Verify saved document form order and full output regressions
-        run: npm run test:document-forms && npm run test:document-editing && npm run test:composer && npm run test:startup-home && npm run test:output-regression && npm run test:simple-quotation && npm run test:reviewed-iteration && npm run test:trade-reference && npm run test:trade-input && npm run test:quote-products && npm run test:document-company
+        run: npm run test:document-forms && npm run test:document-editing && npm run test:composer && npm run test:startup-home && npm run test:output-regression && npm run test:simple-quotation && npm run test:reviewed-iteration && npm run test:trade-reference && npm run test:trade-input && npm run test:quote-products && npm run test:document-company && npm run test:display-settings
       - name: Verify authorization UI, durable document identities and independent PDF print center
         run: npm run test:authorization-center && npm run test:side-editors
       - name: Verify formal lock, hierarchy, fields, top settings, calculator and commission

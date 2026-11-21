@@ -28,10 +28,10 @@ app.whenReady().then(async()=>{
 
   for(const type of ['quotation','invoice','contract','commercial','packing','invitation','authorization','statement']){
    const kind=await create(type);const colorInput=kind==='quote'?'document-table-color':kind==='invitation'?'invitation-color':'agency-color';await set('#'+colorInput,'#1f7047','input');assert.equal(await run(`document.querySelector('#view-${kind}').style.getPropertyValue('--editing-table-color')`),'#1f7047',type+' editor shares its selected output color');if(kind==='quote')assert.equal(await run(`getComputedStyle(document.querySelector('.editing-sheet thead th')).backgroundColor`),'rgb(31, 112, 71)',type+' actual editing table header reflects the selected color');if(kind==='quote'){await set('#'+colorInput,'#ffee00','input');assert.equal(await run(`getComputedStyle(document.querySelector('.editing-sheet thead th')).color`),'rgb(17, 17, 17)','light header keeps dark readable text');await set('#'+colorInput,'#1f7047','input');}if(type==='invitation')await run(`const d=quoteSettingsContext.editingRecords.invitation;d.editorStep=3;DocumentEditing.invitation(d)`);const output='#document-output-options-'+kind,host='#signing-controls-'+kind,preview='#'+kind+'-preview';
-   if(await run(`document.querySelector('${output}').classList.contains('composer-collapsed')`))await run(`DocumentComposer.setOpen(document.querySelector('${output}'),true)`);
+   await run(`DocumentDisplayControls.open('${kind}')`);
    const location=await run(`(()=>{const host=document.querySelector('${host}'),output=document.querySelector('${output}'),view=document.querySelector('#view-${kind}');return{oneHost:view.querySelectorAll('#signing-controls-${kind}').length,atBottom:!!output&&host.closest('.document-output-options')===output,topDuplicates:view.querySelectorAll('.document-appearance-toolbar [data-signature-choice],[data-tools-view] [data-signature-choice]').length,choices:host.querySelectorAll('[data-signature-choice]').length,signature:host.querySelectorAll('[data-signature-visible]').length,seal:host.querySelectorAll('[data-seal-visible]').length,visible:[...host.querySelectorAll('[data-signature-choice],[data-signature-visible],[data-seal-visible]')].every(n=>n.getBoundingClientRect().height>0)}})()`);
    assert.equal(location.oneHost,1,type+' has one signing editor');
-   assert(location.atBottom&&location.visible,type+' signing controls are in visible bottom output options');
+   assert(location.atBottom&&location.visible,type+' signing controls open in the single display settings panel');
    assert.equal(location.topDuplicates,0,type+' has no repeated signing controls in the top toolbar');
    assert.equal(location.choices,1);assert.equal(location.signature,1);assert.equal(location.seal,1);
    if(kind==='quote'){
@@ -39,7 +39,7 @@ app.whenReady().then(async()=>{
     assert(await run("document.querySelector('#document-show-signature').closest('label').hidden"),'legacy combined signing checkbox stays hidden');
    }
    const inputStyle=await run(`(()=>{const input=document.querySelector('${host} [data-signature-visible]'),seal=document.querySelector('${host} [data-seal-visible]'),label=input.closest('label'),a=getComputedStyle(input),b=getComputedStyle(seal);return{width:parseFloat(a.width),height:parseFloat(a.height),same:a.width===b.width&&a.height===b.height,radius:parseFloat(getComputedStyle(label).borderRadius)}})()`);
-   assert(inputStyle.same&&inputStyle.width>=24&&inputStyle.height<=18&&inputStyle.radius>=6,type+' independent switches share the bottom pill style');
+   assert(inputStyle.same&&inputStyle.width===18&&inputStyle.height===18&&inputStyle.radius===0,type+' independent checkboxes match the approved compact panel '+JSON.stringify(inputStyle));
 
    await set(host+' [data-signature-choice]','en');
    for(const [signature,seal] of [[false,false],[true,false],[false,true],[true,true]]){
@@ -88,6 +88,6 @@ app.whenReady().then(async()=>{
   assert.equal(await run("document.querySelector('.quote-line [data-qfield=qty]').value"),'2');
   assert(await run("document.querySelector('#quote-preview').textContent.includes('客户原有备注 QA')&&document.querySelector('#quote-preview').textContent.includes('QA PI BUYER')"),'original notes and buyer reach preview');
   assert.deepEqual(errors,[]);
-  console.log('PASS eight document types: single bottom signing controls, consistent pill switches, independent signature/seal/version preview, PDF-language independence, applicable bank/photo preview; removed PI auto-fill action, custom payment and unchanged notes/item/buyer fields. Isolated data: '+dir+'; types: '+results.join(','));
+  console.log('PASS eight document types: single compact settings panel, consistent checkboxes, independent signature/seal/version preview, PDF-language independence, applicable bank/photo preview; removed PI auto-fill action, custom payment and unchanged notes/item/buyer fields. Isolated data: '+dir+'; types: '+results.join(','));
  }finally{win.destroy();await new Promise(resolve=>server.close(resolve));app.quit();}
 }).catch(error=>{console.error(error);app.exit(1);});

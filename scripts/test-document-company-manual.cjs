@@ -27,8 +27,7 @@ app.whenReady().then(async()=>{
    assert.equal(await run(`JSON.stringify(quoteSettingsContext.settings.companyProfiles)`),globalBefore,'company source records untouched');
    assert(await run(`document.querySelector('#${host}').textContent.includes('QA B COMPANY')`),type+' live company header');
    assert(!await run(`document.querySelector('#${host}').textContent.includes('QA A COMPANY')`),type+' no stale company header');
-   await set('#signing-controls-'+kind+' [data-signature-choice]','none');
-   await set('#signing-controls-'+kind+' [data-seal-visible]',false);
+   await set('#signing-controls-'+kind+' [data-display-signing-mode]','manual');
    assert.equal(await run(`document.querySelector('#signing-controls-${kind} [data-signature-choice]').value`),'none','manual choice stays selected');
    assert(await run(`!!document.querySelector('#${host} [data-manual-signature]')&&!!document.querySelector('#${host} [data-manual-seal]')`),type+' both handwriting spaces retained');
    assert(!await run(`!!document.querySelector('#${host} .signing-composite img')`),type+' electronic images hidden');
@@ -42,7 +41,7 @@ app.whenReady().then(async()=>{
     await set('#view-quote [data-composer-company]','company-a');
     assert.deepEqual(await fetch(base+'/api/quotations/'+id).then(r=>r.json()),before,'changing editor company does not overwrite saved history');
     await run(`quoteApp.editQuote('${id}')`);await wait(`quoteSettingsContext.editingRecords.quote.companyProfileId==='company-b'`);
-    assert.equal(await run(`document.querySelector('#view-quote [data-composer-company]').value`),'company-b','saved company selection reopens');
+    assert.equal(await run(`document.querySelector('#view-quote [data-composer-company]').value`),'company-b','saved company selection reopens');assert.equal(await run(`quoteSettingsContext.editingRecords.quote.editingDetails.display.signingMode`),'manual','saved explicit manual signing mode reopens');
    }
   }
   await run('window.flushPendingWork()');
