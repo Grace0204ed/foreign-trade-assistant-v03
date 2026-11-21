@@ -35,7 +35,7 @@ app.whenReady().then(async()=>{
    assert.equal(location.topDuplicates,0,type+' has no repeated signing controls in the top toolbar');
    assert.equal(location.choices,1);assert.equal(location.signature,1);assert.equal(location.seal,1);
    if(kind==='quote'){
-    assert(await run(`!!document.querySelector('${output} #quote-photo-appendix')&&!!document.querySelector('${output} #document-show-bank')`),type+' retains existing photo and bank controls in the same bottom section');
+    assert(await run(`!document.querySelector('${output} #quote-photo-appendix')&&!!document.querySelector('${output} #document-show-bank')&&document.querySelectorAll('#quote-show-product-images').length===1`),type+' keeps one main image switch above goods and no detailed image switch in output settings');
     assert(await run("document.querySelector('#document-show-signature').closest('label').hidden"),'legacy combined signing checkbox stays hidden');
    }
    const inputStyle=await run(`(()=>{const input=document.querySelector('${host} [data-signature-visible]'),seal=document.querySelector('${host} [data-seal-visible]'),label=input.closest('label'),a=getComputedStyle(input),b=getComputedStyle(seal);return{width:parseFloat(a.width),height:parseFloat(a.height),same:a.width===b.width&&a.height===b.height,radius:parseFloat(getComputedStyle(label).borderRadius)}})()`);
@@ -74,8 +74,7 @@ app.whenReady().then(async()=>{
   await create('quotation');
   await run(`(async()=>{const data=${JSON.stringify(images.en)},file=new File([await(await fetch(data)).arrayBuffer()],'qa-product.png',{type:'image/png'}),transfer=new DataTransfer();transfer.items.add(file);const input=document.querySelector('.quote-line-image-input');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await wait("!!document.querySelector('#quote-items .quote-action-image-preview:not([hidden]) img')");
-  await set('#quote-photo-appendix',false);assert.equal(await run("document.querySelectorAll('#quote-preview .photo-grid').length"),0);
-  await set('#quote-photo-appendix',true);assert(await run("document.querySelectorAll('#quote-preview .photo-grid img').length>0"),'photo appendix pill changes actual detailed photo preview');
+  await run(`quoteSettingsContext.editingRecords.quote.photoAppendix=true;quoteSettingsContext.editingRefresh()`);assert.equal(await run("document.querySelectorAll('#quote-preview .photo-grid').length"),0,'legacy extra-photo flag cannot create an appendix in editable documents');assert(!await run(`document.querySelector('.quote-line-image-input').multiple`),'one upload per product');await set('#quote-show-product-images',false);assert.equal(await run(`document.querySelectorAll('#quote-preview .preview-product-image img').length`),0);await set('#quote-show-product-images',true);assert.equal(await run(`document.querySelectorAll('#quote-preview .preview-product-image img').length`),1);
 
   await create('invoice');
   assert.equal(await run("document.querySelector('#apply-pi-payment-shipping')"),null,'retired PI auto-fill action is removed');

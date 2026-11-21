@@ -5342,6 +5342,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     currentQuote.quoteDate = $("quote-date").value;
     currentQuote.validUntil = $("valid-until").value;
     currentQuote.showProductPhotos = $("quote-show-product-images")?.checked !== false;
+    // Retain archived attachments, but editable documents use one image per item.
+    if(!currentQuote.isFormal&&!pdfSnapshotMode)currentQuote.photoAppendix=false;
     currentQuote.pdfLanguage = $("pdf-language").value || "bilingual";
     currentQuote.currency = $("quote-currency")?.value || settings.currency || "USD";
     // Legacy documents keep their saved dual-currency snapshot; new documents are single-currency.
@@ -7282,7 +7284,6 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const heading=host.querySelector('table')?.closest('.preview-panel')?.querySelector('h3');
     if(heading && ['packing','commercial'].includes(currentQuote.documentType)) heading.textContent=documentTypeTitle();
     if(currentQuote.relatedOrderNumber){const p=document.createElement('p');p.className='document-related-order';p.textContent=labelText('Related order','关联订单')+': '+currentQuote.relatedOrderNumber;host.querySelector('.preview-meta')?.append(p);}
-    $('quote-photo-appendix').checked=!!currentQuote.photoAppendix;
     const available = Math.max(1, host.parentElement.clientWidth - 20);
     host.style.zoom=String(Math.min(1,available/794));
     host.style.setProperty('--form-preview-zoom',String(Math.min(1,available/794)));
@@ -7368,7 +7369,6 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     $('document-language-editor')?.addEventListener('toggle',()=>{if($('document-language-editor').open)renderDocumentLanguageEditor();});
     $('pdf-language').addEventListener('change',()=>{if($('document-language-editor')?.open)renderDocumentLanguageEditor();});
     $('document-language-rows')?.addEventListener('input',event=>{const input=event.target;if(!input.dataset.documentText)return;currentQuote.translations||={};currentQuote.translations[input.dataset.documentLanguage]||={};currentQuote.translations[input.dataset.documentLanguage][input.dataset.documentText]=input.value;renderPreview();});
-    $('quote-photo-appendix').addEventListener('change',()=>{currentQuote.photoAppendix=$('quote-photo-appendix').checked;renderPreview();});
     for(const name of ['input','change'])$('document-table-color')?.addEventListener(name,event=>{currentQuote.tableHeaderColor=event.target.value;rememberDocumentColor(currentQuote.documentType||'quotation',event.target.value);renderPreview();scheduleDraftRecovery();});
     const setProductType=(patch)=>{currentQuote.documentTypography=DocumentPresentation.typography(currentQuote.documentTypography);Object.assign(currentQuote.documentTypography.product,patch);renderPreview();scheduleDraftRecovery();};
     $('document-product-style')?.addEventListener('change',event=>{const type=event.target.value;setProductType({fontWeight:type==='regular'?400:700,...(type==='bold-black'?{color:'#000000'}:{})});});

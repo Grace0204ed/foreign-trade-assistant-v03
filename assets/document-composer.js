@@ -65,7 +65,7 @@
   }
   const output=$('document-output-options-'+kind);
   const enabled=n=>n?.checked?'开启':'关闭';
-  fold(output,type+':output','settings',false,[kind==='quote'?'图片：'+enabled($('quote-photo-appendix')):'',kind==='quote'?'收款信息：'+enabled($('document-show-bank')):'',root.querySelector('[data-signature-visible]')?'签名：'+enabled(root.querySelector('[data-signature-visible]')):'',root.querySelector('[data-seal-visible]')?'公章：'+enabled(root.querySelector('[data-seal-visible]')):''].filter(Boolean).join('  |  '));
+  fold(output,type+':output','settings',false,[kind==='quote'?'收款信息：'+enabled($('document-show-bank')):'',root.querySelector('[data-signature-visible]')?'签名：'+enabled(root.querySelector('[data-signature-visible]')):'',root.querySelector('[data-seal-visible]')?'公章：'+enabled(root.querySelector('[data-seal-visible]')):''].filter(Boolean).join('  |  '));
   if(kind==='invitation')output.hidden=Number(record.editorStep||0)!==3;
  }
  document.addEventListener('invalid',event=>{const panel=event.target.closest('.composer-fold');if(panel)setOpen(panel,true);},true);
