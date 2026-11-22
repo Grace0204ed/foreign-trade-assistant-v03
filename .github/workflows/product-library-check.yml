@@ -1,0 +1,26 @@
+name: Verify unified product library
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  products:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run rebuild:electron
+      - run: node scripts/run-unified-product-library.cjs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: unified-product-library-failure
+          path: output/unified-library/*.png
+          if-no-files-found: ignore
