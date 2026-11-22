@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   for(const key of ['year','unitPrice','currency'])assert.equal(await run(`document.querySelectorAll('#product-edit-panel [data-product-field="${key}"]').length`),1,key+' single source');
   assert.equal(await run("document.querySelectorAll('#product-year').length"),1);
   await run("document.querySelector('[data-product-field=model]').value='EMPTY-PRICE';document.querySelector('#product-year').value='2017';document.querySelector('#save-product-btn').click()");
-  await wait("document.querySelector('#product-list').textContent.includes('EMPTY-PRICE')");
+await wait(`!!document.querySelector('[data-category-name]')`);await run(`document.querySelector('[data-category-name]').value='测试设备';document.querySelector('[data-category-create]').click()`);  await wait("document.querySelector('#product-list').textContent.includes('EMPTY-PRICE')");
   let record=(await request('/api/products')).products.find(p=>p.model==='EMPTY-PRICE');assert(record);assert.equal(record.year,'2017');assert.equal(record.specificPrice,null);
   await request('/api/products/'+record.id,{values:{privateCustom:'retain'},imagePath:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6Hu0AAAAASUVORK5CYII='},'PUT');
   await win.loadURL(base);await wait("document.querySelectorAll('#overview-metrics article').length===4");

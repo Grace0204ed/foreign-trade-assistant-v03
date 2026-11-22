@@ -13,7 +13,7 @@ app.whenReady().then(async()=>{
   await win.loadURL(base);await wait("document.querySelectorAll('#overview-metrics article').length===4");
   await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click();document.querySelector('[data-product-field=model]').value='DEMO-SPEC';document.querySelector('[data-spec-mode=fields]').click();document.querySelector('[data-spec-value=spec_power]').value='0';document.querySelector('[data-spec-value=spec_weight]').value='2.5'");
   assert.equal(await run("document.querySelector('[data-spec-value=spec_power]').value"),'0');
-  await run("document.querySelector('#save-product-btn').click()");await wait("!document.querySelector('#product-editor-modal').open");
+  await run("document.querySelector('#save-product-btn').click()");await wait(`!!document.querySelector('[data-category-name]')`);await run(`document.querySelector('[data-category-name]').value='测试设备';document.querySelector('[data-category-create]').click()`);await wait("!document.querySelector('#product-editor-modal').open");
   const record=(await products()).find(p=>p.model==='DEMO-SPEC');assert(record);assert(record.values.params.includes('额定功率: 0'));assert.equal(record.values._specification.values.spec_weight,'2.5');
   await win.reload();await wait("document.querySelectorAll('#overview-metrics article').length===4");
   await run(`document.querySelector('[data-view=products]').click();window.quoteApp.editProduct('${record.id}')`);
