@@ -35,12 +35,14 @@
       if(host.classList.contains('document-wide'))minimums[keys.indexOf('description')]=Math.max(150,minimums[keys.indexOf('description')]||0);
       const grouped=table.classList.contains('document-item-group');
       if(grouped){headers.forEach((header,i)=>{const style=getComputedStyle(header);context.font=`${style.fontWeight} ${Math.max(10.5,parseFloat(style.fontSize)||0)}px ${style.fontFamily}`;minimums[i]+=parseFloat(style.paddingLeft)+parseFloat(style.paddingRight)-8;if(keys[i]==='sequence')minimums[i]=Math.max(minimums[i],26);if(keys[i]==='hsCode')minimums[i]=Math.max(minimums[i],context.measureText('84295200').width+12);if(['itemType','billingUnit','currency'].includes(keys[i]))for(const row of table.tBodies[0]?.rows||[]){const cell=row.cells[i],css=getComputedStyle(cell);context.font=`${css.fontWeight} ${Math.max(10.5,parseFloat(css.fontSize)||0)}px ${css.fontFamily}`;const words=cell.textContent.split(/[\s/]+/).filter(Boolean);minimums[i]=Math.max(minimums[i],Math.min(110,Math.max(0,...words.map(w=>context.measureText(w).width))+12));}});}
-      const widths=columnWidths(keys,minimums,table.clientWidth||(grouped?(host.dataset.pageOrientation==='landscape'?1004:684):0));
-      table.querySelectorAll('tr').forEach(row=>[...row.children].forEach((cell,i)=>{
-        if(row.children.length!==headers.length)return;
-        cell.style.setProperty('width',widths[i].toFixed(5)+'%','important');
-        cell.style.setProperty('font-size',Math.max(10.5,parseFloat(cell.style.fontSize)||0)+'px','important');
-      }));
+      if(!table.classList.contains('proforma-lines')){
+        const widths=columnWidths(keys,minimums,table.clientWidth||(grouped?(host.dataset.pageOrientation==='landscape'?1004:684):0));
+        table.querySelectorAll('tr').forEach(row=>[...row.children].forEach((cell,i)=>{
+          if(row.children.length!==headers.length)return;
+          cell.style.setProperty('width',widths[i].toFixed(5)+'%','important');
+          cell.style.setProperty('font-size',Math.max(10.5,parseFloat(cell.style.fontSize)||0)+'px','important');
+        }));
+      }
       headers.forEach(header=>{
         const style=getComputedStyle(header),background=style.backgroundColor;
         const foreground=contrastRatio(style.color,background)>=4.5?style.color:(contrastRatio('#ffffff',background)>contrastRatio('#111111',background)?'#ffffff':'#111111');

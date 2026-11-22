@@ -4541,6 +4541,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       sourceQuoteId: "",
       documentType: docType,
       ...(docType==='quotation'?{quotationPaperVersion:3}:{}),
+      ...(docType==='invoice'?{proformaPaperVersion:2}:{}),
       ...(['commercial','contract'].includes(docType)?{referencePaperVersion:2}:{}),
       tableHeaderColor: preferredDocumentColor(docType),
       quoteStyle: normalizedQuoteStyle(settings.quoteStyle),
@@ -6419,8 +6420,10 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const tableColor=/^#[0-9a-f]{6}$/i.test(currentQuote.tableHeaderColor||'')?currentQuote.tableHeaderColor:'';
     preview.classList.toggle('custom-table-header',!!tableColor);preview.style.setProperty('--document-table-color',tableColor||'inherit');
     if($('document-table-color'))$('document-table-color').value=tableColor||'#285fc1';
+    ProformaPaper.apply(preview,currentQuote,{contactLabel:labelText('Contact','联系人')});
     DocumentPresentation.apply(preview,currentQuote,design);
     DocumentLocales.apply(preview,mode);
+    ProformaPaper.fit(preview);
     const productType=DocumentPresentation.typography(currentQuote.documentTypography).product;
     if($('document-product-style'))$('document-product-style').value=productType.fontWeight>=700?(productType.color==='#000000'?'bold-black':'bold'):'regular';
     if($('document-product-color'))$('document-product-color').value=productType.color;
@@ -6577,6 +6580,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     currentQuote.templateSnapshot = structuredClone({
       schemaVersion: 4,
       ...(currentQuote.documentType==='quotation'?{quotationPaperVersion:currentQuote.quotationPaperVersion||1}:{}),
+      ...(currentQuote.documentType==='invoice'?{proformaPaperVersion:ProformaPaper.version(currentQuote)}:{}),
       ...(['commercial','contract'].includes(currentQuote.documentType)?{referencePaperVersion:TradePaperModel.version(currentQuote)}:{}),
       ...(currentQuote.templateSnapshot?.productTemplate ? {productTemplate:currentQuote.templateSnapshot.productTemplate} : {}),
       documentConfig: {...activeDocumentConfig(),...(currentQuote.documentType==='contract'&&TradePaperModel.version(currentQuote)>=2?{contractClauses:currentQuote.templateSnapshot?.documentConfig?.contractClauses||activeDocumentConfig().contractClauses||TradeContractClauses.defaults()}: {})},
@@ -6674,6 +6678,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       id:q.id, customerId:q.customer_id || null, quoteNumber:q.quote_number || "", status:q.status || "草稿",seriesId:q.series_id||q.id,version:Number(q.version||0),isFormal:!!q.is_formal,sourceQuoteId:q.source_quote_id||"",formalizedAt:q.formalized_at||null,
       ...meta.documentExtras,
       ...((meta.documentType||'quotation')==='quotation'?{quotationPaperVersion:meta.documentExtras?.quotationPaperVersion??meta.documentExtras?.templateSnapshot?.quotationPaperVersion??1}:{}),
+      ...((meta.documentType||'quotation')==='invoice'?{proformaPaperVersion:meta.documentExtras?.proformaPaperVersion??meta.documentExtras?.templateSnapshot?.proformaPaperVersion??1}:{}),
       ...(['commercial','contract'].includes(meta.documentType)?{referencePaperVersion:meta.documentExtras?.referencePaperVersion??meta.documentExtras?.templateSnapshot?.referencePaperVersion??1}:{}),
       templateSnapshot:meta.documentExtras?.templateSnapshot||{documentConfig:storedConfig,productTemplate:storedTemplate},
       documentType:meta.documentType || "quotation", quoteStyle:meta.quoteStyle || q.settingsSnapshot?.quoteStyle || settings.quoteStyle || "classic",
@@ -6724,6 +6729,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     q.updatedAt = nowIso;
     q.savedAt = "";
     if(q.documentType==='quotation')q.quotationPaperVersion=3;
+    if(q.documentType==='invoice')q.proformaPaperVersion=2;
     if(['commercial','contract'].includes(q.documentType))q.referencePaperVersion=2;
     currentQuote = q;
     switchView("quote");
@@ -7240,7 +7246,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   // Document workspace: recovery snapshots never overwrite formal quotation history.
   let draftDatabase, workspaceReady = false;
-  const documentExtraFields = ['companyProfileId','basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass','editingDetails','receivingAccountSnapshot','quotationPaperVersion','referencePaperVersion'];
+  const documentExtraFields = ['companyProfileId','basicFields','templateSnapshot','templateName','packing','photoAppendix','relatedOrderNumber','relatedOrderId','packingSource','translations','outputOptions','shipmentDetails','tableHeaderColor','documentTypography','signatureChoice','signingSnapshot','signingOptions','recordClass','editingDetails','receivingAccountSnapshot','quotationPaperVersion','referencePaperVersion','proformaPaperVersion'];
   let packingSourceBusy = false;
   async function refreshPackingSources() {
     const select=$('packing-source-select');
@@ -8023,6 +8029,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     async saveConfig(config) { if(!isAdmin()) throw new Error("需要管理员权限"); const next={...settings,freightWorkspace:config}; await api("/api/settings",{method:"PUT",body:JSON.stringify(next)}); settings.freightWorkspace=config; save(keys.settings,settings); }
   };
   window.ProductHierarchyWorkspace?.init(window.quoteSettingsContext);
-  init().then(async()=>{startupLoading=false;if(activeViewName==='home')await renderHomeDashboard();resolveStartup();schedulePersistentStateBackup();}).catch(error=>{startupLoading=false;rejectStartup(error);toast('启动未完成，资料已保留：'+error.message);});
+  const bootReady=document.readyState==='loading'?new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true})):Promise.resolve();
+  bootReady.then(()=>init()).then(async()=>{startupLoading=false;if(activeViewName==='home')await renderHomeDashboard();resolveStartup();schedulePersistentStateBackup();}).catch(error=>{startupLoading=false;rejectStartup(error);toast('启动未完成，资料已保留：'+error.message);});
 })();
 
