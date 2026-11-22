@@ -722,6 +722,7 @@
       category: product.category,
       brand: product.brand,
       model: product.model,
+      condition: product.condition || product.values?.condition || "",
       tonnage: product.weight || "",
       weight: product.weight || "",
       year: product.year || product.values?.year || "",
@@ -741,7 +742,7 @@
       transportPlans: product.transportPlans || [],
       params: product.params || "",
       remark: product.remark || "",
-      imageDataUrl: product.imagePath || "",
+      imageDataUrl: ProductCatalog.image(product),
       aliases: product.aliases || "",
       transportCbm: product.transportCbm || "",
       transportMethod: product.transportMethod || "Bulk Cargo",
@@ -781,6 +782,31 @@
       imagePath: product.imagePath || product.imageDataUrl || "",
       status: product.status || "Active"
     };
+  }
+
+  function syncProductLibraryRows(rows) {
+    serverProducts=rows;
+    products=ProductCatalog.merge(rows.map(toLegacyProduct),products,settings.productHierarchy?.deletedProductIds||[]);
+    return rows;
+  }
+  async function refreshProductLibrary(){return syncProductLibraryRows((await api('/api/products')).products||[]);}
+  function acceptProductLibraryResult(result){if(result.productHierarchy){settings.productHierarchy=result.productHierarchy;save(keys.settings,settings);}return result.product;}
+  function productVariantText(product){const value=ProductCatalog.identity(product);return [product.model||product.values?.model||'未填写型号',value.year||'年份未填写',({new:'全新',used:'二手'})[value.condition]||'新旧未填写'].join(' · ');}
+  function productCategoryChoice(plan){return new Promise(resolve=>{const config=settings.productHierarchy||ProductHierarchy.seed([]),parents=config.nodes.filter(n=>!n.parentId&&!n.deletedAt&&n.active!==false),dialog=document.createElement('dialog');dialog.className='library-duplicate-dialog';dialog.innerHTML='<header><h3>是否创建新分类？</h3><button type="button" data-category-cancel aria-label="关闭">×</button></header><div class="library-duplicate-body"><p>还没有对应分类，可以修改建议名称后创建。</p><label>所属类型<select data-category-parent>'+parents.map(n=>'<option value="'+escapeHtml(n.id)+'" '+(n.id===plan.parentId?'selected':'')+'>'+escapeHtml(n.label)+'</option>').join('')+'</select></label><label style="margin-top:14px">新分类名称<input data-category-name maxlength="100" value="'+escapeHtml(plan.name)+'"></label><p data-category-error role="alert" hidden></p></div><footer><button type="button" data-category-cancel>取消保存</button><button type="button" class="primary" data-category-create>创建分类并继续</button></footer>';const finish=result=>{dialog.close();dialog.remove();resolve(result);};dialog.onclick=event=>{if(event.target.closest('[data-category-cancel]'))return finish(null);if(!event.target.closest('[data-category-create]'))return;const name=dialog.querySelector('[data-category-name]').value.trim(),parent=parents.find(p=>p.id===dialog.querySelector('[data-category-parent]').value);if(!name||!parent){const error=dialog.querySelector('[data-category-error]');error.hidden=false;error.textContent='请填写分类名称并选择所属类型。';return;}finish({name,parentId:parent.id,family:parent.label,suggestion:plan.name});};dialog.oncancel=event=>{event.preventDefault();finish(null);};document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-category-name]').focus();dialog.querySelector('[data-category-name]').select();});}
+  function productDuplicateChoice(payload,candidates){
+    return new Promise(resolve=>{const dialog=document.createElement('dialog');dialog.className='library-duplicate-dialog';const meta=p=>escapeHtml(productVariantText(p)),price=p=>p.specificPrice!=null&&p.specificPrice!==''?money(p.specificPrice,p.currency||'USD'):'待询价';
+      dialog.innerHTML='<header><h3>产品库已有同型号商品</h3><button type="button" data-library-duplicate="cancel" aria-label="关闭">×</button></header><div class="library-duplicate-body"><p>请选择替代已有商品、单独保存，或取消本项保存。</p><section class="library-duplicate-current"><strong>本次保存：'+escapeHtml(payload.values?.name||payload.model||'商品')+'</strong><div class="library-duplicate-meta">'+meta(payload)+'<span>'+escapeHtml(price(payload))+'</span></div></section><div class="library-duplicate-choices">'+candidates.map((p,i)=>'<label class="library-duplicate-choice"><input type="radio" name="duplicate-target" value="'+escapeHtml(p.id)+'" '+(!i?'checked':'')+'>'+(ProductCatalog.image(p)?'<img src="'+escapeHtml(ProductCatalog.image(p))+'" alt="已有商品图片">':'<span class="library-duplicate-thumb">暂无图片</span>')+'<div><strong>'+escapeHtml(p.values?.name||p.model||'商品')+'</strong><div class="library-duplicate-meta">'+meta(p)+'</div><div class="library-duplicate-meta">'+escapeHtml(price(p))+'</div></div></label>').join('')+'</div></div><footer><button type="button" data-library-duplicate="cancel">取消保存</button><button type="button" data-library-duplicate="separate">单独保存</button><button type="button" class="primary" data-library-duplicate="replace">替代保存</button></footer>';
+      const previous=document.activeElement,finish=action=>{const id=dialog.querySelector('input:checked')?.value;dialog.close();dialog.remove();if(previous?.isConnected)previous.focus({preventScroll:true});resolve({action,id});};dialog.onclick=event=>{const button=event.target.closest('[data-library-duplicate]');if(button)finish(button.dataset.libraryDuplicate);};dialog.oncancel=event=>{event.preventDefault();finish('cancel');};document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-library-duplicate="cancel"]').focus();
+    });
+  }
+  async function resolveProductLibrarySave(payload,{rows,reuseSource=false}={}){
+    rows||=await refreshProductLibrary();
+    if(reuseSource){const source=ProductCatalog.sources(payload)[0],known=source&&rows.find(p=>ProductCatalog.matchesSource(p,source.quoteId,source.itemId));if(known)return{product:known,reused:true};}
+    let plan=ProductCatalog.categoryPlan(payload,settings.productHierarchy||ProductHierarchy.seed([]));if(!plan.exists){plan=await productCategoryChoice(plan);if(!plan)return null;}
+    payload=ProductCatalog.classified(payload,plan);payload.categoryResolved=true;if(plan.suggestion)payload.values._categorySuggestion=plan.suggestion;
+    const candidates=ProductCatalog.duplicates(payload,rows);
+    if(candidates.length){const choice=await productDuplicateChoice(payload,candidates);if(choice.action==='cancel')return null;if(choice.action==='replace')payload=ProductCatalog.replacement(candidates.find(p=>p.id===choice.id),payload);}
+    return {payload,method:rows.some(p=>p.id===payload.id)?'PUT':'POST'};
   }
 
   function login() {  }
@@ -4181,7 +4207,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
       recordType: $("product-record-type")?.value || "model",
       modelProductId: $("product-model-reference")?.value || "",
       inventoryCode: $("product-inventory-code")?.value || "",
-      condition: $("product-condition")?.value || values.condition || "",
+      condition: $("product-condition")?.value || values.condition || existing.condition || "",
       year: $("product-year")?.value || values.year || "",
       workingHours: $("product-working-hours")?.value || values.hours || "",
       specificPrice: values.unitPrice!==''&&Number.isFinite(Number(values.unitPrice))?Number(values.unitPrice):"",
@@ -4208,18 +4234,16 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const workKey=currentWorkKey("products");
     let product;try{product=collectProductForm();}catch(error){return toast(error.message);}
     if (!Object.values(product.values || {}).some(Boolean)) return toast("请至少填写一个产品字段。");
-    const payload = serverProductFromLegacy(product);
+    let payload = serverProductFromLegacy(product);
     Object.assign(payload, { transportLength:product.transportLength, transportWidth:product.transportWidth, transportHeight:product.transportHeight, transportCbm:product.transportCbm, dimensionUnit:product.dimensionUnit, weight:product.weight, transportMethod:product.transportMethod, imagePath:product.imageDataUrl });
     const source=quoteProductSource;
     savingProduct=true;
     $("save-product-btn").disabled=true;
     try {
+      const decision=await resolveProductLibrarySave(payload,{reuseSource:!!source&&!editingProductId});if(!decision)return;
       if(product.values._classification&&!settings.productHierarchy)await window.quoteSettingsContext.save({productHierarchy:window.ProductHierarchyWorkspace.config()});
-      const existsOnServer = serverProducts.some(p => p.id === product.id);
-      await api(existsOnServer ? `/api/products/${encodeURIComponent(product.id)}` : "/api/products", { method: existsOnServer ? "PUT" : "POST", body: JSON.stringify(payload) });
-      products = products.filter(p => p.id !== product.id);
-      save(keys.products, products);
-      await loadServerData();
+      let saved=decision.product;if(!saved){payload=decision.payload;saved=acceptProductLibraryResult(await api(decision.method==='PUT'?'/api/products/'+encodeURIComponent(payload.id):'/api/products',{method:decision.method,body:JSON.stringify(payload)}));}
+      product.id=saved.id;syncProductLibraryRows(serverProducts.filter(p=>p.id!==saved.id).concat(saved));save(keys.products,products);renderProducts();productPickerStates.delete(productPickerKey());
       await completeWork(workKey);
       if(source&&(currentQuote.editingDetails?.productSourceKey||currentQuote.id)===source.quoteId&&!currentQuote.isFormal){
         collectQuoteFromForm();
@@ -4305,31 +4329,32 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const blank=rows.filter(item=>!item.values.productId&&!String(item.values.description||item.values.model||'').trim()).length;
     if(!ready.length)return toast('没有需要新增到产品库的商品。');
     savingQuoteProducts=true;button.disabled=true;
-    let added=0,existing=rows.filter(item=>item.values.productId).length;
+    let added=0,replaced=0,cancelled=0,existing=rows.filter(item=>item.values.productId).length;
     const sourceKey=(quote.editingDetails||={}).productSourceKey||=quote.id;
     const productIds=quote.editingDetails.libraryProductIds||={};
     const queue=ready.map(item=>{productIds[item.id]||=uid('product');return structuredClone(item);});
     const remember=row=>{serverProducts=serverProducts.filter(p=>p.id!==row.id).concat(row);products=products.filter(p=>p.id!==row.id).concat(toLegacyProduct(row));};
-    const findSource=(list,item)=>list.find(p=>p.values?._quoteSource?.quoteId===sourceKey&&p.values._quoteSource.itemId===item.id);
+    const findSource=(list,item)=>list.find(p=>ProductCatalog.matchesSource(p,sourceKey,item.id));
     const link=(item,row)=>{remember(row);const current=quote.items.find(p=>p.id===item.id);if(current)current.values.productId=row.id;};
     try{
       // Persist stable IDs before any inserts, so a lost response or a restart can
       // retry the remaining rows without inserting the same source twice.
       persistWork(true);await workQueue;if(workCaptureError)throw workCaptureError;
-      const latest=(await api('/api/products')).products||[];
+      const latest=await refreshProductLibrary();
       for(const [index,item] of queue.entries()){
         button.textContent='保存中 '+(index+1)+' / '+queue.length;
         const known=findSource(latest,item);if(known){link(item,known);existing++;continue;}
         const values=structuredClone(item.values);delete values.productId;
         values._quoteSource={quoteId:sourceKey,itemId:item.id};values.name=values.description||[values.brand,values.model].filter(Boolean).join(' ');
         const product={id:productIds[item.id],templateName:settings.templates[0]?.name||'',values,category:values.productType||'',brand:values.brand||'',model:values.model||'',condition:values.condition||'',year:values.year||'',workingHours:values.hours||'',specificPrice:values.unitPrice??'',currency:values.currency||quote.currency||'USD',imageDataUrl:item.imageDataUrl||'',recordType:'model'};
-        const mapped=window.BusinessSettings?.mapProduct(product,settings)||product,payload=serverProductFromLegacy(mapped);
+        const mapped=window.BusinessSettings?.mapProduct(product,settings)||product;let payload=serverProductFromLegacy(mapped);
         for(const key of ['transportLength','transportWidth','transportHeight','transportCbm','dimensionUnit','weight','transportMethod'])if(mapped[key]!=null)payload[key]=mapped[key];
-        try{const result=await api('/api/products',{method:'POST',body:JSON.stringify(payload)});link(item,result.product);latest.push(result.product);added++;}
-        catch(error){const refreshed=(await api('/api/products')).products||[],saved=findSource(refreshed,item);if(!saved)throw error;link(item,saved);latest.push(saved);if(saved.id===product.id)added++;else existing++;}
+        const decision=await resolveProductLibrarySave(payload,{rows:latest,reuseSource:true});if(!decision){cancelled++;continue;}if(decision.reused){link(item,decision.product);existing++;continue;}payload=decision.payload;
+        try{const result=await api(decision.method==='PUT'?'/api/products/'+encodeURIComponent(payload.id):'/api/products',{method:decision.method,body:JSON.stringify(payload)});acceptProductLibraryResult(result);link(item,result.product);const old=latest.findIndex(p=>p.id===result.product.id);if(old>=0)latest[old]=result.product;else latest.push(result.product);decision.method==='PUT'?replaced++:added++;}
+        catch(error){const refreshed=(await api('/api/products')).products||[],saved=findSource(refreshed,item);if(!saved)throw error;link(item,saved);const old=latest.findIndex(p=>p.id===saved.id);if(old>=0)latest[old]=saved;else latest.push(saved);if(decision.method==='PUT')replaced++;else if(saved.id===product.id)added++;else existing++;}
       }
-      save(keys.products,products);renderProducts();
-      toast('已保存 '+added+' 项商品'+(existing?'，'+existing+' 项已在产品库':'')+(blank?'，空白商品未保存':'')+'。');
+      save(keys.products,products);renderProducts();productPickerStates.delete(productPickerKey());
+      toast('已保存 '+added+' 项商品'+(replaced?'，替代 '+replaced+' 项':'')+(existing?'，'+existing+' 项已在产品库':'')+(cancelled?'，取消 '+cancelled+' 项':'')+(blank?'，空白商品未保存':'')+'。');
     }catch(error){save(keys.products,products);renderProducts();toast('已保存 '+added+' 项，剩余商品未完成，可重试：'+error.message);}
     finally{savingQuoteProducts=false;button.textContent='全部保存到产品库';button.disabled=false;if(currentQuote===quote&&activeViewName==='quote'){collectQuoteFromForm();renderQuoteItems();persistWork(true);}}
   }
@@ -5646,7 +5671,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     if(!currentQuote.items?.length)currentQuote.items=[blankQuoteLine()];
     if(!currentQuote.isFormal)for(const item of currentQuote.items){
       if(item.values?.productId)continue;
-      const saved=products.find(product=>product.values?._quoteSource?.quoteId===(currentQuote.editingDetails?.productSourceKey||currentQuote.id)&&product.values._quoteSource.itemId===item.id);
+      const saved=products.find(product=>ProductCatalog.matchesSource(product,currentQuote.editingDetails?.productSourceKey||currentQuote.id,item.id));
       if(saved){item.values||={};item.values.productId=saved.id;}
     }
     currentQuote.items.forEach(item=>{item.values||={};if(currentQuote.documentType==='packing')item.values={...(currentQuote.packing?.[item.id]||{}),...item.values};quoteLineColumns(item).forEach(f=>{if(!Object.hasOwn(item.values,f.key)&&f.defaultValue!=null)item.values[f.key]=structuredClone(f.defaultValue);});});
@@ -5682,6 +5707,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
 
   const productPickerStates=new Map();
   const productPickerSelection=new Set();
+  let productPickerGeneration=0;
+  const deferredProductCategories=new Set();
   const productPickerKey=()=>String(currentQuote.id)+'|'+String(currentQuote.documentType||'quotation');
   function openProductPicker() {
     productPickerSelection.clear();
@@ -5695,6 +5722,8 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     renderProductPicker();
     $("product-picker-modal").hidden = false;
     $("product-picker-search").focus();
+    const generation=++productPickerGeneration,current=()=>generation===productPickerGeneration&&!$('product-picker-modal').hidden;
+    refreshProductLibrary().then(async rows=>{if(!current())return;renderProductPicker();for(const product of rows){if(!current())break;if(!ProductCatalog.sources(product).length||!ProductCatalog.generic(product.category)||deferredProductCategories.has(product.id))continue;let plan=ProductCatalog.categoryPlan(product,settings.productHierarchy||ProductHierarchy.seed([]));if(!plan.exists){plan=await productCategoryChoice(plan);if(!plan){deferredProductCategories.add(product.id);continue;}}if(!current())break;const payload=ProductCatalog.classified(product,plan);payload.categoryResolved=true;if(plan.suggestion)payload.values._categorySuggestion=plan.suggestion;const result=await api('/api/products/'+encodeURIComponent(product.id),{method:'PUT',body:JSON.stringify(payload)});acceptProductLibraryResult(result);syncProductLibraryRows(serverProducts.filter(p=>p.id!==product.id).concat(result.product));save(keys.products,products);if(current())renderProductPicker();}}).catch(error=>toast('产品库刷新失败，当前资料仍保留：'+error.message));
   }
 
   function renderPickerHierarchy(ids=[]){
@@ -5705,6 +5734,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
   }
 
   function closeProductPicker() {
+    productPickerGeneration++;
     $("product-picker-modal").hidden = true;
   }
 
@@ -5716,10 +5746,11 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     const list=products.filter(product=>(!hierarchy.some(Boolean)||hierarchy.every((id,i)=>!id||ProductHierarchy.resolve(ProductHierarchyWorkspace.config(),product)[i]===id))&&(!category||product.category===category)&&(!brand||(product.brand||product.values?.brand)===brand)&&(!keyword||normalize(searchable(product)).includes(keyword))).sort((a,b)=>String(a.model||a.values?.model||productDisplayName(a)).localeCompare(String(b.model||b.values?.model||productDisplayName(b)),'zh-CN',{numeric:true,sensitivity:'base'}));
     $("product-picker-list").innerHTML = list.map((product) => `
       <label class="product-pick-card${productPickerSelection.has(product.id)?' is-selected':''}" data-product-id="${escapeHtml(product.id)}"><input type="checkbox" data-pick-product="${escapeHtml(product.id)}" ${productPickerSelection.has(product.id)?'checked':''}>
-        ${product.imageDataUrl ? `<img src="${product.imageDataUrl}" alt="">` : `<div class="thumb-empty">No Image</div>`}
+        ${ProductCatalog.image(product) ? `<img src="${escapeHtml(ProductCatalog.image(product))}" alt="商品图片">` : `<div class="thumb-empty">暂无图片</div>`}
         <div>
           <h4>${escapeHtml(productDisplayName(product))}</h4>
-          <p>${escapeHtml(product.category || "")}</p>
+          <p>${escapeHtml(productVariantText(product))}</p>
+          <p>${escapeHtml(product.category || "分类待确认")}</p>
           <p>${escapeHtml(productSummary(product))}</p>
           <p>${product.specificPrice!=null&&product.specificPrice!==""?`具体价格：${money(product.specificPrice,product.currency||"USD")}`:"具体价格：待询价"}${product.referencePrice?` · 参考价：${money(product.referencePrice,settings.currency)}`:""}</p>
           <small>${escapeHtml(product.remark || "")}</small>
@@ -5864,7 +5895,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     currentQuote.items.push({
       id: uid("item"),
       kind: "product",
-      imageDataUrl: p.imageDataUrl || "",
+      imageDataUrl: ProductCatalog.image(p),
       values: {
         ...values,
         itemType:defaults.itemType,
@@ -6995,7 +7026,7 @@ const metrics=[['本月报价',monthlyQuotes.length+' 份',moneySummary(monthlyQ
     });
     $("open-product-picker-btn").addEventListener("click", openProductPicker);
     $("close-product-picker-btn").addEventListener("click", closeProductPicker);
-    $("product-picker-search").addEventListener("input", renderProductPicker);
+    $("product-picker-search").addEventListener("input",()=>{if($('product-picker-search').value.trim()){for(const id of ['product-picker-category','product-picker-brand'])if($(id))$(id).value='';for(const select of document.querySelectorAll('[data-picker-hierarchy]'))select.value='';}renderProductPicker();});
     $("product-picker-list").addEventListener("change",event=>{const input=event.target.closest('[data-pick-product]');if(!input)return;const id=input.dataset.pickProduct;input.checked?productPickerSelection.add(id):productPickerSelection.delete(id);input.closest('.product-pick-card').classList.toggle('is-selected',input.checked);syncProductPickerSelection();});
     $('product-picker-reference').addEventListener('click',referenceSelectedProducts);
     $("add-quote-item-btn").addEventListener("click", addQuoteItemByType);

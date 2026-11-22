@@ -3,6 +3,7 @@ const path = require("path");
 const express = require("express");
 const OptionCatalog = require('../assets/option-catalog');
 const ProductHierarchy = require('../assets/product-hierarchy');
+const ProductCatalog = require('../assets/product-catalog');
 
 
 const { db, id, now, normalize, dbPath } = require("./db");
@@ -310,6 +311,20 @@ app.get("/api/products", requireLogin, (req, res) => {
   ok(res, { products: rows.map(rowToProduct) });
 });
 
+function classifySavedProduct(productId){
+  const row=db.prepare('SELECT * FROM products WHERE id=?').get(productId);if(!row)return null;
+  const product=rowToProduct(row),settings=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json),plan=ProductCatalog.categoryPlan(product,settings.productHierarchy||ProductHierarchy.seed([]));
+  if(ProductCatalog.generic(product.category)&&!plan.exists)return settings.productHierarchy;
+  const classified=ProductCatalog.classified(product,plan),prior=settings.productHierarchy||ProductHierarchy.seed([]),next=structuredClone(prior),oldPath=ProductHierarchy.resolve(prior,product),labels=oldPath.map(id=>prior.nodes.find(n=>n.id===id)?.label);
+  if(!ProductCatalog.generic(product.category))classified.category=product.category;
+  if(!ProductCatalog.generic(product.values?.productType))classified.values.productType=product.values.productType;
+  if(labels[0]!==plan.family||labels[1]!==plan.name){delete next.legacyBindings?.[product.id];delete classified.values._classification;}
+  const hierarchy=ProductHierarchy.reconcile(next,[classified]),ids=ProductHierarchy.resolve(hierarchy,classified),selection=ids.length===3?ProductHierarchy.selection(hierarchy,ids):null;
+  if(selection)classified.values._classification=selection;
+  if(selection&&product.values?._categorySuggestion){const node=hierarchy.nodes.find(n=>n.id===selection.subtypeId);node.aliases=[...new Set([...(Array.isArray(node.aliases)?node.aliases:[]),String(product.values._categorySuggestion)])];delete classified.values._categorySuggestion;}
+  db.transaction(()=>{db.prepare('UPDATE products SET category=?,values_json=? WHERE id=?').run(classified.category,JSON.stringify(classified.values),productId);if(JSON.stringify(hierarchy)!==JSON.stringify(settings.productHierarchy)){settings.productHierarchy=hierarchy;db.prepare('UPDATE company_settings SET data_json=?,updated_at=? WHERE id=1').run(JSON.stringify(settings),now());}})();return hierarchy;
+}
+
 app.post("/api/products", requireLogin, (req, res) => {
   const p = req.body || {};
   const hierarchy=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json).productHierarchy;
@@ -351,7 +366,8 @@ app.post("/api/products", requireLogin, (req, res) => {
     VALUES (@id, @category, @brand, @model, @aliases, @condition, @transportLength, @transportWidth, @transportHeight, @transportCbm, @dimensionUnit, @weight, @transportMethod, @referencePrice, @recordType, @modelProductId, @inventoryCode, @year, @workingHours, @specificPrice, @currency, @priceStatus, @transportDataStatus, @transportPlansJson, @rawImportText, @params, @remark, @imagePath, @status, @searchText, @createdAt, @updatedAt)`)
     .run({ id: productId, ...payload, transportPlansJson:JSON.stringify(payload.transportPlans), searchText: productSearchText(payload), createdAt: now(), updatedAt: now() });
   db.prepare("UPDATE products SET template_name=?,values_json=? WHERE id=?").run(String(p.templateName||''),JSON.stringify(p.values&&typeof p.values==='object'&&!Array.isArray(p.values)?p.values:{}),productId);
-  ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(productId)), message: "Saved successfully.", zh: "保存成功。" });
+  const productHierarchy=p.categoryResolved?classifySavedProduct(productId):undefined;
+  ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(productId)), productHierarchy, message: "Saved successfully.", zh: "保存成功。" });
 });
 
 app.post("/api/products/bulk-upsert", requireLogin, (req, res) => {
@@ -470,7 +486,8 @@ app.put("/api/products/:id", requireLogin, (req, res) => {
     remark=@remark, image_path=@imagePath, status=@status, search_text=@searchText, updated_at=@updatedAt WHERE id=@id`)
     .run({ id: req.params.id, ...payload, transportPlansJson:JSON.stringify(payload.transportPlans), searchText: productSearchText(payload), updatedAt: now() });
   db.prepare("UPDATE products SET template_name=?,values_json=? WHERE id=?").run(String(p.templateName??existing.template_name??''),JSON.stringify({...JSON.parse(existing.values_json||'{}'),...(p.values&&typeof p.values==='object'&&!Array.isArray(p.values)?p.values:{})}),req.params.id);
-  ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(req.params.id)), message: "Saved successfully.", zh: "保存成功。" });
+  const productHierarchy=p.categoryResolved?classifySavedProduct(req.params.id):undefined;
+  ok(res, { product: rowToProduct(db.prepare("SELECT * FROM products WHERE id = ?").get(req.params.id)), productHierarchy, message: "Saved successfully.", zh: "保存成功。" });
 });
 
 app.patch("/api/products/:id/cbm", requireLogin, (req, res) => {
@@ -782,18 +799,13 @@ app.post('/api/products/classification-delete',requireLogin,requireAdmin,async(r
 app.post('/api/products/reconcile-hierarchy',requireLogin,requireAdmin,(req,res)=>{
   try{
     const settings=JSON.parse(db.prepare('SELECT data_json FROM company_settings WHERE id=1').get().data_json);
-    const products=db.prepare('SELECT id,category,brand,model,values_json FROM products').all().map(p=>({...p,values:JSON.parse(p.values_json||'{}')}));
-    const next=ProductHierarchy.reconcile(settings.productHierarchy,products);
-    const changed=JSON.stringify(next)!==JSON.stringify(settings.productHierarchy);
-    let backupPath='';
-    if(changed){
-      ensureDir(backupDir);backupPath=path.join(backupDir,'classification-before-'+Date.now()+'.json');
-      fs.writeFileSync(backupPath,JSON.stringify({createdAt:now(),productHierarchy:settings.productHierarchy||null,products}),{flag:'wx'});
-      settings.productHierarchy=next;
-      db.prepare('UPDATE company_settings SET data_json=?,updated_at=? WHERE id=1').run(JSON.stringify(settings),now());
-    }
-    const unresolved=products.filter(p=>ProductHierarchy.resolve(next,p).length!==3).map(p=>p.id);
-    ok(res,{settings,changed,backupPath,count:products.length,unresolved});
+    const products=db.prepare('SELECT id,category,brand,model,values_json FROM products').all().map(p=>({...p,values:JSON.parse(p.values_json||'{}')})),prior=settings.productHierarchy||ProductHierarchy.seed([]),base=structuredClone(prior),repairs=[];
+    const prepared=products.map(p=>{if(!ProductCatalog.generic(p.category)||!ProductCatalog.generic(p.values?.productType))return p;const plan=ProductCatalog.categoryPlan(p,prior);if(!plan.exists)return p;const next=ProductCatalog.classified(p,plan);delete next.values._classification;delete base.legacyBindings?.[p.id];repairs.push(next);return next;});
+    const next=ProductHierarchy.reconcile(base,prepared);
+    for(const p of repairs){const ids=ProductHierarchy.resolve(next,p);if(ids.length===3)p.values._classification=ProductHierarchy.selection(next,ids);}
+    const changed=repairs.length>0||JSON.stringify(next)!==JSON.stringify(settings.productHierarchy);let backupPath='';
+    if(changed){ensureDir(backupDir);backupPath=path.join(backupDir,'classification-before-'+Date.now()+'.json');fs.writeFileSync(backupPath,JSON.stringify({createdAt:now(),productHierarchy:settings.productHierarchy||null,products}),{flag:'wx'});settings.productHierarchy=next;db.transaction(()=>{for(const p of repairs)db.prepare('UPDATE products SET category=?,values_json=? WHERE id=?').run(p.category,JSON.stringify(p.values),p.id);db.prepare('UPDATE company_settings SET data_json=?,updated_at=? WHERE id=1').run(JSON.stringify(settings),now());})();}
+    const unresolved=prepared.filter(p=>ProductHierarchy.resolve(next,p).length!==3).map(p=>p.id);ok(res,{settings,changed,backupPath,count:products.length,repaired:repairs.length,unresolved});
   }catch(error){fail(res,500,'Classification migration failed.',error.message);}
 });
 

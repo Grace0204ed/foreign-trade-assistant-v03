@@ -17,6 +17,8 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click()");
   assert(await run("document.querySelector('#product-editor-modal').matches(':modal')"),'create is a real modal');
   await run("document.querySelector('[data-product-field=model]').value='MODAL-TEST';document.querySelector('#product-year').value='2017';document.querySelector('#save-product-btn').click()");
+  await wait("!!document.querySelector('[data-category-name]')");
+  await run("document.querySelector('[data-category-name]').value='测试设备';document.querySelector('[data-category-create]').click()");
   await wait("!document.querySelector('#product-editor-modal').open");
   let record=(await products()).find(p=>p.model==='MODAL-TEST');assert(record);assert.equal(record.year,'2017');
   await run(`window.quoteApp.editProduct('${record.id}')`);

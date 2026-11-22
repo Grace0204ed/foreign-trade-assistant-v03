@@ -13,6 +13,8 @@ app.whenReady().then(async()=>{
  try{
   await win.loadURL(base);await wait("!!document.querySelector('#pdf-language option[value=en]')");
   await run("document.querySelector('[data-view=products]').click();document.querySelector('#library-new-product').click();document.querySelector('[data-product-field=name]').value='QA Machine';document.querySelector('[data-product-field=model]').value='CREATED';document.querySelector('#save-product-btn').click()");
+  await wait("!!document.querySelector('[data-category-name]')");
+  await run("document.querySelector('[data-category-name]').value='测试设备';document.querySelector('[data-category-create]').click()");
   await wait("!!document.querySelector('[data-library-row]')");
   let all=await records(),created=all.find(p=>p.model==='CREATED');assert(created,'UI create persisted');
   await reload();await run(`window.quoteApp.editProduct('${created.id}');document.querySelector('[data-product-field=model]').value='EDITED';document.querySelector('#save-product-btn').click()`);
